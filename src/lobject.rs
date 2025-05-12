@@ -11,14 +11,15 @@
 #![allow(unused_parens)]
 #![allow(path_statements)]
 
+use crate::api_incr_top;
 use crate::lctype::luai_ctype_;
-use crate::lstate::{GCUnion, global_State, lua_CFunction, lua_State};
+use crate::lstate::{GCUnion, lua_CFunction, lua_State};
 use crate::lstring::luaS_newlstr;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{
     F2Ieq, luaV_concat, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns,
 };
-use libc::{abort, localeconv, memcpy, snprintf, strchr, strcpy, strlen, strpbrk, strspn, strtod};
+use libc::{localeconv, memcpy, snprintf, strchr, strcpy, strlen, strpbrk, strspn, strtod};
 use libm::{floor, pow};
 
 #[derive(Copy, Clone)]
@@ -270,25 +271,6 @@ pub struct BuffFS {
     pub pushed: libc::c_int,
     pub blen: libc::c_int,
     pub space: [libc::c_char; 199],
-}
-
-#[inline]
-unsafe extern "C" fn api_incr_top(mut L: *mut lua_State) {
-    (*L).top.p = ((*L).top.p).offset(1);
-    (*L).top.p;
-    if (*L).top.p > (*(*L).ci).top.p {
-        let mut g: *mut global_State = (*L).l_G;
-        if ((*g).panic).is_some() {
-            let fresh0 = (*L).top.p;
-            (*L).top.p = ((*L).top.p).offset(1);
-            let mut io: *mut TValue = &mut (*fresh0).val;
-            let mut x_: *mut TString = (*g).stackoverflow;
-            (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
-            (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
-            ((*g).panic).expect("non-null function pointer")(L);
-        }
-        abort();
-    }
 }
 
 #[unsafe(no_mangle)]

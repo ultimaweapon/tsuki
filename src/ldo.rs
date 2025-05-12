@@ -11,6 +11,7 @@
 #![allow(unused_variables)]
 #![allow(path_statements)]
 
+use crate::api_incr_top;
 use crate::lapi::lua_pushlstring;
 use crate::ldebug::{luaG_callerror, luaG_runerror};
 use crate::lfunc::{luaF_close, luaF_initupvals};
@@ -19,15 +20,15 @@ use crate::lmem::{luaM_free_, luaM_realloc_, luaM_saferealloc_};
 use crate::lobject::{LClosure, Proto, StackValue, StkId, TString, TValue, UpVal};
 use crate::lparser::{C2RustUnnamed_9, Dyndata, Labeldesc, Labellist, Vardesc, luaY_parser};
 use crate::lstate::{
-    CallInfo, GCUnion, global_State, lua_CFunction, lua_Debug, lua_Hook, lua_KContext,
-    lua_KFunction, lua_State, luaE_checkcstack, luaE_extendCI, luaE_resetthread, luaE_shrinkCI,
+    CallInfo, GCUnion, lua_CFunction, lua_Debug, lua_Hook, lua_KContext, lua_KFunction, lua_State,
+    luaE_checkcstack, luaE_extendCI, luaE_shrinkCI,
 };
 use crate::lstring::{luaS_new, luaS_newlstr};
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lundump::luaU_undump;
 use crate::lvm::{luaV_execute, luaV_finishOp};
 use crate::lzio::{Mbuffer, ZIO, luaZ_fill};
-use libc::{abort, strchr};
+use libc::strchr;
 use std::ffi::CStr;
 
 pub type Pfunc = Option<unsafe extern "C" fn(*mut lua_State, *mut libc::c_void) -> ()>;
@@ -55,25 +56,6 @@ pub struct SParser {
 pub struct CloseP {
     pub level: StkId,
     pub status: libc::c_int,
-}
-
-#[inline]
-unsafe extern "C" fn api_incr_top(mut L: *mut lua_State) {
-    (*L).top.p = ((*L).top.p).offset(1);
-    (*L).top.p;
-    if (*L).top.p > (*(*L).ci).top.p {
-        let mut g: *mut global_State = (*L).l_G;
-        if ((*g).panic).is_some() {
-            let fresh0 = (*L).top.p;
-            (*L).top.p = ((*L).top.p).offset(1);
-            let mut io: *mut TValue = &mut (*fresh0).val;
-            let mut x_: *mut TString = (*g).stackoverflow;
-            (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
-            (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
-            ((*g).panic).expect("non-null function pointer")(L);
-        }
-        abort();
-    }
 }
 
 #[unsafe(no_mangle)]
@@ -120,26 +102,9 @@ pub unsafe extern "C" fn luaD_seterrorobj(
 pub unsafe extern "C" fn luaD_throw(mut L: *mut lua_State, mut errcode: libc::c_int) -> ! {
     if !((*L).errorJmp).is_null() {
         ::core::ptr::write_volatile(&mut (*(*L).errorJmp).status as *mut libc::c_int, errcode);
-        todo!()
-    } else {
-        let mut g: *mut global_State = (*L).l_G;
-        errcode = luaE_resetthread(L, errcode);
-        if !((*(*g).mainthread).errorJmp).is_null() {
-            let fresh1 = (*(*g).mainthread).top.p;
-            (*(*g).mainthread).top.p = ((*(*g).mainthread).top.p).offset(1);
-            let mut io1: *mut TValue = &mut (*fresh1).val;
-            let mut io2: *const TValue =
-                &mut (*((*L).top.p).offset(-(1 as libc::c_int as isize))).val;
-            (*io1).value_ = (*io2).value_;
-            (*io1).tt_ = (*io2).tt_;
-            luaD_throw((*g).mainthread, errcode);
-        } else {
-            if ((*g).panic).is_some() {
-                ((*g).panic).expect("non-null function pointer")(L);
-            }
-            abort();
-        }
-    };
+    }
+
+    todo!()
 }
 
 #[unsafe(no_mangle)]

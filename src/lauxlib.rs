@@ -12,14 +12,14 @@
 #![allow(path_statements)]
 
 use crate::lapi::{
-    lua_absindex, lua_atpanic, lua_callk, lua_checkstack, lua_closeslot, lua_concat, lua_copy,
-    lua_createtable, lua_error, lua_getallocf, lua_getfield, lua_getmetatable, lua_gettop,
-    lua_isinteger, lua_isnumber, lua_isstring, lua_len, lua_load, lua_newuserdatauv, lua_next,
-    lua_pushboolean, lua_pushcclosure, lua_pushinteger, lua_pushlightuserdata, lua_pushlstring,
-    lua_pushnil, lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawget, lua_rawgeti, lua_rawlen,
-    lua_rawseti, lua_rotate, lua_setfield, lua_setglobal, lua_setmetatable, lua_settop,
-    lua_setwarnf, lua_toboolean, lua_toclose, lua_tointegerx, lua_tolstring, lua_tonumberx,
-    lua_topointer, lua_touserdata, lua_type, lua_typename, lua_version,
+    lua_absindex, lua_callk, lua_checkstack, lua_closeslot, lua_concat, lua_copy, lua_createtable,
+    lua_error, lua_getallocf, lua_getfield, lua_getmetatable, lua_gettop, lua_isinteger,
+    lua_isnumber, lua_isstring, lua_len, lua_load, lua_newuserdatauv, lua_next, lua_pushboolean,
+    lua_pushcclosure, lua_pushinteger, lua_pushlightuserdata, lua_pushlstring, lua_pushnil,
+    lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawget, lua_rawgeti, lua_rawlen, lua_rawseti,
+    lua_rotate, lua_setfield, lua_setglobal, lua_setmetatable, lua_settop, lua_setwarnf,
+    lua_toboolean, lua_toclose, lua_tointegerx, lua_tolstring, lua_tonumberx, lua_topointer,
+    lua_touserdata, lua_type, lua_typename, lua_version,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::{
@@ -1236,19 +1236,6 @@ unsafe extern "C" fn l_alloc(
     };
 }
 
-unsafe extern "C" fn panic(mut L: *mut lua_State) -> libc::c_int {
-    let mut msg: *const libc::c_char = if lua_type(L, -(1 as libc::c_int)) == 4 as libc::c_int {
-        lua_tolstring(L, -(1 as libc::c_int), 0 as *mut usize)
-    } else {
-        b"error object is not a string\0" as *const u8 as *const libc::c_char
-    };
-
-    panic!(
-        "unprotected error in call to Lua API ({})",
-        CStr::from_ptr(msg).to_string_lossy()
-    );
-}
-
 unsafe extern "C" fn checkcontrol(
     mut L: *mut lua_State,
     mut message: *const libc::c_char,
@@ -1370,10 +1357,6 @@ pub unsafe extern "C" fn luaL_newstate() -> *mut lua_State {
     );
 
     if (L != 0 as *mut lua_State) as libc::c_int as libc::c_long != 0 {
-        lua_atpanic(
-            L,
-            Some(panic as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
-        );
         lua_setwarnf(
             L,
             Some(
@@ -1387,6 +1370,7 @@ pub unsafe extern "C" fn luaL_newstate() -> *mut lua_State {
             L as *mut libc::c_void,
         );
     }
+
     return L;
 }
 

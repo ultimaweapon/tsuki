@@ -11,6 +11,7 @@
 #![allow(unused_variables)]
 #![allow(path_statements)]
 
+use crate::api_incr_top;
 use crate::lapi::lua_pushlstring;
 use crate::ldo::{luaD_callnoyield, luaD_hook, luaD_hookcall, luaD_throw};
 use crate::lfunc::luaF_getlocalname;
@@ -19,42 +20,25 @@ use crate::lobject::{
     Closure, GCObject, LClosure, Proto, StkId, TString, TValue, Table, Value, luaO_chunkid,
 };
 use crate::lopcodes::{OpCode, luaP_opmodes};
-use crate::lstate::{CallInfo, GCUnion, global_State, lua_Debug, lua_Hook, lua_State};
+use crate::lstate::{CallInfo, GCUnion, lua_Debug, lua_Hook, lua_State};
 use crate::ltable::{luaH_new, luaH_setint};
 use crate::ltm::{
     TM_BNOT, TM_CLOSE, TM_CONCAT, TM_EQ, TM_INDEX, TM_LE, TM_LEN, TM_LT, TM_NEWINDEX, TM_UNM, TMS,
     luaT_objtypename,
 };
 use crate::lvm::{F2Ieq, luaV_tointegerns};
-use libc::{abort, strchr, strcmp};
+use libc::{strchr, strcmp};
 use std::borrow::Cow;
 use std::ffi::CStr;
 use std::fmt::Display;
 
-#[inline]
-unsafe extern "C" fn api_incr_top(mut L: *mut lua_State) {
-    (*L).top.p = ((*L).top.p).offset(1);
-    (*L).top.p;
-    if (*L).top.p > (*(*L).ci).top.p {
-        let mut g: *mut global_State = (*L).l_G;
-        if ((*g).panic).is_some() {
-            let fresh0 = (*L).top.p;
-            (*L).top.p = ((*L).top.p).offset(1);
-            let mut io: *mut TValue = &mut (*fresh0).val;
-            let mut x_: *mut TString = (*g).stackoverflow;
-            (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
-            (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
-            ((*g).panic).expect("non-null function pointer")(L);
-        }
-        abort();
-    }
-}
 unsafe extern "C" fn currentpc(mut ci: *mut CallInfo) -> libc::c_int {
     return ((*ci).u.l.savedpc)
         .offset_from((*(*((*(*ci).func.p).val.value_.gc as *mut GCUnion)).cl.l.p).code)
         as libc::c_long as libc::c_int
         - 1 as libc::c_int;
 }
+
 unsafe extern "C" fn getbaseline(
     mut f: *const Proto,
     mut pc: libc::c_int,
@@ -80,6 +64,7 @@ unsafe extern "C" fn getbaseline(
         return (*((*f).abslineinfo).offset(i as isize)).line;
     };
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaG_getfuncline(mut f: *const Proto, mut pc: libc::c_int) -> libc::c_int {
     if ((*f).lineinfo).is_null() {
@@ -98,12 +83,14 @@ pub unsafe extern "C" fn luaG_getfuncline(mut f: *const Proto, mut pc: libc::c_i
         return baseline;
     };
 }
+
 unsafe extern "C" fn getcurrentline(mut ci: *mut CallInfo) -> libc::c_int {
     return luaG_getfuncline(
         (*((*(*ci).func.p).val.value_.gc as *mut GCUnion)).cl.l.p,
         currentpc(ci),
     );
 }
+
 unsafe extern "C" fn settraps(mut ci: *mut CallInfo) {
     while !ci.is_null() {
         if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
@@ -112,6 +99,7 @@ unsafe extern "C" fn settraps(mut ci: *mut CallInfo) {
         ci = (*ci).previous;
     }
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lua_sethook(
     mut L: *mut lua_State,
@@ -134,18 +122,22 @@ pub unsafe extern "C" fn lua_sethook(
         settraps((*L).ci);
     }
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lua_gethook(mut L: *mut lua_State) -> lua_Hook {
     return (*L).hook;
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lua_gethookmask(mut L: *mut lua_State) -> libc::c_int {
     return (*L).hookmask;
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lua_gethookcount(mut L: *mut lua_State) -> libc::c_int {
     return (*L).basehookcount;
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lua_getstack(
     mut L: *mut lua_State,
@@ -171,6 +163,7 @@ pub unsafe extern "C" fn lua_getstack(
     }
     return status;
 }
+
 unsafe extern "C" fn upvalname(mut p: *const Proto, mut uv: libc::c_int) -> *const libc::c_char {
     let mut s: *mut TString = (*((*p).upvalues).offset(uv as isize)).name;
     if s.is_null() {
@@ -179,6 +172,7 @@ unsafe extern "C" fn upvalname(mut p: *const Proto, mut uv: libc::c_int) -> *con
         return ((*s).contents).as_mut_ptr();
     };
 }
+
 unsafe extern "C" fn findvararg(
     mut ci: *mut CallInfo,
     mut n: libc::c_int,
@@ -195,6 +189,7 @@ unsafe extern "C" fn findvararg(
     }
     return 0 as *const libc::c_char;
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaG_findlocal(
     mut L: *mut lua_State,
@@ -237,6 +232,7 @@ pub unsafe extern "C" fn luaG_findlocal(
     }
     return name;
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lua_getlocal(
     mut L: *mut lua_State,
@@ -277,6 +273,7 @@ pub unsafe extern "C" fn lua_getlocal(
     }
     return name;
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lua_setlocal(
     mut L: *mut lua_State,

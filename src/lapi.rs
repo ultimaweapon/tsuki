@@ -12,7 +12,6 @@
 #![allow(unused_variables)]
 #![allow(unused_parens)]
 
-use crate::GcCommand;
 use crate::ldebug::luaG_errormsg;
 use crate::ldo::{
     luaD_call, luaD_callnoyield, luaD_growstack, luaD_pcall, luaD_protectedparser, luaD_throw,
@@ -41,32 +40,13 @@ use crate::lvm::{
     luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
 };
 use crate::lzio::{ZIO, Zio, luaZ_init};
-use libc::abort;
+use crate::{GcCommand, api_incr_top};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CallS {
     pub func: StkId,
     pub nresults: libc::c_int,
-}
-
-#[inline]
-unsafe extern "C" fn api_incr_top(mut L: *mut lua_State) {
-    (*L).top.p = ((*L).top.p).offset(1);
-    (*L).top.p;
-    if (*L).top.p > (*(*L).ci).top.p {
-        let mut g: *mut global_State = (*L).l_G;
-        if ((*g).panic).is_some() {
-            let fresh0 = (*L).top.p;
-            (*L).top.p = ((*L).top.p).offset(1);
-            let mut io: *mut TValue = &mut (*fresh0).val;
-            let mut x_: *mut TString = (*g).stackoverflow;
-            (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
-            (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
-            ((*g).panic).expect("non-null function pointer")(L);
-        }
-        abort();
-    }
 }
 
 #[unsafe(no_mangle)]
@@ -163,17 +143,6 @@ pub unsafe extern "C" fn lua_xmove(
         i += 1;
         i;
     }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_atpanic(
-    mut L: *mut lua_State,
-    mut panicf: lua_CFunction,
-) -> lua_CFunction {
-    let mut old: lua_CFunction = None;
-    old = (*(*L).l_G).panic;
-    (*(*L).l_G).panic = panicf;
-    return old;
 }
 
 #[unsafe(no_mangle)]

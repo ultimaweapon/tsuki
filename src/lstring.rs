@@ -29,6 +29,7 @@ pub unsafe extern "C" fn luaS_eqlngstr(mut a: *mut TString, mut b: *mut TString)
                 len as _,
             ) == 0 as libc::c_int) as libc::c_int;
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaS_hash(
     mut str: *const libc::c_char,
@@ -48,6 +49,7 @@ pub unsafe extern "C" fn luaS_hash(
     }
     return h;
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaS_hashlongstr(mut ts: *mut TString) -> libc::c_uint {
     if (*ts).extra as libc::c_int == 0 as libc::c_int {
@@ -57,6 +59,7 @@ pub unsafe extern "C" fn luaS_hashlongstr(mut ts: *mut TString) -> libc::c_uint 
     }
     return (*ts).hash;
 }
+
 unsafe extern "C" fn tablerehash(
     mut vect: *mut *mut TString,
     mut osize: libc::c_int,
@@ -88,6 +91,7 @@ unsafe extern "C" fn tablerehash(
         i;
     }
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaS_resize(mut L: *mut lua_State, mut nsize: libc::c_int) {
     let mut tb: *mut stringtable = &mut (*(*L).l_G).strt;
@@ -117,6 +121,7 @@ pub unsafe extern "C" fn luaS_resize(mut L: *mut lua_State, mut nsize: libc::c_i
         }
     };
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaS_clearcache(mut g: *mut global_State) {
     let mut i: libc::c_int = 0;
@@ -138,6 +143,7 @@ pub unsafe extern "C" fn luaS_clearcache(mut g: *mut global_State) {
         i;
     }
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaS_init(mut L: *mut lua_State) {
     let mut g: *mut global_State = (*L).l_G;
@@ -159,14 +165,7 @@ pub unsafe extern "C" fn luaS_init(mut L: *mut lua_State) {
             .wrapping_sub(1),
     );
     luaC_fix(L, &mut (*((*g).memerrmsg as *mut GCUnion)).gc);
-    (*g).stackoverflow = luaS_newlstr(
-        L,
-        b"stack overflow\0" as *const u8 as *const libc::c_char,
-        ::core::mem::size_of::<[libc::c_char; 15]>()
-            .wrapping_div(::core::mem::size_of::<libc::c_char>())
-            .wrapping_sub(1),
-    );
-    luaC_fix(L, &mut (*((*g).stackoverflow as *mut GCUnion)).gc);
+
     i = 0 as libc::c_int;
     while i < 53 as libc::c_int {
         j = 0 as libc::c_int;
@@ -179,6 +178,7 @@ pub unsafe extern "C" fn luaS_init(mut L: *mut lua_State) {
         i;
     }
 }
+
 unsafe extern "C" fn createstrobj(
     mut L: *mut lua_State,
     mut l: usize,
