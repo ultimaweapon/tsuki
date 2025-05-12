@@ -1,4 +1,8 @@
 pub use self::gc::*;
+pub use self::lapi::*;
+pub use self::lauxlib::*;
+pub use self::lbaselib::luaopen_base;
+pub use self::lstate::lua_close;
 
 mod gc;
 mod lapi;
