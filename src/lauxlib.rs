@@ -542,34 +542,31 @@ pub unsafe fn luaL_checkudata(
     return p;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaL_checkoption(
+pub unsafe extern "C" fn luaL_checkoption<'a>(
     mut L: *mut lua_State,
     mut arg: libc::c_int,
     mut def: *const libc::c_char,
-    mut lst: *const *const libc::c_char,
+    lst: impl IntoIterator<Item = &'a str>,
 ) -> libc::c_int {
-    let mut name: *const libc::c_char = if !def.is_null() {
+    let name: *const libc::c_char = if !def.is_null() {
         luaL_optlstring(L, arg, def, 0 as *mut usize)
     } else {
         luaL_checklstring(L, arg, 0 as *mut usize)
     };
-    let mut i: libc::c_int = 0;
-    i = 0 as libc::c_int;
-    while !(*lst.offset(i as isize)).is_null() {
-        if strcmp(*lst.offset(i as isize), name) == 0 as libc::c_int {
-            return i;
-        }
-        i += 1;
-        i;
+
+    let name = CStr::from_ptr(name);
+
+    if let Some(i) = lst
+        .into_iter()
+        .position(|v| v.as_bytes() == name.to_bytes())
+    {
+        return i.try_into().unwrap();
     }
+
     return luaL_argerror(
         L,
         arg,
-        format_args!(
-            "invalid option '{}'",
-            CStr::from_ptr(name).to_string_lossy()
-        ),
+        format_args!("invalid option '{}'", name.to_string_lossy()),
     );
 }
 

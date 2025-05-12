@@ -1,5 +1,9 @@
+pub use self::gc::*;
+
+mod gc;
 mod lapi;
 mod lauxlib;
+mod lbaselib;
 mod lcode;
 mod lctype;
 mod ldebug;
