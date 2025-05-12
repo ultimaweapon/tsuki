@@ -19,7 +19,7 @@ use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{
     F2Ieq, luaV_concat, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns,
 };
-use libc::{localeconv, memcpy, snprintf, strchr, strcpy, strlen, strpbrk, strspn, strtod};
+use libc::{memcpy, snprintf, strchr, strpbrk, strspn, strtod};
 use libm::{floor, pow};
 
 #[derive(Copy, Clone)]
@@ -776,7 +776,7 @@ unsafe extern "C" fn isneg(mut s: *mut *const libc::c_char) -> libc::c_int {
     return 0 as libc::c_int;
 }
 
-unsafe extern "C" fn l_str2dloc(
+unsafe fn l_str2dloc(
     mut s: *const libc::c_char,
     mut result: *mut f64,
     mut mode: libc::c_int,
@@ -809,32 +809,18 @@ unsafe extern "C" fn l_str2d(
     mut s: *const libc::c_char,
     mut result: *mut f64,
 ) -> *const libc::c_char {
-    let mut endptr: *const libc::c_char = 0 as *const libc::c_char;
     let mut pmode: *const libc::c_char = strpbrk(s, b".xXnN\0" as *const u8 as *const libc::c_char);
     let mut mode: libc::c_int = if !pmode.is_null() {
         *pmode as libc::c_uchar as libc::c_int | 'A' as i32 ^ 'a' as i32
     } else {
         0 as libc::c_int
     };
+
     if mode == 'n' as i32 {
         return 0 as *const libc::c_char;
     }
-    endptr = l_str2dloc(s, result, mode);
-    if endptr.is_null() {
-        let mut buff: [libc::c_char; 201] = [0; 201];
-        let mut pdot: *const libc::c_char = strchr(s, '.' as i32);
-        if pdot.is_null() || strlen(s) > 200 {
-            return 0 as *const libc::c_char;
-        }
-        strcpy(buff.as_mut_ptr(), s);
-        buff[pdot.offset_from(s) as libc::c_long as usize] =
-            *((*localeconv()).decimal_point).offset(0 as libc::c_int as isize);
-        endptr = l_str2dloc(buff.as_mut_ptr(), result, mode);
-        if !endptr.is_null() {
-            endptr = s.offset(endptr.offset_from(buff.as_mut_ptr()) as libc::c_long as isize);
-        }
-    }
-    return endptr;
+
+    l_str2dloc(s, result, mode)
 }
 
 unsafe extern "C" fn l_str2int(
@@ -990,8 +976,7 @@ unsafe extern "C" fn tostringbuff(
         {
             let fresh2 = len;
             len = len + 1;
-            *buff.offset(fresh2 as isize) =
-                *((*localeconv()).decimal_point).offset(0 as libc::c_int as isize);
+            *buff.offset(fresh2 as isize) = b'.' as _;
             let fresh3 = len;
             len = len + 1;
             *buff.offset(fresh3 as isize) = '0' as i32 as libc::c_char;
