@@ -26,6 +26,7 @@ mod lopcodes;
 mod lparser;
 mod lstate;
 mod lstring;
+mod lstrlib;
 mod ltable;
 mod ltm;
 mod lundump;
