@@ -19,7 +19,7 @@ use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{
     F2Ieq, luaV_concat, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns,
 };
-use libc::{memcpy, snprintf, strchr, strpbrk, strspn, strtod};
+use libc::{memcpy, sprintf, strchr, strpbrk, strspn, strtod};
 use libm::{floor, pow};
 
 #[derive(Copy, Clone)]
@@ -957,16 +957,14 @@ unsafe extern "C" fn tostringbuff(
 ) -> libc::c_int {
     let mut len: libc::c_int = 0;
     if (*obj).tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
-        len = snprintf(
+        len = sprintf(
             buff,
-            44,
             b"%lld\0" as *const u8 as *const libc::c_char,
             (*obj).value_.i,
         );
     } else {
-        len = snprintf(
+        len = sprintf(
             buff,
-            44,
             b"%.14g\0" as *const u8 as *const libc::c_char,
             (*obj).value_.n,
         );
