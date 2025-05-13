@@ -1,5 +1,7 @@
 use std::ptr::null;
-use tsuki::{lua_close, lua_pcallk, luaL_loadbufferx, luaL_newstate, luaL_requiref, luaopen_base};
+use tsuki::{
+    lua_close, lua_pcallk, lua_pop, luaL_loadbufferx, luaL_newstate, luaL_requiref, luaopen_base,
+};
 
 #[test]
 fn basic_print() {
@@ -18,7 +20,8 @@ fn run(cat: &str, file: &str) {
     let content = std::fs::read(path).unwrap();
     let lua = unsafe { luaL_newstate() };
 
-    unsafe { luaL_requiref(lua, c"_G".as_ptr(), Some(luaopen_base), 1) };
+    unsafe { luaL_requiref(lua, c"_G".as_ptr(), Some(luaopen_base), 0) };
+    unsafe { lua_pop(lua, 1) };
 
     // Load.
     let status = unsafe {
