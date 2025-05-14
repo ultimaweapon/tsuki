@@ -41,6 +41,7 @@ use crate::lvm::{
 };
 use crate::lzio::Zio;
 use crate::{GcCommand, api_incr_top};
+use std::ffi::{c_int, c_void};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -1655,32 +1656,29 @@ pub unsafe fn lua_load(
     return status;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_dump(
+pub unsafe fn lua_dump(
     mut L: *mut lua_State,
     mut writer: lua_Writer,
-    mut data: *mut libc::c_void,
-    mut strip: libc::c_int,
-) -> libc::c_int {
-    let mut status: libc::c_int = 0;
-    let mut o: *mut TValue = 0 as *mut TValue;
-    o = &mut (*((*L).top.p).offset(-(1 as libc::c_int as isize))).val;
+    mut data: *mut c_void,
+    strip: c_int,
+) -> c_int {
+    let o = &raw mut (*((*L).top.p).offset(-1)).val;
+
     if (*o).tt_ as libc::c_int
         == 6 as libc::c_int
             | (0 as libc::c_int) << 4 as libc::c_int
             | (1 as libc::c_int) << 6 as libc::c_int
     {
-        status = luaU_dump(
+        luaU_dump(
             L,
             (*((*o).value_.gc as *mut GCUnion)).cl.l.p,
             writer,
             data,
             strip,
-        );
+        )
     } else {
-        status = 1 as libc::c_int;
+        1
     }
-    return status;
 }
 
 #[unsafe(no_mangle)]

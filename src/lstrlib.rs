@@ -375,7 +375,7 @@ unsafe extern "C" fn str_char(mut L: *mut lua_State) -> libc::c_int {
     return 1 as libc::c_int;
 }
 
-unsafe extern "C" fn writer(
+unsafe fn writer(
     mut L: *mut lua_State,
     mut b: *const libc::c_void,
     mut size: usize,
@@ -405,17 +405,10 @@ unsafe extern "C" fn str_dump(mut L: *mut lua_State) -> libc::c_int {
     luaL_checktype(L, 1 as libc::c_int, 6 as libc::c_int);
     lua_settop(L, 1 as libc::c_int);
     state.init = 0 as libc::c_int;
+
     if ((lua_dump(
         L,
-        Some(
-            writer
-                as unsafe extern "C" fn(
-                    *mut lua_State,
-                    *const libc::c_void,
-                    usize,
-                    *mut libc::c_void,
-                ) -> libc::c_int,
-        ),
+        writer,
         &mut state as *mut str_Writer as *mut libc::c_void,
         strip,
     ) != 0 as libc::c_int) as libc::c_int
@@ -424,6 +417,7 @@ unsafe extern "C" fn str_dump(mut L: *mut lua_State) -> libc::c_int {
     {
         return luaL_error(L, "unable to dump given function");
     }
+
     luaL_pushresult(&mut state.B);
     return 1 as libc::c_int;
 }

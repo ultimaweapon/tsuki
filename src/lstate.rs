@@ -28,18 +28,11 @@ use crate::lstring::{luaS_hash, luaS_init};
 use crate::ltable::{luaH_new, luaH_resize};
 use crate::ltm::luaT_init;
 use libc::{memcpy, time, time_t};
-use std::ffi::{c_char, c_void};
+use std::ffi::{c_char, c_int, c_void};
 
 pub type lua_Hook = Option<unsafe extern "C" fn(*mut lua_State, *mut lua_Debug) -> ()>;
 pub type lua_Reader = unsafe fn(*mut c_void, *mut usize) -> *const c_char;
-pub type lua_Writer = Option<
-    unsafe extern "C" fn(
-        *mut lua_State,
-        *const libc::c_void,
-        usize,
-        *mut libc::c_void,
-    ) -> libc::c_int,
->;
+pub type lua_Writer = unsafe fn(*mut lua_State, *const c_void, usize, *mut c_void) -> c_int;
 
 #[derive(Copy, Clone)]
 #[repr(C)]

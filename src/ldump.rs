@@ -12,21 +12,21 @@
 
 use crate::lobject::{Proto, TString, TValue};
 use crate::lstate::{GCUnion, lua_State, lua_Writer};
+use std::ffi::{c_int, c_void};
+use std::ptr::null_mut;
 
-#[derive(Copy, Clone)]
 #[repr(C)]
-pub struct DumpState {
-    pub L: *mut lua_State,
-    pub writer: lua_Writer,
-    pub data: *mut libc::c_void,
-    pub strip: libc::c_int,
-    pub status: libc::c_int,
+struct DumpState {
+    L: *mut lua_State,
+    writer: lua_Writer,
+    data: *mut c_void,
+    strip: c_int,
+    status: c_int,
 }
 
-unsafe extern "C" fn dumpBlock(mut D: *mut DumpState, mut b: *const libc::c_void, mut size: usize) {
-    if (*D).status == 0 as libc::c_int && size > 0 as libc::c_int as usize {
-        (*D).status = (Some(((*D).writer).expect("non-null function pointer")))
-            .expect("non-null function pointer")((*D).L, b, size, (*D).data);
+unsafe fn dumpBlock(D: *mut DumpState, b: *const c_void, size: usize) {
+    if (*D).status == 0 && size > 0 {
+        (*D).status = ((*D).writer)((*D).L, b, size, (*D).data);
     }
 }
 
@@ -294,28 +294,24 @@ unsafe extern "C" fn dumpHeader(mut D: *mut DumpState) {
     dumpNumber(D, 370.5f64);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaU_dump(
-    mut L: *mut lua_State,
-    mut f: *const Proto,
-    mut w: lua_Writer,
-    mut data: *mut libc::c_void,
-    mut strip: libc::c_int,
-) -> libc::c_int {
-    let mut D: DumpState = DumpState {
-        L: 0 as *mut lua_State,
-        writer: None,
-        data: 0 as *mut libc::c_void,
-        strip: 0,
+pub unsafe fn luaU_dump(
+    L: *mut lua_State,
+    f: *const Proto,
+    writer: lua_Writer,
+    data: *mut c_void,
+    strip: c_int,
+) -> c_int {
+    let mut D = DumpState {
+        L,
+        writer,
+        data,
+        strip,
         status: 0,
     };
-    D.L = L;
-    D.writer = w;
-    D.data = data;
-    D.strip = strip;
-    D.status = 0 as libc::c_int;
+
     dumpHeader(&mut D);
     dumpByte(&mut D, (*f).sizeupvalues);
-    dumpFunction(&mut D, f, 0 as *mut TString);
+    dumpFunction(&mut D, f, null_mut());
+
     return D.status;
 }
