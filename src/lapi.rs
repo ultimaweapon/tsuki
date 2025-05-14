@@ -39,7 +39,7 @@ use crate::lvm::{
     F2Ieq, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_lessequal,
     luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
 };
-use crate::lzio::{ZIO, Zio, luaZ_init};
+use crate::lzio::Zio;
 use crate::{GcCommand, api_incr_top};
 
 #[derive(Copy, Clone)]
@@ -1593,26 +1593,20 @@ pub unsafe extern "C" fn lua_pcallk(
     return status;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_load(
+pub unsafe fn lua_load(
     mut L: *mut lua_State,
     mut reader: lua_Reader,
     mut data: *mut libc::c_void,
     mut chunkname: *const libc::c_char,
     mut mode: *const libc::c_char,
 ) -> libc::c_int {
-    let mut z: ZIO = Zio {
-        n: 0,
-        p: 0 as *const libc::c_char,
-        reader: None,
-        data: 0 as *mut libc::c_void,
-        L: 0 as *mut lua_State,
-    };
+    let mut z = Zio::new(L, reader, data);
     let mut status: libc::c_int = 0;
+
     if chunkname.is_null() {
         chunkname = b"?\0" as *const u8 as *const libc::c_char;
     }
-    luaZ_init(L, &mut z, reader, data);
+
     status = luaD_protectedparser(L, &mut z, chunkname, mode);
     if status == 0 as libc::c_int {
         let mut f: *mut LClosure = &mut (*((*((*L).top.p).offset(-(1 as libc::c_int as isize)))

@@ -11,7 +11,6 @@
 #![allow(unused_variables)]
 #![allow(path_statements)]
 
-use crate::GcCommand;
 use crate::lapi::{
     lua_callk, lua_concat, lua_copy, lua_error, lua_gc, lua_geti, lua_getmetatable, lua_gettop,
     lua_isstring, lua_load, lua_next, lua_pcallk, lua_pushboolean, lua_pushcclosure,
@@ -26,10 +25,11 @@ use crate::lauxlib::{
     luaL_optinteger, luaL_optlstring, luaL_setfuncs, luaL_tolstring, luaL_typeerror, luaL_where,
 };
 use crate::lstate::{lua_KContext, lua_State};
+use crate::{GcCommand, luaL_loadfilex};
 use libc::{isalnum, isdigit, strspn, toupper};
 use std::ffi::{c_char, c_int};
 
-unsafe extern "C" fn luaB_print(mut L: *mut lua_State) -> libc::c_int {
+unsafe extern "C" fn luaB_print(mut L: *mut lua_State) -> c_int {
     let mut n: libc::c_int = lua_gettop(L);
     let mut i: libc::c_int = 0;
     i = 1 as libc::c_int;
@@ -75,7 +75,7 @@ unsafe extern "C" fn luaB_warn(mut L: *mut lua_State) -> libc::c_int {
 }
 
 unsafe extern "C" fn b_str2int(
-    mut s: *const libc::c_char,
+    mut s: *const c_char,
     mut base: libc::c_int,
     mut pn: *mut i64,
 ) -> *const libc::c_char {
@@ -471,10 +471,6 @@ unsafe extern "C" fn load_aux(
     };
 }
 
-unsafe fn luaL_loadfilex(L: *mut lua_State, filename: *const c_char, mode: *const c_char) -> c_int {
-    todo!()
-}
-
 unsafe extern "C" fn luaB_loadfile(mut L: *mut lua_State) -> libc::c_int {
     let mut fname: *const libc::c_char = luaL_optlstring(
         L,
@@ -497,7 +493,7 @@ unsafe extern "C" fn luaB_loadfile(mut L: *mut lua_State) -> libc::c_int {
     return load_aux(L, status, env);
 }
 
-unsafe extern "C" fn generic_reader(
+unsafe fn generic_reader(
     mut L: *mut lua_State,
     mut ud: *mut libc::c_void,
     mut size: *mut usize,
@@ -556,23 +552,13 @@ unsafe extern "C" fn luaB_load(mut L: *mut lua_State) -> libc::c_int {
             b"=(load)\0" as *const u8 as *const libc::c_char,
             0 as *mut usize,
         );
+
         luaL_checktype(L, 1 as libc::c_int, 6 as libc::c_int);
         lua_settop(L, 5 as libc::c_int);
-        status = lua_load(
-            L,
-            Some(
-                generic_reader
-                    as unsafe extern "C" fn(
-                        *mut lua_State,
-                        *mut libc::c_void,
-                        *mut usize,
-                    ) -> *const libc::c_char,
-            ),
-            0 as *mut libc::c_void,
-            chunkname_0,
-            mode,
-        );
+
+        status = lua_load(L, generic_reader, 0 as *mut libc::c_void, chunkname_0, mode);
     }
+
     return load_aux(L, status, env);
 }
 

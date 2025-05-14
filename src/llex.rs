@@ -27,7 +27,7 @@ use crate::lstring::luaS_newlstr;
 use crate::ltable::{luaH_finishset, luaH_getstr};
 use crate::lzio::{Mbuffer, ZIO, luaZ_fill};
 use std::borrow::Cow;
-use std::ffi::CStr;
+use std::ffi::{CStr, c_int};
 use std::fmt::Display;
 
 pub type RESERVED = libc::c_uint;
@@ -84,12 +84,10 @@ pub struct Token {
     pub seminfo: SemInfo,
 }
 
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct LexState {
-    pub current: libc::c_int,
-    pub linenumber: libc::c_int,
-    pub lastline: libc::c_int,
+    pub current: c_int,
+    pub linenumber: c_int,
+    pub lastline: c_int,
     pub t: Token,
     pub lookahead: Token,
     pub fs: *mut FuncState,
@@ -303,8 +301,8 @@ unsafe extern "C" fn inclinenumber(mut ls: *mut LexState) {
         lexerror(ls, "chunk has too many lines", 0 as libc::c_int);
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaX_setinput(
+
+pub unsafe fn luaX_setinput(
     mut L: *mut lua_State,
     mut ls: *mut LexState,
     mut z: *mut ZIO,

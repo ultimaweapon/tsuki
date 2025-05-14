@@ -29,7 +29,7 @@ use crate::lundump::luaU_undump;
 use crate::lvm::{luaV_execute, luaV_finishOp};
 use crate::lzio::{Mbuffer, ZIO, luaZ_fill};
 use libc::strchr;
-use std::ffi::CStr;
+use std::ffi::{CStr, c_int};
 
 pub type Pfunc = Option<unsafe extern "C" fn(*mut lua_State, *mut libc::c_void) -> ()>;
 
@@ -37,18 +37,18 @@ pub type Pfunc = Option<unsafe extern "C" fn(*mut lua_State, *mut libc::c_void) 
 #[repr(C)]
 pub struct lua_longjmp {
     pub previous: *mut lua_longjmp,
-    pub b: libc::c_int,
-    pub status: libc::c_int,
+    pub b: c_int,
+    pub status: c_int,
 }
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct SParser {
-    pub z: *mut ZIO,
-    pub buff: Mbuffer,
-    pub dyd: Dyndata,
-    pub mode: *const libc::c_char,
-    pub name: *const libc::c_char,
+struct SParser {
+    z: *mut ZIO,
+    buff: Mbuffer,
+    dyd: Dyndata,
+    mode: *const libc::c_char,
+    name: *const libc::c_char,
 }
 
 #[derive(Copy, Clone)]
@@ -1167,18 +1167,19 @@ unsafe extern "C" fn checkmode(
     }
 }
 
-unsafe extern "C" fn f_parser(mut L: *mut lua_State, mut ud: *mut libc::c_void) {
+unsafe extern "C" fn f_parser(mut L: *mut lua_State, ud: *mut libc::c_void) {
     let mut cl: *mut LClosure = 0 as *mut LClosure;
-    let mut p: *mut SParser = ud as *mut SParser;
-    let fresh3 = (*(*p).z).n;
-    (*(*p).z).n = ((*(*p).z).n).wrapping_sub(1);
+    let p = &mut *(ud as *mut SParser);
+    let fresh3 = (*p.z).n;
+    (*p.z).n = ((*p.z).n).wrapping_sub(1);
     let mut c: libc::c_int = if fresh3 > 0 as libc::c_int as usize {
-        let fresh4 = (*(*p).z).p;
-        (*(*p).z).p = ((*(*p).z).p).offset(1);
+        let fresh4 = (*p.z).p;
+        (*p.z).p = ((*p.z).p).offset(1);
         *fresh4 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*p).z)
+        luaZ_fill(p.z)
     };
+
     if c == (*::core::mem::transmute::<&[u8; 5], &[libc::c_char; 5]>(b"\x1BLua\0"))
         [0 as libc::c_int as usize] as libc::c_int
     {
@@ -1192,17 +1193,17 @@ unsafe extern "C" fn f_parser(mut L: *mut lua_State, mut ud: *mut libc::c_void) 
         checkmode(L, (*p).mode, b"text\0" as *const u8 as *const libc::c_char);
         cl = luaY_parser(L, (*p).z, &mut (*p).buff, &mut (*p).dyd, (*p).name, c);
     }
+
     luaF_initupvals(L, cl);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaD_protectedparser(
+pub unsafe fn luaD_protectedparser(
     mut L: *mut lua_State,
     mut z: *mut ZIO,
     mut name: *const libc::c_char,
     mut mode: *const libc::c_char,
 ) -> libc::c_int {
-    let mut p: SParser = SParser {
+    let mut p = SParser {
         z: 0 as *mut ZIO,
         buff: Mbuffer {
             buffer: 0 as *mut libc::c_char,
@@ -1229,8 +1230,7 @@ pub unsafe extern "C" fn luaD_protectedparser(
         mode: 0 as *const libc::c_char,
         name: 0 as *const libc::c_char,
     };
-    let mut status: libc::c_int = 0;
-    (*L).nCcalls = ((*L).nCcalls).wrapping_add(0x10000 as libc::c_int as u32);
+
     p.z = z;
     p.name = name;
     p.mode = mode;
@@ -1242,13 +1242,18 @@ pub unsafe extern "C" fn luaD_protectedparser(
     p.dyd.label.size = 0 as libc::c_int;
     p.buff.buffer = 0 as *mut libc::c_char;
     p.buff.buffsize = 0 as libc::c_int as usize;
-    status = luaD_pcall(
+
+    (*L).nCcalls = ((*L).nCcalls).wrapping_add(0x10000 as libc::c_int as u32);
+
+    // Parse.
+    let status = luaD_pcall(
         L,
         Some(f_parser as unsafe extern "C" fn(*mut lua_State, *mut libc::c_void) -> ()),
         &mut p as *mut SParser as *mut libc::c_void,
         ((*L).top.p as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char),
         (*L).errfunc,
     );
+
     p.buff.buffer = luaM_saferealloc_(
         L,
         p.buff.buffer as *mut libc::c_void,

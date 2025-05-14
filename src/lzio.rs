@@ -11,6 +11,8 @@
 
 use crate::lstate::{lua_Reader, lua_State};
 use libc::memcpy;
+use std::ffi::{c_char, c_void};
+use std::ptr::null;
 
 pub type ZIO = Zio;
 
@@ -18,10 +20,22 @@ pub type ZIO = Zio;
 #[repr(C)]
 pub struct Zio {
     pub n: usize,
-    pub p: *const libc::c_char,
+    pub p: *const c_char,
     pub reader: lua_Reader,
-    pub data: *mut libc::c_void,
+    pub data: *mut c_void,
     pub L: *mut lua_State,
+}
+
+impl Zio {
+    pub unsafe fn new(L: *mut lua_State, reader: lua_Reader, data: *mut c_void) -> Self {
+        Self {
+            n: 0,
+            p: null(),
+            reader,
+            data,
+            L,
+        }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -37,7 +51,7 @@ pub unsafe extern "C" fn luaZ_fill(mut z: *mut ZIO) -> libc::c_int {
     let mut size: usize = 0;
     let mut L: *mut lua_State = (*z).L;
     let mut buff: *const libc::c_char = 0 as *const libc::c_char;
-    buff = ((*z).reader).expect("non-null function pointer")(L, (*z).data, &mut size);
+    buff = ((*z).reader)(L, (*z).data, &mut size);
     if buff.is_null() || size == 0 as libc::c_int as usize {
         return -(1 as libc::c_int);
     }
@@ -47,19 +61,7 @@ pub unsafe extern "C" fn luaZ_fill(mut z: *mut ZIO) -> libc::c_int {
     (*z).p = ((*z).p).offset(1);
     return *fresh0 as libc::c_uchar as libc::c_int;
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaZ_init(
-    mut L: *mut lua_State,
-    mut z: *mut ZIO,
-    mut reader: lua_Reader,
-    mut data: *mut libc::c_void,
-) {
-    (*z).L = L;
-    (*z).reader = reader;
-    (*z).data = data;
-    (*z).n = 0 as libc::c_int as usize;
-    (*z).p = 0 as *const libc::c_char;
-}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaZ_read(
     mut z: *mut ZIO,

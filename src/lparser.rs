@@ -2766,8 +2766,7 @@ unsafe extern "C" fn mainfunc(mut ls: *mut LexState, mut fs: *mut FuncState) {
     close_func(ls);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaY_parser(
+pub unsafe fn luaY_parser(
     mut L: *mut lua_State,
     mut z: *mut ZIO,
     mut buff: *mut Mbuffer,

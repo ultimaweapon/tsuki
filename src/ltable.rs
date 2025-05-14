@@ -22,6 +22,7 @@ use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::ltm::TM_EQ;
 use crate::lvm::{F2Ieq, luaV_flttointeger};
 use libm::frexp;
+use std::ffi::c_int;
 
 static mut dummynode_: Node = Node {
     u: {
@@ -179,35 +180,31 @@ unsafe extern "C" fn mainpositionfromnode(mut t: *const Table, mut nd: *mut Node
     (*io_).tt_ = (*n_).u.key_tt;
     return mainpositionTV(t, &mut key);
 }
-unsafe extern "C" fn equalkey(
-    mut k1: *const TValue,
-    mut n2: *const Node,
-    mut deadok: libc::c_int,
-) -> libc::c_int {
-    if (*k1).tt_ as libc::c_int != (*n2).u.key_tt as libc::c_int
+
+unsafe fn equalkey(mut k1: *const TValue, mut n2: *const Node, mut deadok: libc::c_int) -> c_int {
+    if (*k1).tt_ != (*n2).u.key_tt
         && !(deadok != 0
             && (*n2).u.key_tt as libc::c_int == 9 as libc::c_int + 2 as libc::c_int
             && (*k1).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0)
     {
         return 0 as libc::c_int;
     }
-    match (*n2).u.key_tt as libc::c_int {
-        0 | 1 | 17 => return 1 as libc::c_int,
-        3 => return ((*k1).value_.i == (*n2).u.key_val.i) as libc::c_int,
-        19 => return ((*k1).value_.n == (*n2).u.key_val.n) as libc::c_int,
-        2 => return ((*k1).value_.p == (*n2).u.key_val.p) as libc::c_int,
-        22 => return ((*k1).value_.f == (*n2).u.key_val.f) as libc::c_int,
-        84 => {
-            return luaS_eqlngstr(
-                &mut (*((*k1).value_.gc as *mut GCUnion)).ts,
-                &mut (*((*n2).u.key_val.gc as *mut GCUnion)).ts,
-            );
-        }
-        _ => return ((*k1).value_.gc == (*n2).u.key_val.gc) as libc::c_int,
-    };
+
+    match (*n2).u.key_tt {
+        0 | 1 | 17 => 1,
+        3 => ((*k1).value_.i == (*n2).u.key_val.i) as libc::c_int,
+        19 => ((*k1).value_.n == (*n2).u.key_val.n) as libc::c_int,
+        2 => ((*k1).value_.p == (*n2).u.key_val.p) as libc::c_int,
+        22 => ((*k1).value_.f == (*n2).u.key_val.f) as libc::c_int,
+        84 => luaS_eqlngstr(
+            &mut (*((*k1).value_.gc as *mut GCUnion)).ts,
+            &mut (*((*n2).u.key_val.gc as *mut GCUnion)).ts,
+        ),
+        _ => ((*k1).value_.gc == (*n2).u.key_val.gc) as libc::c_int,
+    }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaH_realasize(mut t: *const Table) -> libc::c_uint {
+
+pub unsafe fn luaH_realasize(mut t: *const Table) -> libc::c_uint {
     if (*t).flags as libc::c_int & (1 as libc::c_int) << 7 as libc::c_int == 0
         || (*t).alimit & ((*t).alimit).wrapping_sub(1 as libc::c_int as libc::c_uint)
             == 0 as libc::c_int as libc::c_uint
