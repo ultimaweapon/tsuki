@@ -26,7 +26,7 @@ use crate::lstate::{
     CallInfo, lua_Alloc, lua_CFunction, lua_Debug, lua_KContext, lua_State, lua_newstate,
 };
 use libc::{FILE, free, memcpy, realloc, strcmp, strlen, strncmp, strstr};
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char, c_int, c_void};
 use std::fmt::Display;
 
 pub type __int64_t = libc::c_longlong;
@@ -941,11 +941,7 @@ pub unsafe fn luaL_loadfilex(
     todo!()
 }
 
-unsafe fn getS(
-    mut L: *mut lua_State,
-    mut ud: *mut libc::c_void,
-    mut size: *mut usize,
-) -> *const libc::c_char {
+unsafe fn getS(ud: *mut c_void, mut size: *mut usize) -> *const c_char {
     let mut ls: *mut LoadS = ud as *mut LoadS;
     if (*ls).size == 0 as libc::c_int as usize {
         return 0 as *const libc::c_char;

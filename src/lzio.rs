@@ -1,5 +1,4 @@
 #![allow(
-    dead_code,
     mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
@@ -9,31 +8,28 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::lstate::{lua_Reader, lua_State};
+use crate::lstate::lua_Reader;
 use libc::memcpy;
-use std::ffi::{c_char, c_void};
+use std::ffi::{c_char, c_int, c_void};
 use std::ptr::null;
 
 pub type ZIO = Zio;
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Zio {
     pub n: usize,
     pub p: *const c_char,
-    pub reader: lua_Reader,
-    pub data: *mut c_void,
-    pub L: *mut lua_State,
+    reader: lua_Reader,
+    data: *mut c_void,
 }
 
 impl Zio {
-    pub unsafe fn new(L: *mut lua_State, reader: lua_Reader, data: *mut c_void) -> Self {
+    pub unsafe fn new(reader: lua_Reader, data: *mut c_void) -> Self {
         Self {
             n: 0,
             p: null(),
             reader,
             data,
-            L,
         }
     }
 }
@@ -46,28 +42,23 @@ pub struct Mbuffer {
     pub buffsize: usize,
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaZ_fill(mut z: *mut ZIO) -> libc::c_int {
-    let mut size: usize = 0;
-    let mut L: *mut lua_State = (*z).L;
-    let mut buff: *const libc::c_char = 0 as *const libc::c_char;
-    buff = ((*z).reader)(L, (*z).data, &mut size);
-    if buff.is_null() || size == 0 as libc::c_int as usize {
-        return -(1 as libc::c_int);
+pub unsafe fn luaZ_fill(mut z: *mut ZIO) -> c_int {
+    let mut size = 0;
+    let buff = ((*z).reader)((*z).data, &mut size);
+
+    if buff.is_null() || size == 0 {
+        return -1;
     }
-    (*z).n = size.wrapping_sub(1 as libc::c_int as usize);
+
+    (*z).n = size.wrapping_sub(1);
     (*z).p = buff;
     let fresh0 = (*z).p;
     (*z).p = ((*z).p).offset(1);
+
     return *fresh0 as libc::c_uchar as libc::c_int;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaZ_read(
-    mut z: *mut ZIO,
-    mut b: *mut libc::c_void,
-    mut n: usize,
-) -> usize {
+pub unsafe fn luaZ_read(mut z: *mut ZIO, mut b: *mut c_void, mut n: usize) -> usize {
     while n != 0 {
         let mut m: usize = 0;
         if (*z).n == 0 as libc::c_int as usize {

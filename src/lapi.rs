@@ -1600,7 +1600,7 @@ pub unsafe fn lua_load(
     mut chunkname: *const libc::c_char,
     mut mode: *const libc::c_char,
 ) -> libc::c_int {
-    let mut z = Zio::new(L, reader, data);
+    let mut z = Zio::new(reader, data);
     let mut status: libc::c_int = 0;
 
     if chunkname.is_null() {

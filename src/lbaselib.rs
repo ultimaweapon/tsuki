@@ -27,7 +27,7 @@ use crate::lauxlib::{
 use crate::lstate::{lua_KContext, lua_State};
 use crate::{GcCommand, luaL_loadfilex};
 use libc::{isalnum, isdigit, strspn, toupper};
-use std::ffi::{c_char, c_int};
+use std::ffi::{c_char, c_int, c_void};
 
 unsafe extern "C" fn luaB_print(mut L: *mut lua_State) -> c_int {
     let mut n: libc::c_int = lua_gettop(L);
@@ -493,11 +493,9 @@ unsafe extern "C" fn luaB_loadfile(mut L: *mut lua_State) -> libc::c_int {
     return load_aux(L, status, env);
 }
 
-unsafe fn generic_reader(
-    mut L: *mut lua_State,
-    mut ud: *mut libc::c_void,
-    mut size: *mut usize,
-) -> *const libc::c_char {
+unsafe fn generic_reader(ud: *mut c_void, mut size: *mut usize) -> *const c_char {
+    let L = ud.cast();
+
     luaL_checkstack(
         L,
         2 as libc::c_int,
@@ -556,7 +554,7 @@ unsafe extern "C" fn luaB_load(mut L: *mut lua_State) -> libc::c_int {
         luaL_checktype(L, 1 as libc::c_int, 6 as libc::c_int);
         lua_settop(L, 5 as libc::c_int);
 
-        status = lua_load(L, generic_reader, 0 as *mut libc::c_void, chunkname_0, mode);
+        status = lua_load(L, generic_reader, L.cast(), chunkname_0, mode);
     }
 
     return load_aux(L, status, env);
