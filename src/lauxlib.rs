@@ -9,7 +9,6 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(unused_variables)]
-#![allow(path_statements)]
 
 use crate::lapi::{
     lua_absindex, lua_callk, lua_checkstack, lua_closeslot, lua_concat, lua_copy, lua_createtable,
@@ -55,7 +54,7 @@ pub union C2RustUnnamed {
 #[repr(C)]
 pub struct luaL_Reg {
     pub name: *const libc::c_char,
-    pub func: lua_CFunction,
+    pub func: Option<lua_CFunction>,
 }
 
 #[derive(Copy, Clone)]
@@ -346,7 +345,7 @@ pub unsafe extern "C" fn luaL_argerror(
     lua_getinfo(L, b"n\0" as *const u8 as *const libc::c_char, &mut ar);
     if strcmp(ar.namewhat, b"method\0" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
         arg -= 1;
-        arg;
+
         if arg == 0 as libc::c_int {
             return luaL_error(
                 L,
@@ -719,7 +718,7 @@ unsafe extern "C" fn resizebox(
     return temp;
 }
 
-unsafe extern "C" fn boxgc(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn boxgc(mut L: *mut lua_State) -> libc::c_int {
     resizebox(L, 1 as libc::c_int, 0 as libc::c_int as usize);
     return 0 as libc::c_int;
 }
@@ -728,14 +727,14 @@ static mut boxmt: [luaL_Reg; 3] = [
     {
         let mut init = luaL_Reg {
             name: b"__gc\0" as *const u8 as *const libc::c_char,
-            func: Some(boxgc as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(boxgc),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"__close\0" as *const u8 as *const libc::c_char,
-            func: Some(boxgc as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(boxgc),
         };
         init
     },
@@ -1084,23 +1083,26 @@ pub unsafe extern "C" fn luaL_setfuncs(
         nup,
         b"too many upvalues\0" as *const u8 as *const libc::c_char,
     );
+
     while !((*l).name).is_null() {
-        if ((*l).func).is_none() {
-            lua_pushboolean(L, 0 as libc::c_int);
-        } else {
-            let mut i: libc::c_int = 0;
-            i = 0 as libc::c_int;
-            while i < nup {
-                lua_pushvalue(L, -nup);
-                i += 1;
-                i;
+        match (*l).func {
+            Some(f) => {
+                let mut i: libc::c_int = 0;
+
+                while i < nup {
+                    lua_pushvalue(L, -nup);
+                    i += 1;
+                }
+
+                lua_pushcclosure(L, f, nup);
             }
-            lua_pushcclosure(L, (*l).func, nup);
+            None => lua_pushboolean(L, 0),
         }
+
         lua_setfield(L, -(nup + 2 as libc::c_int), (*l).name);
         l = l.offset(1);
-        l;
     }
+
     lua_settop(L, -nup - 1 as libc::c_int);
 }
 
@@ -1122,8 +1124,7 @@ pub unsafe extern "C" fn luaL_getsubtable(
     };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaL_requiref(
+pub unsafe fn luaL_requiref(
     mut L: *mut lua_State,
     mut modname: *const libc::c_char,
     mut openf: lua_CFunction,

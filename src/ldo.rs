@@ -587,8 +587,7 @@ unsafe extern "C" fn prepCallInfo(
     return ci;
 }
 
-#[inline]
-unsafe extern "C" fn precallC(
+unsafe fn precallC(
     mut L: *mut lua_State,
     mut func: StkId,
     mut nresults: libc::c_int,
@@ -631,7 +630,7 @@ unsafe extern "C" fn precallC(
             narg,
         );
     }
-    n = (Some(f.expect("non-null function pointer"))).expect("non-null function pointer")(L);
+    n = f(L);
     luaD_poscall(L, ci, n);
     return n;
 }

@@ -111,7 +111,7 @@ struct str_Writer {
     B: luaL_Buffer,
 }
 
-unsafe extern "C" fn str_len(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_len(mut L: *mut lua_State) -> libc::c_int {
     let mut l: usize = 0;
     luaL_checklstring(L, 1 as libc::c_int, &mut l);
     lua_pushinteger(L, l as i64);
@@ -152,7 +152,7 @@ unsafe extern "C" fn getendpos(
     };
 }
 
-unsafe extern "C" fn str_sub(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_sub(mut L: *mut lua_State) -> libc::c_int {
     let mut l: usize = 0;
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l);
     let mut start: usize = posrelatI(luaL_checkinteger(L, 2 as libc::c_int), l);
@@ -172,7 +172,7 @@ unsafe extern "C" fn str_sub(mut L: *mut lua_State) -> libc::c_int {
     return 1 as libc::c_int;
 }
 
-unsafe extern "C" fn str_reverse(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_reverse(mut L: *mut lua_State) -> libc::c_int {
     let mut l: usize = 0;
     let mut i: usize = 0;
     let mut b: luaL_Buffer = luaL_Buffer {
@@ -195,7 +195,7 @@ unsafe extern "C" fn str_reverse(mut L: *mut lua_State) -> libc::c_int {
     return 1 as libc::c_int;
 }
 
-unsafe extern "C" fn str_lower(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_lower(mut L: *mut lua_State) -> libc::c_int {
     let mut l: usize = 0;
     let mut i: usize = 0;
     let mut b: luaL_Buffer = luaL_Buffer {
@@ -218,7 +218,7 @@ unsafe extern "C" fn str_lower(mut L: *mut lua_State) -> libc::c_int {
     return 1 as libc::c_int;
 }
 
-unsafe extern "C" fn str_upper(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_upper(mut L: *mut lua_State) -> libc::c_int {
     let mut l: usize = 0;
     let mut i: usize = 0;
     let mut b: luaL_Buffer = luaL_Buffer {
@@ -241,7 +241,7 @@ unsafe extern "C" fn str_upper(mut L: *mut lua_State) -> libc::c_int {
     return 1 as libc::c_int;
 }
 
-unsafe extern "C" fn str_rep(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_rep(mut L: *mut lua_State) -> libc::c_int {
     let mut l: usize = 0;
     let mut lsep: usize = 0;
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l);
@@ -310,7 +310,7 @@ unsafe extern "C" fn str_rep(mut L: *mut lua_State) -> libc::c_int {
     return 1 as libc::c_int;
 }
 
-unsafe extern "C" fn str_byte(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_byte(mut L: *mut lua_State) -> libc::c_int {
     let mut l: usize = 0;
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l);
     let mut pi: i64 = luaL_optinteger(L, 2 as libc::c_int, 1 as libc::c_int as i64);
@@ -348,7 +348,7 @@ unsafe extern "C" fn str_byte(mut L: *mut lua_State) -> libc::c_int {
     return n;
 }
 
-unsafe extern "C" fn str_char(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_char(mut L: *mut lua_State) -> libc::c_int {
     let mut n: libc::c_int = lua_gettop(L);
     let mut i: libc::c_int = 0;
     let mut b: luaL_Buffer = luaL_Buffer {
@@ -391,7 +391,7 @@ unsafe fn writer(
     0
 }
 
-unsafe extern "C" fn str_dump(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_dump(mut L: *mut lua_State) -> libc::c_int {
     let mut state: str_Writer = str_Writer {
         init: 0,
         B: luaL_Buffer {
@@ -476,7 +476,7 @@ unsafe extern "C" fn arith(
     return 1 as libc::c_int;
 }
 
-unsafe extern "C" fn arith_add(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn arith_add(mut L: *mut lua_State) -> libc::c_int {
     return arith(
         L,
         0 as libc::c_int,
@@ -484,7 +484,7 @@ unsafe extern "C" fn arith_add(mut L: *mut lua_State) -> libc::c_int {
     );
 }
 
-unsafe extern "C" fn arith_sub(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn arith_sub(mut L: *mut lua_State) -> libc::c_int {
     return arith(
         L,
         1 as libc::c_int,
@@ -492,7 +492,7 @@ unsafe extern "C" fn arith_sub(mut L: *mut lua_State) -> libc::c_int {
     );
 }
 
-unsafe extern "C" fn arith_mul(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn arith_mul(mut L: *mut lua_State) -> libc::c_int {
     return arith(
         L,
         2 as libc::c_int,
@@ -500,7 +500,7 @@ unsafe extern "C" fn arith_mul(mut L: *mut lua_State) -> libc::c_int {
     );
 }
 
-unsafe extern "C" fn arith_mod(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn arith_mod(mut L: *mut lua_State) -> libc::c_int {
     return arith(
         L,
         3 as libc::c_int,
@@ -508,7 +508,7 @@ unsafe extern "C" fn arith_mod(mut L: *mut lua_State) -> libc::c_int {
     );
 }
 
-unsafe extern "C" fn arith_pow(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn arith_pow(mut L: *mut lua_State) -> libc::c_int {
     return arith(
         L,
         4 as libc::c_int,
@@ -516,7 +516,7 @@ unsafe extern "C" fn arith_pow(mut L: *mut lua_State) -> libc::c_int {
     );
 }
 
-unsafe extern "C" fn arith_div(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn arith_div(mut L: *mut lua_State) -> libc::c_int {
     return arith(
         L,
         5 as libc::c_int,
@@ -524,7 +524,7 @@ unsafe extern "C" fn arith_div(mut L: *mut lua_State) -> libc::c_int {
     );
 }
 
-unsafe extern "C" fn arith_idiv(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn arith_idiv(mut L: *mut lua_State) -> libc::c_int {
     return arith(
         L,
         6 as libc::c_int,
@@ -532,7 +532,7 @@ unsafe extern "C" fn arith_idiv(mut L: *mut lua_State) -> libc::c_int {
     );
 }
 
-unsafe extern "C" fn arith_unm(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn arith_unm(mut L: *mut lua_State) -> libc::c_int {
     return arith(
         L,
         12 as libc::c_int,
@@ -544,56 +544,56 @@ static mut stringmetamethods: [luaL_Reg; 10] = [
     {
         let mut init = luaL_Reg {
             name: b"__add\0" as *const u8 as *const libc::c_char,
-            func: Some(arith_add as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(arith_add),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"__sub\0" as *const u8 as *const libc::c_char,
-            func: Some(arith_sub as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(arith_sub),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"__mul\0" as *const u8 as *const libc::c_char,
-            func: Some(arith_mul as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(arith_mul),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"__mod\0" as *const u8 as *const libc::c_char,
-            func: Some(arith_mod as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(arith_mod),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"__pow\0" as *const u8 as *const libc::c_char,
-            func: Some(arith_pow as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(arith_pow),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"__div\0" as *const u8 as *const libc::c_char,
-            func: Some(arith_div as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(arith_div),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"__idiv\0" as *const u8 as *const libc::c_char,
-            func: Some(arith_idiv as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(arith_idiv),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"__unm\0" as *const u8 as *const libc::c_char,
-            func: Some(arith_unm as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(arith_unm),
         };
         init
     },
@@ -1478,15 +1478,15 @@ unsafe extern "C" fn str_find_aux(mut L: *mut lua_State, mut find: libc::c_int) 
     return 1 as libc::c_int;
 }
 
-unsafe extern "C" fn str_find(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_find(mut L: *mut lua_State) -> libc::c_int {
     return str_find_aux(L, 1 as libc::c_int);
 }
 
-unsafe extern "C" fn str_match(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_match(mut L: *mut lua_State) -> libc::c_int {
     return str_find_aux(L, 0 as libc::c_int);
 }
 
-unsafe extern "C" fn gmatch_aux(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn gmatch_aux(mut L: *mut lua_State) -> libc::c_int {
     let mut gm: *mut GMatchState = lua_touserdata(
         L,
         -(1000000 as libc::c_int) - 1000 as libc::c_int - 3 as libc::c_int,
@@ -1509,7 +1509,7 @@ unsafe extern "C" fn gmatch_aux(mut L: *mut lua_State) -> libc::c_int {
     return 0 as libc::c_int;
 }
 
-unsafe extern "C" fn gmatch(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn gmatch(mut L: *mut lua_State) -> libc::c_int {
     let mut ls: usize = 0;
     let mut lp: usize = 0;
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut ls);
@@ -1530,11 +1530,7 @@ unsafe extern "C" fn gmatch(mut L: *mut lua_State) -> libc::c_int {
     (*gm).src = s.offset(init as isize);
     (*gm).p = p;
     (*gm).lastmatch = 0 as *const libc::c_char;
-    lua_pushcclosure(
-        L,
-        Some(gmatch_aux as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
-        3 as libc::c_int,
-    );
+    lua_pushcclosure(L, gmatch_aux, 3 as libc::c_int);
     return 1 as libc::c_int;
 }
 
@@ -1635,7 +1631,7 @@ unsafe extern "C" fn add_value(
     };
 }
 
-unsafe extern "C" fn str_gsub(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_gsub(mut L: *mut lua_State) -> libc::c_int {
     let mut srcl: usize = 0;
     let mut lp: usize = 0;
     let mut src: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut srcl);
@@ -1929,7 +1925,7 @@ unsafe extern "C" fn addlenmod(mut form: *mut libc::c_char, mut lenmod: *const l
     *form.offset(l.wrapping_add(lm) as isize) = '\0' as i32 as libc::c_char;
 }
 
-unsafe extern "C" fn str_format(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_format(mut L: *mut lua_State) -> libc::c_int {
     let mut current_block: u64;
     let mut top: libc::c_int = lua_gettop(L);
     let mut arg: libc::c_int = 1 as libc::c_int;
@@ -2423,7 +2419,7 @@ unsafe extern "C" fn copywithendian(
     };
 }
 
-unsafe extern "C" fn str_pack(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_pack(mut L: *mut lua_State) -> libc::c_int {
     let mut b: luaL_Buffer = luaL_Buffer {
         b: 0 as *mut libc::c_char,
         size: 0,
@@ -2618,7 +2614,7 @@ unsafe extern "C" fn str_pack(mut L: *mut lua_State) -> libc::c_int {
     return 1 as libc::c_int;
 }
 
-unsafe extern "C" fn str_packsize(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_packsize(mut L: *mut lua_State) -> libc::c_int {
     let mut h: Header = Header {
         L: 0 as *mut lua_State,
         islittle: 0,
@@ -2723,7 +2719,7 @@ unsafe extern "C" fn unpackint(
     return res as i64;
 }
 
-unsafe extern "C" fn str_unpack(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn str_unpack(mut L: *mut lua_State) -> libc::c_int {
     let mut h: Header = Header {
         L: 0 as *mut lua_State,
         islittle: 0,
@@ -2857,119 +2853,119 @@ static mut strlib: [luaL_Reg; 18] = [
     {
         let mut init = luaL_Reg {
             name: b"byte\0" as *const u8 as *const libc::c_char,
-            func: Some(str_byte as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_byte),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"char\0" as *const u8 as *const libc::c_char,
-            func: Some(str_char as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_char),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"dump\0" as *const u8 as *const libc::c_char,
-            func: Some(str_dump as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_dump),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"find\0" as *const u8 as *const libc::c_char,
-            func: Some(str_find as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_find),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"format\0" as *const u8 as *const libc::c_char,
-            func: Some(str_format as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_format),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"gmatch\0" as *const u8 as *const libc::c_char,
-            func: Some(gmatch as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(gmatch),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"gsub\0" as *const u8 as *const libc::c_char,
-            func: Some(str_gsub as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_gsub),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"len\0" as *const u8 as *const libc::c_char,
-            func: Some(str_len as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_len),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"lower\0" as *const u8 as *const libc::c_char,
-            func: Some(str_lower as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_lower),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"match\0" as *const u8 as *const libc::c_char,
-            func: Some(str_match as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_match),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"rep\0" as *const u8 as *const libc::c_char,
-            func: Some(str_rep as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_rep),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"reverse\0" as *const u8 as *const libc::c_char,
-            func: Some(str_reverse as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_reverse),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"sub\0" as *const u8 as *const libc::c_char,
-            func: Some(str_sub as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_sub),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"upper\0" as *const u8 as *const libc::c_char,
-            func: Some(str_upper as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_upper),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"pack\0" as *const u8 as *const libc::c_char,
-            func: Some(str_pack as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_pack),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"packsize\0" as *const u8 as *const libc::c_char,
-            func: Some(str_packsize as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_packsize),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"unpack\0" as *const u8 as *const libc::c_char,
-            func: Some(str_unpack as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(str_unpack),
         };
         init
     },
@@ -3008,8 +3004,7 @@ unsafe extern "C" fn createmetatable(mut L: *mut lua_State) {
     lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaopen_string(mut L: *mut lua_State) -> libc::c_int {
+pub unsafe fn luaopen_string(mut L: *mut lua_State) -> libc::c_int {
     luaL_checkversion_(
         L,
         504 as libc::c_int as f64,

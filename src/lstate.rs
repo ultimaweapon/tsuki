@@ -141,7 +141,7 @@ pub struct C2RustUnnamed_3 {
     pub nextraargs: libc::c_int,
 }
 
-pub type lua_CFunction = Option<unsafe extern "C" fn(*mut lua_State) -> libc::c_int>;
+pub type lua_CFunction = unsafe fn(*mut lua_State) -> c_int;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -209,14 +209,12 @@ pub type lua_Alloc = Option<
     unsafe extern "C" fn(*mut libc::c_void, *mut libc::c_void, usize, usize) -> *mut libc::c_void,
 >;
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct LG {
     pub l: lua_State,
     pub g: global_State,
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub union GCUnion {
     pub gc: GCObject,

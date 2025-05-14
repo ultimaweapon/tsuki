@@ -56,7 +56,7 @@ unsafe extern "C" fn checktab(mut L: *mut lua_State, mut arg: libc::c_int, mut w
     }
 }
 
-unsafe extern "C" fn tinsert(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn tinsert(mut L: *mut lua_State) -> libc::c_int {
     let mut pos: i64 = 0;
     checktab(
         L,
@@ -92,7 +92,7 @@ unsafe extern "C" fn tinsert(mut L: *mut lua_State) -> libc::c_int {
     return 0 as libc::c_int;
 }
 
-unsafe extern "C" fn tremove(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn tremove(mut L: *mut lua_State) -> libc::c_int {
     checktab(
         L,
         1 as libc::c_int,
@@ -118,7 +118,7 @@ unsafe extern "C" fn tremove(mut L: *mut lua_State) -> libc::c_int {
     return 1 as libc::c_int;
 }
 
-unsafe extern "C" fn tmove(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn tmove(mut L: *mut lua_State) -> libc::c_int {
     let mut f: i64 = luaL_checkinteger(L, 2 as libc::c_int);
     let mut e: i64 = luaL_checkinteger(L, 3 as libc::c_int);
     let mut t: i64 = luaL_checkinteger(L, 4 as libc::c_int);
@@ -186,7 +186,7 @@ unsafe extern "C" fn addfield(mut L: *mut lua_State, mut b: *mut luaL_Buffer, mu
     luaL_addvalue(b);
 }
 
-unsafe extern "C" fn tconcat(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn tconcat(mut L: *mut lua_State) -> libc::c_int {
     let mut b: luaL_Buffer = luaL_Buffer {
         b: 0 as *mut libc::c_char,
         size: 0,
@@ -218,7 +218,7 @@ unsafe extern "C" fn tconcat(mut L: *mut lua_State) -> libc::c_int {
     return 1 as libc::c_int;
 }
 
-unsafe extern "C" fn tpack(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn tpack(mut L: *mut lua_State) -> libc::c_int {
     let mut i: libc::c_int = 0;
     let mut n: libc::c_int = lua_gettop(L);
     lua_createtable(L, n, 1 as libc::c_int);
@@ -237,7 +237,7 @@ unsafe extern "C" fn tpack(mut L: *mut lua_State) -> libc::c_int {
     return 1 as libc::c_int;
 }
 
-unsafe extern "C" fn tunpack(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn tunpack(mut L: *mut lua_State) -> libc::c_int {
     let mut n: u64 = 0;
     let mut i: i64 = luaL_optinteger(L, 2 as libc::c_int, 1 as libc::c_int as i64);
     let mut e: i64 = if lua_type(L, 3 as libc::c_int) <= 0 as libc::c_int {
@@ -406,7 +406,7 @@ unsafe extern "C" fn auxsort(
     }
 }
 
-unsafe extern "C" fn sort(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn sort(mut L: *mut lua_State) -> libc::c_int {
     checktab(
         L,
         1 as libc::c_int,
@@ -436,49 +436,49 @@ static mut tab_funcs: [luaL_Reg; 8] = [
     {
         let mut init = luaL_Reg {
             name: b"concat\0" as *const u8 as *const libc::c_char,
-            func: Some(tconcat as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(tconcat),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"insert\0" as *const u8 as *const libc::c_char,
-            func: Some(tinsert as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(tinsert),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"pack\0" as *const u8 as *const libc::c_char,
-            func: Some(tpack as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(tpack),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"unpack\0" as *const u8 as *const libc::c_char,
-            func: Some(tunpack as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(tunpack),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"remove\0" as *const u8 as *const libc::c_char,
-            func: Some(tremove as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(tremove),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"move\0" as *const u8 as *const libc::c_char,
-            func: Some(tmove as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(tmove),
         };
         init
     },
     {
         let mut init = luaL_Reg {
             name: b"sort\0" as *const u8 as *const libc::c_char,
-            func: Some(sort as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
+            func: Some(sort),
         };
         init
     },
@@ -491,7 +491,7 @@ static mut tab_funcs: [luaL_Reg; 8] = [
     },
 ];
 
-pub unsafe extern "C" fn luaopen_table(mut L: *mut lua_State) -> libc::c_int {
+pub unsafe fn luaopen_table(mut L: *mut lua_State) -> libc::c_int {
     luaL_checkversion_(
         L,
         504 as libc::c_int as f64,

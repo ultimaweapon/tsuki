@@ -557,20 +557,16 @@ pub unsafe extern "C" fn lua_rawlen(mut L: *mut lua_State, mut idx: libc::c_int)
     };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_tocfunction(
-    mut L: *mut lua_State,
-    mut idx: libc::c_int,
-) -> lua_CFunction {
+pub unsafe fn lua_tocfunction(L: *mut lua_State, idx: c_int) -> Option<lua_CFunction> {
     let mut o: *const TValue = index2value(L, idx);
     if (*o).tt_ as libc::c_int == 6 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int {
-        return (*o).value_.f;
+        return Some((*o).value_.f);
     } else if (*o).tt_ as libc::c_int
         == 6 as libc::c_int
             | (2 as libc::c_int) << 4 as libc::c_int
             | (1 as libc::c_int) << 6 as libc::c_int
     {
-        return (*((*o).value_.gc as *mut GCUnion)).cl.c.f;
+        return Some((*((*o).value_.gc as *mut GCUnion)).cl.c.f);
     } else {
         return None;
     };
@@ -715,12 +711,7 @@ pub unsafe extern "C" fn lua_pushstring(
     return s;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_pushcclosure(
-    mut L: *mut lua_State,
-    mut fn_0: lua_CFunction,
-    mut n: libc::c_int,
-) {
+pub unsafe fn lua_pushcclosure(mut L: *mut lua_State, mut fn_0: lua_CFunction, mut n: libc::c_int) {
     if n == 0 as libc::c_int {
         let mut io: *mut TValue = &mut (*(*L).top.p).val;
         (*io).value_.f = fn_0;

@@ -20,7 +20,7 @@ fn run(cat: &str, file: &str) {
     let content = std::fs::read(path).unwrap();
     let lua = unsafe { luaL_newstate() };
 
-    unsafe { luaL_requiref(lua, c"_G".as_ptr(), Some(luaopen_base), 0) };
+    unsafe { luaL_requiref(lua, c"_G".as_ptr(), luaopen_base, 0) };
     unsafe { lua_pop(lua, 1) };
 
     // Load.
