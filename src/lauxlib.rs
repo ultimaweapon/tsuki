@@ -28,6 +28,7 @@ use crate::lstate::{
 use libc::{FILE, free, memcpy, realloc, strcmp, strlen, strncmp, strstr};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::fmt::Display;
+use std::ptr::null;
 
 pub type __int64_t = libc::c_longlong;
 pub type __darwin_off_t = __int64_t;
@@ -951,36 +952,23 @@ unsafe fn getS(ud: *mut c_void, mut size: *mut usize) -> *const c_char {
     return (*ls).s;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaL_loadbufferx(
-    mut L: *mut lua_State,
-    mut buff: *const libc::c_char,
-    mut size: usize,
-    mut name: *const libc::c_char,
-    mut mode: *const libc::c_char,
-) -> libc::c_int {
-    let mut ls: LoadS = LoadS {
-        s: 0 as *const libc::c_char,
-        size: 0,
+pub unsafe fn luaL_loadbufferx(
+    L: *mut lua_State,
+    chunk: impl AsRef<[u8]>,
+    name: *const c_char,
+    mode: *const c_char,
+) -> c_int {
+    let chunk = chunk.as_ref();
+    let mut ls = LoadS {
+        s: chunk.as_ptr().cast(),
+        size: chunk.len(),
     };
-    ls.s = buff;
-    ls.size = size;
 
-    return lua_load(
-        L,
-        getS,
-        &mut ls as *mut LoadS as *mut libc::c_void,
-        name,
-        mode,
-    );
+    lua_load(L, getS, &mut ls as *mut LoadS as *mut c_void, name, mode)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaL_loadstring(
-    mut L: *mut lua_State,
-    mut s: *const libc::c_char,
-) -> libc::c_int {
-    return luaL_loadbufferx(L, s, strlen(s), s, 0 as *const libc::c_char);
+pub unsafe fn luaL_loadstring(L: *mut lua_State, s: *const c_char) -> c_int {
+    luaL_loadbufferx(L, CStr::from_ptr(s).to_bytes(), s, null())
 }
 
 #[unsafe(no_mangle)]

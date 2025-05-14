@@ -23,13 +23,13 @@ use libc::{memcmp, strlen};
 use std::ffi::CStr;
 use std::fmt::Display;
 
-#[derive(Copy, Clone)]
 #[repr(C)]
-pub struct LoadState {
+struct LoadState {
     pub L: *mut lua_State,
     pub Z: *mut ZIO,
     pub name: *const libc::c_char,
 }
+
 unsafe extern "C" fn error(mut S: *mut LoadState, why: impl Display) -> ! {
     lua_pushlstring(
         (*S).L,
@@ -41,11 +41,13 @@ unsafe extern "C" fn error(mut S: *mut LoadState, why: impl Display) -> ! {
     );
     luaD_throw((*S).L, 3 as libc::c_int);
 }
+
 unsafe extern "C" fn loadBlock(mut S: *mut LoadState, mut b: *mut libc::c_void, mut size: usize) {
     if luaZ_read((*S).Z, b, size) != 0 as libc::c_int as usize {
         error(S, "truncated chunk");
     }
 }
+
 unsafe extern "C" fn loadByte(mut S: *mut LoadState) -> u8 {
     let fresh0 = (*(*S).Z).n;
     (*(*S).Z).n = ((*(*S).Z).n).wrapping_sub(1);
@@ -61,6 +63,7 @@ unsafe extern "C" fn loadByte(mut S: *mut LoadState) -> u8 {
     }
     return b as u8;
 }
+
 unsafe extern "C" fn loadUnsigned(mut S: *mut LoadState, mut limit: usize) -> usize {
     let mut x: usize = 0 as libc::c_int as usize;
     let mut b: libc::c_int = 0;
@@ -77,12 +80,15 @@ unsafe extern "C" fn loadUnsigned(mut S: *mut LoadState, mut limit: usize) -> us
     }
     return x;
 }
+
 unsafe extern "C" fn loadSize(mut S: *mut LoadState) -> usize {
     return loadUnsigned(S, !(0 as libc::c_int as usize));
 }
+
 unsafe extern "C" fn loadInt(mut S: *mut LoadState) -> libc::c_int {
     return loadUnsigned(S, 2147483647 as libc::c_int as usize) as libc::c_int;
 }
+
 unsafe extern "C" fn loadNumber(mut S: *mut LoadState) -> f64 {
     let mut x: f64 = 0.;
     loadBlock(
@@ -92,6 +98,7 @@ unsafe extern "C" fn loadNumber(mut S: *mut LoadState) -> f64 {
     );
     return x;
 }
+
 unsafe extern "C" fn loadInteger(mut S: *mut LoadState) -> i64 {
     let mut x: i64 = 0;
     loadBlock(
@@ -101,6 +108,7 @@ unsafe extern "C" fn loadInteger(mut S: *mut LoadState) -> i64 {
     );
     return x;
 }
+
 unsafe extern "C" fn loadStringN(mut S: *mut LoadState, mut p: *mut Proto) -> *mut TString {
     let mut L: *mut lua_State = (*S).L;
     let mut ts: *mut TString = 0 as *mut TString;
@@ -147,6 +155,7 @@ unsafe extern "C" fn loadStringN(mut S: *mut LoadState, mut p: *mut Proto) -> *m
     };
     return ts;
 }
+
 unsafe extern "C" fn loadString(mut S: *mut LoadState, mut p: *mut Proto) -> *mut TString {
     let mut st: *mut TString = loadStringN(S, p);
     if st.is_null() {
@@ -154,6 +163,7 @@ unsafe extern "C" fn loadString(mut S: *mut LoadState, mut p: *mut Proto) -> *mu
     }
     return st;
 }
+
 unsafe extern "C" fn loadCode(mut S: *mut LoadState, mut f: *mut Proto) {
     let mut n: libc::c_int = loadInt(S);
     if ::core::mem::size_of::<libc::c_int>() as libc::c_ulong
@@ -176,6 +186,7 @@ unsafe extern "C" fn loadCode(mut S: *mut LoadState, mut f: *mut Proto) {
         (n as usize).wrapping_mul(::core::mem::size_of::<u32>()),
     );
 }
+
 unsafe extern "C" fn loadConstants(mut S: *mut LoadState, mut f: *mut Proto) {
     let mut i: libc::c_int = 0;
     let mut n: libc::c_int = loadInt(S);
@@ -237,6 +248,7 @@ unsafe extern "C" fn loadConstants(mut S: *mut LoadState, mut f: *mut Proto) {
         i;
     }
 }
+
 unsafe extern "C" fn loadProtos(mut S: *mut LoadState, mut f: *mut Proto) {
     let mut i: libc::c_int = 0;
     let mut n: libc::c_int = loadInt(S);
@@ -282,6 +294,7 @@ unsafe extern "C" fn loadProtos(mut S: *mut LoadState, mut f: *mut Proto) {
         i;
     }
 }
+
 unsafe extern "C" fn loadUpvalues(mut S: *mut LoadState, mut f: *mut Proto) {
     let mut i: libc::c_int = 0;
     let mut n: libc::c_int = 0;
@@ -316,6 +329,7 @@ unsafe extern "C" fn loadUpvalues(mut S: *mut LoadState, mut f: *mut Proto) {
         i;
     }
 }
+
 unsafe extern "C" fn loadDebug(mut S: *mut LoadState, mut f: *mut Proto) {
     let mut i: libc::c_int = 0;
     let mut n: libc::c_int = 0;
@@ -404,6 +418,7 @@ unsafe extern "C" fn loadDebug(mut S: *mut LoadState, mut f: *mut Proto) {
         i;
     }
 }
+
 unsafe extern "C" fn loadFunction(
     mut S: *mut LoadState,
     mut f: *mut Proto,
@@ -424,6 +439,7 @@ unsafe extern "C" fn loadFunction(
     loadProtos(S, f);
     loadDebug(S, f);
 }
+
 unsafe extern "C" fn checkliteral(
     mut S: *mut LoadState,
     mut s: *const libc::c_char,
@@ -482,8 +498,8 @@ unsafe extern "C" fn checkHeader(mut S: *mut LoadState) {
         error(S, "float format mismatch");
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaU_undump(
+
+pub unsafe fn luaU_undump(
     mut L: *mut lua_State,
     mut Z: *mut ZIO,
     mut name: *const libc::c_char,

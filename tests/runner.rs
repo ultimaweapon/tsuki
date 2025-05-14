@@ -24,15 +24,7 @@ fn run(cat: &str, file: &str) {
     unsafe { lua_pop(lua, 1) };
 
     // Load.
-    let status = unsafe {
-        luaL_loadbufferx(
-            lua,
-            content.as_ptr().cast(),
-            content.len(),
-            c"".as_ptr(),
-            null(),
-        )
-    };
+    let status = unsafe { luaL_loadbufferx(lua, content, c"".as_ptr(), null()) };
 
     assert_eq!(status, 0);
 

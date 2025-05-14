@@ -552,7 +552,7 @@ unsafe extern "C" fn intarith(
     match op {
         0 => return (v1 as u64).wrapping_add(v2 as u64) as i64,
         1 => return (v1 as u64).wrapping_sub(v2 as u64) as i64,
-        2 => return (v1 as u64 * v2 as u64) as i64,
+        2 => return (v1 as u64).wrapping_mul(v2 as u64) as i64,
         3 => return luaV_mod(L, v1, v2),
         6 => return luaV_idiv(L, v1, v2),
         7 => return (v1 as u64 & v2 as u64) as i64,

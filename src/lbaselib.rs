@@ -28,6 +28,7 @@ use crate::lstate::{lua_KContext, lua_State};
 use crate::{GcCommand, luaL_loadfilex};
 use libc::{isalnum, isdigit, strspn, toupper};
 use std::ffi::{c_char, c_int, c_void};
+use std::ptr::null_mut;
 
 unsafe extern "C" fn luaB_print(mut L: *mut lua_State) -> c_int {
     let mut n: libc::c_int = lua_gettop(L);
@@ -539,10 +540,12 @@ unsafe extern "C" fn luaB_load(mut L: *mut lua_State) -> libc::c_int {
     } else {
         0 as libc::c_int
     };
+
     if !s.is_null() {
-        let mut chunkname: *const libc::c_char =
-            luaL_optlstring(L, 2 as libc::c_int, s, 0 as *mut usize);
-        status = luaL_loadbufferx(L, s, l, chunkname, mode);
+        let name = luaL_optlstring(L, 2, s, null_mut());
+        let s = std::slice::from_raw_parts(s.cast(), l);
+
+        status = luaL_loadbufferx(L, s, name, mode);
     } else {
         let mut chunkname_0: *const libc::c_char = luaL_optlstring(
             L,
@@ -557,7 +560,7 @@ unsafe extern "C" fn luaB_load(mut L: *mut lua_State) -> libc::c_int {
         status = lua_load(L, generic_reader, L.cast(), chunkname_0, mode);
     }
 
-    return load_aux(L, status, env);
+    load_aux(L, status, env)
 }
 
 unsafe extern "C" fn dofilecont(
