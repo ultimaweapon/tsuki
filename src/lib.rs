@@ -41,6 +41,7 @@ mod lstate;
 mod lstring;
 mod lstrlib;
 mod ltable;
+mod ltablib;
 mod ltm;
 mod lundump;
 mod lvm;

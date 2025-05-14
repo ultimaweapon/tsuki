@@ -105,11 +105,10 @@ pub struct GMatchState {
     pub ms: MatchState,
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
-pub struct str_Writer {
-    pub init: libc::c_int,
-    pub B: luaL_Buffer,
+struct str_Writer {
+    init: libc::c_int,
+    B: luaL_Buffer,
 }
 
 unsafe extern "C" fn str_len(mut L: *mut lua_State) -> libc::c_int {
@@ -381,13 +380,15 @@ unsafe fn writer(
     mut size: usize,
     mut ud: *mut libc::c_void,
 ) -> libc::c_int {
-    let mut state: *mut str_Writer = ud as *mut str_Writer;
+    let state = ud as *mut str_Writer;
+
     if (*state).init == 0 {
-        (*state).init = 1 as libc::c_int;
+        (*state).init = 1;
         luaL_buffinit(L, &mut (*state).B);
     }
-    luaL_addlstring(&mut (*state).B, b as *const libc::c_char, size);
-    return 0 as libc::c_int;
+
+    luaL_addlstring(&mut (*state).B, b.cast(), size);
+    0
 }
 
 unsafe extern "C" fn str_dump(mut L: *mut lua_State) -> libc::c_int {

@@ -30,10 +30,6 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::fmt::Display;
 use std::ptr::null;
 
-pub type __int64_t = libc::c_longlong;
-pub type __darwin_off_t = __int64_t;
-pub type fpos_t = __darwin_off_t;
-
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct luaL_Buffer {
@@ -817,20 +813,13 @@ pub unsafe extern "C" fn luaL_prepbuffsize(
     return prepbuffsize(B, sz, -(1 as libc::c_int));
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaL_addlstring(
-    mut B: *mut luaL_Buffer,
-    mut s: *const libc::c_char,
-    mut l: usize,
-) {
-    if l > 0 as libc::c_int as usize {
-        let mut b: *mut libc::c_char = prepbuffsize(B, l, -(1 as libc::c_int));
-        memcpy(
-            b as *mut libc::c_void,
-            s as *const libc::c_void,
-            l.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
-        );
-        (*B).n = ((*B).n).wrapping_add(l);
+pub unsafe fn luaL_addlstring(B: *mut luaL_Buffer, s: *const c_char, l: usize) {
+    if l > 0 {
+        let b = prepbuffsize(B, l, -1);
+
+        memcpy(b.cast(), s.cast(), l);
+
+        (*B).n += l;
     }
 }
 
