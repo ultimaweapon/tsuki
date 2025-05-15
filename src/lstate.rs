@@ -9,7 +9,6 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(unused_variables)]
-#![allow(path_statements)]
 
 use crate::api_incr_top;
 use crate::ldebug::luaG_runerror;
@@ -37,30 +36,30 @@ pub type lua_Writer = unsafe fn(*mut lua_State, *const c_void, usize, *mut c_voi
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct lua_State {
-    pub next: *mut GCObject,
-    pub tt: u8,
-    pub marked: u8,
-    pub status: u8,
-    pub allowhook: u8,
-    pub nci: libc::c_ushort,
-    pub top: StkIdRel,
-    pub l_G: *mut global_State,
-    pub ci: *mut CallInfo,
-    pub stack_last: StkIdRel,
-    pub stack: StkIdRel,
-    pub openupval: *mut UpVal,
-    pub tbclist: StkIdRel,
-    pub gclist: *mut GCObject,
-    pub twups: *mut lua_State,
-    pub errorJmp: *mut lua_longjmp,
-    pub base_ci: CallInfo,
-    pub hook: lua_Hook,
-    pub errfunc: isize,
-    pub nCcalls: u32,
-    pub oldpc: libc::c_int,
-    pub basehookcount: libc::c_int,
-    pub hookcount: libc::c_int,
-    pub hookmask: libc::c_int,
+    pub(crate) next: *mut GCObject,
+    pub(crate) tt: u8,
+    pub(crate) marked: u8,
+    pub(crate) status: u8,
+    pub(crate) allowhook: u8,
+    pub(crate) nci: libc::c_ushort,
+    pub(crate) top: StkIdRel,
+    pub(crate) l_G: *mut global_State,
+    pub(crate) ci: *mut CallInfo,
+    pub(crate) stack_last: StkIdRel,
+    pub(crate) stack: StkIdRel,
+    pub(crate) openupval: *mut UpVal,
+    pub(crate) tbclist: StkIdRel,
+    pub(crate) gclist: *mut GCObject,
+    pub(crate) twups: *mut lua_State,
+    pub(crate) errorJmp: *mut lua_longjmp,
+    pub(crate) base_ci: CallInfo,
+    pub(crate) hook: lua_Hook,
+    pub(crate) errfunc: isize,
+    pub(crate) nCcalls: u32,
+    pub(crate) oldpc: libc::c_int,
+    pub(crate) basehookcount: libc::c_int,
+    pub(crate) hookcount: libc::c_int,
+    pub(crate) hookmask: libc::c_int,
 }
 
 #[derive(Copy, Clone)]
@@ -141,7 +140,7 @@ pub struct C2RustUnnamed_3 {
     pub nextraargs: libc::c_int,
 }
 
-pub type lua_CFunction = unsafe fn(*mut lua_State) -> c_int;
+pub type lua_CFunction = unsafe fn(*mut lua_State) -> Result<c_int, Box<dyn std::error::Error>>;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -369,12 +368,13 @@ unsafe extern "C" fn stack_init(mut L1: *mut lua_State, mut L: *mut lua_State) {
     ) as *mut StackValue;
     (*L1).tbclist.p = (*L1).stack.p;
     i = 0 as libc::c_int;
+
     while i < 2 as libc::c_int * 20 as libc::c_int + 5 as libc::c_int {
         (*((*L1).stack.p).offset(i as isize)).val.tt_ =
             (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
         i += 1;
-        i;
     }
+
     (*L1).top.p = (*L1).stack.p;
     (*L1).stack_last.p = ((*L1).stack.p).offset((2 as libc::c_int * 20 as libc::c_int) as isize);
     ci = &mut (*L1).base_ci;
@@ -655,11 +655,12 @@ pub unsafe extern "C" fn lua_newstate(
     (*g).genmajormul = (100 as libc::c_int / 4 as libc::c_int) as u8;
     (*g).genminormul = 20 as libc::c_int as u8;
     i = 0 as libc::c_int;
+
     while i < 9 as libc::c_int {
         (*g).mt[i as usize] = 0 as *mut Table;
         i += 1;
-        i;
     }
+
     if luaD_rawrunprotected(
         L,
         Some(f_luaopen as unsafe extern "C" fn(*mut lua_State, *mut libc::c_void) -> ()),
@@ -669,6 +670,7 @@ pub unsafe extern "C" fn lua_newstate(
         close_state(L);
         L = 0 as *mut lua_State;
     }
+
     return L;
 }
 

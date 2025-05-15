@@ -9,7 +9,6 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(unused_parens)]
-#![allow(path_statements)]
 
 use crate::api_incr_top;
 use crate::lctype::luai_ctype_;
@@ -21,6 +20,7 @@ use crate::lvm::{
 };
 use libc::{memcpy, sprintf, strchr, strpbrk, strspn, strtod};
 use libm::{floor, pow};
+use std::ffi::c_int;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -535,17 +535,18 @@ pub unsafe extern "C" fn luaO_ceillog2(mut x: libc::c_uint) -> libc::c_int {
     ];
     let mut l: libc::c_int = 0 as libc::c_int;
     x = x.wrapping_sub(1);
-    x;
+
     while x >= 256 as libc::c_int as libc::c_uint {
         l += 8 as libc::c_int;
         x >>= 8 as libc::c_int;
     }
+
     return l + log_2[x as usize] as libc::c_int;
 }
 
 unsafe extern "C" fn intarith(
     mut L: *mut lua_State,
-    mut op: libc::c_int,
+    mut op: c_int,
     mut v1: i64,
     mut v2: i64,
 ) -> i64 {
@@ -568,8 +569,8 @@ unsafe extern "C" fn intarith(
         13 => {
             return (!(0 as libc::c_int as u64) ^ v1 as u64) as i64;
         }
-        _ => return 0 as libc::c_int as i64,
-    };
+        _ => 0,
+    }
 }
 
 unsafe extern "C" fn numarith(
@@ -796,7 +797,6 @@ unsafe fn l_str2dloc(
         != 0
     {
         endptr = endptr.offset(1);
-        endptr;
     }
     return if *endptr as libc::c_int == '\0' as i32 {
         endptr
@@ -836,7 +836,6 @@ unsafe extern "C" fn l_str2int(
         != 0
     {
         s = s.offset(1);
-        s;
     }
     neg = isneg(&mut s);
     if *s.offset(0 as libc::c_int as isize) as libc::c_int == '0' as i32
@@ -853,7 +852,6 @@ unsafe extern "C" fn l_str2int(
                 .wrapping_add(luaO_hexavalue(*s as libc::c_int) as u64);
             empty = 0 as libc::c_int;
             s = s.offset(1);
-            s;
         }
     } else {
         while luai_ctype_[(*s as libc::c_uchar as libc::c_int + 1 as libc::c_int) as usize]
@@ -877,7 +875,6 @@ unsafe extern "C" fn l_str2int(
             a = (a * 10 as libc::c_int as u64).wrapping_add(d as u64);
             empty = 0 as libc::c_int;
             s = s.offset(1);
-            s;
         }
     }
     while luai_ctype_[(*s as libc::c_uchar as libc::c_int + 1 as libc::c_int) as usize]
@@ -886,7 +883,6 @@ unsafe extern "C" fn l_str2int(
         != 0
     {
         s = s.offset(1);
-        s;
     }
     if empty != 0 || *s as libc::c_int != '\0' as i32 {
         return 0 as *const libc::c_char;
@@ -951,25 +947,21 @@ pub unsafe extern "C" fn luaO_utf8esc(
     return n;
 }
 
-unsafe extern "C" fn tostringbuff(
-    mut obj: *mut TValue,
-    mut buff: *mut libc::c_char,
-) -> libc::c_int {
-    let mut len: libc::c_int = 0;
+unsafe fn tostringbuff(mut obj: *mut TValue, buff: *mut libc::c_char) -> c_int {
     if (*obj).tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
-        len = sprintf(
+        sprintf(
             buff,
             b"%lld\0" as *const u8 as *const libc::c_char,
             (*obj).value_.i,
-        );
+        )
     } else {
-        len = sprintf(
+        let mut len = sprintf(
             buff,
             b"%.14g\0" as *const u8 as *const libc::c_char,
             (*obj).value_.n,
         );
-        if *buff.offset(strspn(buff, b"-0123456789\0" as *const u8 as *const libc::c_char) as isize)
-            as libc::c_int
+
+        if *buff.offset(strspn(buff, c"-0123456789".as_ptr()) as isize) as libc::c_int
             == '\0' as i32
         {
             let fresh2 = len;
@@ -979,8 +971,9 @@ unsafe extern "C" fn tostringbuff(
             len = len + 1;
             *buff.offset(fresh3 as isize) = '0' as i32 as libc::c_char;
         }
+
+        len
     }
-    return len;
 }
 
 #[unsafe(no_mangle)]

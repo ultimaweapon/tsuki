@@ -630,9 +630,11 @@ unsafe fn precallC(
             narg,
         );
     }
-    n = f(L);
+
+    n = f(L).unwrap();
     luaD_poscall(L, ci, n);
-    return n;
+
+    n
 }
 
 #[unsafe(no_mangle)]

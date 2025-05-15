@@ -718,9 +718,9 @@ unsafe extern "C" fn resizebox(
     return temp;
 }
 
-unsafe fn boxgc(mut L: *mut lua_State) -> libc::c_int {
+unsafe fn boxgc(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     resizebox(L, 1 as libc::c_int, 0 as libc::c_int as usize);
-    return 0 as libc::c_int;
+    Ok(0)
 }
 
 static mut boxmt: [luaL_Reg; 3] = [
