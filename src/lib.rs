@@ -33,6 +33,7 @@ mod ldump;
 mod lfunc;
 mod lgc;
 mod llex;
+mod lmathlib;
 mod lmem;
 mod lobject;
 mod lopcodes;

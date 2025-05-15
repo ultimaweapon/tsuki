@@ -32,11 +32,11 @@ use std::ptr::null;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct luaL_Buffer {
-    pub b: *mut libc::c_char,
-    pub size: usize,
-    pub n: usize,
-    pub L: *mut lua_State,
-    pub init: C2RustUnnamed,
+    pub(crate) b: *mut libc::c_char,
+    pub(crate) size: usize,
+    pub(crate) n: usize,
+    pub(crate) L: *mut lua_State,
+    pub(crate) init: C2RustUnnamed,
 }
 
 #[derive(Copy, Clone)]
