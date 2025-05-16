@@ -42,13 +42,18 @@ unsafe extern "C" fn error(mut S: *mut LoadState, why: impl Display) -> ! {
     luaD_throw((*S).L, 3 as libc::c_int);
 }
 
-unsafe extern "C" fn loadBlock(mut S: *mut LoadState, mut b: *mut libc::c_void, mut size: usize) {
-    if luaZ_read((*S).Z, b, size) != 0 as libc::c_int as usize {
+unsafe fn loadBlock(
+    mut S: *mut LoadState,
+    mut b: *mut libc::c_void,
+    mut size: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if luaZ_read((*S).Z, b, size)? != 0 as libc::c_int as usize {
         error(S, "truncated chunk");
     }
+    Ok(())
 }
 
-unsafe extern "C" fn loadByte(mut S: *mut LoadState) -> u8 {
+unsafe fn loadByte(mut S: *mut LoadState) -> Result<u8, Box<dyn std::error::Error>> {
     let fresh0 = (*(*S).Z).n;
     (*(*S).Z).n = ((*(*S).Z).n).wrapping_sub(1);
     let mut b: libc::c_int = if fresh0 > 0 as libc::c_int as usize {
@@ -56,20 +61,23 @@ unsafe extern "C" fn loadByte(mut S: *mut LoadState) -> u8 {
         (*(*S).Z).p = ((*(*S).Z).p).offset(1);
         *fresh1 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*S).Z)
+        luaZ_fill((*S).Z)?
     };
     if b == -(1 as libc::c_int) {
         error(S, "truncated chunk");
     }
-    return b as u8;
+    return Ok(b as u8);
 }
 
-unsafe extern "C" fn loadUnsigned(mut S: *mut LoadState, mut limit: usize) -> usize {
+unsafe fn loadUnsigned(
+    mut S: *mut LoadState,
+    mut limit: usize,
+) -> Result<usize, Box<dyn std::error::Error>> {
     let mut x: usize = 0 as libc::c_int as usize;
     let mut b: libc::c_int = 0;
     limit >>= 7 as libc::c_int;
     loop {
-        b = loadByte(S) as libc::c_int;
+        b = loadByte(S)? as libc::c_int;
         if x >= limit {
             error(S, "integer overflow");
         }
@@ -78,43 +86,46 @@ unsafe extern "C" fn loadUnsigned(mut S: *mut LoadState, mut limit: usize) -> us
             break;
         }
     }
-    return x;
+    return Ok(x);
 }
 
-unsafe extern "C" fn loadSize(mut S: *mut LoadState) -> usize {
+unsafe fn loadSize(mut S: *mut LoadState) -> Result<usize, Box<dyn std::error::Error>> {
     return loadUnsigned(S, !(0 as libc::c_int as usize));
 }
 
-unsafe extern "C" fn loadInt(mut S: *mut LoadState) -> libc::c_int {
-    return loadUnsigned(S, 2147483647 as libc::c_int as usize) as libc::c_int;
+unsafe fn loadInt(mut S: *mut LoadState) -> Result<libc::c_int, Box<dyn std::error::Error>> {
+    return loadUnsigned(S, 2147483647 as libc::c_int as usize).map(|v| v as libc::c_int);
 }
 
-unsafe extern "C" fn loadNumber(mut S: *mut LoadState) -> f64 {
+unsafe fn loadNumber(mut S: *mut LoadState) -> Result<f64, Box<dyn std::error::Error>> {
     let mut x: f64 = 0.;
     loadBlock(
         S,
         &mut x as *mut f64 as *mut libc::c_void,
         1usize.wrapping_mul(::core::mem::size_of::<f64>()),
-    );
-    return x;
+    )?;
+    return Ok(x);
 }
 
-unsafe extern "C" fn loadInteger(mut S: *mut LoadState) -> i64 {
+unsafe fn loadInteger(mut S: *mut LoadState) -> Result<i64, Box<dyn std::error::Error>> {
     let mut x: i64 = 0;
     loadBlock(
         S,
         &mut x as *mut i64 as *mut libc::c_void,
         1usize.wrapping_mul(::core::mem::size_of::<i64>()),
-    );
-    return x;
+    )?;
+    return Ok(x);
 }
 
-unsafe extern "C" fn loadStringN(mut S: *mut LoadState, mut p: *mut Proto) -> *mut TString {
+unsafe fn loadStringN(
+    mut S: *mut LoadState,
+    mut p: *mut Proto,
+) -> Result<*mut TString, Box<dyn std::error::Error>> {
     let mut L: *mut lua_State = (*S).L;
     let mut ts: *mut TString = 0 as *mut TString;
-    let mut size: usize = loadSize(S);
+    let mut size: usize = loadSize(S)?;
     if size == 0 as libc::c_int as usize {
-        return 0 as *mut TString;
+        return Ok(0 as *mut TString);
     } else {
         size = size.wrapping_sub(1);
         if size <= 40 as libc::c_int as usize {
@@ -123,7 +134,7 @@ unsafe extern "C" fn loadStringN(mut S: *mut LoadState, mut p: *mut Proto) -> *m
                 S,
                 buff.as_mut_ptr() as *mut libc::c_void,
                 size.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
-            );
+            )?;
             ts = luaS_newlstr(L, buff.as_mut_ptr(), size);
         } else {
             ts = luaS_createlngstrobj(L, size);
@@ -136,7 +147,7 @@ unsafe extern "C" fn loadStringN(mut S: *mut LoadState, mut p: *mut Proto) -> *m
                 S,
                 ((*ts).contents).as_mut_ptr() as *mut libc::c_void,
                 size.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
-            );
+            )?;
             (*L).top.p = ((*L).top.p).offset(-1);
             (*L).top.p;
         }
@@ -153,19 +164,25 @@ unsafe extern "C" fn loadStringN(mut S: *mut LoadState, mut p: *mut Proto) -> *m
         );
     } else {
     };
-    return ts;
+    return Ok(ts);
 }
 
-unsafe extern "C" fn loadString(mut S: *mut LoadState, mut p: *mut Proto) -> *mut TString {
-    let mut st: *mut TString = loadStringN(S, p);
+unsafe fn loadString(
+    mut S: *mut LoadState,
+    mut p: *mut Proto,
+) -> Result<*mut TString, Box<dyn std::error::Error>> {
+    let mut st: *mut TString = loadStringN(S, p)?;
     if st.is_null() {
         error(S, "bad format for constant string");
     }
-    return st;
+    return Ok(st);
 }
 
-unsafe extern "C" fn loadCode(mut S: *mut LoadState, mut f: *mut Proto) {
-    let mut n: libc::c_int = loadInt(S);
+unsafe fn loadCode(
+    mut S: *mut LoadState,
+    mut f: *mut Proto,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut n: libc::c_int = loadInt(S)?;
     if ::core::mem::size_of::<libc::c_int>() as libc::c_ulong
         >= ::core::mem::size_of::<usize>() as libc::c_ulong
         && (n as usize).wrapping_add(1 as libc::c_int as usize)
@@ -184,12 +201,15 @@ unsafe extern "C" fn loadCode(mut S: *mut LoadState, mut f: *mut Proto) {
         S,
         (*f).code as *mut libc::c_void,
         (n as usize).wrapping_mul(::core::mem::size_of::<u32>()),
-    );
+    )
 }
 
-unsafe extern "C" fn loadConstants(mut S: *mut LoadState, mut f: *mut Proto) {
+unsafe fn loadConstants(
+    mut S: *mut LoadState,
+    mut f: *mut Proto,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
-    let mut n: libc::c_int = loadInt(S);
+    let mut n: libc::c_int = loadInt(S)?;
     if ::core::mem::size_of::<libc::c_int>() as libc::c_ulong
         >= ::core::mem::size_of::<usize>() as libc::c_ulong
         && (n as usize).wrapping_add(1 as libc::c_int as usize)
@@ -214,7 +234,7 @@ unsafe extern "C" fn loadConstants(mut S: *mut LoadState, mut f: *mut Proto) {
     i = 0 as libc::c_int;
     while i < n {
         let mut o: *mut TValue = &mut *((*f).k).offset(i as isize) as *mut TValue;
-        let mut t: libc::c_int = loadByte(S) as libc::c_int;
+        let mut t: libc::c_int = loadByte(S)? as libc::c_int;
         match t {
             0 => {
                 (*o).tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -227,17 +247,17 @@ unsafe extern "C" fn loadConstants(mut S: *mut LoadState, mut f: *mut Proto) {
             }
             19 => {
                 let mut io: *mut TValue = o;
-                (*io).value_.n = loadNumber(S);
+                (*io).value_.n = loadNumber(S)?;
                 (*io).tt_ = (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
             }
             3 => {
                 let mut io_0: *mut TValue = o;
-                (*io_0).value_.i = loadInteger(S);
+                (*io_0).value_.i = loadInteger(S)?;
                 (*io_0).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
             }
             4 | 20 => {
                 let mut io_1: *mut TValue = o;
-                let mut x_: *mut TString = loadString(S, f);
+                let mut x_: *mut TString = loadString(S, f)?;
                 (*io_1).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
                 (*io_1).tt_ =
                     ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -247,11 +267,15 @@ unsafe extern "C" fn loadConstants(mut S: *mut LoadState, mut f: *mut Proto) {
         i += 1;
         i;
     }
+    Ok(())
 }
 
-unsafe extern "C" fn loadProtos(mut S: *mut LoadState, mut f: *mut Proto) {
+unsafe fn loadProtos(
+    mut S: *mut LoadState,
+    mut f: *mut Proto,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
-    let mut n: libc::c_int = loadInt(S);
+    let mut n: libc::c_int = loadInt(S)?;
     if ::core::mem::size_of::<libc::c_int>() as libc::c_ulong
         >= ::core::mem::size_of::<usize>() as libc::c_ulong
         && (n as usize).wrapping_add(1 as libc::c_int as usize)
@@ -289,16 +313,20 @@ unsafe extern "C" fn loadProtos(mut S: *mut LoadState, mut f: *mut Proto) {
             );
         } else {
         };
-        loadFunction(S, *((*f).p).offset(i as isize), (*f).source);
+        loadFunction(S, *((*f).p).offset(i as isize), (*f).source)?;
         i += 1;
         i;
     }
+    Ok(())
 }
 
-unsafe extern "C" fn loadUpvalues(mut S: *mut LoadState, mut f: *mut Proto) {
+unsafe fn loadUpvalues(
+    mut S: *mut LoadState,
+    mut f: *mut Proto,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
     let mut n: libc::c_int = 0;
-    n = loadInt(S);
+    n = loadInt(S)?;
     if ::core::mem::size_of::<libc::c_int>() as libc::c_ulong
         >= ::core::mem::size_of::<usize>() as libc::c_ulong
         && (n as usize).wrapping_add(1 as libc::c_int as usize)
@@ -322,18 +350,22 @@ unsafe extern "C" fn loadUpvalues(mut S: *mut LoadState, mut f: *mut Proto) {
     }
     i = 0 as libc::c_int;
     while i < n {
-        (*((*f).upvalues).offset(i as isize)).instack = loadByte(S);
-        (*((*f).upvalues).offset(i as isize)).idx = loadByte(S);
-        (*((*f).upvalues).offset(i as isize)).kind = loadByte(S);
+        (*((*f).upvalues).offset(i as isize)).instack = loadByte(S)?;
+        (*((*f).upvalues).offset(i as isize)).idx = loadByte(S)?;
+        (*((*f).upvalues).offset(i as isize)).kind = loadByte(S)?;
         i += 1;
         i;
     }
+    Ok(())
 }
 
-unsafe extern "C" fn loadDebug(mut S: *mut LoadState, mut f: *mut Proto) {
+unsafe fn loadDebug(
+    mut S: *mut LoadState,
+    mut f: *mut Proto,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
     let mut n: libc::c_int = 0;
-    n = loadInt(S);
+    n = loadInt(S)?;
     if ::core::mem::size_of::<libc::c_int>() as libc::c_ulong
         >= ::core::mem::size_of::<usize>() as libc::c_ulong
         && (n as usize).wrapping_add(1 as libc::c_int as usize)
@@ -352,8 +384,8 @@ unsafe extern "C" fn loadDebug(mut S: *mut LoadState, mut f: *mut Proto) {
         S,
         (*f).lineinfo as *mut libc::c_void,
         (n as usize).wrapping_mul(::core::mem::size_of::<i8>()),
-    );
-    n = loadInt(S);
+    )?;
+    n = loadInt(S)?;
     if ::core::mem::size_of::<libc::c_int>() as libc::c_ulong
         >= ::core::mem::size_of::<usize>() as libc::c_ulong
         && (n as usize).wrapping_add(1 as libc::c_int as usize)
@@ -370,12 +402,12 @@ unsafe extern "C" fn loadDebug(mut S: *mut LoadState, mut f: *mut Proto) {
     (*f).sizeabslineinfo = n;
     i = 0 as libc::c_int;
     while i < n {
-        (*((*f).abslineinfo).offset(i as isize)).pc = loadInt(S);
-        (*((*f).abslineinfo).offset(i as isize)).line = loadInt(S);
+        (*((*f).abslineinfo).offset(i as isize)).pc = loadInt(S)?;
+        (*((*f).abslineinfo).offset(i as isize)).line = loadInt(S)?;
         i += 1;
         i;
     }
-    n = loadInt(S);
+    n = loadInt(S)?;
     if ::core::mem::size_of::<libc::c_int>() as libc::c_ulong
         >= ::core::mem::size_of::<usize>() as libc::c_ulong
         && (n as usize).wrapping_add(1 as libc::c_int as usize)
@@ -400,58 +432,60 @@ unsafe extern "C" fn loadDebug(mut S: *mut LoadState, mut f: *mut Proto) {
     i = 0 as libc::c_int;
     while i < n {
         let ref mut fresh6 = (*((*f).locvars).offset(i as isize)).varname;
-        *fresh6 = loadStringN(S, f);
-        (*((*f).locvars).offset(i as isize)).startpc = loadInt(S);
-        (*((*f).locvars).offset(i as isize)).endpc = loadInt(S);
+        *fresh6 = loadStringN(S, f)?;
+        (*((*f).locvars).offset(i as isize)).startpc = loadInt(S)?;
+        (*((*f).locvars).offset(i as isize)).endpc = loadInt(S)?;
         i += 1;
         i;
     }
-    n = loadInt(S);
+    n = loadInt(S)?;
     if n != 0 as libc::c_int {
         n = (*f).sizeupvalues;
     }
     i = 0 as libc::c_int;
     while i < n {
         let ref mut fresh7 = (*((*f).upvalues).offset(i as isize)).name;
-        *fresh7 = loadStringN(S, f);
+        *fresh7 = loadStringN(S, f)?;
         i += 1;
         i;
     }
+    Ok(())
 }
 
-unsafe extern "C" fn loadFunction(
+unsafe fn loadFunction(
     mut S: *mut LoadState,
     mut f: *mut Proto,
     mut psource: *mut TString,
-) {
-    (*f).source = loadStringN(S, f);
+) -> Result<(), Box<dyn std::error::Error>> {
+    (*f).source = loadStringN(S, f)?;
     if ((*f).source).is_null() {
         (*f).source = psource;
     }
-    (*f).linedefined = loadInt(S);
-    (*f).lastlinedefined = loadInt(S);
-    (*f).numparams = loadByte(S);
-    (*f).is_vararg = loadByte(S);
-    (*f).maxstacksize = loadByte(S);
-    loadCode(S, f);
-    loadConstants(S, f);
-    loadUpvalues(S, f);
-    loadProtos(S, f);
-    loadDebug(S, f);
+    (*f).linedefined = loadInt(S)?;
+    (*f).lastlinedefined = loadInt(S)?;
+    (*f).numparams = loadByte(S)?;
+    (*f).is_vararg = loadByte(S)?;
+    (*f).maxstacksize = loadByte(S)?;
+    loadCode(S, f)?;
+    loadConstants(S, f)?;
+    loadUpvalues(S, f)?;
+    loadProtos(S, f)?;
+    loadDebug(S, f)?;
+    Ok(())
 }
 
-unsafe extern "C" fn checkliteral(
+unsafe fn checkliteral(
     mut S: *mut LoadState,
     mut s: *const libc::c_char,
     msg: impl Display,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut buff: [libc::c_char; 12] = [0; 12];
     let mut len: usize = strlen(s);
     loadBlock(
         S,
         buff.as_mut_ptr() as *mut libc::c_void,
         len.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
-    );
+    )?;
     if memcmp(
         s as *const libc::c_void,
         buff.as_mut_ptr() as *const libc::c_void,
@@ -460,50 +494,57 @@ unsafe extern "C" fn checkliteral(
     {
         error(S, msg);
     }
+    Ok(())
 }
 
-unsafe fn fchecksize(mut S: *mut LoadState, mut size: usize, tname: &str) {
-    if loadByte(S) as usize != size {
+unsafe fn fchecksize(
+    mut S: *mut LoadState,
+    mut size: usize,
+    tname: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if loadByte(S)? as usize != size {
         error(S, format_args!("{tname} size mismatch"));
     }
+    Ok(())
 }
 
-unsafe extern "C" fn checkHeader(mut S: *mut LoadState) {
+unsafe fn checkHeader(mut S: *mut LoadState) -> Result<(), Box<dyn std::error::Error>> {
     checkliteral(
         S,
         &*(b"\x1BLua\0" as *const u8 as *const libc::c_char).offset(1 as libc::c_int as isize),
         "not a binary chunk",
-    );
-    if loadByte(S) as libc::c_int
+    )?;
+    if loadByte(S)? as libc::c_int
         != 504 as libc::c_int / 100 as libc::c_int * 16 as libc::c_int
             + 504 as libc::c_int % 100 as libc::c_int
     {
         error(S, "version mismatch");
     }
-    if loadByte(S) as libc::c_int != 0 as libc::c_int {
+    if loadByte(S)? as libc::c_int != 0 as libc::c_int {
         error(S, "format mismatch");
     }
     checkliteral(
         S,
         b"\x19\x93\r\n\x1A\n\0" as *const u8 as *const libc::c_char,
         "corrupted chunk",
-    );
-    fchecksize(S, ::core::mem::size_of::<u32>(), "Instruction");
-    fchecksize(S, ::core::mem::size_of::<i64>(), "lua_Integer");
-    fchecksize(S, ::core::mem::size_of::<f64>(), "lua_Number");
-    if loadInteger(S) != 0x5678 as libc::c_int as i64 {
+    )?;
+    fchecksize(S, ::core::mem::size_of::<u32>(), "Instruction")?;
+    fchecksize(S, ::core::mem::size_of::<i64>(), "lua_Integer")?;
+    fchecksize(S, ::core::mem::size_of::<f64>(), "lua_Number")?;
+    if loadInteger(S)? != 0x5678 as libc::c_int as i64 {
         error(S, "integer format mismatch");
     }
-    if loadNumber(S) != 370.5f64 {
+    if loadNumber(S)? != 370.5f64 {
         error(S, "float format mismatch");
     }
+    Ok(())
 }
 
 pub unsafe fn luaU_undump(
     mut L: *mut lua_State,
     mut Z: *mut ZIO,
     mut name: *const libc::c_char,
-) -> *mut LClosure {
+) -> Result<*mut LClosure, Box<dyn std::error::Error>> {
     let mut S: LoadState = LoadState {
         L: 0 as *mut lua_State,
         Z: 0 as *mut ZIO,
@@ -522,8 +563,8 @@ pub unsafe fn luaU_undump(
     }
     S.L = L;
     S.Z = Z;
-    checkHeader(&mut S);
-    cl = luaF_newLclosure(L, loadByte(&mut S) as libc::c_int);
+    checkHeader(&mut S)?;
+    cl = luaF_newLclosure(L, loadByte(&mut S)? as libc::c_int);
     let mut io: *mut TValue = &mut (*(*L).top.p).val;
     let mut x_: *mut LClosure = cl;
     (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
@@ -544,6 +585,6 @@ pub unsafe fn luaU_undump(
         );
     } else {
     };
-    loadFunction(&mut S, (*cl).p, 0 as *mut TString);
-    return cl;
+    loadFunction(&mut S, (*cl).p, 0 as *mut TString)?;
+    return Ok(cl);
 }

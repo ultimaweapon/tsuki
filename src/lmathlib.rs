@@ -15,7 +15,7 @@ use crate::{
     lua_State, lua_createtable, lua_gettop, lua_isinteger, lua_newuserdatauv, lua_pushinteger,
     lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_setfield, lua_settop,
     lua_tointegerx, lua_touserdata, lua_type, luaL_Reg, luaL_argerror, luaL_checkinteger,
-    luaL_checknumber, luaL_checkversion_, luaL_error, luaL_optinteger, luaL_setfuncs,
+    luaL_checknumber, luaL_error, luaL_optinteger, luaL_setfuncs,
 };
 use libc::time;
 use libm::{
@@ -38,39 +38,39 @@ unsafe fn math_abs(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::E
         }
         lua_pushinteger(L, n);
     } else {
-        lua_pushnumber(L, fabs(luaL_checknumber(L, 1 as libc::c_int)));
+        lua_pushnumber(L, fabs(luaL_checknumber(L, 1 as libc::c_int)?));
     }
     return Ok(1 as libc::c_int);
 }
 
 unsafe fn math_sin(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    lua_pushnumber(L, sin(luaL_checknumber(L, 1 as libc::c_int)));
+    lua_pushnumber(L, sin(luaL_checknumber(L, 1 as libc::c_int)?));
     return Ok(1 as libc::c_int);
 }
 
 unsafe fn math_cos(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    lua_pushnumber(L, cos(luaL_checknumber(L, 1 as libc::c_int)));
+    lua_pushnumber(L, cos(luaL_checknumber(L, 1 as libc::c_int)?));
     return Ok(1 as libc::c_int);
 }
 
 unsafe fn math_tan(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    lua_pushnumber(L, tan(luaL_checknumber(L, 1 as libc::c_int)));
+    lua_pushnumber(L, tan(luaL_checknumber(L, 1 as libc::c_int)?));
     return Ok(1 as libc::c_int);
 }
 
 unsafe fn math_asin(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    lua_pushnumber(L, asin(luaL_checknumber(L, 1 as libc::c_int)));
+    lua_pushnumber(L, asin(luaL_checknumber(L, 1 as libc::c_int)?));
     return Ok(1 as libc::c_int);
 }
 
 unsafe fn math_acos(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    lua_pushnumber(L, acos(luaL_checknumber(L, 1 as libc::c_int)));
+    lua_pushnumber(L, acos(luaL_checknumber(L, 1 as libc::c_int)?));
     return Ok(1 as libc::c_int);
 }
 
 unsafe fn math_atan(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut y: f64 = luaL_checknumber(L, 1 as libc::c_int);
-    let mut x: f64 = luaL_optnumber(L, 2 as libc::c_int, 1 as libc::c_int as f64);
+    let mut y: f64 = luaL_checknumber(L, 1 as libc::c_int)?;
+    let mut x: f64 = luaL_optnumber(L, 2 as libc::c_int, 1 as libc::c_int as f64)?;
     lua_pushnumber(L, atan2(y, x));
     return Ok(1 as libc::c_int);
 }
@@ -81,7 +81,7 @@ unsafe fn math_toint(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
     if (valid != 0 as libc::c_int) as libc::c_int as libc::c_long != 0 {
         lua_pushinteger(L, n);
     } else {
-        luaL_checkany(L, 1 as libc::c_int);
+        luaL_checkany(L, 1 as libc::c_int)?;
         lua_pushnil(L);
     }
     return Ok(1 as libc::c_int);
@@ -106,9 +106,9 @@ unsafe extern "C" fn pushnumint(mut L: *mut lua_State, mut d: f64) {
 
 unsafe fn math_floor(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     if lua_isinteger(L, 1 as libc::c_int) != 0 {
-        lua_settop(L, 1 as libc::c_int);
+        lua_settop(L, 1 as libc::c_int)?;
     } else {
-        let mut d: f64 = floor(luaL_checknumber(L, 1 as libc::c_int));
+        let mut d: f64 = floor(luaL_checknumber(L, 1 as libc::c_int)?);
         pushnumint(L, d);
     }
     return Ok(1 as libc::c_int);
@@ -116,9 +116,9 @@ unsafe fn math_floor(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
 
 unsafe fn math_ceil(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     if lua_isinteger(L, 1 as libc::c_int) != 0 {
-        lua_settop(L, 1 as libc::c_int);
+        lua_settop(L, 1 as libc::c_int)?;
     } else {
-        let mut d: f64 = ceil(luaL_checknumber(L, 1 as libc::c_int));
+        let mut d: f64 = ceil(luaL_checknumber(L, 1 as libc::c_int)?);
         pushnumint(L, d);
     }
     return Ok(1 as libc::c_int);
@@ -131,7 +131,7 @@ unsafe fn math_fmod(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
             (((d != 0 as libc::c_int as i64) as libc::c_int != 0 as libc::c_int) as libc::c_int
                 as libc::c_long
                 != 0
-                || luaL_argerror(L, 2 as libc::c_int, "zero") != 0) as libc::c_int;
+                || luaL_argerror(L, 2 as libc::c_int, "zero")? != 0) as libc::c_int;
             lua_pushinteger(L, 0 as libc::c_int as i64);
         } else {
             lua_pushinteger(
@@ -143,8 +143,8 @@ unsafe fn math_fmod(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
         lua_pushnumber(
             L,
             fmod(
-                luaL_checknumber(L, 1 as libc::c_int),
-                luaL_checknumber(L, 2 as libc::c_int),
+                luaL_checknumber(L, 1 as libc::c_int)?,
+                luaL_checknumber(L, 2 as libc::c_int)?,
             ),
         );
     }
@@ -153,10 +153,10 @@ unsafe fn math_fmod(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
 
 unsafe fn math_modf(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     if lua_isinteger(L, 1 as libc::c_int) != 0 {
-        lua_settop(L, 1 as libc::c_int);
+        lua_settop(L, 1 as libc::c_int)?;
         lua_pushnumber(L, 0 as libc::c_int as f64);
     } else {
-        let mut n: f64 = luaL_checknumber(L, 1 as libc::c_int);
+        let mut n: f64 = luaL_checknumber(L, 1 as libc::c_int)?;
         let mut ip: f64 = if n < 0 as libc::c_int as f64 {
             ceil(n)
         } else {
@@ -169,24 +169,24 @@ unsafe fn math_modf(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
 }
 
 unsafe fn math_sqrt(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    lua_pushnumber(L, sqrt(luaL_checknumber(L, 1 as libc::c_int)));
+    lua_pushnumber(L, sqrt(luaL_checknumber(L, 1 as libc::c_int)?));
     return Ok(1 as libc::c_int);
 }
 
 unsafe fn math_ult(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut a: i64 = luaL_checkinteger(L, 1 as libc::c_int);
-    let mut b: i64 = luaL_checkinteger(L, 2 as libc::c_int);
+    let mut a: i64 = luaL_checkinteger(L, 1 as libc::c_int)?;
+    let mut b: i64 = luaL_checkinteger(L, 2 as libc::c_int)?;
     lua_pushboolean(L, ((a as u64) < b as u64) as libc::c_int);
     return Ok(1 as libc::c_int);
 }
 
 unsafe fn math_log(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut x: f64 = luaL_checknumber(L, 1 as libc::c_int);
+    let mut x: f64 = luaL_checknumber(L, 1 as libc::c_int)?;
     let mut res: f64 = 0.;
     if lua_type(L, 2 as libc::c_int) <= 0 as libc::c_int {
         res = log(x);
     } else {
-        let mut base: f64 = luaL_checknumber(L, 2 as libc::c_int);
+        let mut base: f64 = luaL_checknumber(L, 2 as libc::c_int)?;
         if base == 2.0f64 {
             res = log2(x);
         } else if base == 10.0f64 {
@@ -200,14 +200,14 @@ unsafe fn math_log(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::E
 }
 
 unsafe fn math_exp(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    lua_pushnumber(L, exp(luaL_checknumber(L, 1 as libc::c_int)));
+    lua_pushnumber(L, exp(luaL_checknumber(L, 1 as libc::c_int)?));
     return Ok(1 as libc::c_int);
 }
 
 unsafe fn math_deg(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     lua_pushnumber(
         L,
-        luaL_checknumber(L, 1 as libc::c_int)
+        luaL_checknumber(L, 1 as libc::c_int)?
             * (180.0f64 / 3.141592653589793238462643383279502884f64),
     );
     return Ok(1 as libc::c_int);
@@ -216,7 +216,7 @@ unsafe fn math_deg(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::E
 unsafe fn math_rad(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     lua_pushnumber(
         L,
-        luaL_checknumber(L, 1 as libc::c_int)
+        luaL_checknumber(L, 1 as libc::c_int)?
             * (3.141592653589793238462643383279502884f64 / 180.0f64),
     );
     return Ok(1 as libc::c_int);
@@ -228,10 +228,10 @@ unsafe fn math_min(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::E
     let mut i: libc::c_int = 0;
     (((n >= 1 as libc::c_int) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
-        || luaL_argerror(L, 1 as libc::c_int, "value expected") != 0) as libc::c_int;
+        || luaL_argerror(L, 1 as libc::c_int, "value expected")? != 0) as libc::c_int;
     i = 2 as libc::c_int;
     while i <= n {
-        if lua_compare(L, i, imin, 1 as libc::c_int) != 0 {
+        if lua_compare(L, i, imin, 1 as libc::c_int)? != 0 {
             imin = i;
         }
         i += 1;
@@ -246,10 +246,10 @@ unsafe fn math_max(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::E
     let mut i: libc::c_int = 0;
     (((n >= 1 as libc::c_int) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
-        || luaL_argerror(L, 1 as libc::c_int, "value expected") != 0) as libc::c_int;
+        || luaL_argerror(L, 1 as libc::c_int, "value expected")? != 0) as libc::c_int;
     i = 2 as libc::c_int;
     while i <= n {
-        if lua_compare(L, imax, i, 1 as libc::c_int) != 0 {
+        if lua_compare(L, imax, i, 1 as libc::c_int)? != 0 {
             imax = i;
         }
         i += 1;
@@ -269,7 +269,7 @@ unsafe fn math_type(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
             },
         );
     } else {
-        luaL_checkany(L, 1 as libc::c_int);
+        luaL_checkany(L, 1 as libc::c_int)?;
         lua_pushnil(L);
     }
     return Ok(1 as libc::c_int);
@@ -348,22 +348,22 @@ unsafe fn math_random(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error
         }
         1 => {
             low = 1 as libc::c_int as i64;
-            up = luaL_checkinteger(L, 1 as libc::c_int);
+            up = luaL_checkinteger(L, 1 as libc::c_int)?;
             if up == 0 as libc::c_int as i64 {
                 lua_pushinteger(L, (rv & 0xffffffffffffffff as libc::c_ulong) as u64 as i64);
                 return Ok(1 as libc::c_int);
             }
         }
         2 => {
-            low = luaL_checkinteger(L, 1 as libc::c_int);
-            up = luaL_checkinteger(L, 2 as libc::c_int);
+            low = luaL_checkinteger(L, 1 as libc::c_int)?;
+            up = luaL_checkinteger(L, 2 as libc::c_int)?;
         }
         _ => {
-            return Ok(luaL_error(L, "wrong number of arguments"));
+            return luaL_error(L, "wrong number of arguments");
         }
     }
     (((low <= up) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long != 0
-        || luaL_argerror(L, 1 as libc::c_int, "interval is empty") != 0) as libc::c_int;
+        || luaL_argerror(L, 1 as libc::c_int, "interval is empty")? != 0) as libc::c_int;
     p = project(
         (rv & 0xffffffffffffffff as libc::c_ulong) as u64,
         (up as u64).wrapping_sub(low as u64),
@@ -407,8 +407,8 @@ unsafe fn math_randomseed(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::e
     if lua_type(L, 1 as libc::c_int) == -(1 as libc::c_int) {
         randseed(L, state);
     } else {
-        let mut n1: i64 = luaL_checkinteger(L, 1 as libc::c_int);
-        let mut n2: i64 = luaL_optinteger(L, 2 as libc::c_int, 0 as libc::c_int as i64);
+        let mut n1: i64 = luaL_checkinteger(L, 1 as libc::c_int)?;
+        let mut n2: i64 = luaL_optinteger(L, 2 as libc::c_int, 0 as libc::c_int as i64)?;
         setseed(L, ((*state).s).as_mut_ptr(), n1 as u64, n2 as u64);
     }
     return Ok(2 as libc::c_int);
@@ -438,11 +438,12 @@ static mut randfuncs: [luaL_Reg; 3] = [
     },
 ];
 
-unsafe extern "C" fn setrandfunc(mut L: *mut lua_State) {
+unsafe fn setrandfunc(mut L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
     let state = lua_newuserdatauv(L, ::core::mem::size_of::<RanState>(), 0) as *mut RanState;
     randseed(L, state);
-    lua_settop(L, -(2 as libc::c_int) - 1 as libc::c_int);
-    luaL_setfuncs(L, &raw const randfuncs as *const luaL_Reg, 1 as libc::c_int);
+    lua_settop(L, -(2 as libc::c_int) - 1 as libc::c_int)?;
+    luaL_setfuncs(L, &raw const randfuncs as *const luaL_Reg, 1 as libc::c_int)?;
+    Ok(())
 }
 
 static mut mathlib: [luaL_Reg; 28] = [
@@ -645,13 +646,6 @@ static mut mathlib: [luaL_Reg; 28] = [
 ];
 
 pub unsafe fn luaopen_math(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    luaL_checkversion_(
-        L,
-        504 as libc::c_int as f64,
-        ::core::mem::size_of::<i64>()
-            .wrapping_mul(16)
-            .wrapping_add(::core::mem::size_of::<f64>()),
-    );
     lua_createtable(
         L,
         0 as libc::c_int,
@@ -659,25 +653,25 @@ pub unsafe fn luaopen_math(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::
             .wrapping_div(::core::mem::size_of::<luaL_Reg>() as libc::c_ulong)
             .wrapping_sub(1 as libc::c_int as libc::c_ulong) as libc::c_int,
     );
-    luaL_setfuncs(L, &raw const mathlib as *const luaL_Reg, 0 as libc::c_int);
+    luaL_setfuncs(L, &raw const mathlib as *const luaL_Reg, 0 as libc::c_int)?;
     lua_pushnumber(L, 3.141592653589793238462643383279502884f64);
     lua_setfield(
         L,
         -(2 as libc::c_int),
         b"pi\0" as *const u8 as *const libc::c_char,
-    );
+    )?;
     lua_pushnumber(L, ::core::f64::INFINITY);
     lua_setfield(
         L,
         -(2 as libc::c_int),
         b"huge\0" as *const u8 as *const libc::c_char,
-    );
+    )?;
     lua_pushinteger(L, 0x7fffffffffffffff as libc::c_longlong);
     lua_setfield(
         L,
         -(2 as libc::c_int),
         b"maxinteger\0" as *const u8 as *const libc::c_char,
-    );
+    )?;
     lua_pushinteger(
         L,
         -(0x7fffffffffffffff as libc::c_longlong) - 1 as libc::c_int as libc::c_longlong,
@@ -686,7 +680,7 @@ pub unsafe fn luaopen_math(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::
         L,
         -(2 as libc::c_int),
         b"mininteger\0" as *const u8 as *const libc::c_char,
-    );
-    setrandfunc(L);
+    )?;
+    setrandfunc(L)?;
     return Ok(1 as libc::c_int);
 }

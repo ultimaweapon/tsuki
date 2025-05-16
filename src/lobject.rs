@@ -736,14 +736,13 @@ pub unsafe extern "C" fn luaO_rawarith(
     };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaO_arith(
+pub unsafe fn luaO_arith(
     mut L: *mut lua_State,
     mut op: libc::c_int,
     mut p1: *const TValue,
     mut p2: *const TValue,
     mut res: StkId,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     if luaO_rawarith(L, op, p1, p2, &mut (*res).val) == 0 {
         luaT_trybinTM(
             L,
@@ -751,8 +750,9 @@ pub unsafe extern "C" fn luaO_arith(
             p2,
             res,
             (op - 0 as libc::c_int + TM_ADD as libc::c_int) as TMS,
-        );
+        )?;
     }
+    Ok(())
 }
 
 #[unsafe(no_mangle)]
@@ -986,7 +986,11 @@ pub unsafe extern "C" fn luaO_tostring(mut L: *mut lua_State, mut obj: *mut TVal
     (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
 }
 
-unsafe extern "C" fn pushstr(mut buff: *mut BuffFS, mut str: *const libc::c_char, mut lstr: usize) {
+unsafe fn pushstr(
+    mut buff: *mut BuffFS,
+    mut str: *const libc::c_char,
+    mut lstr: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut L: *mut lua_State = (*buff).L;
     let mut io: *mut TValue = &mut (*(*L).top.p).val;
     let mut x_: *mut TString = luaS_newlstr(L, str, lstr);
@@ -998,41 +1002,51 @@ unsafe extern "C" fn pushstr(mut buff: *mut BuffFS, mut str: *const libc::c_char
     } else {
         (*L).top.p = ((*L).top.p).offset(1);
         (*L).top.p;
-        luaV_concat(L, 2 as libc::c_int);
+        luaV_concat(L, 2 as libc::c_int)?;
     };
+    Ok(())
 }
 
-unsafe extern "C" fn clearbuff(mut buff: *mut BuffFS) {
-    pushstr(buff, ((*buff).space).as_mut_ptr(), (*buff).blen as usize);
+unsafe fn clearbuff(mut buff: *mut BuffFS) -> Result<(), Box<dyn std::error::Error>> {
+    pushstr(buff, ((*buff).space).as_mut_ptr(), (*buff).blen as usize)?;
     (*buff).blen = 0 as libc::c_int;
+    Ok(())
 }
 
-unsafe extern "C" fn getbuff(mut buff: *mut BuffFS, mut sz: libc::c_int) -> *mut libc::c_char {
+unsafe fn getbuff(
+    mut buff: *mut BuffFS,
+    mut sz: libc::c_int,
+) -> Result<*mut libc::c_char, Box<dyn std::error::Error>> {
     if sz > 60 as libc::c_int + 44 as libc::c_int + 95 as libc::c_int - (*buff).blen {
-        clearbuff(buff);
+        clearbuff(buff)?;
     }
-    return ((*buff).space).as_mut_ptr().offset((*buff).blen as isize);
+    return Ok(((*buff).space).as_mut_ptr().offset((*buff).blen as isize));
 }
 
-unsafe extern "C" fn addstr2buff(
+unsafe fn addstr2buff(
     mut buff: *mut BuffFS,
     mut str: *const libc::c_char,
     mut slen: usize,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     if slen <= (60 as libc::c_int + 44 as libc::c_int + 95 as libc::c_int) as usize {
-        let mut bf: *mut libc::c_char = getbuff(buff, slen as libc::c_int);
+        let mut bf: *mut libc::c_char = getbuff(buff, slen as libc::c_int)?;
         memcpy(bf as *mut libc::c_void, str as *const libc::c_void, slen);
         (*buff).blen += slen as libc::c_int;
     } else {
-        clearbuff(buff);
-        pushstr(buff, str, slen);
+        clearbuff(buff)?;
+        pushstr(buff, str, slen)?;
     };
+    Ok(())
 }
 
-unsafe extern "C" fn addnum2buff(mut buff: *mut BuffFS, mut num: *mut TValue) {
-    let mut numbuff: *mut libc::c_char = getbuff(buff, 44 as libc::c_int);
+unsafe fn addnum2buff(
+    mut buff: *mut BuffFS,
+    mut num: *mut TValue,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut numbuff: *mut libc::c_char = getbuff(buff, 44 as libc::c_int)?;
     let mut len: libc::c_int = tostringbuff(num, numbuff);
     (*buff).blen += len;
+    Ok(())
 }
 
 #[unsafe(no_mangle)]

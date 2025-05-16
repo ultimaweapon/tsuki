@@ -44,7 +44,7 @@ use crate::ltable::luaH_new;
 use crate::lzio::{Mbuffer, ZIO};
 use libc::strcmp;
 use std::borrow::Cow;
-use std::ffi::CStr;
+use std::ffi::{CStr, c_int};
 use std::fmt::Display;
 
 #[derive(Copy, Clone)]
@@ -248,12 +248,15 @@ unsafe extern "C" fn checklimit(
     }
 }
 
-unsafe extern "C" fn testnext(mut ls: *mut LexState, mut c: libc::c_int) -> libc::c_int {
+unsafe fn testnext(
+    mut ls: *mut LexState,
+    mut c: libc::c_int,
+) -> Result<c_int, Box<dyn std::error::Error>> {
     if (*ls).t.token == c {
-        luaX_next(ls);
-        return 1 as libc::c_int;
+        luaX_next(ls)?;
+        return Ok(1 as libc::c_int);
     } else {
-        return 0 as libc::c_int;
+        return Ok(0 as libc::c_int);
     };
 }
 
@@ -263,18 +266,22 @@ unsafe extern "C" fn check(mut ls: *mut LexState, mut c: libc::c_int) {
     }
 }
 
-unsafe extern "C" fn checknext(mut ls: *mut LexState, mut c: libc::c_int) {
+unsafe fn checknext(
+    mut ls: *mut LexState,
+    mut c: libc::c_int,
+) -> Result<(), Box<dyn std::error::Error>> {
     check(ls, c);
-    luaX_next(ls);
+    luaX_next(ls)
 }
 
-unsafe extern "C" fn check_match(
+unsafe fn check_match(
     mut ls: *mut LexState,
     mut what: libc::c_int,
     mut who: libc::c_int,
     mut where_0: libc::c_int,
-) {
-    if ((testnext(ls, what) == 0) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long
+) -> Result<(), Box<dyn std::error::Error>> {
+    if ((testnext(ls, what)? == 0) as libc::c_int != 0 as libc::c_int) as libc::c_int
+        as libc::c_long
         != 0
     {
         if where_0 == (*ls).linenumber {
@@ -291,14 +298,15 @@ unsafe extern "C" fn check_match(
             );
         }
     }
+    Ok(())
 }
 
-unsafe extern "C" fn str_checkname(mut ls: *mut LexState) -> *mut TString {
+unsafe fn str_checkname(mut ls: *mut LexState) -> Result<*mut TString, Box<dyn std::error::Error>> {
     let mut ts: *mut TString = 0 as *mut TString;
     check(ls, TK_NAME as libc::c_int);
     ts = (*ls).t.seminfo.ts;
-    luaX_next(ls);
-    return ts;
+    luaX_next(ls)?;
+    return Ok(ts);
 }
 
 unsafe extern "C" fn init_exp(mut e: *mut expdesc, mut k: expkind, mut i: libc::c_int) {
@@ -315,8 +323,12 @@ unsafe extern "C" fn codestring(mut e: *mut expdesc, mut s: *mut TString) {
     (*e).u.strval = s;
 }
 
-unsafe extern "C" fn codename(mut ls: *mut LexState, mut e: *mut expdesc) {
-    codestring(e, str_checkname(ls));
+unsafe fn codename(
+    mut ls: *mut LexState,
+    mut e: *mut expdesc,
+) -> Result<(), Box<dyn std::error::Error>> {
+    codestring(e, str_checkname(ls)?);
+    Ok(())
 }
 
 unsafe extern "C" fn registerlocalvar(
@@ -669,8 +681,11 @@ unsafe extern "C" fn singlevaraux(
     };
 }
 
-unsafe extern "C" fn singlevar(mut ls: *mut LexState, mut var: *mut expdesc) {
-    let mut varname: *mut TString = str_checkname(ls);
+unsafe fn singlevar(
+    mut ls: *mut LexState,
+    mut var: *mut expdesc,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut varname: *mut TString = str_checkname(ls)?;
     let mut fs: *mut FuncState = (*ls).fs;
     singlevaraux(fs, varname, var, 1 as libc::c_int);
     if (*var).k as libc::c_uint == VVOID as libc::c_int as libc::c_uint {
@@ -681,18 +696,19 @@ unsafe extern "C" fn singlevar(mut ls: *mut LexState, mut var: *mut expdesc) {
             f: 0,
         };
         singlevaraux(fs, (*ls).envn, var, 1 as libc::c_int);
-        luaK_exp2anyregup(fs, var);
+        luaK_exp2anyregup(fs, var)?;
         codestring(&mut key, varname);
-        luaK_indexed(fs, var, &mut key);
+        luaK_indexed(fs, var, &mut key)?;
     }
+    Ok(())
 }
 
-unsafe extern "C" fn adjust_assign(
+unsafe fn adjust_assign(
     mut ls: *mut LexState,
     mut nvars: libc::c_int,
     mut nexps: libc::c_int,
     mut e: *mut expdesc,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut needed: libc::c_int = nvars - nexps;
     if (*e).k as libc::c_uint == VCALL as libc::c_int as libc::c_uint
@@ -705,7 +721,7 @@ unsafe extern "C" fn adjust_assign(
         luaK_setreturns(fs, e, extra);
     } else {
         if (*e).k as libc::c_uint != VVOID as libc::c_int as libc::c_uint {
-            luaK_exp2nextreg(fs, e);
+            luaK_exp2nextreg(fs, e)?;
         }
         if needed > 0 as libc::c_int {
             luaK_nil(fs, (*fs).freereg as libc::c_int, needed);
@@ -716,6 +732,7 @@ unsafe extern "C" fn adjust_assign(
     } else {
         (*fs).freereg = ((*fs).freereg as libc::c_int + needed) as u8;
     };
+    Ok(())
 }
 
 unsafe extern "C" fn jumpscopeerror(mut ls: *mut LexState, mut gt: *mut Labeldesc) -> ! {
@@ -1010,7 +1027,10 @@ unsafe extern "C" fn addprototype(mut ls: *mut LexState) -> *mut Proto {
     return clp;
 }
 
-unsafe extern "C" fn codeclosure(mut ls: *mut LexState, mut v: *mut expdesc) {
+unsafe fn codeclosure(
+    mut ls: *mut LexState,
+    mut v: *mut expdesc,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*(*ls).fs).prev;
     init_exp(
         v,
@@ -1022,7 +1042,7 @@ unsafe extern "C" fn codeclosure(mut ls: *mut LexState, mut v: *mut expdesc) {
             ((*fs).np - 1 as libc::c_int) as libc::c_uint,
         ),
     );
-    luaK_exp2nextreg(fs, v);
+    luaK_exp2nextreg(fs, v)
 }
 
 unsafe extern "C" fn open_func(
@@ -1139,17 +1159,22 @@ unsafe extern "C" fn block_follow(
     };
 }
 
-unsafe extern "C" fn statlist(mut ls: *mut LexState) {
+unsafe fn statlist(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
     while block_follow(ls, 1 as libc::c_int) == 0 {
         if (*ls).t.token == TK_RETURN as libc::c_int {
-            statement(ls);
-            return;
+            statement(ls)?;
+            return Ok(());
         }
-        statement(ls);
+        statement(ls)?;
     }
+
+    Ok(())
 }
 
-unsafe extern "C" fn fieldsel(mut ls: *mut LexState, mut v: *mut expdesc) {
+unsafe fn fieldsel(
+    mut ls: *mut LexState,
+    mut v: *mut expdesc,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut key: expdesc = expdesc {
         k: VVOID,
@@ -1157,20 +1182,27 @@ unsafe extern "C" fn fieldsel(mut ls: *mut LexState, mut v: *mut expdesc) {
         t: 0,
         f: 0,
     };
-    luaK_exp2anyregup(fs, v);
-    luaX_next(ls);
-    codename(ls, &mut key);
-    luaK_indexed(fs, v, &mut key);
+    luaK_exp2anyregup(fs, v)?;
+    luaX_next(ls)?;
+    codename(ls, &mut key)?;
+    luaK_indexed(fs, v, &mut key)
 }
 
-unsafe extern "C" fn yindex(mut ls: *mut LexState, mut v: *mut expdesc) {
-    luaX_next(ls);
-    expr(ls, v);
-    luaK_exp2val((*ls).fs, v);
-    checknext(ls, ']' as i32);
+unsafe fn yindex(
+    mut ls: *mut LexState,
+    mut v: *mut expdesc,
+) -> Result<(), Box<dyn std::error::Error>> {
+    luaX_next(ls)?;
+    expr(ls, v)?;
+    luaK_exp2val((*ls).fs, v)?;
+    checknext(ls, ']' as i32)?;
+    Ok(())
 }
 
-unsafe extern "C" fn recfield(mut ls: *mut LexState, mut cc: *mut ConsControl) {
+unsafe fn recfield(
+    mut ls: *mut LexState,
+    mut cc: *mut ConsControl,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut reg: libc::c_int = (*(*ls).fs).freereg as libc::c_int;
     let mut tab: expdesc = expdesc {
@@ -1198,36 +1230,44 @@ unsafe extern "C" fn recfield(mut ls: *mut LexState, mut cc: *mut ConsControl) {
             2147483647 as libc::c_int,
             "items in a constructor",
         );
-        codename(ls, &mut key);
+        codename(ls, &mut key)?;
     } else {
-        yindex(ls, &mut key);
+        yindex(ls, &mut key)?;
     }
     (*cc).nh += 1;
     (*cc).nh;
-    checknext(ls, '=' as i32);
+    checknext(ls, '=' as i32)?;
     tab = *(*cc).t;
-    luaK_indexed(fs, &mut tab, &mut key);
-    expr(ls, &mut val);
-    luaK_storevar(fs, &mut tab, &mut val);
+    luaK_indexed(fs, &mut tab, &mut key)?;
+    expr(ls, &mut val)?;
+    luaK_storevar(fs, &mut tab, &mut val)?;
     (*fs).freereg = reg as u8;
+    Ok(())
 }
 
-unsafe extern "C" fn closelistfield(mut fs: *mut FuncState, mut cc: *mut ConsControl) {
+unsafe fn closelistfield(
+    mut fs: *mut FuncState,
+    mut cc: *mut ConsControl,
+) -> Result<(), Box<dyn std::error::Error>> {
     if (*cc).v.k as libc::c_uint == VVOID as libc::c_int as libc::c_uint {
-        return;
+        return Ok(());
     }
-    luaK_exp2nextreg(fs, &mut (*cc).v);
+    luaK_exp2nextreg(fs, &mut (*cc).v)?;
     (*cc).v.k = VVOID;
     if (*cc).tostore == 50 as libc::c_int {
         luaK_setlist(fs, (*(*cc).t).u.info, (*cc).na, (*cc).tostore);
         (*cc).na += (*cc).tostore;
         (*cc).tostore = 0 as libc::c_int;
     }
+    Ok(())
 }
 
-unsafe extern "C" fn lastlistfield(mut fs: *mut FuncState, mut cc: *mut ConsControl) {
+unsafe fn lastlistfield(
+    mut fs: *mut FuncState,
+    mut cc: *mut ConsControl,
+) -> Result<(), Box<dyn std::error::Error>> {
     if (*cc).tostore == 0 as libc::c_int {
-        return;
+        return Ok(());
     }
     if (*cc).v.k as libc::c_uint == VCALL as libc::c_int as libc::c_uint
         || (*cc).v.k as libc::c_uint == VVARARG as libc::c_int as libc::c_uint
@@ -1238,38 +1278,51 @@ unsafe extern "C" fn lastlistfield(mut fs: *mut FuncState, mut cc: *mut ConsCont
         (*cc).na;
     } else {
         if (*cc).v.k as libc::c_uint != VVOID as libc::c_int as libc::c_uint {
-            luaK_exp2nextreg(fs, &mut (*cc).v);
+            luaK_exp2nextreg(fs, &mut (*cc).v)?;
         }
         luaK_setlist(fs, (*(*cc).t).u.info, (*cc).na, (*cc).tostore);
     }
     (*cc).na += (*cc).tostore;
+    Ok(())
 }
 
-unsafe extern "C" fn listfield(mut ls: *mut LexState, mut cc: *mut ConsControl) {
-    expr(ls, &mut (*cc).v);
+unsafe fn listfield(
+    mut ls: *mut LexState,
+    mut cc: *mut ConsControl,
+) -> Result<(), Box<dyn std::error::Error>> {
+    expr(ls, &mut (*cc).v)?;
     (*cc).tostore += 1;
     (*cc).tostore;
+    Ok(())
 }
 
-unsafe extern "C" fn field(mut ls: *mut LexState, mut cc: *mut ConsControl) {
+unsafe fn field(
+    mut ls: *mut LexState,
+    mut cc: *mut ConsControl,
+) -> Result<(), Box<dyn std::error::Error>> {
     match (*ls).t.token {
         291 => {
-            if luaX_lookahead(ls) != '=' as i32 {
-                listfield(ls, cc);
+            if luaX_lookahead(ls)? != '=' as i32 {
+                listfield(ls, cc)?;
             } else {
-                recfield(ls, cc);
+                recfield(ls, cc)?;
             }
         }
         91 => {
-            recfield(ls, cc);
+            recfield(ls, cc)?;
         }
         _ => {
-            listfield(ls, cc);
+            listfield(ls, cc)?;
         }
     };
+
+    Ok(())
 }
 
-unsafe extern "C" fn constructor(mut ls: *mut LexState, mut t: *mut expdesc) {
+unsafe fn constructor(
+    mut ls: *mut LexState,
+    mut t: *mut expdesc,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut line: libc::c_int = (*ls).linenumber;
     let mut pc: libc::c_int = luaK_codeABCk(
@@ -1300,17 +1353,18 @@ unsafe extern "C" fn constructor(mut ls: *mut LexState, mut t: *mut expdesc) {
     init_exp(t, VNONRELOC, (*fs).freereg as libc::c_int);
     luaK_reserveregs(fs, 1 as libc::c_int);
     init_exp(&mut cc.v, VVOID, 0 as libc::c_int);
-    checknext(ls, '{' as i32);
+    checknext(ls, '{' as i32)?;
     while !((*ls).t.token == '}' as i32) {
-        closelistfield(fs, &mut cc);
-        field(ls, &mut cc);
-        if !(testnext(ls, ',' as i32) != 0 || testnext(ls, ';' as i32) != 0) {
+        closelistfield(fs, &mut cc)?;
+        field(ls, &mut cc)?;
+        if !(testnext(ls, ',' as i32)? != 0 || testnext(ls, ';' as i32)? != 0) {
             break;
         }
     }
-    check_match(ls, '}' as i32, '{' as i32, line);
-    lastlistfield(fs, &mut cc);
+    check_match(ls, '}' as i32, '{' as i32, line)?;
+    lastlistfield(fs, &mut cc)?;
     luaK_settablesize(fs, pc, (*t).u.info, cc.na, cc.nh);
+    Ok(())
 }
 
 unsafe extern "C" fn setvararg(mut fs: *mut FuncState, mut nparams: libc::c_int) {
@@ -1325,7 +1379,7 @@ unsafe extern "C" fn setvararg(mut fs: *mut FuncState, mut nparams: libc::c_int)
     );
 }
 
-unsafe extern "C" fn parlist(mut ls: *mut LexState) {
+unsafe fn parlist(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut f: *mut Proto = (*fs).f;
     let mut nparams: libc::c_int = 0 as libc::c_int;
@@ -1334,19 +1388,19 @@ unsafe extern "C" fn parlist(mut ls: *mut LexState) {
         loop {
             match (*ls).t.token {
                 291 => {
-                    new_localvar(ls, str_checkname(ls));
+                    new_localvar(ls, str_checkname(ls)?);
                     nparams += 1;
                     nparams;
                 }
                 280 => {
-                    luaX_next(ls);
+                    luaX_next(ls)?;
                     isvararg = 1 as libc::c_int;
                 }
                 _ => {
                     luaX_syntaxerror(ls, "<name> or '...' expected");
                 }
             }
-            if !(isvararg == 0 && testnext(ls, ',' as i32) != 0) {
+            if !(isvararg == 0 && testnext(ls, ',' as i32)? != 0) {
                 break;
             }
         }
@@ -1357,14 +1411,15 @@ unsafe extern "C" fn parlist(mut ls: *mut LexState) {
         setvararg(fs, (*f).numparams as libc::c_int);
     }
     luaK_reserveregs(fs, (*fs).nactvar as libc::c_int);
+    Ok(())
 }
 
-unsafe extern "C" fn body(
+unsafe fn body(
     mut ls: *mut LexState,
     mut e: *mut expdesc,
     mut ismethod: libc::c_int,
     mut line: libc::c_int,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut new_fs: FuncState = FuncState {
         f: 0 as *mut Proto,
         prev: 0 as *mut FuncState,
@@ -1397,7 +1452,7 @@ unsafe extern "C" fn body(
     new_fs.f = addprototype(ls);
     (*new_fs.f).linedefined = line;
     open_func(ls, &mut new_fs, &mut bl);
-    checknext(ls, '(' as i32);
+    checknext(ls, '(' as i32)?;
     if ismethod != 0 {
         new_localvar(
             ls,
@@ -1411,28 +1466,35 @@ unsafe extern "C" fn body(
         );
         adjustlocalvars(ls, 1 as libc::c_int);
     }
-    parlist(ls);
-    checknext(ls, ')' as i32);
-    statlist(ls);
+    parlist(ls)?;
+    checknext(ls, ')' as i32)?;
+    statlist(ls)?;
     (*new_fs.f).lastlinedefined = (*ls).linenumber;
-    check_match(ls, TK_END as libc::c_int, TK_FUNCTION as libc::c_int, line);
-    codeclosure(ls, e);
+    check_match(ls, TK_END as libc::c_int, TK_FUNCTION as libc::c_int, line)?;
+    codeclosure(ls, e)?;
     close_func(ls);
+    Ok(())
 }
 
-unsafe extern "C" fn explist(mut ls: *mut LexState, mut v: *mut expdesc) -> libc::c_int {
+unsafe fn explist(
+    mut ls: *mut LexState,
+    mut v: *mut expdesc,
+) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut n: libc::c_int = 1 as libc::c_int;
-    expr(ls, v);
-    while testnext(ls, ',' as i32) != 0 {
-        luaK_exp2nextreg((*ls).fs, v);
-        expr(ls, v);
+    expr(ls, v)?;
+    while testnext(ls, ',' as i32)? != 0 {
+        luaK_exp2nextreg((*ls).fs, v)?;
+        expr(ls, v)?;
         n += 1;
         n;
     }
-    return n;
+    return Ok(n);
 }
 
-unsafe extern "C" fn funcargs(mut ls: *mut LexState, mut f: *mut expdesc) {
+unsafe fn funcargs(
+    mut ls: *mut LexState,
+    mut f: *mut expdesc,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut args: expdesc = expdesc {
         k: VVOID,
@@ -1445,25 +1507,23 @@ unsafe extern "C" fn funcargs(mut ls: *mut LexState, mut f: *mut expdesc) {
     let mut line: libc::c_int = (*ls).linenumber;
     match (*ls).t.token {
         40 => {
-            luaX_next(ls);
+            luaX_next(ls)?;
             if (*ls).t.token == ')' as i32 {
                 args.k = VVOID;
             } else {
-                explist(ls, &mut args);
+                explist(ls, &mut args)?;
                 if args.k as libc::c_uint == VCALL as libc::c_int as libc::c_uint
                     || args.k as libc::c_uint == VVARARG as libc::c_int as libc::c_uint
                 {
                     luaK_setreturns(fs, &mut args, -(1 as libc::c_int));
                 }
             }
-            check_match(ls, ')' as i32, '(' as i32, line);
+            check_match(ls, ')' as i32, '(' as i32, line)?;
         }
-        123 => {
-            constructor(ls, &mut args);
-        }
+        123 => constructor(ls, &mut args)?,
         292 => {
             codestring(&mut args, (*ls).t.seminfo.ts);
-            luaX_next(ls);
+            luaX_next(ls)?;
         }
         _ => {
             luaX_syntaxerror(ls, "function arguments expected");
@@ -1476,7 +1536,7 @@ unsafe extern "C" fn funcargs(mut ls: *mut LexState, mut f: *mut expdesc) {
         nparams = -(1 as libc::c_int);
     } else {
         if args.k as libc::c_uint != VVOID as libc::c_int as libc::c_uint {
-            luaK_exp2nextreg(fs, &mut args);
+            luaK_exp2nextreg(fs, &mut args)?;
         }
         nparams = (*fs).freereg as libc::c_int - (base + 1 as libc::c_int);
     }
@@ -1494,21 +1554,25 @@ unsafe extern "C" fn funcargs(mut ls: *mut LexState, mut f: *mut expdesc) {
     );
     luaK_fixline(fs, line);
     (*fs).freereg = (base + 1 as libc::c_int) as u8;
+    Ok(())
 }
 
-unsafe extern "C" fn primaryexp(mut ls: *mut LexState, mut v: *mut expdesc) {
+unsafe fn primaryexp(
+    mut ls: *mut LexState,
+    mut v: *mut expdesc,
+) -> Result<(), Box<dyn std::error::Error>> {
     match (*ls).t.token {
         40 => {
             let mut line: libc::c_int = (*ls).linenumber;
-            luaX_next(ls);
-            expr(ls, v);
-            check_match(ls, ')' as i32, '(' as i32, line);
+            luaX_next(ls)?;
+            expr(ls, v)?;
+            check_match(ls, ')' as i32, '(' as i32, line)?;
             luaK_dischargevars((*ls).fs, v);
-            return;
+            return Ok(());
         }
         291 => {
-            singlevar(ls, v);
-            return;
+            singlevar(ls, v)?;
+            return Ok(());
         }
         _ => {
             luaX_syntaxerror(ls, "unexpected symbol");
@@ -1516,14 +1580,15 @@ unsafe extern "C" fn primaryexp(mut ls: *mut LexState, mut v: *mut expdesc) {
     };
 }
 
-unsafe extern "C" fn suffixedexp(mut ls: *mut LexState, mut v: *mut expdesc) {
+unsafe fn suffixedexp(
+    mut ls: *mut LexState,
+    mut v: *mut expdesc,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
-    primaryexp(ls, v);
+    primaryexp(ls, v)?;
     loop {
         match (*ls).t.token {
-            46 => {
-                fieldsel(ls, v);
-            }
+            46 => fieldsel(ls, v)?,
             91 => {
                 let mut key: expdesc = expdesc {
                     k: VVOID,
@@ -1531,9 +1596,9 @@ unsafe extern "C" fn suffixedexp(mut ls: *mut LexState, mut v: *mut expdesc) {
                     t: 0,
                     f: 0,
                 };
-                luaK_exp2anyregup(fs, v);
-                yindex(ls, &mut key);
-                luaK_indexed(fs, v, &mut key);
+                luaK_exp2anyregup(fs, v)?;
+                yindex(ls, &mut key)?;
+                luaK_indexed(fs, v, &mut key)?;
             }
             58 => {
                 let mut key_0: expdesc = expdesc {
@@ -1542,21 +1607,24 @@ unsafe extern "C" fn suffixedexp(mut ls: *mut LexState, mut v: *mut expdesc) {
                     t: 0,
                     f: 0,
                 };
-                luaX_next(ls);
-                codename(ls, &mut key_0);
-                luaK_self(fs, v, &mut key_0);
-                funcargs(ls, v);
+                luaX_next(ls)?;
+                codename(ls, &mut key_0)?;
+                luaK_self(fs, v, &mut key_0)?;
+                funcargs(ls, v)?;
             }
             40 | 292 | 123 => {
-                luaK_exp2nextreg(fs, v);
-                funcargs(ls, v);
+                luaK_exp2nextreg(fs, v)?;
+                funcargs(ls, v)?;
             }
-            _ => return,
+            _ => return Ok(()),
         }
     }
 }
 
-unsafe extern "C" fn simpleexp(mut ls: *mut LexState, mut v: *mut expdesc) {
+unsafe fn simpleexp(
+    mut ls: *mut LexState,
+    mut v: *mut expdesc,
+) -> Result<(), Box<dyn std::error::Error>> {
     match (*ls).t.token {
         289 => {
             init_exp(v, VKFLT, 0 as libc::c_int);
@@ -1596,21 +1664,15 @@ unsafe extern "C" fn simpleexp(mut ls: *mut LexState, mut v: *mut expdesc) {
                 ),
             );
         }
-        123 => {
-            constructor(ls, v);
-            return;
-        }
+        123 => return constructor(ls, v),
         264 => {
-            luaX_next(ls);
-            body(ls, v, 0 as libc::c_int, (*ls).linenumber);
-            return;
+            luaX_next(ls)?;
+            body(ls, v, 0 as libc::c_int, (*ls).linenumber)?;
+            return Ok(());
         }
-        _ => {
-            suffixedexp(ls, v);
-            return;
-        }
+        _ => return suffixedexp(ls, v),
     }
-    luaX_next(ls);
+    luaX_next(ls)
 }
 
 unsafe extern "C" fn getunopr(mut op: libc::c_int) -> UnOpr {
@@ -1800,22 +1862,22 @@ static mut priority: [C2RustUnnamed_14; 21] = [
     },
 ];
 
-unsafe extern "C" fn subexpr(
+unsafe fn subexpr(
     mut ls: *mut LexState,
     mut v: *mut expdesc,
     mut limit: libc::c_int,
-) -> BinOpr {
+) -> Result<BinOpr, Box<dyn std::error::Error>> {
     let mut op: BinOpr = OPR_ADD;
     let mut uop: UnOpr = OPR_MINUS;
     luaE_incCstack((*ls).L);
     uop = getunopr((*ls).t.token);
     if uop as libc::c_uint != OPR_NOUNOPR as libc::c_int as libc::c_uint {
         let mut line: libc::c_int = (*ls).linenumber;
-        luaX_next(ls);
-        subexpr(ls, v, 12 as libc::c_int);
-        luaK_prefix((*ls).fs, uop, v, line);
+        luaX_next(ls)?;
+        subexpr(ls, v, 12 as libc::c_int)?;
+        luaK_prefix((*ls).fs, uop, v, line)?;
     } else {
-        simpleexp(ls, v);
+        simpleexp(ls, v)?;
     }
     op = getbinopr((*ls).t.token);
     while op as libc::c_uint != OPR_NOBINOPR as libc::c_int as libc::c_uint
@@ -1829,22 +1891,26 @@ unsafe extern "C" fn subexpr(
         };
         let mut nextop: BinOpr = OPR_ADD;
         let mut line_0: libc::c_int = (*ls).linenumber;
-        luaX_next(ls);
-        luaK_infix((*ls).fs, op, v);
-        nextop = subexpr(ls, &mut v2, priority[op as usize].right as libc::c_int);
-        luaK_posfix((*ls).fs, op, v, &mut v2, line_0);
+        luaX_next(ls)?;
+        luaK_infix((*ls).fs, op, v)?;
+        nextop = subexpr(ls, &mut v2, priority[op as usize].right as libc::c_int)?;
+        luaK_posfix((*ls).fs, op, v, &mut v2, line_0)?;
         op = nextop;
     }
     (*(*ls).L).nCcalls = ((*(*ls).L).nCcalls).wrapping_sub(1);
     (*(*ls).L).nCcalls;
-    return op;
+    return Ok(op);
 }
 
-unsafe extern "C" fn expr(mut ls: *mut LexState, mut v: *mut expdesc) {
-    subexpr(ls, v, 0 as libc::c_int);
+unsafe fn expr(
+    mut ls: *mut LexState,
+    mut v: *mut expdesc,
+) -> Result<(), Box<dyn std::error::Error>> {
+    subexpr(ls, v, 0 as libc::c_int)?;
+    Ok(())
 }
 
-unsafe extern "C" fn block(mut ls: *mut LexState) {
+unsafe fn block(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut bl: BlockCnt = BlockCnt {
         previous: 0 as *mut BlockCnt,
@@ -1856,8 +1922,9 @@ unsafe extern "C" fn block(mut ls: *mut LexState) {
         insidetbc: 0,
     };
     enterblock(fs, &mut bl, 0 as libc::c_int as u8);
-    statlist(ls);
+    statlist(ls)?;
     leaveblock(fs);
+    Ok(())
 }
 
 unsafe extern "C" fn check_conflict(
@@ -1922,11 +1989,11 @@ unsafe extern "C" fn check_conflict(
     }
 }
 
-unsafe extern "C" fn restassign(
+unsafe fn restassign(
     mut ls: *mut LexState,
     mut lh: *mut LHS_assign,
     mut nvars: libc::c_int,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut e: expdesc = expdesc {
         k: VVOID,
         u: C2RustUnnamed_11 { ival: 0 },
@@ -1939,7 +2006,7 @@ unsafe extern "C" fn restassign(
         luaX_syntaxerror(ls, "syntax error");
     }
     check_readonly(ls, &mut (*lh).v);
-    if testnext(ls, ',' as i32) != 0 {
+    if testnext(ls, ',' as i32)? != 0 {
         let mut nv: LHS_assign = LHS_assign {
             prev: 0 as *mut LHS_assign,
             v: expdesc {
@@ -1950,26 +2017,26 @@ unsafe extern "C" fn restassign(
             },
         };
         nv.prev = lh;
-        suffixedexp(ls, &mut nv.v);
+        suffixedexp(ls, &mut nv.v)?;
         if !(VINDEXED as libc::c_int as libc::c_uint <= nv.v.k as libc::c_uint
             && nv.v.k as libc::c_uint <= VINDEXSTR as libc::c_int as libc::c_uint)
         {
             check_conflict(ls, lh, &mut nv.v);
         }
         luaE_incCstack((*ls).L);
-        restassign(ls, &mut nv, nvars + 1 as libc::c_int);
+        restassign(ls, &mut nv, nvars + 1 as libc::c_int)?;
         (*(*ls).L).nCcalls = ((*(*ls).L).nCcalls).wrapping_sub(1);
         (*(*ls).L).nCcalls;
     } else {
         let mut nexps: libc::c_int = 0;
-        checknext(ls, '=' as i32);
-        nexps = explist(ls, &mut e);
+        checknext(ls, '=' as i32)?;
+        nexps = explist(ls, &mut e)?;
         if nexps != nvars {
-            adjust_assign(ls, nvars, nexps, &mut e);
+            adjust_assign(ls, nvars, nexps, &mut e)?;
         } else {
             luaK_setoneret((*ls).fs, &mut e);
-            luaK_storevar((*ls).fs, &mut (*lh).v, &mut e);
-            return;
+            luaK_storevar((*ls).fs, &mut (*lh).v, &mut e)?;
+            return Ok(());
         }
     }
     init_exp(
@@ -1977,28 +2044,29 @@ unsafe extern "C" fn restassign(
         VNONRELOC,
         (*(*ls).fs).freereg as libc::c_int - 1 as libc::c_int,
     );
-    luaK_storevar((*ls).fs, &mut (*lh).v, &mut e);
+
+    luaK_storevar((*ls).fs, &mut (*lh).v, &mut e)
 }
 
-unsafe extern "C" fn cond(mut ls: *mut LexState) -> libc::c_int {
+unsafe fn cond(mut ls: *mut LexState) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut v: expdesc = expdesc {
         k: VVOID,
         u: C2RustUnnamed_11 { ival: 0 },
         t: 0,
         f: 0,
     };
-    expr(ls, &mut v);
+    expr(ls, &mut v)?;
     if v.k as libc::c_uint == VNIL as libc::c_int as libc::c_uint {
         v.k = VFALSE;
     }
-    luaK_goiftrue((*ls).fs, &mut v);
-    return v.f;
+    luaK_goiftrue((*ls).fs, &mut v)?;
+    return Ok(v.f);
 }
 
-unsafe extern "C" fn gotostat(mut ls: *mut LexState) {
+unsafe fn gotostat(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut line: libc::c_int = (*ls).linenumber;
-    let mut name: *mut TString = str_checkname(ls);
+    let mut name: *mut TString = str_checkname(ls)?;
     let mut lb: *mut Labeldesc = findlabel(ls, name);
     if lb.is_null() {
         newgotoentry(ls, name, line, luaK_jump(fs));
@@ -2016,11 +2084,12 @@ unsafe extern "C" fn gotostat(mut ls: *mut LexState) {
         }
         luaK_patchlist(fs, luaK_jump(fs), (*lb).pc);
     };
+    Ok(())
 }
 
-unsafe extern "C" fn breakstat(mut ls: *mut LexState) {
+unsafe fn breakstat(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
     let mut line: libc::c_int = (*ls).linenumber;
-    luaX_next(ls);
+    luaX_next(ls)?;
     newgotoentry(
         ls,
         luaS_newlstr(
@@ -2033,6 +2102,7 @@ unsafe extern "C" fn breakstat(mut ls: *mut LexState) {
         line,
         luaK_jump((*ls).fs),
     );
+    Ok(())
 }
 
 unsafe extern "C" fn checkrepeated(mut ls: *mut LexState, mut name: *mut TString) {
@@ -2052,20 +2122,24 @@ unsafe extern "C" fn checkrepeated(mut ls: *mut LexState, mut name: *mut TString
     }
 }
 
-unsafe extern "C" fn labelstat(
+unsafe fn labelstat(
     mut ls: *mut LexState,
     mut name: *mut TString,
     mut line: libc::c_int,
-) {
-    checknext(ls, TK_DBCOLON as libc::c_int);
+) -> Result<(), Box<dyn std::error::Error>> {
+    checknext(ls, TK_DBCOLON as libc::c_int)?;
     while (*ls).t.token == ';' as i32 || (*ls).t.token == TK_DBCOLON as libc::c_int {
-        statement(ls);
+        statement(ls)?;
     }
     checkrepeated(ls, name);
     createlabel(ls, name, line, block_follow(ls, 0 as libc::c_int));
+    Ok(())
 }
 
-unsafe extern "C" fn whilestat(mut ls: *mut LexState, mut line: libc::c_int) {
+unsafe fn whilestat(
+    mut ls: *mut LexState,
+    mut line: libc::c_int,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut whileinit: libc::c_int = 0;
     let mut condexit: libc::c_int = 0;
@@ -2078,19 +2152,23 @@ unsafe extern "C" fn whilestat(mut ls: *mut LexState, mut line: libc::c_int) {
         isloop: 0,
         insidetbc: 0,
     };
-    luaX_next(ls);
+    luaX_next(ls)?;
     whileinit = luaK_getlabel(fs);
-    condexit = cond(ls);
+    condexit = cond(ls)?;
     enterblock(fs, &mut bl, 1 as libc::c_int as u8);
-    checknext(ls, TK_DO as libc::c_int);
-    block(ls);
+    checknext(ls, TK_DO as libc::c_int)?;
+    block(ls)?;
     luaK_patchlist(fs, luaK_jump(fs), whileinit);
-    check_match(ls, TK_END as libc::c_int, TK_WHILE as libc::c_int, line);
+    check_match(ls, TK_END as libc::c_int, TK_WHILE as libc::c_int, line)?;
     leaveblock(fs);
     luaK_patchtohere(fs, condexit);
+    Ok(())
 }
 
-unsafe extern "C" fn repeatstat(mut ls: *mut LexState, mut line: libc::c_int) {
+unsafe fn repeatstat(
+    mut ls: *mut LexState,
+    mut line: libc::c_int,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut condexit: libc::c_int = 0;
     let mut fs: *mut FuncState = (*ls).fs;
     let mut repeat_init: libc::c_int = luaK_getlabel(fs);
@@ -2114,10 +2192,10 @@ unsafe extern "C" fn repeatstat(mut ls: *mut LexState, mut line: libc::c_int) {
     };
     enterblock(fs, &mut bl1, 1 as libc::c_int as u8);
     enterblock(fs, &mut bl2, 0 as libc::c_int as u8);
-    luaX_next(ls);
-    statlist(ls);
-    check_match(ls, TK_UNTIL as libc::c_int, TK_REPEAT as libc::c_int, line);
-    condexit = cond(ls);
+    luaX_next(ls)?;
+    statlist(ls)?;
+    check_match(ls, TK_UNTIL as libc::c_int, TK_REPEAT as libc::c_int, line)?;
+    condexit = cond(ls)?;
     leaveblock(fs);
     if bl2.upval != 0 {
         let mut exit: libc::c_int = luaK_jump(fs);
@@ -2135,17 +2213,19 @@ unsafe extern "C" fn repeatstat(mut ls: *mut LexState, mut line: libc::c_int) {
     }
     luaK_patchlist(fs, condexit, repeat_init);
     leaveblock(fs);
+    Ok(())
 }
 
-unsafe extern "C" fn exp1(mut ls: *mut LexState) {
+unsafe fn exp1(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
     let mut e: expdesc = expdesc {
         k: VVOID,
         u: C2RustUnnamed_11 { ival: 0 },
         t: 0,
         f: 0,
     };
-    expr(ls, &mut e);
-    luaK_exp2nextreg((*ls).fs, &mut e);
+
+    expr(ls, &mut e)?;
+    luaK_exp2nextreg((*ls).fs, &mut e)
 }
 
 unsafe extern "C" fn fixforjump(
@@ -2177,13 +2257,13 @@ unsafe extern "C" fn fixforjump(
                 << 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int;
 }
 
-unsafe extern "C" fn forbody(
+unsafe fn forbody(
     mut ls: *mut LexState,
     mut base: libc::c_int,
     mut line: libc::c_int,
     mut nvars: libc::c_int,
     mut isgen: libc::c_int,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     static mut forprep: [OpCode; 2] = [OP_FORPREP, OP_TFORPREP];
     static mut forloop: [OpCode; 2] = [OP_FORLOOP, OP_TFORLOOP];
     let mut bl: BlockCnt = BlockCnt {
@@ -2198,7 +2278,7 @@ unsafe extern "C" fn forbody(
     let mut fs: *mut FuncState = (*ls).fs;
     let mut prep: libc::c_int = 0;
     let mut endfor: libc::c_int = 0;
-    checknext(ls, TK_DO as libc::c_int);
+    checknext(ls, TK_DO as libc::c_int)?;
     prep = luaK_codeABx(
         fs,
         forprep[isgen as usize],
@@ -2208,7 +2288,7 @@ unsafe extern "C" fn forbody(
     enterblock(fs, &mut bl, 0 as libc::c_int as u8);
     adjustlocalvars(ls, nvars);
     luaK_reserveregs(fs, nvars);
-    block(ls);
+    block(ls)?;
     leaveblock(fs);
     fixforjump(fs, prep, luaK_getlabel(fs), 0 as libc::c_int);
     if isgen != 0 {
@@ -2230,13 +2310,14 @@ unsafe extern "C" fn forbody(
     );
     fixforjump(fs, endfor, prep + 1 as libc::c_int, 1 as libc::c_int);
     luaK_fixline(fs, line);
+    Ok(())
 }
 
-unsafe extern "C" fn fornum(
+unsafe fn fornum(
     mut ls: *mut LexState,
     mut varname: *mut TString,
     mut line: libc::c_int,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut base: libc::c_int = (*fs).freereg as libc::c_int;
     new_localvar(
@@ -2270,21 +2351,26 @@ unsafe extern "C" fn fornum(
         ),
     );
     new_localvar(ls, varname);
-    checknext(ls, '=' as i32);
-    exp1(ls);
-    checknext(ls, ',' as i32);
-    exp1(ls);
-    if testnext(ls, ',' as i32) != 0 {
-        exp1(ls);
+    checknext(ls, '=' as i32)?;
+    exp1(ls)?;
+    checknext(ls, ',' as i32)?;
+    exp1(ls)?;
+    if testnext(ls, ',' as i32)? != 0 {
+        exp1(ls)?;
     } else {
-        luaK_int(fs, (*fs).freereg as libc::c_int, 1 as libc::c_int as i64);
+        luaK_int(fs, (*fs).freereg as libc::c_int, 1 as libc::c_int as i64)?;
         luaK_reserveregs(fs, 1 as libc::c_int);
     }
     adjustlocalvars(ls, 3 as libc::c_int);
-    forbody(ls, base, line, 1 as libc::c_int, 0 as libc::c_int);
+    forbody(ls, base, line, 1 as libc::c_int, 0 as libc::c_int)?;
+
+    Ok(())
 }
 
-unsafe extern "C" fn forlist(mut ls: *mut LexState, mut indexname: *mut TString) {
+unsafe fn forlist(
+    mut ls: *mut LexState,
+    mut indexname: *mut TString,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut e: expdesc = expdesc {
         k: VVOID,
@@ -2336,21 +2422,25 @@ unsafe extern "C" fn forlist(mut ls: *mut LexState, mut indexname: *mut TString)
         ),
     );
     new_localvar(ls, indexname);
-    while testnext(ls, ',' as i32) != 0 {
-        new_localvar(ls, str_checkname(ls));
+    while testnext(ls, ',' as i32)? != 0 {
+        new_localvar(ls, str_checkname(ls)?);
         nvars += 1;
         nvars;
     }
-    checknext(ls, TK_IN as libc::c_int);
+    checknext(ls, TK_IN as libc::c_int)?;
     line = (*ls).linenumber;
-    adjust_assign(ls, 4 as libc::c_int, explist(ls, &mut e), &mut e);
+    adjust_assign(ls, 4 as libc::c_int, explist(ls, &mut e)?, &mut e)?;
     adjustlocalvars(ls, 4 as libc::c_int);
     marktobeclosed(fs);
     luaK_checkstack(fs, 3 as libc::c_int);
-    forbody(ls, base, line, nvars - 4 as libc::c_int, 1 as libc::c_int);
+    forbody(ls, base, line, nvars - 4 as libc::c_int, 1 as libc::c_int)?;
+    Ok(())
 }
 
-unsafe extern "C" fn forstat(mut ls: *mut LexState, mut line: libc::c_int) {
+unsafe fn forstat(
+    mut ls: *mut LexState,
+    mut line: libc::c_int,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut varname: *mut TString = 0 as *mut TString;
     let mut bl: BlockCnt = BlockCnt {
@@ -2363,24 +2453,22 @@ unsafe extern "C" fn forstat(mut ls: *mut LexState, mut line: libc::c_int) {
         insidetbc: 0,
     };
     enterblock(fs, &mut bl, 1 as libc::c_int as u8);
-    luaX_next(ls);
-    varname = str_checkname(ls);
+    luaX_next(ls)?;
+    varname = str_checkname(ls)?;
     match (*ls).t.token {
-        61 => {
-            fornum(ls, varname, line);
-        }
-        44 | 267 => {
-            forlist(ls, varname);
-        }
-        _ => {
-            luaX_syntaxerror(ls, "'=' or 'in' expected");
-        }
+        61 => fornum(ls, varname, line)?,
+        44 | 267 => forlist(ls, varname)?,
+        _ => luaX_syntaxerror(ls, "'=' or 'in' expected"),
     }
-    check_match(ls, TK_END as libc::c_int, TK_FOR as libc::c_int, line);
+    check_match(ls, TK_END as libc::c_int, TK_FOR as libc::c_int, line)?;
     leaveblock(fs);
+    Ok(())
 }
 
-unsafe extern "C" fn test_then_block(mut ls: *mut LexState, mut escapelist: *mut libc::c_int) {
+unsafe fn test_then_block(
+    mut ls: *mut LexState,
+    mut escapelist: *mut libc::c_int,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut bl: BlockCnt = BlockCnt {
         previous: 0 as *mut BlockCnt,
         firstlabel: 0,
@@ -2398,13 +2486,13 @@ unsafe extern "C" fn test_then_block(mut ls: *mut LexState, mut escapelist: *mut
         f: 0,
     };
     let mut jf: libc::c_int = 0;
-    luaX_next(ls);
-    expr(ls, &mut v);
-    checknext(ls, TK_THEN as libc::c_int);
+    luaX_next(ls)?;
+    expr(ls, &mut v)?;
+    checknext(ls, TK_THEN as libc::c_int)?;
     if (*ls).t.token == TK_BREAK as libc::c_int {
         let mut line: libc::c_int = (*ls).linenumber;
-        luaK_goiffalse((*ls).fs, &mut v);
-        luaX_next(ls);
+        luaK_goiffalse((*ls).fs, &mut v)?;
+        luaX_next(ls)?;
         enterblock(fs, &mut bl, 0 as libc::c_int as u8);
         newgotoentry(
             ls,
@@ -2418,41 +2506,46 @@ unsafe extern "C" fn test_then_block(mut ls: *mut LexState, mut escapelist: *mut
             line,
             v.t,
         );
-        while testnext(ls, ';' as i32) != 0 {}
+        while testnext(ls, ';' as i32)? != 0 {}
         if block_follow(ls, 0 as libc::c_int) != 0 {
             leaveblock(fs);
-            return;
+            return Ok(());
         } else {
             jf = luaK_jump(fs);
         }
     } else {
-        luaK_goiftrue((*ls).fs, &mut v);
+        luaK_goiftrue((*ls).fs, &mut v)?;
         enterblock(fs, &mut bl, 0 as libc::c_int as u8);
         jf = v.f;
     }
-    statlist(ls);
+    statlist(ls)?;
     leaveblock(fs);
     if (*ls).t.token == TK_ELSE as libc::c_int || (*ls).t.token == TK_ELSEIF as libc::c_int {
         luaK_concat(fs, escapelist, luaK_jump(fs));
     }
     luaK_patchtohere(fs, jf);
+    Ok(())
 }
 
-unsafe extern "C" fn ifstat(mut ls: *mut LexState, mut line: libc::c_int) {
+unsafe fn ifstat(
+    mut ls: *mut LexState,
+    mut line: libc::c_int,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut escapelist: libc::c_int = -(1 as libc::c_int);
-    test_then_block(ls, &mut escapelist);
+    test_then_block(ls, &mut escapelist)?;
     while (*ls).t.token == TK_ELSEIF as libc::c_int {
-        test_then_block(ls, &mut escapelist);
+        test_then_block(ls, &mut escapelist)?;
     }
-    if testnext(ls, TK_ELSE as libc::c_int) != 0 {
-        block(ls);
+    if testnext(ls, TK_ELSE as libc::c_int)? != 0 {
+        block(ls)?;
     }
-    check_match(ls, TK_END as libc::c_int, TK_IF as libc::c_int, line);
+    check_match(ls, TK_END as libc::c_int, TK_IF as libc::c_int, line)?;
     luaK_patchtohere(fs, escapelist);
+    Ok(())
 }
 
-unsafe extern "C" fn localfunc(mut ls: *mut LexState) {
+unsafe fn localfunc(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
     let mut b: expdesc = expdesc {
         k: VVOID,
         u: C2RustUnnamed_11 { ival: 0 },
@@ -2461,20 +2554,21 @@ unsafe extern "C" fn localfunc(mut ls: *mut LexState) {
     };
     let mut fs: *mut FuncState = (*ls).fs;
     let mut fvar: libc::c_int = (*fs).nactvar as libc::c_int;
-    new_localvar(ls, str_checkname(ls));
+    new_localvar(ls, str_checkname(ls)?);
     adjustlocalvars(ls, 1 as libc::c_int);
-    body(ls, &mut b, 0 as libc::c_int, (*ls).linenumber);
+    body(ls, &mut b, 0 as libc::c_int, (*ls).linenumber)?;
     (*localdebuginfo(fs, fvar)).startpc = (*fs).pc;
+    Ok(())
 }
 
-unsafe extern "C" fn getlocalattribute(mut ls: *mut LexState) -> libc::c_int {
-    if testnext(ls, '<' as i32) != 0 {
-        let mut attr: *const libc::c_char = ((*str_checkname(ls)).contents).as_mut_ptr();
-        checknext(ls, '>' as i32);
+unsafe fn getlocalattribute(mut ls: *mut LexState) -> Result<c_int, Box<dyn std::error::Error>> {
+    if testnext(ls, '<' as i32)? != 0 {
+        let mut attr: *const libc::c_char = ((*str_checkname(ls)?).contents).as_mut_ptr();
+        checknext(ls, '>' as i32)?;
         if strcmp(attr, b"const\0" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-            return 1 as libc::c_int;
+            return Ok(1 as libc::c_int);
         } else if strcmp(attr, b"close\0" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-            return 2 as libc::c_int;
+            return Ok(2 as libc::c_int);
         } else {
             luaK_semerror(
                 ls,
@@ -2485,7 +2579,7 @@ unsafe extern "C" fn getlocalattribute(mut ls: *mut LexState) -> libc::c_int {
             );
         }
     }
-    return 0 as libc::c_int;
+    return Ok(0 as libc::c_int);
 }
 
 unsafe extern "C" fn checktoclose(mut fs: *mut FuncState, mut level: libc::c_int) {
@@ -2502,7 +2596,7 @@ unsafe extern "C" fn checktoclose(mut fs: *mut FuncState, mut level: libc::c_int
     }
 }
 
-unsafe extern "C" fn localstat(mut ls: *mut LexState) {
+unsafe fn localstat(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut toclose: libc::c_int = -(1 as libc::c_int);
     let mut var: *mut Vardesc = 0 as *mut Vardesc;
@@ -2517,8 +2611,8 @@ unsafe extern "C" fn localstat(mut ls: *mut LexState) {
         f: 0,
     };
     loop {
-        vidx = new_localvar(ls, str_checkname(ls));
-        kind = getlocalattribute(ls);
+        vidx = new_localvar(ls, str_checkname(ls)?);
+        kind = getlocalattribute(ls)?;
         (*getlocalvardesc(fs, vidx)).vd.kind = kind as u8;
         if kind == 2 as libc::c_int {
             if toclose != -(1 as libc::c_int) {
@@ -2528,12 +2622,12 @@ unsafe extern "C" fn localstat(mut ls: *mut LexState) {
         }
         nvars += 1;
         nvars;
-        if !(testnext(ls, ',' as i32) != 0) {
+        if !(testnext(ls, ',' as i32)? != 0) {
             break;
         }
     }
-    if testnext(ls, '=' as i32) != 0 {
-        nexps = explist(ls, &mut e);
+    if testnext(ls, '=' as i32)? != 0 {
+        nexps = explist(ls, &mut e)?;
     } else {
         e.k = VVOID;
         nexps = 0 as libc::c_int;
@@ -2548,26 +2642,33 @@ unsafe extern "C" fn localstat(mut ls: *mut LexState) {
         (*fs).nactvar = ((*fs).nactvar).wrapping_add(1);
         (*fs).nactvar;
     } else {
-        adjust_assign(ls, nvars, nexps, &mut e);
+        adjust_assign(ls, nvars, nexps, &mut e)?;
         adjustlocalvars(ls, nvars);
     }
     checktoclose(fs, toclose);
+    Ok(())
 }
 
-unsafe extern "C" fn funcname(mut ls: *mut LexState, mut v: *mut expdesc) -> libc::c_int {
+unsafe fn funcname(
+    mut ls: *mut LexState,
+    mut v: *mut expdesc,
+) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut ismethod: libc::c_int = 0 as libc::c_int;
-    singlevar(ls, v);
+    singlevar(ls, v)?;
     while (*ls).t.token == '.' as i32 {
-        fieldsel(ls, v);
+        fieldsel(ls, v)?;
     }
     if (*ls).t.token == ':' as i32 {
         ismethod = 1 as libc::c_int;
-        fieldsel(ls, v);
+        fieldsel(ls, v)?;
     }
-    return ismethod;
+    return Ok(ismethod);
 }
 
-unsafe extern "C" fn funcstat(mut ls: *mut LexState, mut line: libc::c_int) {
+unsafe fn funcstat(
+    mut ls: *mut LexState,
+    mut line: libc::c_int,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut ismethod: libc::c_int = 0;
     let mut v: expdesc = expdesc {
         k: VVOID,
@@ -2581,15 +2682,16 @@ unsafe extern "C" fn funcstat(mut ls: *mut LexState, mut line: libc::c_int) {
         t: 0,
         f: 0,
     };
-    luaX_next(ls);
-    ismethod = funcname(ls, &mut v);
-    body(ls, &mut b, ismethod, line);
+    luaX_next(ls)?;
+    ismethod = funcname(ls, &mut v)?;
+    body(ls, &mut b, ismethod, line)?;
     check_readonly(ls, &mut v);
-    luaK_storevar((*ls).fs, &mut v, &mut b);
+    luaK_storevar((*ls).fs, &mut v, &mut b)?;
     luaK_fixline((*ls).fs, line);
+    Ok(())
 }
 
-unsafe extern "C" fn exprstat(mut ls: *mut LexState) {
+unsafe fn exprstat(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut v: LHS_assign = LHS_assign {
         prev: 0 as *mut LHS_assign,
@@ -2600,10 +2702,10 @@ unsafe extern "C" fn exprstat(mut ls: *mut LexState) {
             f: 0,
         },
     };
-    suffixedexp(ls, &mut v.v);
+    suffixedexp(ls, &mut v.v)?;
     if (*ls).t.token == '=' as i32 || (*ls).t.token == ',' as i32 {
         v.prev = 0 as *mut LHS_assign;
-        restassign(ls, &mut v, 1 as libc::c_int);
+        restassign(ls, &mut v, 1 as libc::c_int)?;
     } else {
         let mut inst: *mut u32 = 0 as *mut u32;
         if !(v.v.k as libc::c_uint == VCALL as libc::c_int as libc::c_uint) {
@@ -2630,9 +2732,10 @@ unsafe extern "C" fn exprstat(mut ls: *mut LexState) {
                         + 1 as libc::c_int
                         + 8 as libc::c_int;
     };
+    Ok(())
 }
 
-unsafe extern "C" fn retstat(mut ls: *mut LexState) {
+unsafe fn retstat(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
     let mut fs: *mut FuncState = (*ls).fs;
     let mut e: expdesc = expdesc {
         k: VVOID,
@@ -2645,7 +2748,7 @@ unsafe extern "C" fn retstat(mut ls: *mut LexState) {
     if block_follow(ls, 1 as libc::c_int) != 0 || (*ls).t.token == ';' as i32 {
         nret = 0 as libc::c_int;
     } else {
-        nret = explist(ls, &mut e);
+        nret = explist(ls, &mut e)?;
         if e.k as libc::c_uint == VCALL as libc::c_int as libc::c_uint
             || e.k as libc::c_uint == VVARARG as libc::c_int as libc::c_uint
         {
@@ -2662,75 +2765,66 @@ unsafe extern "C" fn retstat(mut ls: *mut LexState) {
             }
             nret = -(1 as libc::c_int);
         } else if nret == 1 as libc::c_int {
-            first = luaK_exp2anyreg(fs, &mut e);
+            first = luaK_exp2anyreg(fs, &mut e)?;
         } else {
-            luaK_exp2nextreg(fs, &mut e);
+            luaK_exp2nextreg(fs, &mut e)?;
         }
     }
     luaK_ret(fs, first, nret);
-    testnext(ls, ';' as i32);
+    testnext(ls, ';' as i32)?;
+    Ok(())
 }
 
-unsafe extern "C" fn statement(mut ls: *mut LexState) {
+unsafe fn statement(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
     let mut line: libc::c_int = (*ls).linenumber;
     luaE_incCstack((*ls).L);
     match (*ls).t.token {
-        59 => {
-            luaX_next(ls);
-        }
-        266 => {
-            ifstat(ls, line);
-        }
-        277 => {
-            whilestat(ls, line);
-        }
+        59 => luaX_next(ls)?,
+        266 => ifstat(ls, line)?,
+        277 => whilestat(ls, line)?,
         258 => {
-            luaX_next(ls);
-            block(ls);
-            check_match(ls, TK_END as libc::c_int, TK_DO as libc::c_int, line);
+            luaX_next(ls)?;
+            block(ls)?;
+            check_match(ls, TK_END as libc::c_int, TK_DO as libc::c_int, line)?;
         }
-        263 => {
-            forstat(ls, line);
-        }
-        272 => {
-            repeatstat(ls, line);
-        }
-        264 => {
-            funcstat(ls, line);
-        }
+        263 => forstat(ls, line)?,
+        272 => repeatstat(ls, line)?,
+        264 => funcstat(ls, line)?,
         268 => {
-            luaX_next(ls);
-            if testnext(ls, TK_FUNCTION as libc::c_int) != 0 {
-                localfunc(ls);
+            luaX_next(ls)?;
+            if testnext(ls, TK_FUNCTION as libc::c_int)? != 0 {
+                localfunc(ls)?;
             } else {
-                localstat(ls);
+                localstat(ls)?;
             }
         }
         287 => {
-            luaX_next(ls);
-            labelstat(ls, str_checkname(ls), line);
+            luaX_next(ls)?;
+            labelstat(ls, str_checkname(ls)?, line)?;
         }
         273 => {
-            luaX_next(ls);
-            retstat(ls);
+            luaX_next(ls)?;
+            retstat(ls)?;
         }
-        257 => {
-            breakstat(ls);
-        }
+        257 => breakstat(ls)?,
         265 => {
-            luaX_next(ls);
-            gotostat(ls);
+            luaX_next(ls)?;
+            gotostat(ls)?;
         }
         _ => {
-            exprstat(ls);
+            exprstat(ls)?;
         }
     }
     (*(*ls).fs).freereg = luaY_nvarstack((*ls).fs) as u8;
     (*(*ls).L).nCcalls = ((*(*ls).L).nCcalls).wrapping_sub(1);
     (*(*ls).L).nCcalls;
+    Ok(())
 }
 
-unsafe extern "C" fn mainfunc(mut ls: *mut LexState, mut fs: *mut FuncState) {
+unsafe fn mainfunc(
+    mut ls: *mut LexState,
+    mut fs: *mut FuncState,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut bl: BlockCnt = BlockCnt {
         previous: 0 as *mut BlockCnt,
         firstlabel: 0,
@@ -2760,10 +2854,11 @@ unsafe extern "C" fn mainfunc(mut ls: *mut LexState, mut fs: *mut FuncState) {
         );
     } else {
     };
-    luaX_next(ls);
-    statlist(ls);
+    luaX_next(ls)?;
+    statlist(ls)?;
     check(ls, TK_EOS as libc::c_int);
     close_func(ls);
+    Ok(())
 }
 
 pub unsafe fn luaY_parser(
@@ -2773,7 +2868,7 @@ pub unsafe fn luaY_parser(
     mut dyd: *mut Dyndata,
     mut name: *const libc::c_char,
     mut firstchar: libc::c_int,
-) -> *mut LClosure {
+) -> Result<*mut LClosure, Box<dyn std::error::Error>> {
     let mut lexstate: LexState = LexState {
         current: 0,
         linenumber: 0,
@@ -2864,8 +2959,8 @@ pub unsafe fn luaY_parser(
     (*dyd).gt.n = (*dyd).label.n;
     (*dyd).actvar.n = (*dyd).gt.n;
     luaX_setinput(L, &mut lexstate, z, (*funcstate.f).source, firstchar);
-    mainfunc(&mut lexstate, &mut funcstate);
+    mainfunc(&mut lexstate, &mut funcstate)?;
     (*L).top.p = ((*L).top.p).offset(-1);
     (*L).top.p;
-    return cl;
+    return Ok(cl);
 }

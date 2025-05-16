@@ -18,7 +18,7 @@ use crate::lstate::{CallInfo, GCUnion, lua_State};
 use crate::lstring::luaS_new;
 use crate::ltable::luaH_getshortstr;
 use std::borrow::Cow;
-use std::ffi::CStr;
+use std::ffi::{CStr, c_int};
 
 pub type TMS = libc::c_uint;
 
@@ -174,14 +174,13 @@ pub unsafe fn luaT_objtypename(mut L: *mut lua_State, mut o: *const TValue) -> C
         .into();
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaT_callTM(
+pub unsafe fn luaT_callTM(
     mut L: *mut lua_State,
     mut f: *const TValue,
     mut p1: *const TValue,
     mut p2: *const TValue,
     mut p3: *const TValue,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut func: StkId = (*L).top.p;
     let mut io1: *mut TValue = &mut (*func).val;
     let mut io2: *const TValue = f;
@@ -200,23 +199,24 @@ pub unsafe extern "C" fn luaT_callTM(
     (*io1_2).value_ = (*io2_2).value_;
     (*io1_2).tt_ = (*io2_2).tt_;
     (*L).top.p = func.offset(4 as libc::c_int as isize);
+
     if (*(*L).ci).callstatus as libc::c_int
         & ((1 as libc::c_int) << 1 as libc::c_int | (1 as libc::c_int) << 3 as libc::c_int)
         == 0
     {
-        luaD_call(L, func, 0 as libc::c_int);
+        luaD_call(L, func, 0 as libc::c_int)
     } else {
-        luaD_callnoyield(L, func, 0 as libc::c_int);
-    };
+        luaD_callnoyield(L, func, 0 as libc::c_int)
+    }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaT_callTMres(
+
+pub unsafe fn luaT_callTMres(
     mut L: *mut lua_State,
     mut f: *const TValue,
     mut p1: *const TValue,
     mut p2: *const TValue,
     mut res: StkId,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut result: isize =
         (res as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
     let mut func: StkId = (*L).top.p;
@@ -233,47 +233,52 @@ pub unsafe extern "C" fn luaT_callTMres(
     (*io1_1).value_ = (*io2_1).value_;
     (*io1_1).tt_ = (*io2_1).tt_;
     (*L).top.p = ((*L).top.p).offset(3 as libc::c_int as isize);
+
     if (*(*L).ci).callstatus as libc::c_int
         & ((1 as libc::c_int) << 1 as libc::c_int | (1 as libc::c_int) << 3 as libc::c_int)
         == 0
     {
-        luaD_call(L, func, 1 as libc::c_int);
+        luaD_call(L, func, 1 as libc::c_int)?;
     } else {
-        luaD_callnoyield(L, func, 1 as libc::c_int);
+        luaD_callnoyield(L, func, 1 as libc::c_int)?;
     }
+
     res = ((*L).stack.p as *mut libc::c_char).offset(result as isize) as StkId;
     let mut io1_2: *mut TValue = &mut (*res).val;
     (*L).top.p = ((*L).top.p).offset(-1);
     let mut io2_2: *const TValue = &mut (*(*L).top.p).val;
     (*io1_2).value_ = (*io2_2).value_;
     (*io1_2).tt_ = (*io2_2).tt_;
+
+    Ok(())
 }
-unsafe extern "C" fn callbinTM(
+
+unsafe fn callbinTM(
     mut L: *mut lua_State,
     mut p1: *const TValue,
     mut p2: *const TValue,
     mut res: StkId,
     mut event: TMS,
-) -> libc::c_int {
+) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut tm: *const TValue = luaT_gettmbyobj(L, p1, event);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         tm = luaT_gettmbyobj(L, p2, event);
     }
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
-        return 0 as libc::c_int;
+        return Ok(0 as libc::c_int);
     }
-    luaT_callTMres(L, tm, p1, p2, res);
-    return 1 as libc::c_int;
+    luaT_callTMres(L, tm, p1, p2, res)?;
+    return Ok(1 as libc::c_int);
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaT_trybinTM(
+
+pub unsafe fn luaT_trybinTM(
     mut L: *mut lua_State,
     mut p1: *const TValue,
     mut p2: *const TValue,
     mut res: StkId,
     mut event: TMS,
-) {
-    if ((callbinTM(L, p1, p2, res, event) == 0) as libc::c_int != 0 as libc::c_int) as libc::c_int
+) -> Result<(), Box<dyn std::error::Error>> {
+    if ((callbinTM(L, p1, p2, res, event)? == 0) as libc::c_int != 0 as libc::c_int) as libc::c_int
         as libc::c_long
         != 0
     {
@@ -292,9 +297,11 @@ pub unsafe extern "C" fn luaT_trybinTM(
             }
         }
     }
+
+    Ok(())
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaT_tryconcatTM(mut L: *mut lua_State) {
+
+pub unsafe fn luaT_tryconcatTM(mut L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
     let mut top: StkId = (*L).top.p;
     if ((callbinTM(
         L,
@@ -302,7 +309,7 @@ pub unsafe extern "C" fn luaT_tryconcatTM(mut L: *mut lua_State) {
         &mut (*top.offset(-(1 as libc::c_int as isize))).val,
         top.offset(-(2 as libc::c_int as isize)),
         TM_CONCAT,
-    ) == 0) as libc::c_int
+    )? == 0) as libc::c_int
         != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
     {
@@ -312,31 +319,33 @@ pub unsafe extern "C" fn luaT_tryconcatTM(mut L: *mut lua_State) {
             &mut (*top.offset(-(1 as libc::c_int as isize))).val,
         );
     }
+
+    Ok(())
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaT_trybinassocTM(
+
+pub unsafe fn luaT_trybinassocTM(
     mut L: *mut lua_State,
     mut p1: *const TValue,
     mut p2: *const TValue,
     mut flip: libc::c_int,
     mut res: StkId,
     mut event: TMS,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     if flip != 0 {
-        luaT_trybinTM(L, p2, p1, res, event);
+        luaT_trybinTM(L, p2, p1, res, event)
     } else {
-        luaT_trybinTM(L, p1, p2, res, event);
-    };
+        luaT_trybinTM(L, p1, p2, res, event)
+    }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaT_trybiniTM(
+
+pub unsafe fn luaT_trybiniTM(
     mut L: *mut lua_State,
     mut p1: *const TValue,
     mut i2: i64,
     mut flip: libc::c_int,
     mut res: StkId,
     mut event: TMS,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut aux: TValue = TValue {
         value_: Value {
             gc: 0 as *mut GCObject,
@@ -346,32 +355,32 @@ pub unsafe extern "C" fn luaT_trybiniTM(
     let mut io: *mut TValue = &mut aux;
     (*io).value_.i = i2;
     (*io).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
-    luaT_trybinassocTM(L, p1, &mut aux, flip, res, event);
+    luaT_trybinassocTM(L, p1, &mut aux, flip, res, event)
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaT_callorderTM(
+
+pub unsafe fn luaT_callorderTM(
     mut L: *mut lua_State,
     mut p1: *const TValue,
     mut p2: *const TValue,
     mut event: TMS,
-) -> libc::c_int {
-    if callbinTM(L, p1, p2, (*L).top.p, event) != 0 {
-        return !((*(*L).top.p).val.tt_ as libc::c_int
+) -> Result<c_int, Box<dyn std::error::Error>> {
+    if callbinTM(L, p1, p2, (*L).top.p, event)? != 0 {
+        return Ok(!((*(*L).top.p).val.tt_ as libc::c_int
             == 1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
             || (*(*L).top.p).val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int)
-            as libc::c_int;
+            as libc::c_int);
     }
     luaG_ordererror(L, p1, p2);
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaT_callorderiTM(
+
+pub unsafe fn luaT_callorderiTM(
     mut L: *mut lua_State,
     mut p1: *const TValue,
     mut v2: libc::c_int,
     mut flip: libc::c_int,
     mut isfloat: libc::c_int,
     mut event: TMS,
-) -> libc::c_int {
+) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut aux: TValue = TValue {
         value_: Value {
             gc: 0 as *mut GCObject,
@@ -396,6 +405,7 @@ pub unsafe extern "C" fn luaT_callorderiTM(
     }
     return luaT_callorderTM(L, p1, p2, event);
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaT_adjustvarargs(
     mut L: *mut lua_State,

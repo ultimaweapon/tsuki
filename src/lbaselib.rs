@@ -36,7 +36,7 @@ unsafe fn luaB_print(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
     i = 1 as libc::c_int;
     while i <= n {
         let mut l: usize = 0;
-        let s: *const libc::c_char = luaL_tolstring(L, i, &mut l);
+        let s: *const libc::c_char = luaL_tolstring(L, i, &mut l)?;
         let s = std::slice::from_raw_parts(s.cast(), l);
 
         if i > 1 {
@@ -45,7 +45,7 @@ unsafe fn luaB_print(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
 
         print!("{}", String::from_utf8_lossy(s));
 
-        lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int);
+        lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
         i += 1;
         i;
     }
@@ -58,10 +58,10 @@ unsafe fn luaB_print(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
 unsafe fn luaB_warn(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut n: libc::c_int = lua_gettop(L);
     let mut i: libc::c_int = 0;
-    luaL_checklstring(L, 1 as libc::c_int, 0 as *mut usize);
+    luaL_checklstring(L, 1 as libc::c_int, 0 as *mut usize)?;
     i = 2 as libc::c_int;
     while i <= n {
-        luaL_checklstring(L, i, 0 as *mut usize);
+        luaL_checklstring(L, i, 0 as *mut usize)?;
         i += 1;
         i;
     }
@@ -122,7 +122,7 @@ unsafe extern "C" fn b_str2int(
 unsafe fn luaB_tonumber(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     if lua_type(L, 2 as libc::c_int) <= 0 as libc::c_int {
         if lua_type(L, 1 as libc::c_int) == 3 as libc::c_int {
-            lua_settop(L, 1 as libc::c_int);
+            lua_settop(L, 1 as libc::c_int)?;
             return Ok(1 as libc::c_int);
         } else {
             let mut l: usize = 0;
@@ -131,19 +131,20 @@ unsafe fn luaB_tonumber(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::err
             {
                 return Ok(1 as libc::c_int);
             }
-            luaL_checkany(L, 1 as libc::c_int);
+            luaL_checkany(L, 1 as libc::c_int)?;
         }
     } else {
         let mut l_0: usize = 0;
         let mut s_0: *const libc::c_char = 0 as *const libc::c_char;
         let mut n: i64 = 0 as libc::c_int as i64;
-        let mut base: i64 = luaL_checkinteger(L, 2 as libc::c_int);
-        luaL_checktype(L, 1 as libc::c_int, 4 as libc::c_int);
+        let mut base: i64 = luaL_checkinteger(L, 2 as libc::c_int)?;
+        luaL_checktype(L, 1 as libc::c_int, 4 as libc::c_int)?;
         s_0 = lua_tolstring(L, 1 as libc::c_int, &mut l_0);
         (((2 as libc::c_int as i64 <= base && base <= 36 as libc::c_int as i64) as libc::c_int
             != 0 as libc::c_int) as libc::c_int as libc::c_long
             != 0
-            || luaL_argerror(L, 2 as libc::c_int, "base out of range") != 0) as libc::c_int;
+            || luaL_argerror(L, 2 as libc::c_int, "base out of range")? != 0)
+            as libc::c_int;
         if b_str2int(s_0, base as libc::c_int, &mut n) == s_0.offset(l_0 as isize) {
             lua_pushinteger(L, n);
             return Ok(1 as libc::c_int);
@@ -155,18 +156,18 @@ unsafe fn luaB_tonumber(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::err
 
 unsafe fn luaB_error(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut level: libc::c_int =
-        luaL_optinteger(L, 2 as libc::c_int, 1 as libc::c_int as i64) as libc::c_int;
-    lua_settop(L, 1 as libc::c_int);
+        luaL_optinteger(L, 2 as libc::c_int, 1 as libc::c_int as i64)? as libc::c_int;
+    lua_settop(L, 1 as libc::c_int)?;
     if lua_type(L, 1 as libc::c_int) == 4 as libc::c_int && level > 0 as libc::c_int {
         luaL_where(L, level);
         lua_pushvalue(L, 1 as libc::c_int);
-        lua_concat(L, 2 as libc::c_int);
+        lua_concat(L, 2 as libc::c_int)?;
     }
     return Ok(lua_error(L));
 }
 
 unsafe fn luaB_getmetatable(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    luaL_checkany(L, 1 as libc::c_int);
+    luaL_checkany(L, 1 as libc::c_int)?;
     if lua_getmetatable(L, 1 as libc::c_int) == 0 {
         lua_pushnil(L);
         return Ok(1 as libc::c_int);
@@ -175,36 +176,36 @@ unsafe fn luaB_getmetatable(mut L: *mut lua_State) -> Result<c_int, Box<dyn std:
         L,
         1 as libc::c_int,
         b"__metatable\0" as *const u8 as *const libc::c_char,
-    );
+    )?;
     return Ok(1 as libc::c_int);
 }
 
 unsafe fn luaB_setmetatable(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut t: libc::c_int = lua_type(L, 2 as libc::c_int);
-    luaL_checktype(L, 1 as libc::c_int, 5 as libc::c_int);
+    luaL_checktype(L, 1 as libc::c_int, 5 as libc::c_int)?;
     (((t == 0 as libc::c_int || t == 5 as libc::c_int) as libc::c_int != 0 as libc::c_int)
         as libc::c_int as libc::c_long
         != 0
-        || luaL_typeerror(L, 2 as libc::c_int, "nil or table") != 0) as libc::c_int;
+        || luaL_typeerror(L, 2 as libc::c_int, "nil or table")? != 0) as libc::c_int;
     if ((luaL_getmetafield(
         L,
         1 as libc::c_int,
         b"__metatable\0" as *const u8 as *const libc::c_char,
-    ) != 0 as libc::c_int) as libc::c_int
+    )? != 0 as libc::c_int) as libc::c_int
         != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
     {
-        return Ok(luaL_error(L, "cannot change a protected metatable"));
+        return luaL_error(L, "cannot change a protected metatable");
     }
-    lua_settop(L, 2 as libc::c_int);
+    lua_settop(L, 2 as libc::c_int)?;
     lua_setmetatable(L, 1 as libc::c_int);
     return Ok(1 as libc::c_int);
 }
 
 unsafe fn luaB_rawequal(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    luaL_checkany(L, 1 as libc::c_int);
-    luaL_checkany(L, 2 as libc::c_int);
-    lua_pushboolean(L, lua_rawequal(L, 1 as libc::c_int, 2 as libc::c_int));
+    luaL_checkany(L, 1 as libc::c_int)?;
+    luaL_checkany(L, 2 as libc::c_int)?;
+    lua_pushboolean(L, lua_rawequal(L, 1 as libc::c_int, 2 as libc::c_int)?);
     return Ok(1 as libc::c_int);
 }
 
@@ -213,24 +214,24 @@ unsafe fn luaB_rawlen(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error
     (((t == 5 as libc::c_int || t == 4 as libc::c_int) as libc::c_int != 0 as libc::c_int)
         as libc::c_int as libc::c_long
         != 0
-        || luaL_typeerror(L, 1 as libc::c_int, "table or string") != 0) as libc::c_int;
+        || luaL_typeerror(L, 1 as libc::c_int, "table or string")? != 0) as libc::c_int;
     lua_pushinteger(L, lua_rawlen(L, 1 as libc::c_int) as i64);
     return Ok(1 as libc::c_int);
 }
 
 unsafe fn luaB_rawget(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    luaL_checktype(L, 1 as libc::c_int, 5 as libc::c_int);
-    luaL_checkany(L, 2 as libc::c_int);
-    lua_settop(L, 2 as libc::c_int);
+    luaL_checktype(L, 1 as libc::c_int, 5 as libc::c_int)?;
+    luaL_checkany(L, 2 as libc::c_int)?;
+    lua_settop(L, 2 as libc::c_int)?;
     lua_rawget(L, 1 as libc::c_int);
     return Ok(1 as libc::c_int);
 }
 
 unsafe fn luaB_rawset(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    luaL_checktype(L, 1 as libc::c_int, 5 as libc::c_int);
-    luaL_checkany(L, 2 as libc::c_int);
-    luaL_checkany(L, 3 as libc::c_int);
-    lua_settop(L, 3 as libc::c_int);
+    luaL_checktype(L, 1 as libc::c_int, 5 as libc::c_int)?;
+    luaL_checkany(L, 2 as libc::c_int)?;
+    luaL_checkany(L, 3 as libc::c_int)?;
+    lua_settop(L, 3 as libc::c_int)?;
     lua_rawset(L, 1 as libc::c_int);
     return Ok(1 as libc::c_int);
 }
@@ -282,7 +283,7 @@ unsafe fn luaB_collectgarbage(mut L: *mut lua_State) -> Result<c_int, Box<dyn st
         1 as libc::c_int,
         b"collect\0" as *const u8 as *const libc::c_char,
         opts,
-    ) as usize];
+    )? as usize];
     match o {
         0 | 1 | 2 => {
             let res_1: libc::c_int = lua_gc(
@@ -310,7 +311,7 @@ unsafe fn luaB_collectgarbage(mut L: *mut lua_State) -> Result<c_int, Box<dyn st
         }
         5 => {
             let mut step: libc::c_int =
-                luaL_optinteger(L, 2 as libc::c_int, 0 as libc::c_int as i64) as libc::c_int;
+                luaL_optinteger(L, 2 as libc::c_int, 0 as libc::c_int as i64)? as libc::c_int;
             let mut res: libc::c_int = lua_gc(L, GcCommand::Step(step));
             if !(res == -(1 as libc::c_int)) {
                 lua_pushboolean(L, res);
@@ -319,7 +320,7 @@ unsafe fn luaB_collectgarbage(mut L: *mut lua_State) -> Result<c_int, Box<dyn st
         }
         6 | 7 => {
             let mut p: libc::c_int =
-                luaL_optinteger(L, 2 as libc::c_int, 0 as libc::c_int as i64) as libc::c_int;
+                luaL_optinteger(L, 2 as libc::c_int, 0 as libc::c_int as i64)? as libc::c_int;
             let mut previous: libc::c_int = lua_gc(
                 L,
                 if o == 6 {
@@ -343,9 +344,9 @@ unsafe fn luaB_collectgarbage(mut L: *mut lua_State) -> Result<c_int, Box<dyn st
         }
         10 => {
             let mut minormul: libc::c_int =
-                luaL_optinteger(L, 2 as libc::c_int, 0 as libc::c_int as i64) as libc::c_int;
+                luaL_optinteger(L, 2 as libc::c_int, 0 as libc::c_int as i64)? as libc::c_int;
             let mut majormul: libc::c_int =
-                luaL_optinteger(L, 3 as libc::c_int, 0 as libc::c_int as i64) as libc::c_int;
+                luaL_optinteger(L, 3 as libc::c_int, 0 as libc::c_int as i64)? as libc::c_int;
             return Ok(pushmode(
                 L,
                 lua_gc(L, GcCommand::SetGen(minormul, majormul)),
@@ -353,11 +354,11 @@ unsafe fn luaB_collectgarbage(mut L: *mut lua_State) -> Result<c_int, Box<dyn st
         }
         11 => {
             let mut pause: libc::c_int =
-                luaL_optinteger(L, 2 as libc::c_int, 0 as libc::c_int as i64) as libc::c_int;
+                luaL_optinteger(L, 2 as libc::c_int, 0 as libc::c_int as i64)? as libc::c_int;
             let mut stepmul: libc::c_int =
-                luaL_optinteger(L, 3 as libc::c_int, 0 as libc::c_int as i64) as libc::c_int;
+                luaL_optinteger(L, 3 as libc::c_int, 0 as libc::c_int as i64)? as libc::c_int;
             let mut stepsize: libc::c_int =
-                luaL_optinteger(L, 4 as libc::c_int, 0 as libc::c_int as i64) as libc::c_int;
+                luaL_optinteger(L, 4 as libc::c_int, 0 as libc::c_int as i64)? as libc::c_int;
             return Ok(pushmode(
                 L,
                 lua_gc(L, GcCommand::SetInc(pause, stepmul, stepsize)),
@@ -373,14 +374,14 @@ unsafe fn luaB_type(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
     let mut t: libc::c_int = lua_type(L, 1 as libc::c_int);
     (((t != -(1 as libc::c_int)) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
-        || luaL_argerror(L, 1 as libc::c_int, "value expected") != 0) as libc::c_int;
+        || luaL_argerror(L, 1 as libc::c_int, "value expected")? != 0) as libc::c_int;
     lua_pushlstring(L, lua_typename(L, t));
     return Ok(1 as libc::c_int);
 }
 
 unsafe fn luaB_next(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    luaL_checktype(L, 1 as libc::c_int, 5 as libc::c_int);
-    lua_settop(L, 2 as libc::c_int);
+    luaL_checktype(L, 1 as libc::c_int, 5 as libc::c_int)?;
+    lua_settop(L, 2 as libc::c_int)?;
 
     if lua_next(L, 1 as libc::c_int) != 0 {
         Ok(2)
@@ -399,12 +400,12 @@ unsafe extern "C" fn pairscont(
 }
 
 unsafe fn luaB_pairs(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    luaL_checkany(L, 1 as libc::c_int);
+    luaL_checkany(L, 1 as libc::c_int)?;
     if luaL_getmetafield(
         L,
         1 as libc::c_int,
         b"__pairs\0" as *const u8 as *const libc::c_char,
-    ) == 0 as libc::c_int
+    )? == 0 as libc::c_int
     {
         lua_pushcclosure(L, luaB_next, 0);
         lua_pushvalue(L, 1 as libc::c_int);
@@ -424,17 +425,17 @@ unsafe fn luaB_pairs(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
                         lua_KContext,
                     ) -> libc::c_int,
             ),
-        );
+        )?;
     }
     return Ok(3 as libc::c_int);
 }
 
 unsafe fn ipairsaux(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut i: i64 = luaL_checkinteger(L, 2 as libc::c_int);
+    let mut i: i64 = luaL_checkinteger(L, 2 as libc::c_int)?;
     i = (i as u64).wrapping_add(1 as libc::c_int as u64) as i64;
     lua_pushinteger(L, i);
 
-    if lua_geti(L, 1 as libc::c_int, i) == 0 as libc::c_int {
+    if lua_geti(L, 1 as libc::c_int, i)? == 0 as libc::c_int {
         Ok(1)
     } else {
         Ok(2)
@@ -442,18 +443,18 @@ unsafe fn ipairsaux(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
 }
 
 unsafe fn luaB_ipairs(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    luaL_checkany(L, 1 as libc::c_int);
+    luaL_checkany(L, 1 as libc::c_int)?;
     lua_pushcclosure(L, ipairsaux, 0 as libc::c_int);
     lua_pushvalue(L, 1 as libc::c_int);
     lua_pushinteger(L, 0 as libc::c_int as i64);
     return Ok(3 as libc::c_int);
 }
 
-unsafe extern "C" fn load_aux(
+unsafe fn load_aux(
     mut L: *mut lua_State,
     mut status: libc::c_int,
     mut envidx: libc::c_int,
-) -> libc::c_int {
+) -> Result<c_int, Box<dyn std::error::Error>> {
     if ((status == 0 as libc::c_int) as libc::c_int != 0 as libc::c_int) as libc::c_int
         as libc::c_long
         != 0
@@ -461,14 +462,14 @@ unsafe extern "C" fn load_aux(
         if envidx != 0 as libc::c_int {
             lua_pushvalue(L, envidx);
             if (lua_setupvalue(L, -(2 as libc::c_int), 1 as libc::c_int)).is_null() {
-                lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int);
+                lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
             }
         }
-        return 1 as libc::c_int;
+        return Ok(1 as libc::c_int);
     } else {
         lua_pushnil(L);
         lua_rotate(L, -(2 as libc::c_int), 1 as libc::c_int);
-        return 2 as libc::c_int;
+        return Ok(2 as libc::c_int);
     };
 }
 
@@ -478,30 +479,33 @@ unsafe fn luaB_loadfile(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::err
         1 as libc::c_int,
         0 as *const libc::c_char,
         0 as *mut usize,
-    );
+    )?;
     let mut mode: *const libc::c_char = luaL_optlstring(
         L,
         2 as libc::c_int,
         0 as *const libc::c_char,
         0 as *mut usize,
-    );
+    )?;
     let mut env: libc::c_int = if !(lua_type(L, 3 as libc::c_int) == -(1 as libc::c_int)) {
         3 as libc::c_int
     } else {
         0 as libc::c_int
     };
     let mut status: libc::c_int = luaL_loadfilex(L, fname, mode);
-    return Ok(load_aux(L, status, env));
+    return load_aux(L, status, env);
 }
 
-unsafe fn generic_reader(ud: *mut c_void, mut size: *mut usize) -> *const c_char {
+unsafe fn generic_reader(
+    ud: *mut c_void,
+    mut size: *mut usize,
+) -> Result<*const c_char, Box<dyn std::error::Error>> {
     let L = ud.cast();
 
     luaL_checkstack(
         L,
         2 as libc::c_int,
         b"too many nested functions\0" as *const u8 as *const libc::c_char,
-    );
+    )?;
     lua_pushvalue(L, 1 as libc::c_int);
     lua_callk(
         L,
@@ -509,20 +513,20 @@ unsafe fn generic_reader(ud: *mut c_void, mut size: *mut usize) -> *const c_char
         1 as libc::c_int,
         0 as libc::c_int as lua_KContext,
         None,
-    );
+    )?;
     if lua_type(L, -(1 as libc::c_int)) == 0 as libc::c_int {
-        lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int);
+        lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
         *size = 0 as libc::c_int as usize;
-        return 0 as *const libc::c_char;
+        return Ok(0 as *const libc::c_char);
     } else if ((lua_isstring(L, -(1 as libc::c_int)) == 0) as libc::c_int != 0 as libc::c_int)
         as libc::c_int as libc::c_long
         != 0
     {
-        luaL_error(L, "reader function must return a string");
+        luaL_error(L, "reader function must return a string")?;
     }
     lua_copy(L, -(1 as libc::c_int), 5 as libc::c_int);
-    lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int);
-    return lua_tolstring(L, 5 as libc::c_int, size);
+    lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
+    return Ok(lua_tolstring(L, 5 as libc::c_int, size));
 }
 
 unsafe fn luaB_load(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -534,7 +538,7 @@ unsafe fn luaB_load(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
         3 as libc::c_int,
         b"bt\0" as *const u8 as *const libc::c_char,
         0 as *mut usize,
-    );
+    )?;
     let mut env: libc::c_int = if !(lua_type(L, 4 as libc::c_int) == -(1 as libc::c_int)) {
         4 as libc::c_int
     } else {
@@ -542,7 +546,7 @@ unsafe fn luaB_load(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
     };
 
     if !s.is_null() {
-        let name = luaL_optlstring(L, 2, s, null_mut());
+        let name = luaL_optlstring(L, 2, s, null_mut())?;
         let s = std::slice::from_raw_parts(s.cast(), l);
 
         status = luaL_loadbufferx(L, s, name, mode);
@@ -552,15 +556,15 @@ unsafe fn luaB_load(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
             2 as libc::c_int,
             b"=(load)\0" as *const u8 as *const libc::c_char,
             0 as *mut usize,
-        );
+        )?;
 
-        luaL_checktype(L, 1 as libc::c_int, 6 as libc::c_int);
-        lua_settop(L, 5 as libc::c_int);
+        luaL_checktype(L, 1 as libc::c_int, 6 as libc::c_int)?;
+        lua_settop(L, 5 as libc::c_int)?;
 
         status = lua_load(L, generic_reader, L.cast(), chunkname_0, mode);
     }
 
-    Ok(load_aux(L, status, env))
+    load_aux(L, status, env)
 }
 
 unsafe extern "C" fn dofilecont(
@@ -577,8 +581,8 @@ unsafe fn luaB_dofile(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error
         1 as libc::c_int,
         0 as *const libc::c_char,
         0 as *mut usize,
-    );
-    lua_settop(L, 1 as libc::c_int);
+    )?;
+    lua_settop(L, 1 as libc::c_int)?;
     if ((luaL_loadfilex(L, fname, 0 as *const libc::c_char) != 0 as libc::c_int) as libc::c_int
         != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
@@ -594,7 +598,7 @@ unsafe fn luaB_dofile(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error
             dofilecont
                 as unsafe extern "C" fn(*mut lua_State, libc::c_int, lua_KContext) -> libc::c_int,
         ),
-    );
+    )?;
     return Ok(dofilecont(
         L,
         0 as libc::c_int,
@@ -607,14 +611,14 @@ unsafe fn luaB_assert(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error
     {
         return Ok(lua_gettop(L));
     } else {
-        luaL_checkany(L, 1 as libc::c_int);
+        luaL_checkany(L, 1 as libc::c_int)?;
         lua_rotate(L, 1 as libc::c_int, -(1 as libc::c_int));
-        lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int);
+        lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
         lua_pushstring(
             L,
             b"assertion failed!\0" as *const u8 as *const libc::c_char,
         );
-        lua_settop(L, 1 as libc::c_int);
+        lua_settop(L, 1 as libc::c_int)?;
         return luaB_error(L);
     };
 }
@@ -627,7 +631,7 @@ unsafe fn luaB_select(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error
         lua_pushinteger(L, (n - 1 as libc::c_int) as i64);
         return Ok(1 as libc::c_int);
     } else {
-        let mut i: i64 = luaL_checkinteger(L, 1 as libc::c_int);
+        let mut i: i64 = luaL_checkinteger(L, 1 as libc::c_int)?;
         if i < 0 as libc::c_int as i64 {
             i = n as i64 + i;
         } else if i > n as i64 {
@@ -636,7 +640,7 @@ unsafe fn luaB_select(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error
         (((1 as libc::c_int as i64 <= i) as libc::c_int != 0 as libc::c_int) as libc::c_int
             as libc::c_long
             != 0
-            || luaL_argerror(L, 1 as libc::c_int, "index out of range") != 0)
+            || luaL_argerror(L, 1 as libc::c_int, "index out of range")? != 0)
             as libc::c_int;
         return Ok(n - i as libc::c_int);
     };
@@ -661,7 +665,7 @@ unsafe extern "C" fn finishpcall(
 
 unsafe fn luaB_pcall(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut status: libc::c_int = 0;
-    luaL_checkany(L, 1 as libc::c_int);
+    luaL_checkany(L, 1 as libc::c_int)?;
     lua_pushboolean(L, 1 as libc::c_int);
     lua_rotate(L, 1 as libc::c_int, 1 as libc::c_int);
     status = lua_pcallk(
@@ -674,14 +678,14 @@ unsafe fn luaB_pcall(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
             finishpcall
                 as unsafe extern "C" fn(*mut lua_State, libc::c_int, lua_KContext) -> libc::c_int,
         ),
-    );
+    )?;
     return Ok(finishpcall(L, status, 0 as libc::c_int as lua_KContext));
 }
 
 unsafe fn luaB_xpcall(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut status: libc::c_int = 0;
     let mut n: libc::c_int = lua_gettop(L);
-    luaL_checktype(L, 2 as libc::c_int, 6 as libc::c_int);
+    luaL_checktype(L, 2 as libc::c_int, 6 as libc::c_int)?;
     lua_pushboolean(L, 1 as libc::c_int);
     lua_pushvalue(L, 1 as libc::c_int);
     lua_rotate(L, 3 as libc::c_int, 2 as libc::c_int);
@@ -695,13 +699,13 @@ unsafe fn luaB_xpcall(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error
             finishpcall
                 as unsafe extern "C" fn(*mut lua_State, libc::c_int, lua_KContext) -> libc::c_int,
         ),
-    );
+    )?;
     return Ok(finishpcall(L, status, 2 as libc::c_int as lua_KContext));
 }
 
 unsafe fn luaB_tostring(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    luaL_checkany(L, 1 as libc::c_int);
-    luaL_tolstring(L, 1 as libc::c_int, 0 as *mut usize);
+    luaL_checkany(L, 1 as libc::c_int)?;
+    luaL_tolstring(L, 1 as libc::c_int, 0 as *mut usize)?;
     return Ok(1 as libc::c_int);
 }
 
@@ -900,18 +904,18 @@ pub unsafe fn luaopen_base(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::
         L,
         &raw const base_funcs as *const luaL_Reg,
         0 as libc::c_int,
-    );
+    )?;
     lua_pushvalue(L, -(1 as libc::c_int));
     lua_setfield(
         L,
         -(2 as libc::c_int),
         b"_G\0" as *const u8 as *const libc::c_char,
-    );
+    )?;
     lua_pushstring(L, b"Lua 5.4\0" as *const u8 as *const libc::c_char);
     lua_setfield(
         L,
         -(2 as libc::c_int),
         b"_VERSION\0" as *const u8 as *const libc::c_char,
-    );
+    )?;
     return Ok(1 as libc::c_int);
 }

@@ -10,10 +10,10 @@ pub use self::lapi::{
 pub use self::lauxlib::{
     C2RustUnnamed, luaL_Buffer, luaL_Reg, luaL_addlstring, luaL_addstring, luaL_addvalue,
     luaL_argerror, luaL_buffinit, luaL_buffinitsize, luaL_checkinteger, luaL_checklstring,
-    luaL_checknumber, luaL_checkstack, luaL_checktype, luaL_checkversion_, luaL_error,
-    luaL_getmetafield, luaL_loadbufferx, luaL_loadfilex, luaL_newstate, luaL_optinteger,
-    luaL_optlstring, luaL_prepbuffsize, luaL_pushresult, luaL_pushresultsize, luaL_requiref,
-    luaL_setfuncs, luaL_tolstring, luaL_typeerror,
+    luaL_checknumber, luaL_checkstack, luaL_checktype, luaL_error, luaL_getmetafield,
+    luaL_loadbufferx, luaL_loadfilex, luaL_newstate, luaL_optinteger, luaL_optlstring,
+    luaL_prepbuffsize, luaL_pushresult, luaL_pushresultsize, luaL_requiref, luaL_setfuncs,
+    luaL_tolstring, luaL_typeerror,
 };
 pub use self::lbaselib::luaopen_base;
 pub use self::lstate::{lua_State, lua_close, lua_newthread};
@@ -48,8 +48,9 @@ mod lundump;
 mod lvm;
 mod lzio;
 
-pub unsafe fn lua_pop(td: *mut lua_State, n: c_int) {
-    unsafe { lua_settop(td, -(n) - 1) };
+#[inline(always)]
+pub unsafe fn lua_pop(td: *mut lua_State, n: c_int) -> Result<(), Box<dyn std::error::Error>> {
+    unsafe { lua_settop(td, -(n) - 1) }
 }
 
 #[inline(always)]

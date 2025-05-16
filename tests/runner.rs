@@ -20,8 +20,8 @@ fn run(cat: &str, file: &str) {
     let content = std::fs::read(path).unwrap();
     let lua = unsafe { luaL_newstate() };
 
-    unsafe { luaL_requiref(lua, c"_G".as_ptr(), luaopen_base, 0) };
-    unsafe { lua_pop(lua, 1) };
+    unsafe { luaL_requiref(lua, c"_G".as_ptr(), luaopen_base, 0).unwrap() };
+    unsafe { lua_pop(lua, 1).unwrap() };
 
     // Load.
     let status = unsafe { luaL_loadbufferx(lua, content, c"".as_ptr(), null()) };
@@ -29,7 +29,7 @@ fn run(cat: &str, file: &str) {
     assert_eq!(status, 0);
 
     // Run.
-    assert_eq!(unsafe { lua_pcallk(lua, 0, 0, 0, 0, None) }, 0);
+    assert_eq!(unsafe { lua_pcallk(lua, 0, 0, 0, 0, None).unwrap() }, 0);
 
     unsafe { lua_close(lua) };
 }

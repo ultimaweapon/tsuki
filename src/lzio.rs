@@ -42,12 +42,12 @@ pub struct Mbuffer {
     pub buffsize: usize,
 }
 
-pub unsafe fn luaZ_fill(mut z: *mut ZIO) -> c_int {
+pub unsafe fn luaZ_fill(mut z: *mut ZIO) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut size = 0;
-    let buff = ((*z).reader)((*z).data, &mut size);
+    let buff = ((*z).reader)((*z).data, &mut size)?;
 
     if buff.is_null() || size == 0 {
-        return -1;
+        return Ok(-1);
     }
 
     (*z).n = size.wrapping_sub(1);
@@ -55,15 +55,19 @@ pub unsafe fn luaZ_fill(mut z: *mut ZIO) -> c_int {
     let fresh0 = (*z).p;
     (*z).p = ((*z).p).offset(1);
 
-    return *fresh0 as libc::c_uchar as libc::c_int;
+    return Ok(*fresh0 as libc::c_uchar as libc::c_int);
 }
 
-pub unsafe fn luaZ_read(mut z: *mut ZIO, mut b: *mut c_void, mut n: usize) -> usize {
+pub unsafe fn luaZ_read(
+    mut z: *mut ZIO,
+    mut b: *mut c_void,
+    mut n: usize,
+) -> Result<usize, Box<dyn std::error::Error>> {
     while n != 0 {
         let mut m: usize = 0;
         if (*z).n == 0 as libc::c_int as usize {
-            if luaZ_fill(z) == -(1 as libc::c_int) {
-                return n;
+            if luaZ_fill(z)? == -(1 as libc::c_int) {
+                return Ok(n);
             } else {
                 (*z).n = ((*z).n).wrapping_add(1);
                 (*z).n;
@@ -78,5 +82,5 @@ pub unsafe fn luaZ_read(mut z: *mut ZIO, mut b: *mut c_void, mut n: usize) -> us
         b = (b as *mut libc::c_char).offset(m as isize) as *mut libc::c_void;
         n = n.wrapping_sub(m);
     }
-    return 0 as libc::c_int as usize;
+    return Ok(0 as libc::c_int as usize);
 }

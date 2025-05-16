@@ -30,8 +30,14 @@ use libc::{memcpy, time, time_t};
 use std::ffi::{c_char, c_int, c_void};
 
 pub type lua_Hook = Option<unsafe extern "C" fn(*mut lua_State, *mut lua_Debug) -> ()>;
-pub type lua_Reader = unsafe fn(*mut c_void, *mut usize) -> *const c_char;
-pub type lua_Writer = unsafe fn(*mut lua_State, *const c_void, usize, *mut c_void) -> c_int;
+pub type lua_Reader =
+    unsafe fn(*mut c_void, *mut usize) -> Result<*const c_char, Box<dyn std::error::Error>>;
+pub type lua_Writer = unsafe fn(
+    *mut lua_State,
+    *const c_void,
+    usize,
+    *mut c_void,
+) -> Result<c_int, Box<dyn std::error::Error>>;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -435,7 +441,8 @@ unsafe extern "C" fn init_registry(mut L: *mut lua_State, mut g: *mut global_Sta
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
 }
-unsafe extern "C" fn f_luaopen(mut L: *mut lua_State, mut ud: *mut libc::c_void) {
+
+unsafe fn f_luaopen(L: *mut lua_State, ud: *mut c_void) -> Result<(), Box<dyn std::error::Error>> {
     let mut g: *mut global_State = (*L).l_G;
     stack_init(L, L);
     init_registry(L, g);
@@ -444,7 +451,9 @@ unsafe extern "C" fn f_luaopen(mut L: *mut lua_State, mut ud: *mut libc::c_void)
     luaX_init(L);
     (*g).gcstp = 0 as libc::c_int as u8;
     (*g).nilvalue.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+    Ok(())
 }
+
 unsafe extern "C" fn preinit_thread(mut L: *mut lua_State, mut g: *mut global_State) {
     (*L).l_G = g;
     (*L).stack.p = 0 as StkId;
@@ -661,12 +670,7 @@ pub unsafe extern "C" fn lua_newstate(
         i += 1;
     }
 
-    if luaD_rawrunprotected(
-        L,
-        Some(f_luaopen as unsafe extern "C" fn(*mut lua_State, *mut libc::c_void) -> ()),
-        0 as *mut libc::c_void,
-    ) != 0 as libc::c_int
-    {
+    if luaD_rawrunprotected(L, f_luaopen, 0 as *mut libc::c_void) != 0 as libc::c_int {
         close_state(L);
         L = 0 as *mut lua_State;
     }

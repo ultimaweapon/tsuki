@@ -274,7 +274,7 @@ pub unsafe extern "C" fn luaX_newstring(
     }
     return ts;
 }
-unsafe extern "C" fn inclinenumber(mut ls: *mut LexState) {
+unsafe fn inclinenumber(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
     let mut old: libc::c_int = (*ls).current;
     let fresh2 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -283,7 +283,7 @@ unsafe extern "C" fn inclinenumber(mut ls: *mut LexState) {
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh3 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)
+        luaZ_fill((*ls).z)?
     };
     if ((*ls).current == '\n' as i32 || (*ls).current == '\r' as i32) && (*ls).current != old {
         let fresh4 = (*(*ls).z).n;
@@ -293,13 +293,14 @@ unsafe extern "C" fn inclinenumber(mut ls: *mut LexState) {
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh5 as libc::c_uchar as libc::c_int
         } else {
-            luaZ_fill((*ls).z)
+            luaZ_fill((*ls).z)?
         };
     }
     (*ls).linenumber += 1;
     if (*ls).linenumber >= 2147483647 as libc::c_int {
         lexerror(ls, "chunk has too many lines", 0 as libc::c_int);
     }
+    Ok(())
 }
 
 pub unsafe fn luaX_setinput(
@@ -333,7 +334,11 @@ pub unsafe fn luaX_setinput(
     ) as *mut libc::c_char;
     (*(*ls).buff).buffsize = 32 as libc::c_int as usize;
 }
-unsafe extern "C" fn check_next1(mut ls: *mut LexState, mut c: libc::c_int) -> libc::c_int {
+
+unsafe fn check_next1(
+    mut ls: *mut LexState,
+    mut c: libc::c_int,
+) -> Result<c_int, Box<dyn std::error::Error>> {
     if (*ls).current == c {
         let fresh6 = (*(*ls).z).n;
         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -342,17 +347,18 @@ unsafe extern "C" fn check_next1(mut ls: *mut LexState, mut c: libc::c_int) -> l
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh7 as libc::c_uchar as libc::c_int
         } else {
-            luaZ_fill((*ls).z)
+            luaZ_fill((*ls).z)?
         };
-        return 1 as libc::c_int;
+        return Ok(1 as libc::c_int);
     } else {
-        return 0 as libc::c_int;
+        return Ok(0 as libc::c_int);
     };
 }
-unsafe extern "C" fn check_next2(
+
+unsafe fn check_next2(
     mut ls: *mut LexState,
     mut set: *const libc::c_char,
-) -> libc::c_int {
+) -> Result<c_int, Box<dyn std::error::Error>> {
     if (*ls).current == *set.offset(0 as libc::c_int as isize) as libc::c_int
         || (*ls).current == *set.offset(1 as libc::c_int as isize) as libc::c_int
     {
@@ -364,14 +370,18 @@ unsafe extern "C" fn check_next2(
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh9 as libc::c_uchar as libc::c_int
         } else {
-            luaZ_fill((*ls).z)
+            luaZ_fill((*ls).z)?
         });
-        return 1 as libc::c_int;
+        return Ok(1 as libc::c_int);
     } else {
-        return 0 as libc::c_int;
+        return Ok(0 as libc::c_int);
     };
 }
-unsafe extern "C" fn read_numeral(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> libc::c_int {
+
+unsafe fn read_numeral(
+    mut ls: *mut LexState,
+    mut seminfo: *mut SemInfo,
+) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut obj: TValue = TValue {
         value_: Value {
             gc: 0 as *mut GCObject,
@@ -388,14 +398,14 @@ unsafe extern "C" fn read_numeral(mut ls: *mut LexState, mut seminfo: *mut SemIn
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh11 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)
+        luaZ_fill((*ls).z)?
     });
-    if first == '0' as i32 && check_next2(ls, b"xX\0" as *const u8 as *const libc::c_char) != 0 {
+    if first == '0' as i32 && check_next2(ls, b"xX\0" as *const u8 as *const libc::c_char)? != 0 {
         expo = b"Pp\0" as *const u8 as *const libc::c_char;
     }
     loop {
-        if check_next2(ls, expo) != 0 {
-            check_next2(ls, b"-+\0" as *const u8 as *const libc::c_char);
+        if check_next2(ls, expo)? != 0 {
+            check_next2(ls, b"-+\0" as *const u8 as *const libc::c_char)?;
         } else {
             if !(luai_ctype_[((*ls).current + 1 as libc::c_int) as usize] as libc::c_int
                 & (1 as libc::c_int) << 4 as libc::c_int
@@ -412,7 +422,7 @@ unsafe extern "C" fn read_numeral(mut ls: *mut LexState, mut seminfo: *mut SemIn
                 (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                 *fresh13 as libc::c_uchar as libc::c_int
             } else {
-                luaZ_fill((*ls).z)
+                luaZ_fill((*ls).z)?
             });
         }
     }
@@ -428,7 +438,7 @@ unsafe extern "C" fn read_numeral(mut ls: *mut LexState, mut seminfo: *mut SemIn
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh15 as libc::c_uchar as libc::c_int
         } else {
-            luaZ_fill((*ls).z)
+            luaZ_fill((*ls).z)?
         });
     }
     save(ls, '\0' as i32);
@@ -437,13 +447,14 @@ unsafe extern "C" fn read_numeral(mut ls: *mut LexState, mut seminfo: *mut SemIn
     }
     if obj.tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
         (*seminfo).i = obj.value_.i;
-        return TK_INT as libc::c_int;
+        return Ok(TK_INT as libc::c_int);
     } else {
         (*seminfo).r = obj.value_.n;
-        return TK_FLT as libc::c_int;
+        return Ok(TK_FLT as libc::c_int);
     };
 }
-unsafe extern "C" fn skip_sep(mut ls: *mut LexState) -> usize {
+
+unsafe fn skip_sep(mut ls: *mut LexState) -> Result<usize, Box<dyn std::error::Error>> {
     let mut count: usize = 0 as libc::c_int as usize;
     let mut s: libc::c_int = (*ls).current;
     save(ls, (*ls).current);
@@ -454,7 +465,7 @@ unsafe extern "C" fn skip_sep(mut ls: *mut LexState) -> usize {
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh17 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)
+        luaZ_fill((*ls).z)?
     });
     while (*ls).current == '=' as i32 {
         save(ls, (*ls).current);
@@ -465,26 +476,27 @@ unsafe extern "C" fn skip_sep(mut ls: *mut LexState) -> usize {
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh19 as libc::c_uchar as libc::c_int
         } else {
-            luaZ_fill((*ls).z)
+            luaZ_fill((*ls).z)?
         });
         count = count.wrapping_add(1);
         count;
     }
     return if (*ls).current == s {
-        count.wrapping_add(2 as libc::c_int as usize)
+        Ok(count.wrapping_add(2 as libc::c_int as usize))
     } else {
-        (if count == 0 as libc::c_int as usize {
+        Ok((if count == 0 as libc::c_int as usize {
             1 as libc::c_int
         } else {
             0 as libc::c_int
-        }) as usize
+        }) as usize)
     };
 }
-unsafe extern "C" fn read_long_string(
+
+unsafe fn read_long_string(
     mut ls: *mut LexState,
     mut seminfo: *mut SemInfo,
     mut sep: usize,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut line: libc::c_int = (*ls).linenumber;
     save(ls, (*ls).current);
     let fresh20 = (*(*ls).z).n;
@@ -494,10 +506,10 @@ unsafe extern "C" fn read_long_string(
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh21 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)
+        luaZ_fill((*ls).z)?
     });
     if (*ls).current == '\n' as i32 || (*ls).current == '\r' as i32 {
-        inclinenumber(ls);
+        inclinenumber(ls)?;
     }
     loop {
         match (*ls).current {
@@ -515,7 +527,7 @@ unsafe extern "C" fn read_long_string(
                 );
             }
             93 => {
-                if !(skip_sep(ls) == sep) {
+                if !(skip_sep(ls)? == sep) {
                     continue;
                 }
                 save(ls, (*ls).current);
@@ -526,13 +538,13 @@ unsafe extern "C" fn read_long_string(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh23 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)
+                    luaZ_fill((*ls).z)?
                 });
                 break;
             }
             10 | 13 => {
                 save(ls, '\n' as i32);
-                inclinenumber(ls);
+                inclinenumber(ls)?;
                 if seminfo.is_null() {
                     (*(*ls).buff).n = 0 as libc::c_int as usize;
                 }
@@ -547,7 +559,7 @@ unsafe extern "C" fn read_long_string(
                         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                         *fresh25 as libc::c_uchar as libc::c_int
                     } else {
-                        luaZ_fill((*ls).z)
+                        luaZ_fill((*ls).z)?
                     });
                 } else {
                     let fresh26 = (*(*ls).z).n;
@@ -557,7 +569,7 @@ unsafe extern "C" fn read_long_string(
                         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                         *fresh27 as libc::c_uchar as libc::c_int
                     } else {
-                        luaZ_fill((*ls).z)
+                        luaZ_fill((*ls).z)?
                     };
                 }
             }
@@ -570,8 +582,15 @@ unsafe extern "C" fn read_long_string(
             ((*(*ls).buff).n).wrapping_sub(2 as libc::c_int as usize * sep),
         );
     }
+
+    Ok(())
 }
-unsafe extern "C" fn esccheck(mut ls: *mut LexState, mut c: libc::c_int, msg: impl Display) {
+
+unsafe fn esccheck(
+    mut ls: *mut LexState,
+    mut c: libc::c_int,
+    msg: impl Display,
+) -> Result<(), Box<dyn std::error::Error>> {
     if c == 0 {
         if (*ls).current != -(1 as libc::c_int) {
             save(ls, (*ls).current);
@@ -582,13 +601,15 @@ unsafe extern "C" fn esccheck(mut ls: *mut LexState, mut c: libc::c_int, msg: im
                 (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                 *fresh29 as libc::c_uchar as libc::c_int
             } else {
-                luaZ_fill((*ls).z)
+                luaZ_fill((*ls).z)?
             });
         }
         lexerror(ls, msg, TK_STRING as libc::c_int);
     }
+    Ok(())
 }
-unsafe extern "C" fn gethexa(mut ls: *mut LexState) -> libc::c_int {
+
+unsafe fn gethexa(mut ls: *mut LexState) -> Result<c_int, Box<dyn std::error::Error>> {
     save(ls, (*ls).current);
     let fresh30 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -597,23 +618,25 @@ unsafe extern "C" fn gethexa(mut ls: *mut LexState) -> libc::c_int {
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh31 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)
+        luaZ_fill((*ls).z)?
     });
     esccheck(
         ls,
         luai_ctype_[((*ls).current + 1 as libc::c_int) as usize] as libc::c_int
             & (1 as libc::c_int) << 4 as libc::c_int,
         "hexadecimal digit expected",
-    );
-    return luaO_hexavalue((*ls).current);
+    )?;
+    return Ok(luaO_hexavalue((*ls).current));
 }
-unsafe extern "C" fn readhexaesc(mut ls: *mut LexState) -> libc::c_int {
-    let mut r: libc::c_int = gethexa(ls);
-    r = (r << 4 as libc::c_int) + gethexa(ls);
+
+unsafe fn readhexaesc(mut ls: *mut LexState) -> Result<c_int, Box<dyn std::error::Error>> {
+    let mut r: libc::c_int = gethexa(ls)?;
+    r = (r << 4 as libc::c_int) + gethexa(ls)?;
     (*(*ls).buff).n = ((*(*ls).buff).n).wrapping_sub(2 as libc::c_int as usize);
-    return r;
+    return Ok(r);
 }
-unsafe extern "C" fn readutf8esc(mut ls: *mut LexState) -> libc::c_ulong {
+
+unsafe fn readutf8esc(mut ls: *mut LexState) -> Result<libc::c_ulong, Box<dyn std::error::Error>> {
     let mut r: libc::c_ulong = 0;
     let mut i: libc::c_int = 4 as libc::c_int;
     save(ls, (*ls).current);
@@ -624,14 +647,14 @@ unsafe extern "C" fn readutf8esc(mut ls: *mut LexState) -> libc::c_ulong {
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh33 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)
+        luaZ_fill((*ls).z)?
     });
     esccheck(
         ls,
         ((*ls).current == '{' as i32) as libc::c_int,
         "missing '{'",
-    );
-    r = gethexa(ls) as libc::c_ulong;
+    )?;
+    r = gethexa(ls)? as libc::c_ulong;
     loop {
         save(ls, (*ls).current);
         let fresh34 = (*(*ls).z).n;
@@ -641,7 +664,7 @@ unsafe extern "C" fn readutf8esc(mut ls: *mut LexState) -> libc::c_ulong {
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh35 as libc::c_uchar as libc::c_int
         } else {
-            luaZ_fill((*ls).z)
+            luaZ_fill((*ls).z)?
         });
         if !(luai_ctype_[((*ls).current + 1 as libc::c_int) as usize] as libc::c_int
             & (1 as libc::c_int) << 4 as libc::c_int
@@ -655,14 +678,14 @@ unsafe extern "C" fn readutf8esc(mut ls: *mut LexState) -> libc::c_ulong {
             ls,
             (r <= (0x7fffffff as libc::c_uint >> 4 as libc::c_int) as libc::c_ulong) as libc::c_int,
             "UTF-8 value too large",
-        );
+        )?;
         r = (r << 4 as libc::c_int).wrapping_add(luaO_hexavalue((*ls).current) as libc::c_ulong);
     }
     esccheck(
         ls,
         ((*ls).current == '}' as i32) as libc::c_int,
         "missing '}'",
-    );
+    )?;
     let fresh36 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
     (*ls).current = if fresh36 > 0 as libc::c_int as usize {
@@ -670,21 +693,24 @@ unsafe extern "C" fn readutf8esc(mut ls: *mut LexState) -> libc::c_ulong {
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh37 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)
+        luaZ_fill((*ls).z)?
     };
     (*(*ls).buff).n = ((*(*ls).buff).n).wrapping_sub(i as usize);
-    return r;
+    return Ok(r);
 }
-unsafe extern "C" fn utf8esc(mut ls: *mut LexState) {
+
+unsafe fn utf8esc(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
     let mut buff: [libc::c_char; 8] = [0; 8];
-    let mut n: libc::c_int = luaO_utf8esc(buff.as_mut_ptr(), readutf8esc(ls));
+    let mut n: libc::c_int = luaO_utf8esc(buff.as_mut_ptr(), readutf8esc(ls)?);
     while n > 0 as libc::c_int {
         save(ls, buff[(8 as libc::c_int - n) as usize] as libc::c_int);
         n -= 1;
         n;
     }
+    Ok(())
 }
-unsafe extern "C" fn readdecesc(mut ls: *mut LexState) -> libc::c_int {
+
+unsafe fn readdecesc(mut ls: *mut LexState) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
     let mut r: libc::c_int = 0 as libc::c_int;
     i = 0 as libc::c_int;
@@ -702,7 +728,7 @@ unsafe extern "C" fn readdecesc(mut ls: *mut LexState) -> libc::c_int {
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh39 as libc::c_uchar as libc::c_int
         } else {
-            luaZ_fill((*ls).z)
+            luaZ_fill((*ls).z)?
         });
         i += 1;
         i;
@@ -711,15 +737,16 @@ unsafe extern "C" fn readdecesc(mut ls: *mut LexState) -> libc::c_int {
         ls,
         (r <= 255 as libc::c_int) as libc::c_int,
         "decimal escape too large",
-    );
+    )?;
     (*(*ls).buff).n = ((*(*ls).buff).n).wrapping_sub(i as usize);
-    return r;
+    return Ok(r);
 }
-unsafe extern "C" fn read_string(
+
+unsafe fn read_string(
     mut ls: *mut LexState,
     mut del: libc::c_int,
     mut seminfo: *mut SemInfo,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut current_block: u64;
     save(ls, (*ls).current);
     let fresh40 = (*(*ls).z).n;
@@ -729,7 +756,7 @@ unsafe extern "C" fn read_string(
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh41 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)
+        luaZ_fill((*ls).z)?
     });
     while (*ls).current != del {
         match (*ls).current {
@@ -749,7 +776,7 @@ unsafe extern "C" fn read_string(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh43 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)
+                    luaZ_fill((*ls).z)?
                 });
                 match (*ls).current {
                     97 => {
@@ -781,15 +808,15 @@ unsafe extern "C" fn read_string(
                         current_block = 1042351266007549468;
                     }
                     120 => {
-                        c = readhexaesc(ls);
+                        c = readhexaesc(ls)?;
                         current_block = 1042351266007549468;
                     }
                     117 => {
-                        utf8esc(ls);
+                        utf8esc(ls)?;
                         continue;
                     }
                     10 | 13 => {
-                        inclinenumber(ls);
+                        inclinenumber(ls)?;
                         c = '\n' as i32;
                         current_block = 1600088076184679856;
                     }
@@ -809,7 +836,7 @@ unsafe extern "C" fn read_string(
                             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                             *fresh45 as libc::c_uchar as libc::c_int
                         } else {
-                            luaZ_fill((*ls).z)
+                            luaZ_fill((*ls).z)?
                         };
                         while luai_ctype_[((*ls).current + 1 as libc::c_int) as usize]
                             as libc::c_int
@@ -817,7 +844,7 @@ unsafe extern "C" fn read_string(
                             != 0
                         {
                             if (*ls).current == '\n' as i32 || (*ls).current == '\r' as i32 {
-                                inclinenumber(ls);
+                                inclinenumber(ls)?;
                             } else {
                                 let fresh46 = (*(*ls).z).n;
                                 (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -826,7 +853,7 @@ unsafe extern "C" fn read_string(
                                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                                     *fresh47 as libc::c_uchar as libc::c_int
                                 } else {
-                                    luaZ_fill((*ls).z)
+                                    luaZ_fill((*ls).z)?
                                 };
                             }
                         }
@@ -838,8 +865,8 @@ unsafe extern "C" fn read_string(
                             luai_ctype_[((*ls).current + 1 as libc::c_int) as usize] as libc::c_int
                                 & (1 as libc::c_int) << 1 as libc::c_int,
                             "invalid escape sequence",
-                        );
-                        c = readdecesc(ls);
+                        )?;
+                        c = readdecesc(ls)?;
                         current_block = 1600088076184679856;
                     }
                 }
@@ -852,7 +879,7 @@ unsafe extern "C" fn read_string(
                             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                             *fresh49 as libc::c_uchar as libc::c_int
                         } else {
-                            luaZ_fill((*ls).z)
+                            luaZ_fill((*ls).z)?
                         };
                     }
                     _ => {}
@@ -869,7 +896,7 @@ unsafe extern "C" fn read_string(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh51 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)
+                    luaZ_fill((*ls).z)?
                 });
             }
         }
@@ -882,22 +909,25 @@ unsafe extern "C" fn read_string(
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh53 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)
+        luaZ_fill((*ls).z)?
     });
     (*seminfo).ts = luaX_newstring(
         ls,
         ((*(*ls).buff).buffer).offset(1 as libc::c_int as isize),
         ((*(*ls).buff).n).wrapping_sub(2 as libc::c_int as usize),
     );
+    Ok(())
 }
-unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> libc::c_int {
+
+unsafe fn llex(
+    mut ls: *mut LexState,
+    mut seminfo: *mut SemInfo,
+) -> Result<c_int, Box<dyn std::error::Error>> {
     (*(*ls).buff).n = 0 as libc::c_int as usize;
     loop {
         let mut current_block_85: u64;
         match (*ls).current {
-            10 | 13 => {
-                inclinenumber(ls);
-            }
+            10 | 13 => inclinenumber(ls)?,
             32 | 12 | 9 | 11 => {
                 let fresh54 = (*(*ls).z).n;
                 (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -906,7 +936,7 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh55 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)
+                    luaZ_fill((*ls).z)?
                 };
             }
             45 => {
@@ -917,10 +947,10 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh57 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)
+                    luaZ_fill((*ls).z)?
                 };
                 if (*ls).current != '-' as i32 {
-                    return '-' as i32;
+                    return Ok('-' as i32);
                 }
                 let fresh58 = (*(*ls).z).n;
                 (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -929,13 +959,13 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh59 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)
+                    luaZ_fill((*ls).z)?
                 };
                 if (*ls).current == '[' as i32 {
-                    let mut sep: usize = skip_sep(ls);
+                    let mut sep: usize = skip_sep(ls)?;
                     (*(*ls).buff).n = 0 as libc::c_int as usize;
                     if sep >= 2 as libc::c_int as usize {
-                        read_long_string(ls, 0 as *mut SemInfo, sep);
+                        read_long_string(ls, 0 as *mut SemInfo, sep)?;
                         (*(*ls).buff).n = 0 as libc::c_int as usize;
                         current_block_85 = 10512632378975961025;
                     } else {
@@ -957,17 +987,17 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
                                 (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                                 *fresh61 as libc::c_uchar as libc::c_int
                             } else {
-                                luaZ_fill((*ls).z)
+                                luaZ_fill((*ls).z)?
                             };
                         }
                     }
                 }
             }
             91 => {
-                let mut sep_0: usize = skip_sep(ls);
+                let mut sep_0: usize = skip_sep(ls)?;
                 if sep_0 >= 2 as libc::c_int as usize {
-                    read_long_string(ls, seminfo, sep_0);
-                    return TK_STRING as libc::c_int;
+                    read_long_string(ls, seminfo, sep_0)?;
+                    return Ok(TK_STRING as libc::c_int);
                 } else if sep_0 == 0 as libc::c_int as usize {
                     lexerror(
                         ls,
@@ -975,7 +1005,7 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
                         TK_STRING as libc::c_int,
                     );
                 }
-                return '[' as i32;
+                return Ok('[' as i32);
             }
             61 => {
                 let fresh62 = (*(*ls).z).n;
@@ -985,12 +1015,12 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh63 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)
+                    luaZ_fill((*ls).z)?
                 };
-                if check_next1(ls, '=' as i32) != 0 {
-                    return TK_EQ as libc::c_int;
+                if check_next1(ls, '=' as i32)? != 0 {
+                    return Ok(TK_EQ as libc::c_int);
                 } else {
-                    return '=' as i32;
+                    return Ok('=' as i32);
                 }
             }
             60 => {
@@ -1001,14 +1031,14 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh65 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)
+                    luaZ_fill((*ls).z)?
                 };
-                if check_next1(ls, '=' as i32) != 0 {
-                    return TK_LE as libc::c_int;
-                } else if check_next1(ls, '<' as i32) != 0 {
-                    return TK_SHL as libc::c_int;
+                if check_next1(ls, '=' as i32)? != 0 {
+                    return Ok(TK_LE as libc::c_int);
+                } else if check_next1(ls, '<' as i32)? != 0 {
+                    return Ok(TK_SHL as libc::c_int);
                 } else {
-                    return '<' as i32;
+                    return Ok('<' as i32);
                 }
             }
             62 => {
@@ -1019,14 +1049,14 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh67 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)
+                    luaZ_fill((*ls).z)?
                 };
-                if check_next1(ls, '=' as i32) != 0 {
-                    return TK_GE as libc::c_int;
-                } else if check_next1(ls, '>' as i32) != 0 {
-                    return TK_SHR as libc::c_int;
+                if check_next1(ls, '=' as i32)? != 0 {
+                    return Ok(TK_GE as libc::c_int);
+                } else if check_next1(ls, '>' as i32)? != 0 {
+                    return Ok(TK_SHR as libc::c_int);
                 } else {
-                    return '>' as i32;
+                    return Ok('>' as i32);
                 }
             }
             47 => {
@@ -1037,12 +1067,12 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh69 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)
+                    luaZ_fill((*ls).z)?
                 };
-                if check_next1(ls, '/' as i32) != 0 {
-                    return TK_IDIV as libc::c_int;
+                if check_next1(ls, '/' as i32)? != 0 {
+                    return Ok(TK_IDIV as libc::c_int);
                 } else {
-                    return '/' as i32;
+                    return Ok('/' as i32);
                 }
             }
             126 => {
@@ -1053,12 +1083,12 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh71 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)
+                    luaZ_fill((*ls).z)?
                 };
-                if check_next1(ls, '=' as i32) != 0 {
-                    return TK_NE as libc::c_int;
+                if check_next1(ls, '=' as i32)? != 0 {
+                    return Ok(TK_NE as libc::c_int);
                 } else {
-                    return '~' as i32;
+                    return Ok('~' as i32);
                 }
             }
             58 => {
@@ -1069,17 +1099,17 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh73 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)
+                    luaZ_fill((*ls).z)?
                 };
-                if check_next1(ls, ':' as i32) != 0 {
-                    return TK_DBCOLON as libc::c_int;
+                if check_next1(ls, ':' as i32)? != 0 {
+                    return Ok(TK_DBCOLON as libc::c_int);
                 } else {
-                    return ':' as i32;
+                    return Ok(':' as i32);
                 }
             }
             34 | 39 => {
-                read_string(ls, (*ls).current, seminfo);
-                return TK_STRING as libc::c_int;
+                read_string(ls, (*ls).current, seminfo)?;
+                return Ok(TK_STRING as libc::c_int);
             }
             46 => {
                 save(ls, (*ls).current);
@@ -1090,19 +1120,19 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh75 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)
+                    luaZ_fill((*ls).z)?
                 });
-                if check_next1(ls, '.' as i32) != 0 {
-                    if check_next1(ls, '.' as i32) != 0 {
-                        return TK_DOTS as libc::c_int;
+                if check_next1(ls, '.' as i32)? != 0 {
+                    if check_next1(ls, '.' as i32)? != 0 {
+                        return Ok(TK_DOTS as libc::c_int);
                     } else {
-                        return TK_CONCAT as libc::c_int;
+                        return Ok(TK_CONCAT as libc::c_int);
                     }
                 } else if luai_ctype_[((*ls).current + 1 as libc::c_int) as usize] as libc::c_int
                     & (1 as libc::c_int) << 1 as libc::c_int
                     == 0
                 {
-                    return '.' as i32;
+                    return Ok('.' as i32);
                 } else {
                     return read_numeral(ls, seminfo);
                 }
@@ -1110,7 +1140,7 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
             48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 => {
                 return read_numeral(ls, seminfo);
             }
-            -1 => return TK_EOS as libc::c_int,
+            -1 => return Ok(TK_EOS as libc::c_int),
             _ => {
                 if luai_ctype_[((*ls).current + 1 as libc::c_int) as usize] as libc::c_int
                     & (1 as libc::c_int) << 0 as libc::c_int
@@ -1126,7 +1156,7 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
                             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                             *fresh77 as libc::c_uchar as libc::c_int
                         } else {
-                            luaZ_fill((*ls).z)
+                            luaZ_fill((*ls).z)?
                         });
                         if !(luai_ctype_[((*ls).current + 1 as libc::c_int) as usize]
                             as libc::c_int
@@ -1143,10 +1173,10 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
                         == 4 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         && (*ts).extra as libc::c_int > 0 as libc::c_int
                     {
-                        return (*ts).extra as libc::c_int - 1 as libc::c_int
-                            + (255 as libc::c_int + 1 as libc::c_int);
+                        return Ok((*ts).extra as libc::c_int - 1 as libc::c_int
+                            + (255 as libc::c_int + 1 as libc::c_int));
                     } else {
-                        return TK_NAME as libc::c_int;
+                        return Ok(TK_NAME as libc::c_int);
                     }
                 } else {
                     let mut c: libc::c_int = (*ls).current;
@@ -1157,26 +1187,27 @@ unsafe extern "C" fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> l
                         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                         *fresh79 as libc::c_uchar as libc::c_int
                     } else {
-                        luaZ_fill((*ls).z)
+                        luaZ_fill((*ls).z)?
                     };
-                    return c;
+                    return Ok(c);
                 }
             }
         }
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaX_next(mut ls: *mut LexState) {
+
+pub unsafe fn luaX_next(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
     (*ls).lastline = (*ls).linenumber;
     if (*ls).lookahead.token != TK_EOS as libc::c_int {
         (*ls).t = (*ls).lookahead;
         (*ls).lookahead.token = TK_EOS as libc::c_int;
     } else {
-        (*ls).t.token = llex(ls, &mut (*ls).t.seminfo);
+        (*ls).t.token = llex(ls, &mut (*ls).t.seminfo)?;
     };
+    Ok(())
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaX_lookahead(mut ls: *mut LexState) -> libc::c_int {
-    (*ls).lookahead.token = llex(ls, &mut (*ls).lookahead.seminfo);
-    return (*ls).lookahead.token;
+
+pub unsafe fn luaX_lookahead(mut ls: *mut LexState) -> Result<c_int, Box<dyn std::error::Error>> {
+    (*ls).lookahead.token = llex(ls, &mut (*ls).lookahead.seminfo)?;
+    return Ok((*ls).lookahead.token);
 }

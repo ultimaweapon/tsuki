@@ -26,6 +26,7 @@ use crate::lstring::{luaS_clearcache, luaS_remove, luaS_resize};
 use crate::ltable::{luaH_free, luaH_realasize};
 use crate::ltm::{TM_GC, TM_MODE, luaT_gettm, luaT_gettmbyobj};
 use libc::strchr;
+use std::ffi::c_void;
 
 unsafe extern "C" fn getgclist(mut o: *mut GCObject) -> *mut *mut GCObject {
     match (*o).tt as libc::c_int {
@@ -1136,12 +1137,12 @@ unsafe extern "C" fn udata2finalize(mut g: *mut global_State) -> *mut GCObject {
     return o;
 }
 
-unsafe extern "C" fn dothecall(mut L: *mut lua_State, mut ud: *mut libc::c_void) {
+unsafe fn dothecall(L: *mut lua_State, ud: *mut c_void) -> Result<(), Box<dyn std::error::Error>> {
     luaD_callnoyield(
         L,
         ((*L).top.p).offset(-(2 as libc::c_int as isize)),
         0 as libc::c_int,
-    );
+    )
 }
 
 unsafe extern "C" fn GCTM(mut L: *mut lua_State) {
@@ -1181,7 +1182,7 @@ unsafe extern "C" fn GCTM(mut L: *mut lua_State) {
             as libc::c_ushort;
         status = luaD_pcall(
             L,
-            Some(dothecall as unsafe extern "C" fn(*mut lua_State, *mut libc::c_void) -> ()),
+            dothecall,
             0 as *mut libc::c_void,
             (((*L).top.p).offset(-(2 as libc::c_int as isize)) as *mut libc::c_char)
                 .offset_from((*L).stack.p as *mut libc::c_char),
