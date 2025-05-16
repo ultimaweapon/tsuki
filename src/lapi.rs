@@ -1561,7 +1561,6 @@ pub unsafe fn lua_pcallk(
     mut L: *mut lua_State,
     mut nargs: libc::c_int,
     mut nresults: libc::c_int,
-    mut errfunc: libc::c_int,
     mut ctx: lua_KContext,
     mut k: lua_KFunction,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -1570,14 +1569,9 @@ pub unsafe fn lua_pcallk(
         nresults: 0,
     };
     let mut status: libc::c_int = 0;
-    let mut func: isize = 0;
-    if errfunc == 0 as libc::c_int {
-        func = 0 as libc::c_int as isize;
-    } else {
-        let mut o: StkId = index2stack(L, errfunc);
-        func = (o as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
-    }
+
     c.func = ((*L).top.p).offset(-((nargs + 1 as libc::c_int) as isize));
+
     if k.is_none()
         || !((*L).nCcalls & 0xffff0000 as libc::c_uint == 0 as libc::c_int as libc::c_uint)
     {
@@ -1587,7 +1581,6 @@ pub unsafe fn lua_pcallk(
             f_call,
             &mut c as *mut CallS as *mut libc::c_void,
             (c.func as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char),
-            func,
         );
     } else {
         let mut ci: *mut CallInfo = (*L).ci;
@@ -1596,8 +1589,6 @@ pub unsafe fn lua_pcallk(
         (*ci).u2.funcidx = (c.func as *mut libc::c_char)
             .offset_from((*L).stack.p as *mut libc::c_char)
             as libc::c_long as libc::c_int;
-        (*ci).u.c.old_errfunc = (*L).errfunc;
-        (*L).errfunc = func;
         (*ci).callstatus = ((*ci).callstatus as libc::c_int
             & !((1 as libc::c_int) << 0 as libc::c_int)
             | (*L).allowhook as libc::c_int) as libc::c_ushort;
@@ -1607,7 +1598,7 @@ pub unsafe fn lua_pcallk(
         (*ci).callstatus = ((*ci).callstatus as libc::c_int
             & !((1 as libc::c_int) << 4 as libc::c_int))
             as libc::c_ushort;
-        (*L).errfunc = (*ci).u.c.old_errfunc;
+
         status = 0 as libc::c_int;
     }
 
@@ -1615,7 +1606,7 @@ pub unsafe fn lua_pcallk(
         (*(*L).ci).top.p = (*L).top.p;
     }
 
-    return Ok(status);
+    Ok(status)
 }
 
 pub unsafe fn lua_load(

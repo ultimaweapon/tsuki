@@ -13,7 +13,7 @@
 
 use crate::api_incr_top;
 use crate::lapi::lua_pushlstring;
-use crate::ldo::{luaD_callnoyield, luaD_hook, luaD_hookcall, luaD_throw};
+use crate::ldo::{luaD_hook, luaD_hookcall, luaD_throw};
 use crate::lfunc::luaF_getlocalname;
 use crate::lgc::luaC_step;
 use crate::lobject::{
@@ -1114,25 +1114,6 @@ pub unsafe fn luaG_addinfo(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaG_errormsg(mut L: *mut lua_State) -> ! {
-    if (*L).errfunc != 0 as libc::c_int as isize {
-        let mut errfunc: StkId =
-            ((*L).stack.p as *mut libc::c_char).offset((*L).errfunc as isize) as StkId;
-        let mut io1: *mut TValue = &mut (*(*L).top.p).val;
-        let mut io2: *const TValue = &mut (*((*L).top.p).offset(-(1 as libc::c_int as isize))).val;
-        (*io1).value_ = (*io2).value_;
-        (*io1).tt_ = (*io2).tt_;
-        let mut io1_0: *mut TValue = &mut (*((*L).top.p).offset(-(1 as libc::c_int as isize))).val;
-        let mut io2_0: *const TValue = &mut (*errfunc).val;
-        (*io1_0).value_ = (*io2_0).value_;
-        (*io1_0).tt_ = (*io2_0).tt_;
-        (*L).top.p = ((*L).top.p).offset(1);
-        (*L).top.p;
-        luaD_callnoyield(
-            L,
-            ((*L).top.p).offset(-(2 as libc::c_int as isize)),
-            1 as libc::c_int,
-        );
-    }
     luaD_throw(L, 2 as libc::c_int);
 }
 

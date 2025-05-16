@@ -5,6 +5,10 @@ Tsuki is a port of vanilla Lua 5.4 to Rust. This is porting, not binding; which 
 > [!WARNING]
 > Tsuki APIs are highly unstable.
 
+## Missing features
+
+- No `xpcall` in basic library.
+
 ## Non-goals
 
 - Becoming a superset of Lua (e.g. Luau).

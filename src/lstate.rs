@@ -60,7 +60,6 @@ pub struct lua_State {
     pub(crate) errorJmp: *mut lua_longjmp,
     pub(crate) base_ci: CallInfo,
     pub(crate) hook: lua_Hook,
-    pub(crate) errfunc: isize,
     pub(crate) nCcalls: u32,
     pub(crate) oldpc: libc::c_int,
     pub(crate) basehookcount: libc::c_int,
@@ -130,7 +129,6 @@ pub union C2RustUnnamed_1 {
 #[repr(C)]
 pub struct C2RustUnnamed_2 {
     pub k: lua_KFunction,
-    pub old_errfunc: isize,
     pub ctx: lua_KContext,
 }
 
@@ -469,7 +467,6 @@ unsafe extern "C" fn preinit_thread(mut L: *mut lua_State, mut g: *mut global_St
     (*L).hookcount = (*L).basehookcount;
     (*L).openupval = 0 as *mut UpVal;
     (*L).status = 0 as libc::c_int as u8;
-    (*L).errfunc = 0 as libc::c_int as isize;
     (*L).oldpc = 0 as libc::c_int;
 }
 

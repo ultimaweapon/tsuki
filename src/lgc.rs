@@ -1186,7 +1186,6 @@ unsafe extern "C" fn GCTM(mut L: *mut lua_State) {
             0 as *mut libc::c_void,
             (((*L).top.p).offset(-(2 as libc::c_int as isize)) as *mut libc::c_char)
                 .offset_from((*L).stack.p as *mut libc::c_char),
-            0 as libc::c_int as isize,
         );
         (*(*L).ci).callstatus = ((*(*L).ci).callstatus as libc::c_int
             & !((1 as libc::c_int) << 7 as libc::c_int))

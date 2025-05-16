@@ -672,35 +672,10 @@ unsafe fn luaB_pcall(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
         L,
         lua_gettop(L) - 2 as libc::c_int,
         -(1 as libc::c_int),
-        0 as libc::c_int,
         0 as libc::c_int as lua_KContext,
-        Some(
-            finishpcall
-                as unsafe extern "C" fn(*mut lua_State, libc::c_int, lua_KContext) -> libc::c_int,
-        ),
+        Some(finishpcall),
     )?;
     return Ok(finishpcall(L, status, 0 as libc::c_int as lua_KContext));
-}
-
-unsafe fn luaB_xpcall(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut status: libc::c_int = 0;
-    let mut n: libc::c_int = lua_gettop(L);
-    luaL_checktype(L, 2 as libc::c_int, 6 as libc::c_int)?;
-    lua_pushboolean(L, 1 as libc::c_int);
-    lua_pushvalue(L, 1 as libc::c_int);
-    lua_rotate(L, 3 as libc::c_int, 2 as libc::c_int);
-    status = lua_pcallk(
-        L,
-        n - 2 as libc::c_int,
-        -(1 as libc::c_int),
-        2 as libc::c_int,
-        2 as libc::c_int as lua_KContext,
-        Some(
-            finishpcall
-                as unsafe extern "C" fn(*mut lua_State, libc::c_int, lua_KContext) -> libc::c_int,
-        ),
-    )?;
-    return Ok(finishpcall(L, status, 2 as libc::c_int as lua_KContext));
 }
 
 unsafe fn luaB_tostring(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -709,7 +684,7 @@ unsafe fn luaB_tostring(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::err
     return Ok(1 as libc::c_int);
 }
 
-static mut base_funcs: [luaL_Reg; 26] = [
+static mut base_funcs: [luaL_Reg; 25] = [
     {
         let mut init = luaL_Reg {
             name: b"assert\0" as *const u8 as *const libc::c_char,
@@ -861,13 +836,6 @@ static mut base_funcs: [luaL_Reg; 26] = [
         let mut init = luaL_Reg {
             name: b"type\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_type),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"xpcall\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_xpcall),
         };
         init
     },

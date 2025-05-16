@@ -859,8 +859,8 @@ unsafe fn finishpcallk(
     }
     (*ci).callstatus = ((*ci).callstatus as libc::c_int & !((1 as libc::c_int) << 4 as libc::c_int))
         as libc::c_ushort;
-    (*L).errfunc = (*ci).u.c.old_errfunc;
-    return Ok(status);
+
+    Ok(status)
 }
 
 unsafe fn finishCcall(
@@ -1123,18 +1123,14 @@ pub unsafe fn luaD_pcall(
     mut func: Pfunc,
     mut u: *mut libc::c_void,
     mut old_top: isize,
-    mut ef: isize,
 ) -> libc::c_int {
     let mut status: libc::c_int = 0;
     let mut old_ci: *mut CallInfo = (*L).ci;
     let mut old_allowhooks: u8 = (*L).allowhook;
-    let mut old_errfunc: isize = (*L).errfunc;
-    (*L).errfunc = ef;
+
     status = luaD_rawrunprotected(L, func, u);
-    if ((status != 0 as libc::c_int) as libc::c_int != 0 as libc::c_int) as libc::c_int
-        as libc::c_long
-        != 0
-    {
+
+    if ((status != 0) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long != 0 {
         (*L).ci = old_ci;
         (*L).allowhook = old_allowhooks;
         status = luaD_closeprotected(L, old_top, status);
@@ -1145,7 +1141,7 @@ pub unsafe fn luaD_pcall(
         );
         luaD_shrinkstack(L);
     }
-    (*L).errfunc = old_errfunc;
+
     return status;
 }
 
@@ -1257,7 +1253,6 @@ pub unsafe fn luaD_protectedparser(
         f_parser,
         &mut p as *mut SParser as *mut libc::c_void,
         ((*L).top.p as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char),
-        (*L).errfunc,
     );
 
     p.buff.buffer = luaM_saferealloc_(
