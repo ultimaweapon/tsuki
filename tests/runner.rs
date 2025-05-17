@@ -23,13 +23,8 @@ fn run(cat: &str, file: &str) {
     unsafe { luaL_requiref(lua, c"_G".as_ptr(), luaopen_base, 0).unwrap() };
     unsafe { lua_pop(lua, 1).unwrap() };
 
-    // Load.
-    let status = unsafe { luaL_loadbufferx(lua, content, c"".as_ptr(), null()) };
-
-    assert_eq!(status, 0);
-
-    // Run.
-    assert_eq!(unsafe { lua_pcall(lua, 0, 0).unwrap() }, 0);
+    unsafe { luaL_loadbufferx(lua, content, c"".as_ptr(), null()).unwrap() };
+    unsafe { lua_pcall(lua, 0, 0).unwrap() };
 
     unsafe { lua_close(lua) };
 }

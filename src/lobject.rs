@@ -544,33 +544,29 @@ pub unsafe extern "C" fn luaO_ceillog2(mut x: libc::c_uint) -> libc::c_int {
     return l + log_2[x as usize] as libc::c_int;
 }
 
-unsafe extern "C" fn intarith(
+unsafe fn intarith(
     mut L: *mut lua_State,
     mut op: c_int,
     mut v1: i64,
     mut v2: i64,
-) -> i64 {
-    match op {
-        0 => return (v1 as u64).wrapping_add(v2 as u64) as i64,
-        1 => return (v1 as u64).wrapping_sub(v2 as u64) as i64,
-        2 => return (v1 as u64).wrapping_mul(v2 as u64) as i64,
-        3 => return luaV_mod(L, v1, v2),
-        6 => return luaV_idiv(L, v1, v2),
-        7 => return (v1 as u64 & v2 as u64) as i64,
-        8 => return (v1 as u64 | v2 as u64) as i64,
-        9 => return (v1 as u64 ^ v2 as u64) as i64,
-        10 => return luaV_shiftl(v1, v2),
-        11 => {
-            return luaV_shiftl(v1, (0 as libc::c_int as u64).wrapping_sub(v2 as u64) as i64);
-        }
-        12 => {
-            return (0 as libc::c_int as u64).wrapping_sub(v1 as u64) as i64;
-        }
-        13 => {
-            return (!(0 as libc::c_int as u64) ^ v1 as u64) as i64;
-        }
+) -> Result<i64, Box<dyn std::error::Error>> {
+    let r = match op {
+        0 => (v1 as u64).wrapping_add(v2 as u64) as i64,
+        1 => (v1 as u64).wrapping_sub(v2 as u64) as i64,
+        2 => (v1 as u64).wrapping_mul(v2 as u64) as i64,
+        3 => luaV_mod(L, v1, v2)?,
+        6 => luaV_idiv(L, v1, v2)?,
+        7 => (v1 as u64 & v2 as u64) as i64,
+        8 => (v1 as u64 | v2 as u64) as i64,
+        9 => (v1 as u64 ^ v2 as u64) as i64,
+        10 => luaV_shiftl(v1, v2),
+        11 => luaV_shiftl(v1, (0 as libc::c_int as u64).wrapping_sub(v2 as u64) as i64),
+        12 => (0 as libc::c_int as u64).wrapping_sub(v1 as u64) as i64,
+        13 => (!(0 as libc::c_int as u64) ^ v1 as u64) as i64,
         _ => 0,
-    }
+    };
+
+    Ok(r)
 }
 
 unsafe extern "C" fn numarith(
@@ -598,14 +594,13 @@ unsafe extern "C" fn numarith(
     };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaO_rawarith(
+pub unsafe fn luaO_rawarith(
     mut L: *mut lua_State,
     mut op: libc::c_int,
     mut p1: *const TValue,
     mut p2: *const TValue,
     mut res: *mut TValue,
-) -> libc::c_int {
+) -> Result<c_int, Box<dyn std::error::Error>> {
     match op {
         7 | 8 | 9 | 10 | 11 | 13 => {
             let mut i1: i64 = 0;
@@ -634,11 +629,11 @@ pub unsafe extern "C" fn luaO_rawarith(
                 }) != 0
             {
                 let mut io: *mut TValue = res;
-                (*io).value_.i = intarith(L, op, i1, i2);
+                (*io).value_.i = intarith(L, op, i1, i2)?;
                 (*io).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
-                return 1 as libc::c_int;
+                return Ok(1 as libc::c_int);
             } else {
-                return 0 as libc::c_int;
+                return Ok(0 as libc::c_int);
             }
         }
         5 | 4 => {
@@ -678,9 +673,9 @@ pub unsafe extern "C" fn luaO_rawarith(
                 let mut io_0: *mut TValue = res;
                 (*io_0).value_.n = numarith(L, op, n1, n2);
                 (*io_0).tt_ = (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
-                return 1 as libc::c_int;
+                return Ok(1 as libc::c_int);
             } else {
-                return 0 as libc::c_int;
+                return Ok(0 as libc::c_int);
             }
         }
         _ => {
@@ -691,9 +686,9 @@ pub unsafe extern "C" fn luaO_rawarith(
                     == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
             {
                 let mut io_1: *mut TValue = res;
-                (*io_1).value_.i = intarith(L, op, (*p1).value_.i, (*p2).value_.i);
+                (*io_1).value_.i = intarith(L, op, (*p1).value_.i, (*p2).value_.i)?;
                 (*io_1).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
-                return 1 as libc::c_int;
+                return Ok(1 as libc::c_int);
             } else if (if (*p1).tt_ as libc::c_int
                 == 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int
             {
@@ -728,9 +723,9 @@ pub unsafe extern "C" fn luaO_rawarith(
                 let mut io_2: *mut TValue = res;
                 (*io_2).value_.n = numarith(L, op, n1_0, n2_0);
                 (*io_2).tt_ = (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
-                return 1 as libc::c_int;
+                return Ok(1 as libc::c_int);
             } else {
-                return 0 as libc::c_int;
+                return Ok(0 as libc::c_int);
             }
         }
     };
@@ -743,7 +738,7 @@ pub unsafe fn luaO_arith(
     mut p2: *const TValue,
     mut res: StkId,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if luaO_rawarith(L, op, p1, p2, &mut (*res).val) == 0 {
+    if luaO_rawarith(L, op, p1, p2, &mut (*res).val)? == 0 {
         luaT_trybinTM(
             L,
             p1,
@@ -976,14 +971,17 @@ unsafe fn tostringbuff(mut obj: *mut TValue, buff: *mut libc::c_char) -> c_int {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaO_tostring(mut L: *mut lua_State, mut obj: *mut TValue) {
+pub unsafe fn luaO_tostring(
+    mut L: *mut lua_State,
+    mut obj: *mut TValue,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut buff: [libc::c_char; 44] = [0; 44];
     let mut len: libc::c_int = tostringbuff(obj, buff.as_mut_ptr());
     let mut io: *mut TValue = obj;
-    let mut x_: *mut TString = luaS_newlstr(L, buff.as_mut_ptr(), len as usize);
+    let mut x_: *mut TString = luaS_newlstr(L, buff.as_mut_ptr(), len as usize)?;
     (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
     (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+    Ok(())
 }
 
 unsafe fn pushstr(
@@ -993,7 +991,7 @@ unsafe fn pushstr(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut L: *mut lua_State = (*buff).L;
     let mut io: *mut TValue = &mut (*(*L).top.p).val;
-    let mut x_: *mut TString = luaS_newlstr(L, str, lstr);
+    let mut x_: *mut TString = luaS_newlstr(L, str, lstr)?;
     (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
     (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     if (*buff).pushed == 0 {

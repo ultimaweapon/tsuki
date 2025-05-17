@@ -10,8 +10,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(path_statements)]
 
-use crate::lapi::lua_pushlstring;
-use crate::ldo::{luaD_inctop, luaD_throw};
+use crate::ldo::luaD_inctop;
 use crate::lfunc::{luaF_newLclosure, luaF_newproto};
 use crate::lgc::luaC_barrier_;
 use crate::lmem::{luaM_malloc_, luaM_toobig};
@@ -30,16 +29,13 @@ struct LoadState {
     pub name: *const libc::c_char,
 }
 
-unsafe extern "C" fn error(mut S: *mut LoadState, why: impl Display) -> ! {
-    lua_pushlstring(
-        (*S).L,
-        format!(
-            "{}: bad binary format ({})",
-            CStr::from_ptr((*S).name).to_string_lossy(),
-            why
-        ),
-    );
-    luaD_throw((*S).L, 3 as libc::c_int);
+unsafe fn error(S: *mut LoadState, why: impl Display) -> Result<(), Box<dyn std::error::Error>> {
+    Err(format!(
+        "{}: bad binary format ({})",
+        CStr::from_ptr((*S).name).to_string_lossy(),
+        why
+    )
+    .into())
 }
 
 unsafe fn loadBlock(
@@ -48,7 +44,7 @@ unsafe fn loadBlock(
     mut size: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if luaZ_read((*S).Z, b, size)? != 0 as libc::c_int as usize {
-        error(S, "truncated chunk");
+        error(S, "truncated chunk")?;
     }
     Ok(())
 }
@@ -64,7 +60,7 @@ unsafe fn loadByte(mut S: *mut LoadState) -> Result<u8, Box<dyn std::error::Erro
         luaZ_fill((*S).Z)?
     };
     if b == -(1 as libc::c_int) {
-        error(S, "truncated chunk");
+        error(S, "truncated chunk")?;
     }
     return Ok(b as u8);
 }
@@ -79,7 +75,7 @@ unsafe fn loadUnsigned(
     loop {
         b = loadByte(S)? as libc::c_int;
         if x >= limit {
-            error(S, "integer overflow");
+            error(S, "integer overflow")?;
         }
         x = x << 7 as libc::c_int | (b & 0x7f as libc::c_int) as usize;
         if !(b & 0x80 as libc::c_int == 0 as libc::c_int) {
@@ -135,14 +131,14 @@ unsafe fn loadStringN(
                 buff.as_mut_ptr() as *mut libc::c_void,
                 size.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
             )?;
-            ts = luaS_newlstr(L, buff.as_mut_ptr(), size);
+            ts = luaS_newlstr(L, buff.as_mut_ptr(), size)?;
         } else {
             ts = luaS_createlngstrobj(L, size);
             let mut io: *mut TValue = &mut (*(*L).top.p).val;
             let mut x_: *mut TString = ts;
             (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
             (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
-            luaD_inctop(L);
+            luaD_inctop(L)?;
             loadBlock(
                 S,
                 ((*ts).contents).as_mut_ptr() as *mut libc::c_void,
@@ -173,7 +169,7 @@ unsafe fn loadString(
 ) -> Result<*mut TString, Box<dyn std::error::Error>> {
     let mut st: *mut TString = loadStringN(S, p)?;
     if st.is_null() {
-        error(S, "bad format for constant string");
+        error(S, "bad format for constant string")?;
     }
     return Ok(st);
 }
@@ -188,7 +184,7 @@ unsafe fn loadCode(
         && (n as usize).wrapping_add(1 as libc::c_int as usize)
             > (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<u32>())
     {
-        luaM_toobig((*S).L);
+        luaM_toobig((*S).L)?;
     } else {
     };
     (*f).code = luaM_malloc_(
@@ -215,7 +211,7 @@ unsafe fn loadConstants(
         && (n as usize).wrapping_add(1 as libc::c_int as usize)
             > (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<TValue>())
     {
-        luaM_toobig((*S).L);
+        luaM_toobig((*S).L)?;
     } else {
     };
     (*f).k = luaM_malloc_(
@@ -281,7 +277,7 @@ unsafe fn loadProtos(
         && (n as usize).wrapping_add(1 as libc::c_int as usize)
             > (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<*mut Proto>())
     {
-        luaM_toobig((*S).L);
+        luaM_toobig((*S).L)?;
     } else {
     };
     (*f).p = luaM_malloc_(
@@ -332,7 +328,7 @@ unsafe fn loadUpvalues(
         && (n as usize).wrapping_add(1 as libc::c_int as usize)
             > (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<Upvaldesc>())
     {
-        luaM_toobig((*S).L);
+        luaM_toobig((*S).L)?;
     } else {
     };
     (*f).upvalues = luaM_malloc_(
@@ -371,7 +367,7 @@ unsafe fn loadDebug(
         && (n as usize).wrapping_add(1 as libc::c_int as usize)
             > (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<i8>())
     {
-        luaM_toobig((*S).L);
+        luaM_toobig((*S).L)?;
     } else {
     };
     (*f).lineinfo = luaM_malloc_(
@@ -391,7 +387,7 @@ unsafe fn loadDebug(
         && (n as usize).wrapping_add(1 as libc::c_int as usize)
             > (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<AbsLineInfo>())
     {
-        luaM_toobig((*S).L);
+        luaM_toobig((*S).L)?;
     } else {
     };
     (*f).abslineinfo = luaM_malloc_(
@@ -413,7 +409,7 @@ unsafe fn loadDebug(
         && (n as usize).wrapping_add(1 as libc::c_int as usize)
             > (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<LocVar>())
     {
-        luaM_toobig((*S).L);
+        luaM_toobig((*S).L)?;
     } else {
     };
     (*f).locvars = luaM_malloc_(
@@ -492,7 +488,7 @@ unsafe fn checkliteral(
         len,
     ) != 0 as libc::c_int
     {
-        error(S, msg);
+        error(S, msg)?;
     }
     Ok(())
 }
@@ -503,7 +499,7 @@ unsafe fn fchecksize(
     tname: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if loadByte(S)? as usize != size {
-        error(S, format_args!("{tname} size mismatch"));
+        error(S, format_args!("{tname} size mismatch"))?;
     }
     Ok(())
 }
@@ -518,10 +514,10 @@ unsafe fn checkHeader(mut S: *mut LoadState) -> Result<(), Box<dyn std::error::E
         != 504 as libc::c_int / 100 as libc::c_int * 16 as libc::c_int
             + 504 as libc::c_int % 100 as libc::c_int
     {
-        error(S, "version mismatch");
+        error(S, "version mismatch")?;
     }
     if loadByte(S)? as libc::c_int != 0 as libc::c_int {
-        error(S, "format mismatch");
+        error(S, "format mismatch")?;
     }
     checkliteral(
         S,
@@ -532,10 +528,10 @@ unsafe fn checkHeader(mut S: *mut LoadState) -> Result<(), Box<dyn std::error::E
     fchecksize(S, ::core::mem::size_of::<i64>(), "lua_Integer")?;
     fchecksize(S, ::core::mem::size_of::<f64>(), "lua_Number")?;
     if loadInteger(S)? != 0x5678 as libc::c_int as i64 {
-        error(S, "integer format mismatch");
+        error(S, "integer format mismatch")?;
     }
     if loadNumber(S)? != 370.5f64 {
-        error(S, "float format mismatch");
+        error(S, "float format mismatch")?;
     }
     Ok(())
 }
@@ -571,7 +567,7 @@ pub unsafe fn luaU_undump(
     (*io).tt_ = (6 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
-    luaD_inctop(L);
+    luaD_inctop(L)?;
     (*cl).p = luaF_newproto(L);
     if (*cl).marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
         && (*(*cl).p).marked as libc::c_int

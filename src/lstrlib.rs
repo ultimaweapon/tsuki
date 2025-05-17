@@ -164,9 +164,9 @@ unsafe fn str_sub(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Er
             end.wrapping_sub(start).wrapping_add(1),
         );
 
-        lua_pushlstring(L, s);
+        lua_pushlstring(L, s)?;
     } else {
-        lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char);
+        lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char)?;
     }
 
     return Ok(1 as libc::c_int);
@@ -253,7 +253,7 @@ unsafe fn str_rep(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Er
         &mut lsep,
     )?;
     if n <= 0 as libc::c_int as i64 {
-        lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char);
+        lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char)?;
     } else if ((l.wrapping_add(lsep) < l
         || l.wrapping_add(lsep) as libc::c_ulonglong
             > ((if (::core::mem::size_of::<usize>() as libc::c_ulong)
@@ -423,16 +423,19 @@ unsafe fn str_dump(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::E
     return Ok(1 as libc::c_int);
 }
 
-unsafe extern "C" fn tonum(mut L: *mut lua_State, mut arg: libc::c_int) -> libc::c_int {
+unsafe fn tonum(
+    mut L: *mut lua_State,
+    mut arg: libc::c_int,
+) -> Result<libc::c_int, Box<dyn std::error::Error>> {
     if lua_type(L, arg) == 3 as libc::c_int {
         lua_pushvalue(L, arg);
-        return 1 as libc::c_int;
+        return Ok(1 as libc::c_int);
     } else {
         let mut len: usize = 0;
-        let mut s: *const libc::c_char = lua_tolstring(L, arg, &mut len);
-        return (!s.is_null()
+        let mut s: *const libc::c_char = lua_tolstring(L, arg, &mut len)?;
+        return Ok((!s.is_null()
             && lua_stringtonumber(L, s) == len.wrapping_add(1 as libc::c_int as usize))
-            as libc::c_int;
+            as libc::c_int);
     };
 }
 
@@ -465,7 +468,7 @@ unsafe fn arith(
     mut op: libc::c_int,
     mut mtname: *const libc::c_char,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
-    if tonum(L, 1 as libc::c_int) != 0 && tonum(L, 2 as libc::c_int) != 0 {
+    if tonum(L, 1 as libc::c_int)? != 0 && tonum(L, 2 as libc::c_int)? != 0 {
         lua_arith(L, op)?;
     } else {
         trymt(L, mtname)?;
@@ -1328,7 +1331,7 @@ unsafe fn push_onecapture(
     let mut l: isize = get_onecapture(ms, i, s, e, &mut cap)? as isize;
 
     if l != -(2 as libc::c_int) as isize {
-        lua_pushlstring((*ms).L, std::slice::from_raw_parts(cap.cast(), l as usize));
+        lua_pushlstring((*ms).L, std::slice::from_raw_parts(cap.cast(), l as usize))?;
     }
 
     Ok(())
@@ -1527,8 +1530,7 @@ unsafe fn gmatch(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Err
     .wrapping_sub(1 as libc::c_int as usize);
     let mut gm: *mut GMatchState = 0 as *mut GMatchState;
     lua_settop(L, 2 as libc::c_int)?;
-    gm = lua_newuserdatauv(L, ::core::mem::size_of::<GMatchState>(), 0 as libc::c_int)
-        as *mut GMatchState;
+    gm = lua_newuserdatauv(L, ::core::mem::size_of::<GMatchState>(), 0)? as *mut GMatchState;
     if init > ls {
         init = ls.wrapping_add(1 as libc::c_int as usize);
     }
@@ -1548,7 +1550,7 @@ unsafe fn add_s(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut l: usize = 0;
     let mut L: *mut lua_State = (*ms).L;
-    let mut news: *const libc::c_char = lua_tolstring(L, 3 as libc::c_int, &mut l);
+    let mut news: *const libc::c_char = lua_tolstring(L, 3 as libc::c_int, &mut l)?;
     let mut p: *const libc::c_char = 0 as *const libc::c_char;
     loop {
         p = memchr(news as *const libc::c_void, '%' as i32, l) as *mut libc::c_char;
@@ -1813,7 +1815,7 @@ unsafe fn addliteral(
     match lua_type(L, arg) {
         4 => {
             let mut len: usize = 0;
-            let mut s: *const libc::c_char = lua_tolstring(L, arg, &mut len);
+            let mut s: *const libc::c_char = lua_tolstring(L, arg, &mut len)?;
             addquoted(b, s, len)?;
         }
         3 => {
@@ -2804,7 +2806,7 @@ unsafe fn str_unpack(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
                 lua_pushlstring(
                     L,
                     std::slice::from_raw_parts(data.offset(pos as isize).cast(), size as usize),
-                );
+                )?;
             }
             6 => {
                 let mut len: usize = unpackint(
@@ -2825,7 +2827,7 @@ unsafe fn str_unpack(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
                         data.offset(pos as isize).offset(size as isize).cast(),
                         len,
                     ),
-                );
+                )?;
                 pos = pos.wrapping_add(len);
             }
             7 => {
@@ -2838,7 +2840,7 @@ unsafe fn str_unpack(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
                 lua_pushlstring(
                     L,
                     std::slice::from_raw_parts(data.offset(pos as isize).cast(), len_0),
-                );
+                )?;
                 pos = pos.wrapping_add(len_0.wrapping_add(1 as libc::c_int as usize));
             }
             9 | 8 | 10 => {
@@ -2989,13 +2991,13 @@ unsafe fn createmetatable(mut L: *mut lua_State) -> Result<(), Box<dyn std::erro
         (::core::mem::size_of::<[luaL_Reg; 10]>() as libc::c_ulong)
             .wrapping_div(::core::mem::size_of::<luaL_Reg>() as libc::c_ulong)
             .wrapping_sub(1 as libc::c_int as libc::c_ulong) as libc::c_int,
-    );
+    )?;
     luaL_setfuncs(
         L,
         &raw const stringmetamethods as *const luaL_Reg,
         0 as libc::c_int,
     )?;
-    lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char);
+    lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char)?;
     lua_pushvalue(L, -(2 as libc::c_int));
     lua_setmetatable(L, -(2 as libc::c_int));
     lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
@@ -3016,7 +3018,7 @@ pub unsafe fn luaopen_string(mut L: *mut lua_State) -> Result<c_int, Box<dyn std
         (::core::mem::size_of::<[luaL_Reg; 18]>() as libc::c_ulong)
             .wrapping_div(::core::mem::size_of::<luaL_Reg>() as libc::c_ulong)
             .wrapping_sub(1 as libc::c_int as libc::c_ulong) as libc::c_int,
-    );
+    )?;
     luaL_setfuncs(L, &raw const strlib as *const luaL_Reg, 0 as libc::c_int)?;
     createmetatable(L)?;
     return Ok(1 as libc::c_int);

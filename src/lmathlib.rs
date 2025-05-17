@@ -267,7 +267,7 @@ unsafe fn math_type(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
             } else {
                 b"float\0" as *const u8 as *const libc::c_char
             },
-        );
+        )?;
     } else {
         luaL_checkany(L, 1 as libc::c_int)?;
         lua_pushnil(L);
@@ -439,7 +439,7 @@ static mut randfuncs: [luaL_Reg; 3] = [
 ];
 
 unsafe fn setrandfunc(mut L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
-    let state = lua_newuserdatauv(L, ::core::mem::size_of::<RanState>(), 0) as *mut RanState;
+    let state = lua_newuserdatauv(L, ::core::mem::size_of::<RanState>(), 0)? as *mut RanState;
     randseed(L, state);
     lua_settop(L, -(2 as libc::c_int) - 1 as libc::c_int)?;
     luaL_setfuncs(L, &raw const randfuncs as *const luaL_Reg, 1 as libc::c_int)?;
@@ -652,7 +652,7 @@ pub unsafe fn luaopen_math(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::
         (::core::mem::size_of::<[luaL_Reg; 28]>() as libc::c_ulong)
             .wrapping_div(::core::mem::size_of::<luaL_Reg>() as libc::c_ulong)
             .wrapping_sub(1 as libc::c_int as libc::c_ulong) as libc::c_int,
-    );
+    )?;
     luaL_setfuncs(L, &raw const mathlib as *const luaL_Reg, 0 as libc::c_int)?;
     lua_pushnumber(L, 3.141592653589793238462643383279502884f64);
     lua_setfield(

@@ -12,10 +12,8 @@
 #![allow(path_statements)]
 
 use crate::api_incr_top;
-use crate::lapi::lua_pushlstring;
-use crate::ldo::{luaD_hook, luaD_hookcall, luaD_throw};
+use crate::ldo::{luaD_hook, luaD_hookcall};
 use crate::lfunc::luaF_getlocalname;
-use crate::lgc::luaC_step;
 use crate::lobject::{
     Closure, GCObject, LClosure, Proto, StkId, TString, TValue, Table, Value, luaO_chunkid,
 };
@@ -29,7 +27,7 @@ use crate::ltm::{
 use crate::lvm::{F2Ieq, luaV_tointegerns};
 use libc::{strchr, strcmp};
 use std::borrow::Cow;
-use std::ffi::CStr;
+use std::ffi::{CStr, c_int};
 use std::fmt::Display;
 
 unsafe extern "C" fn currentpc(mut ci: *mut CallInfo) -> libc::c_int {
@@ -340,7 +338,11 @@ unsafe extern "C" fn nextline(
         return luaG_getfuncline(p, pc);
     };
 }
-unsafe extern "C" fn collectvalidlines(mut L: *mut lua_State, mut f: *mut Closure) {
+
+unsafe fn collectvalidlines(
+    mut L: *mut lua_State,
+    mut f: *mut Closure,
+) -> Result<(), Box<dyn std::error::Error>> {
     if !(!f.is_null()
         && (*f).c.tt as libc::c_int == 6 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int)
     {
@@ -349,7 +351,7 @@ unsafe extern "C" fn collectvalidlines(mut L: *mut lua_State, mut f: *mut Closur
     } else {
         let mut p: *const Proto = (*f).l.p;
         let mut currentline: libc::c_int = (*p).linedefined;
-        let mut t: *mut Table = luaH_new(L);
+        let mut t: *mut Table = luaH_new(L)?;
         let mut io: *mut TValue = &mut (*(*L).top.p).val;
         let mut x_: *mut Table = t;
         (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
@@ -374,13 +376,15 @@ unsafe extern "C" fn collectvalidlines(mut L: *mut lua_State, mut f: *mut Closur
             }
             while i < (*p).sizelineinfo {
                 currentline = nextline(p, currentline, i);
-                luaH_setint(L, t, currentline as i64, &mut v);
+                luaH_setint(L, t, currentline as i64, &mut v)?;
                 i += 1;
                 i;
             }
         }
     };
+    Ok(())
 }
+
 unsafe extern "C" fn getfuncname(
     mut L: *mut lua_State,
     mut ci: *mut CallInfo,
@@ -468,12 +472,12 @@ unsafe extern "C" fn auxgetinfo(
     }
     return status;
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_getinfo(
+
+pub unsafe fn lua_getinfo(
     mut L: *mut lua_State,
     mut what: *const libc::c_char,
     mut ar: *mut lua_Debug,
-) -> libc::c_int {
+) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut status: libc::c_int = 0;
     let mut cl: *mut Closure = 0 as *mut Closure;
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
@@ -511,10 +515,11 @@ pub unsafe extern "C" fn lua_getinfo(
         api_incr_top(L);
     }
     if !(strchr(what, 'L' as i32)).is_null() {
-        collectvalidlines(L, cl);
+        collectvalidlines(L, cl)?;
     }
-    return status;
+    return Ok(status);
 }
+
 unsafe extern "C" fn filterpc(mut pc: libc::c_int, mut jmptarget: libc::c_int) -> libc::c_int {
     if pc < jmptarget {
         return -(1 as libc::c_int);
@@ -972,27 +977,29 @@ unsafe fn varinfo(mut L: *mut lua_State, mut o: *const TValue) -> Cow<'static, s
     formatvarinfo(L, kind, name)
 }
 
-unsafe extern "C" fn typeerror(
-    mut L: *mut lua_State,
-    mut o: *const TValue,
+unsafe fn typeerror(
+    L: *mut lua_State,
+    o: *const TValue,
     op: impl Display,
     extra: impl Display,
-) -> ! {
-    let t = luaT_objtypename(L, o);
+) -> Result<(), Box<dyn std::error::Error>> {
+    let t = luaT_objtypename(L, o)?;
 
-    luaG_runerror(L, format!("attempt to {op} a {t} value{extra}"));
+    luaG_runerror(L, format_args!("attempt to {op} a {t} value{extra}"))
 }
 
-pub unsafe extern "C" fn luaG_typeerror(
+pub unsafe fn luaG_typeerror(
+    L: *mut lua_State,
+    o: *const TValue,
+    op: impl Display,
+) -> Result<(), Box<dyn std::error::Error>> {
+    typeerror(L, o, op, varinfo(L, o))
+}
+
+pub unsafe fn luaG_callerror(
     mut L: *mut lua_State,
     mut o: *const TValue,
-    op: impl Display,
-) -> ! {
-    typeerror(L, o, op, varinfo(L, o));
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaG_callerror(mut L: *mut lua_State, mut o: *const TValue) -> ! {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut ci: *mut CallInfo = (*L).ci;
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
     let mut kind: *const libc::c_char = funcnamefromcall(L, ci, &mut name);
@@ -1002,57 +1009,56 @@ pub unsafe extern "C" fn luaG_callerror(mut L: *mut lua_State, mut o: *const TVa
         varinfo(L, o)
     };
 
-    typeerror(L, o, "call", extra);
+    typeerror(L, o, "call", extra)
 }
 
-pub unsafe extern "C" fn luaG_forerror(
-    mut L: *mut lua_State,
-    mut o: *const TValue,
+pub unsafe fn luaG_forerror(
+    L: *mut lua_State,
+    o: *const TValue,
     what: impl Display,
-) -> ! {
+) -> Result<(), Box<dyn std::error::Error>> {
     luaG_runerror(
         L,
-        format!(
+        format_args!(
             "bad 'for' {} (number expected, got {})",
             what,
-            luaT_objtypename(L, o)
+            luaT_objtypename(L, o)?
         ),
-    );
+    )
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaG_concaterror(
-    mut L: *mut lua_State,
+pub unsafe fn luaG_concaterror(
+    L: *mut lua_State,
     mut p1: *const TValue,
-    mut p2: *const TValue,
-) -> ! {
+    p2: *const TValue,
+) -> Result<(), Box<dyn std::error::Error>> {
     if (*p1).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
         || (*p1).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
     {
         p1 = p2;
     }
-    luaG_typeerror(L, p1, "concatenate");
+
+    luaG_typeerror(L, p1, "concatenate")
 }
 
-pub unsafe extern "C" fn luaG_opinterror(
+pub unsafe fn luaG_opinterror(
     mut L: *mut lua_State,
     mut p1: *const TValue,
     mut p2: *const TValue,
     msg: impl Display,
-) -> ! {
+) -> Result<(), Box<dyn std::error::Error>> {
     if !((*p1).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int) {
         p2 = p1;
     }
 
-    luaG_typeerror(L, p2, msg);
+    luaG_typeerror(L, p2, msg)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaG_tointerror(
-    mut L: *mut lua_State,
-    mut p1: *const TValue,
+pub unsafe fn luaG_tointerror(
+    L: *mut lua_State,
+    p1: *const TValue,
     mut p2: *const TValue,
-) -> ! {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut temp: i64 = 0;
 
     if luaV_tointegerns(p1, &mut temp, F2Ieq) == 0 {
@@ -1061,24 +1067,23 @@ pub unsafe extern "C" fn luaG_tointerror(
 
     luaG_runerror(
         L,
-        format!("number{} has no integer representation", varinfo(L, p2)),
-    );
+        format_args!("number{} has no integer representation", varinfo(L, p2)),
+    )
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaG_ordererror(
-    mut L: *mut lua_State,
-    mut p1: *const TValue,
-    mut p2: *const TValue,
-) -> ! {
-    let t1 = luaT_objtypename(L, p1);
-    let t2 = luaT_objtypename(L, p2);
+pub unsafe fn luaG_ordererror(
+    L: *mut lua_State,
+    p1: *const TValue,
+    p2: *const TValue,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let t1 = luaT_objtypename(L, p1)?;
+    let t2 = luaT_objtypename(L, p2)?;
 
     if t1 == t2 {
-        luaG_runerror(L, format!("attempt to compare two {t1} values"));
+        luaG_runerror(L, format_args!("attempt to compare two {t1} values"))
     } else {
-        luaG_runerror(L, format!("attempt to compare {t1} with {t2}"));
-    };
+        luaG_runerror(L, format_args!("attempt to compare {t1} with {t2}"))
+    }
 }
 
 pub unsafe fn luaG_addinfo(
@@ -1112,33 +1117,23 @@ pub unsafe fn luaG_addinfo(
     )
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaG_errormsg(mut L: *mut lua_State) -> ! {
-    luaD_throw(L, 2 as libc::c_int);
-}
-
-pub unsafe extern "C" fn luaG_runerror(mut L: *mut lua_State, fmt: impl AsRef<str>) -> ! {
-    let mut ci: *mut CallInfo = (*L).ci;
-
-    if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
-        luaC_step(L);
-    }
-
-    if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
-        lua_pushlstring(
+pub unsafe fn luaG_runerror(
+    mut L: *mut lua_State,
+    fmt: impl Display,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ci = (*L).ci;
+    let msg = if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
+        luaG_addinfo(
             L,
-            luaG_addinfo(
-                L,
-                fmt.as_ref(),
-                (*(*((*(*ci).func.p).val.value_.gc as *mut GCUnion)).cl.l.p).source,
-                getcurrentline(ci),
-            ),
-        );
+            fmt,
+            (*(*((*(*ci).func.p).val.value_.gc as *mut GCUnion)).cl.l.p).source,
+            getcurrentline(ci),
+        )
     } else {
-        lua_pushlstring(L, fmt.as_ref());
-    }
+        fmt.to_string()
+    };
 
-    luaG_errormsg(L);
+    Err(msg.into())
 }
 
 unsafe extern "C" fn changedline(
@@ -1167,23 +1162,24 @@ unsafe extern "C" fn changedline(
     return (luaG_getfuncline(p, oldpc) != luaG_getfuncline(p, newpc)) as libc::c_int;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaG_tracecall(mut L: *mut lua_State) -> libc::c_int {
+pub unsafe fn luaG_tracecall(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut ci: *mut CallInfo = (*L).ci;
     let mut p: *mut Proto = (*((*(*ci).func.p).val.value_.gc as *mut GCUnion)).cl.l.p;
     ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 1 as libc::c_int);
     if (*ci).u.savedpc == (*p).code as *const u32 {
         if (*p).is_vararg != 0 {
-            return 0 as libc::c_int;
+            return Ok(0 as libc::c_int);
         } else if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int == 0 {
-            luaD_hookcall(L, ci);
+            luaD_hookcall(L, ci)?;
         }
     }
-    return 1 as libc::c_int;
+    return Ok(1 as libc::c_int);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaG_traceexec(mut L: *mut lua_State, mut pc: *const u32) -> libc::c_int {
+pub unsafe fn luaG_traceexec(
+    mut L: *mut lua_State,
+    mut pc: *const u32,
+) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut ci: *mut CallInfo = (*L).ci;
     let mut mask: u8 = (*L).hookmask as u8;
     let mut p: *const Proto = (*((*(*ci).func.p).val.value_.gc as *mut GCUnion)).cl.l.p;
@@ -1193,7 +1189,7 @@ pub unsafe extern "C" fn luaG_traceexec(mut L: *mut lua_State, mut pc: *const u3
         == 0
     {
         ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 0 as libc::c_int);
-        return 0 as libc::c_int;
+        return Ok(0 as libc::c_int);
     }
     pc = pc.offset(1);
     pc;
@@ -1205,13 +1201,13 @@ pub unsafe extern "C" fn luaG_traceexec(mut L: *mut lua_State, mut pc: *const u3
     if counthook != 0 {
         (*L).hookcount = (*L).basehookcount;
     } else if mask as libc::c_int & (1 as libc::c_int) << 2 as libc::c_int == 0 {
-        return 1 as libc::c_int;
+        return Ok(1 as libc::c_int);
     }
     if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
         (*ci).callstatus = ((*ci).callstatus as libc::c_int
             & !((1 as libc::c_int) << 6 as libc::c_int))
             as libc::c_ushort;
-        return 1 as libc::c_int;
+        return Ok(1 as libc::c_int);
     }
     if !(luaP_opmodes[(*((*ci).u.savedpc).offset(-(1 as libc::c_int as isize)) >> 0 as libc::c_int
         & !(!(0 as libc::c_int as u32) << 7 as libc::c_int) << 0 as libc::c_int)
@@ -1233,7 +1229,7 @@ pub unsafe extern "C" fn luaG_traceexec(mut L: *mut lua_State, mut pc: *const u3
             -(1 as libc::c_int),
             0 as libc::c_int,
             0 as libc::c_int,
-        );
+        )?;
     }
     if mask as libc::c_int & (1 as libc::c_int) << 2 as libc::c_int != 0 {
         let mut oldpc: libc::c_int = if (*L).oldpc < (*p).sizecode {
@@ -1251,17 +1247,10 @@ pub unsafe extern "C" fn luaG_traceexec(mut L: *mut lua_State, mut pc: *const u3
                 newline,
                 0 as libc::c_int,
                 0 as libc::c_int,
-            );
+            )?;
         }
         (*L).oldpc = npci;
     }
-    if (*L).status as libc::c_int == 1 as libc::c_int {
-        if counthook != 0 {
-            (*L).hookcount = 1 as libc::c_int;
-        }
-        (*ci).callstatus = ((*ci).callstatus as libc::c_int
-            | (1 as libc::c_int) << 6 as libc::c_int) as libc::c_ushort;
-        luaD_throw(L, 1 as libc::c_int);
-    }
-    return 1 as libc::c_int;
+
+    Ok(1)
 }

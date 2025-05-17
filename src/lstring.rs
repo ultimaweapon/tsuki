@@ -11,7 +11,6 @@
 #![allow(unused_parens)]
 #![allow(path_statements)]
 
-use crate::ldo::luaD_throw;
 use crate::lgc::{luaC_fix, luaC_fullgc, luaC_newobj};
 use crate::lmem::{luaM_malloc_, luaM_realloc_, luaM_toobig};
 use crate::lobject::{GCObject, TString, Table, UValue, Udata};
@@ -144,8 +143,7 @@ pub unsafe extern "C" fn luaS_clearcache(mut g: *mut global_State) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaS_init(mut L: *mut lua_State) {
+pub unsafe fn luaS_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
     let mut g: *mut global_State = (*L).l_G;
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
@@ -163,7 +161,7 @@ pub unsafe extern "C" fn luaS_init(mut L: *mut lua_State) {
         ::core::mem::size_of::<[libc::c_char; 18]>()
             .wrapping_div(::core::mem::size_of::<libc::c_char>())
             .wrapping_sub(1),
-    );
+    )?;
     luaC_fix(L, &mut (*((*g).memerrmsg as *mut GCUnion)).gc);
 
     i = 0 as libc::c_int;
@@ -177,6 +175,7 @@ pub unsafe extern "C" fn luaS_init(mut L: *mut lua_State) {
         i += 1;
         i;
     }
+    Ok(())
 }
 
 unsafe extern "C" fn createstrobj(
@@ -231,7 +230,7 @@ unsafe extern "C" fn growstrtab(mut L: *mut lua_State, mut tb: *mut stringtable)
     {
         luaC_fullgc(L, 1 as libc::c_int);
         if (*tb).nuse == 2147483647 as libc::c_int {
-            luaD_throw(L, 4 as libc::c_int);
+            todo!("invoke handle_alloc_error");
         }
     }
     if (*tb).size
@@ -308,14 +307,14 @@ unsafe extern "C" fn internshrstr(
     (*tb).nuse;
     return ts;
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaS_newlstr(
+
+pub unsafe fn luaS_newlstr(
     mut L: *mut lua_State,
     mut str: *const libc::c_char,
     mut l: usize,
-) -> *mut TString {
+) -> Result<*mut TString, Box<dyn std::error::Error>> {
     if l <= 40 as libc::c_int as usize {
-        return internshrstr(L, str, l);
+        return Ok(internshrstr(L, str, l));
     } else {
         let mut ts: *mut TString = 0 as *mut TString;
         if ((l.wrapping_mul(::core::mem::size_of::<libc::c_char>())
@@ -330,7 +329,7 @@ pub unsafe extern "C" fn luaS_newlstr(
             != 0 as libc::c_int) as libc::c_int as libc::c_long
             != 0
         {
-            luaM_toobig(L);
+            luaM_toobig(L)?;
         }
         ts = luaS_createlngstrobj(L, l);
         memcpy(
@@ -338,14 +337,14 @@ pub unsafe extern "C" fn luaS_newlstr(
             str as *const libc::c_void,
             l.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
         );
-        return ts;
+        return Ok(ts);
     };
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaS_new(
+
+pub unsafe fn luaS_new(
     mut L: *mut lua_State,
     mut str: *const libc::c_char,
-) -> *mut TString {
+) -> Result<*mut TString, Box<dyn std::error::Error>> {
     let mut i: libc::c_uint = ((str as usize & 0xffffffff as libc::c_uint as usize)
         as libc::c_uint)
         .wrapping_rem(53 as libc::c_int as libc::c_uint);
@@ -354,7 +353,7 @@ pub unsafe extern "C" fn luaS_new(
     j = 0 as libc::c_int;
     while j < 2 as libc::c_int {
         if strcmp(str, ((**p.offset(j as isize)).contents).as_mut_ptr()) == 0 as libc::c_int {
-            return *p.offset(j as isize);
+            return Ok(*p.offset(j as isize));
         }
         j += 1;
         j;
@@ -367,15 +366,15 @@ pub unsafe extern "C" fn luaS_new(
         j;
     }
     let ref mut fresh4 = *p.offset(0 as libc::c_int as isize);
-    *fresh4 = luaS_newlstr(L, str, strlen(str) as _);
-    return *p.offset(0 as libc::c_int as isize);
+    *fresh4 = luaS_newlstr(L, str, strlen(str) as _)?;
+    return Ok(*p.offset(0 as libc::c_int as isize));
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaS_newudata(
+
+pub unsafe fn luaS_newudata(
     mut L: *mut lua_State,
     mut s: usize,
     mut nuvalue: libc::c_int,
-) -> *mut Udata {
+) -> Result<*mut Udata, Box<dyn std::error::Error>> {
     let mut u: *mut Udata = 0 as *mut Udata;
     let mut i: libc::c_int = 0;
     let mut o: *mut GCObject = 0 as *mut GCObject;
@@ -398,7 +397,7 @@ pub unsafe extern "C" fn luaS_newudata(
         != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
     {
-        luaM_toobig(L);
+        luaM_toobig(L)?;
     }
     o = luaC_newobj(
         L,
@@ -421,5 +420,5 @@ pub unsafe extern "C" fn luaS_newudata(
         i += 1;
         i;
     }
-    return u;
+    return Ok(u);
 }

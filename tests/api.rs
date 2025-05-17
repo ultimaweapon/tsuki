@@ -9,10 +9,6 @@ fn dump() {
     let chunk = std::fs::read(path).unwrap();
     let td = unsafe { luaL_newstate() };
 
-    assert_eq!(
-        unsafe { luaL_loadbufferx(td, chunk, c"".as_ptr(), null()) },
-        0
-    );
-
+    unsafe { luaL_loadbufferx(td, chunk, c"".as_ptr(), null()).unwrap() };
     unsafe { lua_close(td) };
 }

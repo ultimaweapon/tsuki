@@ -24,13 +24,13 @@ use std::ffi::c_int;
 
 pub type IdxT = libc::c_uint;
 
-unsafe extern "C" fn checkfield(
+unsafe fn checkfield(
     mut L: *mut lua_State,
     mut key: *const libc::c_char,
     mut n: libc::c_int,
-) -> libc::c_int {
-    lua_pushstring(L, key);
-    return (lua_rawget(L, -n) != 0 as libc::c_int) as libc::c_int;
+) -> Result<c_int, Box<dyn std::error::Error>> {
+    lua_pushstring(L, key)?;
+    return Ok((lua_rawget(L, -n) != 0 as libc::c_int) as libc::c_int);
 }
 
 unsafe fn checktab(
@@ -43,15 +43,15 @@ unsafe fn checktab(
         if lua_getmetatable(L, arg) != 0
             && (what & 1 as libc::c_int == 0 || {
                 n += 1;
-                checkfield(L, b"__index\0" as *const u8 as *const libc::c_char, n) != 0
+                checkfield(L, b"__index\0" as *const u8 as *const libc::c_char, n)? != 0
             })
             && (what & 2 as libc::c_int == 0 || {
                 n += 1;
-                checkfield(L, b"__newindex\0" as *const u8 as *const libc::c_char, n) != 0
+                checkfield(L, b"__newindex\0" as *const u8 as *const libc::c_char, n)? != 0
             })
             && (what & 4 as libc::c_int == 0 || {
                 n += 1;
-                checkfield(L, b"__len\0" as *const u8 as *const libc::c_char, n) != 0
+                checkfield(L, b"__len\0" as *const u8 as *const libc::c_char, n)? != 0
             })
         {
             lua_settop(L, -n - 1)?;
@@ -229,7 +229,7 @@ unsafe fn tconcat(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Er
 unsafe fn tpack(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
     let mut n: libc::c_int = lua_gettop(L);
-    lua_createtable(L, n, 1 as libc::c_int);
+    lua_createtable(L, n, 1 as libc::c_int)?;
     lua_rotate(L, 1 as libc::c_int, 1 as libc::c_int);
     i = n;
     while i >= 1 as libc::c_int {
@@ -247,31 +247,34 @@ unsafe fn tpack(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Erro
 
 unsafe fn tunpack(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut n: u64 = 0;
-    let mut i: i64 = luaL_optinteger(L, 2 as libc::c_int, 1 as libc::c_int as i64)?;
-    let mut e: i64 = if lua_type(L, 3 as libc::c_int) <= 0 as libc::c_int {
-        luaL_len(L, 1 as libc::c_int)?
+    let mut i = luaL_optinteger(L, 2, 1)?;
+    let e = if lua_type(L, 3) <= 0 {
+        luaL_len(L, 1)?
     } else {
-        luaL_checkinteger(L, 3 as libc::c_int)?
+        luaL_checkinteger(L, 3)?
     };
+
     if i > e {
-        return Ok(0 as libc::c_int);
+        return Ok(0);
     }
+
     n = (e as u64).wrapping_sub(i as u64);
-    if ((n >= 2147483647 as libc::c_int as libc::c_uint as u64 || {
+
+    if n >= 2147483647 || {
         n = n.wrapping_add(1);
-        lua_checkstack(L, n as libc::c_int) == 0
-    }) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
-        != 0
-    {
+        lua_checkstack(L, n as libc::c_int).is_err()
+    } {
         return luaL_error(L, "too many results to unpack");
     }
+
     while i < e {
         lua_geti(L, 1 as libc::c_int, i)?;
         i += 1;
     }
-    lua_geti(L, 1 as libc::c_int, e)?;
-    return Ok(n as libc::c_int);
+
+    lua_geti(L, 1, e)?;
+
+    Ok(n as libc::c_int)
 }
 
 unsafe fn set2(
@@ -510,7 +513,7 @@ pub unsafe fn luaopen_table(mut L: *mut lua_State) -> Result<c_int, Box<dyn std:
         (::core::mem::size_of::<[luaL_Reg; 8]>() as libc::c_ulong)
             .wrapping_div(::core::mem::size_of::<luaL_Reg>() as libc::c_ulong)
             .wrapping_sub(1 as libc::c_int as libc::c_ulong) as libc::c_int,
-    );
+    )?;
     luaL_setfuncs(L, &raw const tab_funcs as *const luaL_Reg, 0 as libc::c_int)?;
     return Ok(1 as libc::c_int);
 }

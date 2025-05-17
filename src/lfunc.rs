@@ -11,7 +11,7 @@
 #![allow(path_statements)]
 
 use crate::ldebug::{luaG_findlocal, luaG_runerror};
-use crate::ldo::{luaD_call, luaD_callnoyield, luaD_seterrorobj};
+use crate::ldo::{luaD_call, luaD_callnoyield};
 use crate::lgc::{luaC_barrier_, luaC_newobj};
 use crate::lmem::luaM_free_;
 use crate::lobject::{
@@ -169,7 +169,10 @@ unsafe fn callclosemethod(
     }
 }
 
-unsafe extern "C" fn checkclosemth(mut L: *mut lua_State, mut level: StkId) {
+unsafe fn checkclosemth(
+    mut L: *mut lua_State,
+    mut level: StkId,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut tm: *const TValue = luaT_gettmbyobj(L, &mut (*level).val, TM_CLOSE);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         let mut idx: libc::c_int =
@@ -185,35 +188,32 @@ unsafe extern "C" fn checkclosemth(mut L: *mut lua_State, mut level: StkId) {
                 "variable '{}' got a non-closable value",
                 CStr::from_ptr(vname).to_string_lossy()
             ),
-        );
+        )?;
     }
+    Ok(())
 }
 
 unsafe fn prepcallclosemth(
-    mut L: *mut lua_State,
-    mut level: StkId,
-    mut status: libc::c_int,
-    mut yy: libc::c_int,
+    L: *mut lua_State,
+    level: StkId,
+    yy: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut uv: *mut TValue = &mut (*level).val;
-    let mut errobj: *mut TValue = 0 as *mut TValue;
-    if status == -(1 as libc::c_int) {
-        errobj = &mut (*(*L).l_G).nilvalue;
-    } else {
-        errobj = &mut (*level.offset(1 as libc::c_int as isize)).val;
-        luaD_seterrorobj(L, status, level.offset(1 as libc::c_int as isize));
-    }
+    let errobj = &raw mut (*(*L).l_G).nilvalue;
+
     callclosemethod(L, uv, errobj, yy)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaF_newtbcupval(mut L: *mut lua_State, mut level: StkId) {
+pub unsafe fn luaF_newtbcupval(
+    mut L: *mut lua_State,
+    mut level: StkId,
+) -> Result<(), Box<dyn std::error::Error>> {
     if (*level).val.tt_ as libc::c_int == 1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
         || (*level).val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int
     {
-        return;
+        return Ok(());
     }
-    checkclosemth(L, level);
+    checkclosemth(L, level)?;
     while level.offset_from((*L).tbclist.p) as libc::c_long as libc::c_uint as libc::c_ulong
         > ((256 as libc::c_ulong)
             << (::core::mem::size_of::<libc::c_ushort>() as libc::c_ulong)
@@ -232,6 +232,7 @@ pub unsafe extern "C" fn luaF_newtbcupval(mut L: *mut lua_State, mut level: StkI
     }
     (*level).tbclist.delta = level.offset_from((*L).tbclist.p) as libc::c_long as libc::c_ushort;
     (*L).tbclist.p = level;
+    Ok(())
 }
 
 #[unsafe(no_mangle)]
@@ -305,18 +306,19 @@ unsafe extern "C" fn poptbclist(mut L: *mut lua_State) {
 pub unsafe fn luaF_close(
     mut L: *mut lua_State,
     mut level: StkId,
-    mut status: libc::c_int,
     mut yy: libc::c_int,
 ) -> Result<StkId, Box<dyn std::error::Error>> {
-    let mut levelrel: isize =
-        (level as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
+    let mut levelrel = (level as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
+
     luaF_closeupval(L, level);
+
     while (*L).tbclist.p >= level {
         let mut tbc: StkId = (*L).tbclist.p;
         poptbclist(L);
-        prepcallclosemth(L, tbc, status, yy)?;
+        prepcallclosemth(L, tbc, yy)?;
         level = ((*L).stack.p as *mut libc::c_char).offset(levelrel as isize) as StkId;
     }
+
     return Ok(level);
 }
 

@@ -11,8 +11,7 @@
 #![allow(unused_variables)]
 #![allow(unused_parens)]
 
-use crate::ldebug::luaG_errormsg;
-use crate::ldo::{luaD_callnoyield, luaD_growstack, luaD_pcall, luaD_protectedparser, luaD_throw};
+use crate::ldo::{luaD_callnoyield, luaD_growstack, luaD_pcall, luaD_protectedparser};
 use crate::ldump::luaU_dump;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lgc::{
@@ -92,19 +91,23 @@ unsafe fn index2stack(mut L: *mut lua_State, mut idx: libc::c_int) -> StkId {
     };
 }
 
-pub unsafe fn lua_checkstack(mut L: *mut lua_State, mut n: libc::c_int) -> libc::c_int {
-    let mut res: libc::c_int = 0;
+pub unsafe fn lua_checkstack(
+    L: *mut lua_State,
+    n: libc::c_int,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     ci = (*L).ci;
+
     if ((*L).stack_last.p).offset_from((*L).top.p) as libc::c_long > n as libc::c_long {
-        res = 1 as libc::c_int;
     } else {
-        res = luaD_growstack(L, n, 0 as libc::c_int);
+        luaD_growstack(L, n)?;
     }
-    if res != 0 && (*ci).top.p < ((*L).top.p).offset(n as isize) {
+
+    if (*ci).top.p < ((*L).top.p).offset(n as isize) {
         (*ci).top.p = ((*L).top.p).offset(n as isize);
     }
-    return res;
+
+    Ok(())
 }
 
 pub unsafe fn lua_xmove(mut from: *mut lua_State, mut to: *mut lua_State, mut n: libc::c_int) {
@@ -168,7 +171,7 @@ pub unsafe fn lua_settop(
     }
     newtop = ((*L).top.p).offset(diff as isize);
     if diff < 0 as libc::c_int as isize && (*L).tbclist.p >= newtop {
-        newtop = luaF_close(L, newtop, -(1 as libc::c_int), 0 as libc::c_int)?;
+        newtop = luaF_close(L, newtop, 0)?;
     }
     (*L).top.p = newtop;
     Ok(())
@@ -180,7 +183,7 @@ pub unsafe fn lua_closeslot(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut level: StkId = 0 as *mut StackValue;
     level = index2stack(L, idx);
-    level = luaF_close(L, level, -(1 as libc::c_int), 0 as libc::c_int)?;
+    level = luaF_close(L, level, 0)?;
     (*level).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     Ok(())
 }
@@ -464,7 +467,7 @@ pub unsafe fn lua_tolstring(
     mut L: *mut lua_State,
     mut idx: libc::c_int,
     mut len: *mut usize,
-) -> *const libc::c_char {
+) -> Result<*const libc::c_char, Box<dyn std::error::Error>> {
     let mut o: *mut TValue = 0 as *mut TValue;
     o = index2value(L, idx);
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int) {
@@ -472,9 +475,9 @@ pub unsafe fn lua_tolstring(
             if !len.is_null() {
                 *len = 0 as libc::c_int as usize;
             }
-            return 0 as *const libc::c_char;
+            return Ok(0 as *const libc::c_char);
         }
-        luaO_tostring(L, o);
+        luaO_tostring(L, o)?;
         if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
             luaC_step(L);
         }
@@ -489,7 +492,7 @@ pub unsafe fn lua_tolstring(
             (*((*o).value_.gc as *mut GCUnion)).ts.u.lnglen
         };
     }
-    return ((*((*o).value_.gc as *mut GCUnion)).ts.contents).as_mut_ptr();
+    return Ok(((*((*o).value_.gc as *mut GCUnion)).ts.contents).as_mut_ptr());
 }
 
 pub unsafe fn lua_rawlen(mut L: *mut lua_State, mut idx: libc::c_int) -> u64 {
@@ -596,13 +599,16 @@ pub unsafe fn lua_pushinteger(mut L: *mut lua_State, mut n: i64) {
     api_incr_top(L);
 }
 
-pub unsafe fn lua_pushlstring(mut L: *mut lua_State, s: impl AsRef<[u8]>) -> *const libc::c_char {
+pub unsafe fn lua_pushlstring(
+    mut L: *mut lua_State,
+    s: impl AsRef<[u8]>,
+) -> Result<*const libc::c_char, Box<dyn std::error::Error>> {
     let s = s.as_ref();
     let mut ts: *mut TString = 0 as *mut TString;
     ts = if s.is_empty() {
-        luaS_new(L, b"\0" as *const u8 as *const libc::c_char)
+        luaS_new(L, b"\0" as *const u8 as *const libc::c_char)?
     } else {
-        luaS_newlstr(L, s.as_ptr().cast(), s.len() as _)
+        luaS_newlstr(L, s.as_ptr().cast(), s.len() as _)?
     };
     let mut io: *mut TValue = &mut (*(*L).top.p).val;
     let mut x_: *mut TString = ts;
@@ -612,18 +618,18 @@ pub unsafe fn lua_pushlstring(mut L: *mut lua_State, s: impl AsRef<[u8]>) -> *co
     if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
         luaC_step(L);
     }
-    return ((*ts).contents).as_mut_ptr();
+    return Ok(((*ts).contents).as_mut_ptr());
 }
 
 pub unsafe fn lua_pushstring(
     mut L: *mut lua_State,
     mut s: *const libc::c_char,
-) -> *const libc::c_char {
+) -> Result<*const libc::c_char, Box<dyn std::error::Error>> {
     if s.is_null() {
         (*(*L).top.p).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     } else {
         let mut ts: *mut TString = 0 as *mut TString;
-        ts = luaS_new(L, s);
+        ts = luaS_new(L, s)?;
         let mut io: *mut TValue = &mut (*(*L).top.p).val;
         let mut x_: *mut TString = ts;
         (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
@@ -634,7 +640,7 @@ pub unsafe fn lua_pushstring(
     if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
         luaC_step(L);
     }
-    return s;
+    return Ok(s);
 }
 
 pub unsafe fn lua_pushcclosure(mut L: *mut lua_State, mut fn_0: lua_CFunction, mut n: libc::c_int) {
@@ -706,7 +712,7 @@ unsafe fn auxgetstr(
     mut k: &[u8],
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut slot: *const TValue = 0 as *const TValue;
-    let mut str: *mut TString = luaS_newlstr(L, k.as_ptr().cast(), k.len());
+    let mut str: *mut TString = luaS_newlstr(L, k.as_ptr().cast(), k.len())?;
     if if !((*t).tt_ as libc::c_int
         == 5 as libc::c_int
             | (0 as libc::c_int) << 4 as libc::c_int
@@ -919,9 +925,9 @@ pub unsafe fn lua_createtable(
     mut L: *mut lua_State,
     mut narray: libc::c_int,
     mut nrec: libc::c_int,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut t: *mut Table = 0 as *mut Table;
-    t = luaH_new(L);
+    t = luaH_new(L)?;
     let mut io: *mut TValue = &mut (*(*L).top.p).val;
     let mut x_: *mut Table = t;
     (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
@@ -930,11 +936,12 @@ pub unsafe fn lua_createtable(
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     api_incr_top(L);
     if narray > 0 as libc::c_int || nrec > 0 as libc::c_int {
-        luaH_resize(L, t, narray as libc::c_uint, nrec as libc::c_uint);
+        luaH_resize(L, t, narray as libc::c_uint, nrec as libc::c_uint)?;
     }
     if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
         luaC_step(L);
     }
+    Ok(())
 }
 
 pub unsafe fn lua_getmetatable(mut L: *mut lua_State, mut objindex: libc::c_int) -> libc::c_int {
@@ -997,7 +1004,7 @@ unsafe fn auxsetstr(
     mut k: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut slot: *const TValue = 0 as *const TValue;
-    let mut str: *mut TString = luaS_new(L, k);
+    let mut str: *mut TString = luaS_new(L, k)?;
     if if !((*t).tt_ as libc::c_int
         == 5 as libc::c_int
             | (0 as libc::c_int) << 4 as libc::c_int
@@ -1210,7 +1217,7 @@ unsafe fn aux_rawset(
     mut idx: libc::c_int,
     mut key: *mut TValue,
     mut n: libc::c_int,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut t: *mut Table = 0 as *mut Table;
     t = gettable(L, idx);
     luaH_set(
@@ -1218,7 +1225,7 @@ unsafe fn aux_rawset(
         t,
         key,
         &mut (*((*L).top.p).offset(-(1 as libc::c_int as isize))).val,
-    );
+    )?;
     (*t).flags = ((*t).flags as libc::c_uint
         & !!(!(0 as libc::c_uint) << TM_EQ as libc::c_int + 1 as libc::c_int))
         as u8;
@@ -1242,18 +1249,26 @@ unsafe fn aux_rawset(
     } else {
     };
     (*L).top.p = ((*L).top.p).offset(-(n as isize));
+    Ok(())
 }
 
-pub unsafe fn lua_rawset(mut L: *mut lua_State, mut idx: libc::c_int) {
+pub unsafe fn lua_rawset(
+    mut L: *mut lua_State,
+    mut idx: libc::c_int,
+) -> Result<(), Box<dyn std::error::Error>> {
     aux_rawset(
         L,
         idx,
         &mut (*((*L).top.p).offset(-(2 as libc::c_int as isize))).val,
         2 as libc::c_int,
-    );
+    )
 }
 
-pub unsafe fn lua_rawsetp(mut L: *mut lua_State, mut idx: libc::c_int, mut p: *const libc::c_void) {
+pub unsafe fn lua_rawsetp(
+    mut L: *mut lua_State,
+    mut idx: libc::c_int,
+    mut p: *const libc::c_void,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut k: TValue = TValue {
         value_: Value {
             gc: 0 as *mut GCObject,
@@ -1263,10 +1278,14 @@ pub unsafe fn lua_rawsetp(mut L: *mut lua_State, mut idx: libc::c_int, mut p: *c
     let mut io: *mut TValue = &mut k;
     (*io).value_.p = p as *mut libc::c_void;
     (*io).tt_ = (2 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
-    aux_rawset(L, idx, &mut k, 1 as libc::c_int);
+    aux_rawset(L, idx, &mut k, 1 as libc::c_int)
 }
 
-pub unsafe fn lua_rawseti(mut L: *mut lua_State, mut idx: libc::c_int, mut n: i64) {
+pub unsafe fn lua_rawseti(
+    mut L: *mut lua_State,
+    mut idx: libc::c_int,
+    mut n: i64,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut t: *mut Table = 0 as *mut Table;
     t = gettable(L, idx);
     luaH_setint(
@@ -1274,7 +1293,7 @@ pub unsafe fn lua_rawseti(mut L: *mut lua_State, mut idx: libc::c_int, mut n: i6
         t,
         n,
         &mut (*((*L).top.p).offset(-(1 as libc::c_int as isize))).val,
-    );
+    )?;
     if (*((*L).top.p).offset(-(1 as libc::c_int as isize))).val.tt_ as libc::c_int
         & (1 as libc::c_int) << 6 as libc::c_int
         != 0
@@ -1296,6 +1315,7 @@ pub unsafe fn lua_rawseti(mut L: *mut lua_State, mut idx: libc::c_int, mut n: i6
     };
     (*L).top.p = ((*L).top.p).offset(-1);
     (*L).top.p;
+    Ok(())
 }
 
 pub unsafe fn lua_setmetatable(mut L: *mut lua_State, mut objindex: libc::c_int) -> libc::c_int {
@@ -1442,17 +1462,16 @@ pub unsafe fn lua_pcall(
     mut L: *mut lua_State,
     mut nargs: libc::c_int,
     mut nresults: libc::c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut c: CallS = CallS {
         func: 0 as *mut StackValue,
         nresults: 0,
     };
-    let mut status: libc::c_int = 0;
 
     c.func = ((*L).top.p).offset(-((nargs + 1 as libc::c_int) as isize));
     c.nresults = nresults;
 
-    status = luaD_pcall(
+    let status = luaD_pcall(
         L,
         f_call,
         &mut c as *mut CallS as *mut libc::c_void,
@@ -1463,7 +1482,7 @@ pub unsafe fn lua_pcall(
         (*(*L).ci).top.p = (*L).top.p;
     }
 
-    Ok(status)
+    status
 }
 
 pub unsafe fn lua_load(
@@ -1472,16 +1491,15 @@ pub unsafe fn lua_load(
     mut data: *mut libc::c_void,
     mut chunkname: *const libc::c_char,
     mut mode: *const libc::c_char,
-) -> libc::c_int {
-    let mut z = Zio::new(reader, data);
-    let mut status: libc::c_int = 0;
-
+) -> Result<(), Box<dyn std::error::Error>> {
     if chunkname.is_null() {
         chunkname = b"?\0" as *const u8 as *const libc::c_char;
     }
 
-    status = luaD_protectedparser(L, &mut z, chunkname, mode);
-    if status == 0 as libc::c_int {
+    let mut z = Zio::new(reader, data);
+    let status = luaD_protectedparser(L, &mut z, chunkname, mode);
+
+    if status.is_ok() {
         let mut f: *mut LClosure = &mut (*((*((*L).top.p).offset(-(1 as libc::c_int as isize)))
             .val
             .value_
@@ -1525,7 +1543,8 @@ pub unsafe fn lua_load(
             };
         }
     }
-    return status;
+
+    status
 }
 
 pub unsafe fn lua_dump(
@@ -1653,43 +1672,35 @@ pub unsafe fn lua_gc(mut L: *mut lua_State, cmd: GcCommand) -> libc::c_int {
     return res;
 }
 
-pub unsafe fn lua_error(mut L: *mut lua_State) -> libc::c_int {
-    let mut errobj: *mut TValue = 0 as *mut TValue;
-    errobj = &mut (*((*L).top.p).offset(-(1 as libc::c_int as isize))).val;
-    if (*errobj).tt_ as libc::c_int
-        == 4 as libc::c_int
-            | (0 as libc::c_int) << 4 as libc::c_int
-            | (1 as libc::c_int) << 6 as libc::c_int
-        && &mut (*((*errobj).value_.gc as *mut GCUnion)).ts as *mut TString == (*(*L).l_G).memerrmsg
-    {
-        luaD_throw(L, 4 as libc::c_int);
-    } else {
-        luaG_errormsg(L);
-    };
-}
-
-pub unsafe fn lua_next(mut L: *mut lua_State, mut idx: libc::c_int) -> libc::c_int {
+pub unsafe fn lua_next(
+    mut L: *mut lua_State,
+    mut idx: libc::c_int,
+) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut t: *mut Table = 0 as *mut Table;
     let mut more: libc::c_int = 0;
     t = gettable(L, idx);
-    more = luaH_next(L, t, ((*L).top.p).offset(-(1 as libc::c_int as isize)));
+    more = luaH_next(L, t, ((*L).top.p).offset(-(1 as libc::c_int as isize)))?;
     if more != 0 {
         api_incr_top(L);
     } else {
         (*L).top.p = ((*L).top.p).offset(-(1 as libc::c_int as isize));
     }
-    return more;
+    return Ok(more);
 }
 
-pub unsafe fn lua_toclose(mut L: *mut lua_State, mut idx: libc::c_int) {
+pub unsafe fn lua_toclose(
+    mut L: *mut lua_State,
+    mut idx: libc::c_int,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut nresults: libc::c_int = 0;
     let mut o: StkId = 0 as *mut StackValue;
     o = index2stack(L, idx);
     nresults = (*(*L).ci).nresults as libc::c_int;
-    luaF_newtbcupval(L, o);
+    luaF_newtbcupval(L, o)?;
     if !(nresults < -(1 as libc::c_int)) {
         (*(*L).ci).nresults = (-nresults - 3 as libc::c_int) as libc::c_short;
     }
+    Ok(())
 }
 
 pub unsafe fn lua_concat(
@@ -1704,7 +1715,7 @@ pub unsafe fn lua_concat(
             L,
             b"\0" as *const u8 as *const libc::c_char,
             0 as libc::c_int as usize,
-        );
+        )?;
         (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
         (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         api_incr_top(L);
@@ -1761,9 +1772,9 @@ pub unsafe fn lua_newuserdatauv(
     mut L: *mut lua_State,
     mut size: usize,
     mut nuvalue: libc::c_int,
-) -> *mut libc::c_void {
+) -> Result<*mut c_void, Box<dyn std::error::Error>> {
     let mut u: *mut Udata = 0 as *mut Udata;
-    u = luaS_newudata(L, size, nuvalue);
+    u = luaS_newudata(L, size, nuvalue)?;
     let mut io: *mut TValue = &mut (*(*L).top.p).val;
     let mut x_: *mut Udata = u;
     (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
@@ -1774,7 +1785,7 @@ pub unsafe fn lua_newuserdatauv(
     if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
         luaC_step(L);
     }
-    return (u as *mut libc::c_char).offset(
+    return Ok((u as *mut libc::c_char).offset(
         (if (*u).nuvalue as libc::c_int == 0 as libc::c_int {
             32 as libc::c_ulong
         } else {
@@ -1783,7 +1794,7 @@ pub unsafe fn lua_newuserdatauv(
                     .wrapping_mul((*u).nuvalue as libc::c_ulong),
             )
         }) as isize,
-    ) as *mut libc::c_void;
+    ) as *mut libc::c_void);
 }
 
 unsafe fn aux_upvalue(

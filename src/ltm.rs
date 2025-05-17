@@ -53,8 +53,7 @@ pub const luaT_typenames_: [&str; 12] = [
     "thread", "upvalue", "proto",
 ];
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaT_init(mut L: *mut lua_State) {
+pub unsafe fn luaT_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
     static mut luaT_eventname: [*const libc::c_char; 25] = [
         b"__index\0" as *const u8 as *const libc::c_char,
         b"__newindex\0" as *const u8 as *const libc::c_char,
@@ -84,8 +83,9 @@ pub unsafe extern "C" fn luaT_init(mut L: *mut lua_State) {
     ];
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
+
     while i < TM_N as libc::c_int {
-        (*(*L).l_G).tmname[i as usize] = luaS_new(L, luaT_eventname[i as usize]);
+        (*(*L).l_G).tmname[i as usize] = luaS_new(L, luaT_eventname[i as usize])?;
         luaC_fix(
             L,
             &mut (*(*((*(*L).l_G).tmname).as_mut_ptr().offset(i as isize) as *mut GCUnion)).gc,
@@ -93,6 +93,8 @@ pub unsafe extern "C" fn luaT_init(mut L: *mut lua_State) {
         i += 1;
         i;
     }
+
+    Ok(())
 }
 
 #[unsafe(no_mangle)]
@@ -136,8 +138,10 @@ pub unsafe extern "C" fn luaT_gettmbyobj(
     };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe fn luaT_objtypename(mut L: *mut lua_State, mut o: *const TValue) -> Cow<'static, str> {
+pub unsafe fn luaT_objtypename(
+    mut L: *mut lua_State,
+    mut o: *const TValue,
+) -> Result<Cow<'static, str>, Box<dyn std::error::Error>> {
     let mut mt: *mut Table = 0 as *mut Table;
     if (*o).tt_ as libc::c_int
         == 5 as libc::c_int
@@ -158,20 +162,21 @@ pub unsafe fn luaT_objtypename(mut L: *mut lua_State, mut o: *const TValue) -> C
     {
         let mut name: *const TValue = luaH_getshortstr(
             mt,
-            luaS_new(L, b"__name\0" as *const u8 as *const libc::c_char),
+            luaS_new(L, b"__name\0" as *const u8 as *const libc::c_char)?,
         );
         if (*name).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int {
-            return CStr::from_ptr(
+            return Ok(CStr::from_ptr(
                 ((*((*name).value_.gc as *mut GCUnion)).ts.contents).as_mut_ptr(),
             )
             .to_string_lossy()
             .into_owned()
-            .into();
+            .into());
         }
     }
-    return luaT_typenames_
+
+    return Ok(luaT_typenames_
         [(((*o).tt_ as libc::c_int & 0xf as libc::c_int) + 1 as libc::c_int) as usize]
-        .into();
+        .into());
 }
 
 pub unsafe fn luaT_callTM(
@@ -287,14 +292,12 @@ pub unsafe fn luaT_trybinTM(
                 if (*p1).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
                     && (*p2).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
                 {
-                    luaG_tointerror(L, p1, p2);
+                    luaG_tointerror(L, p1, p2)?;
                 } else {
-                    luaG_opinterror(L, p1, p2, "perform bitwise operation on");
+                    luaG_opinterror(L, p1, p2, "perform bitwise operation on")?;
                 }
             }
-            _ => {
-                luaG_opinterror(L, p1, p2, "perform arithmetic on");
-            }
+            _ => luaG_opinterror(L, p1, p2, "perform arithmetic on")?,
         }
     }
 
@@ -317,7 +320,7 @@ pub unsafe fn luaT_tryconcatTM(mut L: *mut lua_State) -> Result<(), Box<dyn std:
             L,
             &mut (*top.offset(-(2 as libc::c_int as isize))).val,
             &mut (*top.offset(-(1 as libc::c_int as isize))).val,
-        );
+        )?;
     }
 
     Ok(())
@@ -370,7 +373,8 @@ pub unsafe fn luaT_callorderTM(
             || (*(*L).top.p).val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int)
             as libc::c_int);
     }
-    luaG_ordererror(L, p1, p2);
+    luaG_ordererror(L, p1, p2)?;
+    unreachable!("luaG_ordererror always return Err");
 }
 
 pub unsafe fn luaT_callorderiTM(
@@ -406,13 +410,12 @@ pub unsafe fn luaT_callorderiTM(
     return luaT_callorderTM(L, p1, p2, event);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaT_adjustvarargs(
+pub unsafe fn luaT_adjustvarargs(
     mut L: *mut lua_State,
     mut nfixparams: libc::c_int,
     mut ci: *mut CallInfo,
     mut p: *const Proto,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
     let mut actual: libc::c_int =
         ((*L).top.p).offset_from((*ci).func.p) as libc::c_long as libc::c_int - 1 as libc::c_int;
@@ -424,11 +427,7 @@ pub unsafe extern "C" fn luaT_adjustvarargs(
         != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
     {
-        luaD_growstack(
-            L,
-            (*p).maxstacksize as libc::c_int + 1 as libc::c_int,
-            1 as libc::c_int,
-        );
+        luaD_growstack(L, c_int::from((*p).maxstacksize) + 1)?;
     }
     let fresh0 = (*L).top.p;
     (*L).top.p = ((*L).top.p).offset(1);
@@ -451,14 +450,15 @@ pub unsafe extern "C" fn luaT_adjustvarargs(
     }
     (*ci).func.p = ((*ci).func.p).offset((actual + 1 as libc::c_int) as isize);
     (*ci).top.p = ((*ci).top.p).offset((actual + 1 as libc::c_int) as isize);
+    Ok(())
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaT_getvarargs(
+
+pub unsafe fn luaT_getvarargs(
     mut L: *mut lua_State,
     mut ci: *mut CallInfo,
     mut where_0: StkId,
     mut wanted: libc::c_int,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
     let mut nextra: libc::c_int = (*ci).u.nextraargs;
     if wanted < 0 as libc::c_int {
@@ -473,7 +473,7 @@ pub unsafe extern "C" fn luaT_getvarargs(
             if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
                 luaC_step(L);
             }
-            luaD_growstack(L, nextra, 1 as libc::c_int);
+            luaD_growstack(L, nextra)?;
             where_0 = ((*L).stack.p as *mut libc::c_char).offset(t__ as isize) as StkId;
         }
         (*L).top.p = where_0.offset(nextra as isize);
@@ -488,10 +488,13 @@ pub unsafe extern "C" fn luaT_getvarargs(
         i += 1;
         i;
     }
+
     while i < wanted {
         (*where_0.offset(i as isize)).val.tt_ =
             (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
         i += 1;
         i;
     }
+
+    Ok(())
 }

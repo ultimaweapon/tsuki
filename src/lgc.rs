@@ -1160,7 +1160,6 @@ unsafe extern "C" fn GCTM(mut L: *mut lua_State) {
     (*io).tt_ = ((*i_g).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     tm = luaT_gettmbyobj(L, &mut v, TM_GC);
     if !((*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
-        let mut status: libc::c_int = 0;
         let mut oldah: u8 = (*L).allowhook;
         let mut oldgcstp: libc::c_int = (*g).gcstp as libc::c_int;
         (*g).gcstp = ((*g).gcstp as libc::c_int | 2 as libc::c_int) as u8;
@@ -1180,11 +1179,11 @@ unsafe extern "C" fn GCTM(mut L: *mut lua_State) {
         (*(*L).ci).callstatus = ((*(*L).ci).callstatus as libc::c_int
             | (1 as libc::c_int) << 7 as libc::c_int)
             as libc::c_ushort;
-        status = luaD_pcall(
+        let status = luaD_pcall(
             L,
             dothecall,
             0 as *mut libc::c_void,
-            (((*L).top.p).offset(-(2 as libc::c_int as isize)) as *mut libc::c_char)
+            (((*L).top.p).offset(-2) as *mut libc::c_char)
                 .offset_from((*L).stack.p as *mut libc::c_char),
         );
         (*(*L).ci).callstatus = ((*(*L).ci).callstatus as libc::c_int
@@ -1192,13 +1191,9 @@ unsafe extern "C" fn GCTM(mut L: *mut lua_State) {
             as libc::c_ushort;
         (*L).allowhook = oldah;
         (*g).gcstp = oldgcstp as u8;
-        if ((status != 0 as libc::c_int) as libc::c_int != 0 as libc::c_int) as libc::c_int
-            as libc::c_long
-            != 0
-        {
+
+        if status.is_err() {
             luaE_warnerror(L, b"__gc\0" as *const u8 as *const libc::c_char);
-            (*L).top.p = ((*L).top.p).offset(-1);
-            (*L).top.p;
         }
     }
 }
