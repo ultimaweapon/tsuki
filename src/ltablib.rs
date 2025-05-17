@@ -184,9 +184,9 @@ unsafe fn addfield(
     {
         luaL_error(
             L,
-            format!(
+            format_args!(
                 "invalid value ({}) at index {} in table for 'concat'",
-                lua_typename(L, lua_type(L, -1)),
+                lua_typename(lua_type(L, -1)),
                 i
             ),
         )?;

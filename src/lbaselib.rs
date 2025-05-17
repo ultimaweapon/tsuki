@@ -376,7 +376,7 @@ unsafe fn luaB_type(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
     (((t != -(1 as libc::c_int)) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
         || luaL_argerror(L, 1 as libc::c_int, "value expected")? != 0) as libc::c_int;
-    lua_pushlstring(L, lua_typename(L, t))?;
+    lua_pushlstring(L, lua_typename(t))?;
     return Ok(1 as libc::c_int);
 }
 

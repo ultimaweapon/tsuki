@@ -8,7 +8,6 @@
     unused_mut
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
-#![allow(unused_variables)]
 #![allow(unused_parens)]
 
 use crate::ldo::{luaD_callnoyield, luaD_growstack, luaD_pcall, luaD_protectedparser};
@@ -128,10 +127,6 @@ pub unsafe fn lua_xmove(mut from: *mut lua_State, mut to: *mut lua_State, mut n:
     }
 }
 
-pub unsafe fn lua_version(mut L: *mut lua_State) -> f64 {
-    return 504 as libc::c_int as f64;
-}
-
 pub unsafe fn lua_absindex(mut L: *mut lua_State, mut idx: libc::c_int) -> libc::c_int {
     return if idx > 0 as libc::c_int || idx <= -(1000000 as libc::c_int) - 1000 as libc::c_int {
         idx
@@ -188,7 +183,7 @@ pub unsafe fn lua_closeslot(
     Ok(())
 }
 
-unsafe fn reverse(mut L: *mut lua_State, mut from: StkId, mut to: StkId) {
+unsafe fn reverse(mut from: StkId, mut to: StkId) {
     while from < to {
         let mut temp: TValue = TValue {
             value_: Value {
@@ -224,9 +219,9 @@ pub unsafe fn lua_rotate(mut L: *mut lua_State, mut idx: libc::c_int, mut n: lib
     } else {
         p.offset(-(n as isize)).offset(-(1 as libc::c_int as isize))
     };
-    reverse(L, p, m);
-    reverse(L, m.offset(1 as libc::c_int as isize), t);
-    reverse(L, p, t);
+    reverse(p, m);
+    reverse(m.offset(1 as libc::c_int as isize), t);
+    reverse(p, t);
 }
 
 pub unsafe fn lua_copy(mut L: *mut lua_State, mut fromidx: libc::c_int, mut toidx: libc::c_int) {
@@ -284,8 +279,9 @@ pub unsafe fn lua_type(mut L: *mut lua_State, mut idx: libc::c_int) -> libc::c_i
     };
 }
 
-pub unsafe fn lua_typename(mut L: *mut lua_State, mut t: libc::c_int) -> &'static str {
-    return luaT_typenames_[(t + 1) as usize];
+#[inline(always)]
+pub fn lua_typename(t: c_int) -> &'static str {
+    luaT_typenames_[(t + 1) as usize]
 }
 
 pub unsafe fn lua_iscfunction(mut L: *mut lua_State, mut idx: libc::c_int) -> libc::c_int {
@@ -1452,33 +1448,20 @@ pub unsafe fn lua_call(
     Ok(())
 }
 
-unsafe fn f_call(L: *mut lua_State, ud: *mut c_void) -> Result<(), Box<dyn std::error::Error>> {
-    let mut c: *mut CallS = ud as *mut CallS;
-
-    luaD_callnoyield(L, (*c).func, (*c).nresults)
-}
-
 pub unsafe fn lua_pcall(
     mut L: *mut lua_State,
     mut nargs: libc::c_int,
     mut nresults: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut c: CallS = CallS {
-        func: 0 as *mut StackValue,
-        nresults: 0,
-    };
-
-    c.func = ((*L).top.p).offset(-((nargs + 1 as libc::c_int) as isize));
-    c.nresults = nresults;
-
+    let func = ((*L).top.p).offset(-((nargs + 1) as isize));
+    let mut c: CallS = CallS { func, nresults };
     let status = luaD_pcall(
         L,
-        f_call,
-        &mut c as *mut CallS as *mut libc::c_void,
         (c.func as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char),
+        |L| luaD_callnoyield(L, c.func, c.nresults),
     );
 
-    if nresults <= -(1 as libc::c_int) && (*(*L).ci).top.p < (*L).top.p {
+    if nresults <= -1 && (*(*L).ci).top.p < (*L).top.p {
         (*(*L).ci).top.p = (*L).top.p;
     }
 

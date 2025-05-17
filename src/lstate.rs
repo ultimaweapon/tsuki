@@ -173,8 +173,7 @@ pub struct global_State {
     pub ud_warn: *mut libc::c_void,
 }
 
-pub type lua_WarnFunction =
-    Option<unsafe extern "C" fn(*mut libc::c_void, *const libc::c_char, libc::c_int) -> ()>;
+pub type lua_WarnFunction = Option<unsafe fn(*mut c_void, *const c_char, c_int)>;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -382,18 +381,6 @@ unsafe fn init_registry(
     Ok(())
 }
 
-unsafe fn f_luaopen(L: *mut lua_State, ud: *mut c_void) -> Result<(), Box<dyn std::error::Error>> {
-    let mut g: *mut global_State = (*L).l_G;
-    stack_init(L, L);
-    init_registry(L, g)?;
-    luaS_init(L)?;
-    luaT_init(L)?;
-    luaX_init(L)?;
-    (*g).gcstp = 0 as libc::c_int as u8;
-    (*g).nilvalue.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
-    Ok(())
-}
-
 unsafe fn preinit_thread(mut L: *mut lua_State, mut g: *mut global_State) {
     (*L).l_G = g;
     (*L).stack.p = 0 as StkId;
@@ -579,7 +566,19 @@ pub unsafe fn lua_newstate() -> *mut lua_State {
         i += 1;
     }
 
-    if luaD_rawrunprotected(L, f_luaopen, 0 as *mut libc::c_void).is_err() {
+    if luaD_rawrunprotected(L, |L| {
+        let mut g = (*L).l_G;
+        stack_init(L, L);
+        init_registry(L, g)?;
+        luaS_init(L)?;
+        luaT_init(L)?;
+        luaX_init(L)?;
+        (*g).gcstp = 0;
+        (*g).nilvalue.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+        Ok(())
+    })
+    .is_err()
+    {
         close_state(L);
         L = 0 as *mut lua_State;
     }

@@ -454,8 +454,8 @@ unsafe fn trymt(
             format!(
                 "attempt to {} a '{}' with a '{}'",
                 CStr::from_ptr(mtname.offset(2)).to_string_lossy(),
-                lua_typename(L, lua_type(L, -2)),
-                lua_typename(L, lua_type(L, -1))
+                lua_typename(lua_type(L, -2)),
+                lua_typename(lua_type(L, -1))
             ),
         )?;
     }
@@ -1621,9 +1621,9 @@ unsafe fn add_value(
     {
         return luaL_error(
             L,
-            format!(
+            format_args!(
                 "invalid replacement value (a {})",
-                lua_typename(L, lua_type(L, -1))
+                lua_typename(lua_type(L, -1))
             ),
         );
     } else {
