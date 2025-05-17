@@ -12,16 +12,16 @@
 
 use crate::lapi::{
     lua_absindex, lua_call, lua_checkstack, lua_closeslot, lua_concat, lua_copy, lua_createtable,
-    lua_getallocf, lua_getfield, lua_getmetatable, lua_gettop, lua_isinteger, lua_isnumber,
-    lua_isstring, lua_len, lua_load, lua_newuserdatauv, lua_next, lua_pushboolean,
-    lua_pushcclosure, lua_pushinteger, lua_pushlightuserdata, lua_pushlstring, lua_pushnil,
-    lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawget, lua_rawgeti, lua_rawlen, lua_rawseti,
-    lua_rotate, lua_setfield, lua_setglobal, lua_setmetatable, lua_settop, lua_setwarnf,
-    lua_toboolean, lua_toclose, lua_tointegerx, lua_tolstring, lua_tonumberx, lua_topointer,
-    lua_touserdata, lua_type, lua_typename,
+    lua_getfield, lua_getmetatable, lua_gettop, lua_isinteger, lua_isnumber, lua_isstring, lua_len,
+    lua_load, lua_newuserdatauv, lua_next, lua_pushboolean, lua_pushcclosure, lua_pushinteger,
+    lua_pushlightuserdata, lua_pushlstring, lua_pushnil, lua_pushstring, lua_pushvalue,
+    lua_rawequal, lua_rawget, lua_rawgeti, lua_rawlen, lua_rawseti, lua_rotate, lua_setfield,
+    lua_setglobal, lua_setmetatable, lua_settop, lua_setwarnf, lua_toboolean, lua_toclose,
+    lua_tointegerx, lua_tolstring, lua_tonumberx, lua_topointer, lua_touserdata, lua_type,
+    lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
-use crate::lstate::{CallInfo, lua_Alloc, lua_CFunction, lua_Debug, lua_State, lua_newstate};
+use crate::lstate::{CallInfo, lua_CFunction, lua_Debug, lua_State, lua_newstate};
 use libc::{FILE, free, memcpy, realloc, strcmp, strlen, strncmp, strstr};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -710,10 +710,14 @@ unsafe fn resizebox(
     mut newsize: usize,
 ) -> Result<*mut c_void, Box<dyn std::error::Error>> {
     let mut ud: *mut libc::c_void = 0 as *mut libc::c_void;
-    let mut allocf: lua_Alloc = lua_getallocf(L, &mut ud);
     let mut box_0: *mut UBox = lua_touserdata(L, idx) as *mut UBox;
-    let mut temp: *mut libc::c_void =
-        allocf.expect("non-null function pointer")(ud, (*box_0).box_0, (*box_0).bsize, newsize);
+    let temp = if newsize == 0 {
+        free((*box_0).box_0);
+        0 as *mut libc::c_void
+    } else {
+        realloc((*box_0).box_0, newsize)
+    };
+
     if ((temp.is_null() && newsize > 0 as libc::c_int as usize) as libc::c_int != 0 as libc::c_int)
         as libc::c_int as libc::c_long
         != 0
@@ -1208,20 +1212,6 @@ pub unsafe fn luaL_gsub(
     lua_tolstring(L, -(1 as libc::c_int), 0 as *mut usize)
 }
 
-unsafe extern "C" fn l_alloc(
-    mut ud: *mut libc::c_void,
-    mut ptr: *mut libc::c_void,
-    mut osize: usize,
-    mut nsize: usize,
-) -> *mut libc::c_void {
-    if nsize == 0 as libc::c_int as usize {
-        free(ptr);
-        return 0 as *mut libc::c_void;
-    } else {
-        return realloc(ptr, nsize);
-    };
-}
-
 unsafe extern "C" fn checkcontrol(
     mut L: *mut lua_State,
     mut message: *const libc::c_char,
@@ -1327,20 +1317,8 @@ unsafe extern "C" fn warnfon(
     warnfcont(ud, message, tocont);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaL_newstate() -> *mut lua_State {
-    let mut L: *mut lua_State = lua_newstate(
-        Some(
-            l_alloc
-                as unsafe extern "C" fn(
-                    *mut libc::c_void,
-                    *mut libc::c_void,
-                    usize,
-                    usize,
-                ) -> *mut libc::c_void,
-        ),
-        0 as *mut libc::c_void,
-    );
+pub unsafe fn luaL_newstate() -> *mut lua_State {
+    let mut L: *mut lua_State = lua_newstate();
 
     if (L != 0 as *mut lua_State) as libc::c_int as libc::c_long != 0 {
         lua_setwarnf(

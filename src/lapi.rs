@@ -22,8 +22,8 @@ use crate::lobject::{
     UpVal, Value, luaO_arith, luaO_str2num, luaO_tostring,
 };
 use crate::lstate::{
-    CallInfo, GCUnion, global_State, lua_Alloc, lua_CFunction, lua_Reader, lua_State,
-    lua_WarnFunction, lua_Writer, luaE_setdebt, luaE_warning,
+    CallInfo, GCUnion, global_State, lua_CFunction, lua_Reader, lua_State, lua_WarnFunction,
+    lua_Writer, luaE_setdebt, luaE_warning,
 };
 use crate::lstring::{luaS_new, luaS_newlstr, luaS_newudata};
 use crate::ltable::{
@@ -1735,20 +1735,6 @@ pub unsafe fn lua_len(
     luaV_objlen(L, (*L).top.p, t)?;
     api_incr_top(L);
     Ok(())
-}
-
-pub unsafe fn lua_getallocf(mut L: *mut lua_State, mut ud: *mut *mut libc::c_void) -> lua_Alloc {
-    let mut f: lua_Alloc = None;
-    if !ud.is_null() {
-        *ud = (*(*L).l_G).ud;
-    }
-    f = (*(*L).l_G).frealloc;
-    return f;
-}
-
-pub unsafe fn lua_setallocf(mut L: *mut lua_State, mut f: lua_Alloc, mut ud: *mut libc::c_void) {
-    (*(*L).l_G).ud = ud;
-    (*(*L).l_G).frealloc = f;
 }
 
 pub unsafe fn lua_setwarnf(

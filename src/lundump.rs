@@ -190,7 +190,6 @@ unsafe fn loadCode(
     (*f).code = luaM_malloc_(
         (*S).L,
         (n as usize).wrapping_mul(::core::mem::size_of::<u32>()),
-        0 as libc::c_int,
     ) as *mut u32;
     (*f).sizecode = n;
     loadBlock(
@@ -217,7 +216,6 @@ unsafe fn loadConstants(
     (*f).k = luaM_malloc_(
         (*S).L,
         (n as usize).wrapping_mul(::core::mem::size_of::<TValue>()),
-        0 as libc::c_int,
     ) as *mut TValue;
     (*f).sizek = n;
     i = 0 as libc::c_int;
@@ -283,7 +281,6 @@ unsafe fn loadProtos(
     (*f).p = luaM_malloc_(
         (*S).L,
         (n as usize).wrapping_mul(::core::mem::size_of::<*mut Proto>()),
-        0 as libc::c_int,
     ) as *mut *mut Proto;
     (*f).sizep = n;
     i = 0 as libc::c_int;
@@ -334,7 +331,6 @@ unsafe fn loadUpvalues(
     (*f).upvalues = luaM_malloc_(
         (*S).L,
         (n as usize).wrapping_mul(::core::mem::size_of::<Upvaldesc>()),
-        0 as libc::c_int,
     ) as *mut Upvaldesc;
     (*f).sizeupvalues = n;
     i = 0 as libc::c_int;
@@ -373,7 +369,6 @@ unsafe fn loadDebug(
     (*f).lineinfo = luaM_malloc_(
         (*S).L,
         (n as usize).wrapping_mul(::core::mem::size_of::<i8>()),
-        0 as libc::c_int,
     ) as *mut i8;
     (*f).sizelineinfo = n;
     loadBlock(
@@ -393,7 +388,6 @@ unsafe fn loadDebug(
     (*f).abslineinfo = luaM_malloc_(
         (*S).L,
         (n as usize).wrapping_mul(::core::mem::size_of::<AbsLineInfo>()),
-        0 as libc::c_int,
     ) as *mut AbsLineInfo;
     (*f).sizeabslineinfo = n;
     i = 0 as libc::c_int;
@@ -415,7 +409,6 @@ unsafe fn loadDebug(
     (*f).locvars = luaM_malloc_(
         (*S).L,
         (n as usize).wrapping_mul(::core::mem::size_of::<LocVar>()),
-        0 as libc::c_int,
     ) as *mut LocVar;
     (*f).sizelocvars = n;
     i = 0 as libc::c_int;

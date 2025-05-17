@@ -144,8 +144,7 @@ pub unsafe extern "C" fn luaC_newobjdt(
     mut offset: usize,
 ) -> *mut GCObject {
     let mut g: *mut global_State = (*L).l_G;
-    let mut p: *mut libc::c_char =
-        luaM_malloc_(L, sz, tt & 0xf as libc::c_int) as *mut libc::c_char;
+    let mut p: *mut libc::c_char = luaM_malloc_(L, sz) as *mut libc::c_char;
     let mut o: *mut GCObject = p.offset(offset as isize) as *mut GCObject;
     (*o).marked = ((*g).currentwhite as libc::c_int
         & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int))

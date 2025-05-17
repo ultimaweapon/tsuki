@@ -12,7 +12,8 @@
 use crate::ldebug::luaG_runerror;
 use crate::lgc::luaC_fullgc;
 use crate::lstate::{global_State, lua_State};
-use std::ffi::{CStr, c_int, c_void};
+use libc::{free, realloc};
+use std::ffi::{CStr, c_void};
 
 pub unsafe fn luaM_growaux_(
     mut L: *mut lua_State,
@@ -56,8 +57,8 @@ pub unsafe fn luaM_growaux_(
     *psize = size;
     return Ok(newblock);
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaM_shrinkvector_(
+
+pub unsafe fn luaM_shrinkvector_(
     mut L: *mut lua_State,
     mut block: *mut libc::c_void,
     mut size: *mut libc::c_int,
@@ -76,54 +77,48 @@ pub unsafe fn luaM_toobig(mut L: *mut lua_State) -> Result<(), Box<dyn std::erro
     luaG_runerror(L, "memory allocation error: block too big")
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaM_free_(
-    mut L: *mut lua_State,
-    mut block: *mut libc::c_void,
-    mut osize: usize,
-) {
+pub unsafe fn luaM_free_(mut L: *mut lua_State, mut block: *mut libc::c_void, mut osize: usize) {
     let mut g: *mut global_State = (*L).l_G;
-    (Some(((*g).frealloc).expect("non-null function pointer"))).expect("non-null function pointer")(
-        (*g).ud,
-        block,
-        osize,
-        0 as libc::c_int as usize,
-    );
+    free(block);
     (*g).GCdebt = ((*g).GCdebt as usize).wrapping_sub(osize) as isize as isize;
 }
-unsafe extern "C" fn tryagain(
+
+unsafe fn tryagain(
     mut L: *mut lua_State,
     mut block: *mut libc::c_void,
-    mut osize: usize,
     mut nsize: usize,
 ) -> *mut libc::c_void {
     let mut g: *mut global_State = (*L).l_G;
+
     if (*g).nilvalue.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int
         && (*g).gcstopem == 0
     {
         luaC_fullgc(L, 1 as libc::c_int);
-        return (Some(((*g).frealloc).expect("non-null function pointer")))
-            .expect("non-null function pointer")((*g).ud, block, osize, nsize);
+        return realloc(block, nsize);
     } else {
         return 0 as *mut libc::c_void;
     };
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaM_realloc_(
+
+pub unsafe fn luaM_realloc_(
     mut L: *mut lua_State,
     mut block: *mut libc::c_void,
     mut osize: usize,
     mut nsize: usize,
 ) -> *mut libc::c_void {
-    let mut newblock: *mut libc::c_void = 0 as *mut libc::c_void;
     let mut g: *mut global_State = (*L).l_G;
-    newblock = (Some(((*g).frealloc).expect("non-null function pointer")))
-        .expect("non-null function pointer")((*g).ud, block, osize, nsize);
+    let mut newblock = if nsize == 0 {
+        free(block);
+        0 as *mut libc::c_void
+    } else {
+        realloc(block, nsize)
+    };
+
     if ((newblock.is_null() && nsize > 0 as libc::c_int as usize) as libc::c_int
         != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
     {
-        newblock = tryagain(L, block, osize, nsize);
+        newblock = tryagain(L, block, nsize);
         if newblock.is_null() {
             return 0 as *mut libc::c_void;
         }
@@ -152,28 +147,18 @@ pub unsafe fn luaM_saferealloc_(
     newblock
 }
 
-pub unsafe extern "C" fn luaM_malloc_(
-    mut L: *mut lua_State,
-    mut size: usize,
-    mut tag: c_int,
-) -> *mut libc::c_void {
+pub unsafe fn luaM_malloc_(mut L: *mut lua_State, mut size: usize) -> *mut c_void {
     if size == 0 {
         return 0 as *mut libc::c_void;
     } else {
         let mut g: *mut global_State = (*L).l_G;
-        let mut newblock: *mut libc::c_void =
-            (Some(((*g).frealloc).expect("non-null function pointer")))
-                .expect("non-null function pointer")(
-                (*g).ud,
-                0 as *mut libc::c_void,
-                tag as usize,
-                size,
-            );
+        let mut newblock: *mut libc::c_void = realloc(0 as *mut libc::c_void, size);
+
         if ((newblock == 0 as *mut libc::c_void) as libc::c_int != 0 as libc::c_int) as libc::c_int
             as libc::c_long
             != 0
         {
-            newblock = tryagain(L, 0 as *mut libc::c_void, tag as usize, size);
+            newblock = tryagain(L, 0 as *mut libc::c_void, size);
             if newblock.is_null() {
                 todo!("invoke handle_alloc_error");
             }

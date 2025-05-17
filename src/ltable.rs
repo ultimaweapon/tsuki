@@ -515,7 +515,6 @@ unsafe fn setnodevector(
         (*t).node = luaM_malloc_(
             L,
             (size as usize).wrapping_mul(::core::mem::size_of::<Node>()),
-            0 as libc::c_int,
         ) as *mut Node;
         i = 0 as libc::c_int;
         while i < size as libc::c_int {

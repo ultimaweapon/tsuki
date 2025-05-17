@@ -20,10 +20,10 @@ use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::lobject::{
     Closure, GCObject, Proto, StackValue, StkId, StkIdRel, TString, TValue, Table, Udata, UpVal,
 };
-use crate::lstring::{luaS_hash, luaS_init};
+use crate::lstring::luaS_init;
 use crate::ltable::{luaH_new, luaH_resize};
 use crate::ltm::luaT_init;
-use libc::{memcpy, time, time_t};
+use libc::{free, realloc};
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr::null;
 
@@ -127,8 +127,6 @@ pub type lua_CFunction = unsafe fn(*mut lua_State) -> Result<c_int, Box<dyn std:
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct global_State {
-    pub frealloc: lua_Alloc,
-    pub ud: *mut libc::c_void,
     pub totalbytes: isize,
     pub GCdebt: isize,
     pub GCestimate: usize,
@@ -186,10 +184,6 @@ pub struct stringtable {
     pub size: libc::c_int,
 }
 
-pub type lua_Alloc = Option<
-    unsafe extern "C" fn(*mut libc::c_void, *mut libc::c_void, usize, usize) -> *mut libc::c_void,
->;
-
 #[repr(C)]
 pub struct LG {
     pub l: lua_State,
@@ -208,42 +202,6 @@ pub union GCUnion {
     pub upv: UpVal,
 }
 
-unsafe extern "C" fn luai_makeseed(mut L: *mut lua_State) -> libc::c_uint {
-    let mut buff: [libc::c_char; 24] = [0; 24];
-    let mut h: libc::c_uint = time(0 as *mut time_t) as libc::c_uint;
-    let mut p: libc::c_int = 0 as libc::c_int;
-    let mut t: usize = L as usize;
-    memcpy(
-        buff.as_mut_ptr().offset(p as isize) as *mut libc::c_void,
-        &mut t as *mut usize as *const libc::c_void,
-        ::core::mem::size_of::<usize>(),
-    );
-    p = (p as libc::c_ulong).wrapping_add(::core::mem::size_of::<usize>() as libc::c_ulong)
-        as libc::c_int as libc::c_int;
-    let mut t_0: usize = &mut h as *mut libc::c_uint as usize;
-    memcpy(
-        buff.as_mut_ptr().offset(p as isize) as *mut libc::c_void,
-        &mut t_0 as *mut usize as *const libc::c_void,
-        ::core::mem::size_of::<usize>(),
-    );
-    p = (p as libc::c_ulong).wrapping_add(::core::mem::size_of::<usize>() as libc::c_ulong)
-        as libc::c_int as libc::c_int;
-    let mut t_1: usize = ::core::mem::transmute::<
-        Option<unsafe extern "C" fn(lua_Alloc, *mut libc::c_void) -> *mut lua_State>,
-        usize,
-    >(Some(
-        lua_newstate as unsafe extern "C" fn(lua_Alloc, *mut libc::c_void) -> *mut lua_State,
-    ));
-    memcpy(
-        buff.as_mut_ptr().offset(p as isize) as *mut libc::c_void,
-        &mut t_1 as *mut usize as *const libc::c_void,
-        ::core::mem::size_of::<usize>(),
-    );
-    p = (p as libc::c_ulong).wrapping_add(::core::mem::size_of::<usize>() as libc::c_ulong)
-        as libc::c_int as libc::c_int;
-    return luaS_hash(buff.as_mut_ptr(), p as usize, h);
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaE_setdebt(mut g: *mut global_State, mut debt: isize) {
     let mut tb: isize = ((*g).totalbytes + (*g).GCdebt) as usize as isize;
     if debt < tb - (!(0 as libc::c_int as usize) >> 1 as libc::c_int) as isize {
@@ -252,17 +210,17 @@ pub unsafe extern "C" fn luaE_setdebt(mut g: *mut global_State, mut debt: isize)
     (*g).totalbytes = tb - debt;
     (*g).GCdebt = debt;
 }
-#[unsafe(no_mangle)]
+
 pub unsafe extern "C" fn lua_setcstacklimit(
     mut L: *mut lua_State,
     mut limit: libc::c_uint,
 ) -> libc::c_int {
     return 200 as libc::c_int;
 }
-#[unsafe(no_mangle)]
+
 pub unsafe extern "C" fn luaE_extendCI(mut L: *mut lua_State) -> *mut CallInfo {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
-    ci = luaM_malloc_(L, ::core::mem::size_of::<CallInfo>(), 0 as libc::c_int) as *mut CallInfo;
+    ci = luaM_malloc_(L, ::core::mem::size_of::<CallInfo>()) as *mut CallInfo;
     (*(*L).ci).next = ci;
     (*ci).previous = (*L).ci;
     (*ci).next = 0 as *mut CallInfo;
@@ -347,7 +305,6 @@ unsafe extern "C" fn stack_init(mut L1: *mut lua_State, mut L: *mut lua_State) {
         L,
         ((2 as libc::c_int * 20 as libc::c_int + 5 as libc::c_int) as usize)
             .wrapping_mul(::core::mem::size_of::<StackValue>()),
-        0 as libc::c_int,
     ) as *mut StackValue;
     (*L1).tbclist.p = (*L1).stack.p;
     i = 0 as libc::c_int;
@@ -469,13 +426,7 @@ unsafe fn close_state(mut L: *mut lua_State) {
         ((*(*L).l_G).strt.size as usize).wrapping_mul(::core::mem::size_of::<*mut TString>()),
     );
     freestack(L);
-
-    (Some(((*g).frealloc).expect("non-null function pointer"))).expect("non-null function pointer")(
-        (*g).ud,
-        L as *mut libc::c_void,
-        ::core::mem::size_of::<LG>(),
-        0,
-    );
+    free(L.cast());
 }
 
 #[unsafe(no_mangle)]
@@ -561,21 +512,11 @@ pub unsafe fn lua_resetthread(L: *mut lua_State) -> Result<(), Box<dyn std::erro
     return lua_closethread(L, 0 as *mut lua_State);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_newstate(
-    mut f: lua_Alloc,
-    mut ud: *mut libc::c_void,
-) -> *mut lua_State {
+pub unsafe fn lua_newstate() -> *mut lua_State {
     let mut i: libc::c_int = 0;
     let mut L: *mut lua_State = 0 as *mut lua_State;
     let mut g: *mut global_State = 0 as *mut global_State;
-    let mut l: *mut LG = (Some(f.expect("non-null function pointer")))
-        .expect("non-null function pointer")(
-        ud,
-        0 as *mut libc::c_void,
-        8 as libc::c_int as usize,
-        ::core::mem::size_of::<LG>(),
-    ) as *mut LG;
+    let mut l: *mut LG = realloc(0 as *mut libc::c_void, ::core::mem::size_of::<LG>()) as *mut LG;
     if l.is_null() {
         return 0 as *mut lua_State;
     }
@@ -590,12 +531,10 @@ pub unsafe extern "C" fn lua_newstate(
     (*g).allgc = &mut (*(L as *mut GCUnion)).gc;
     (*L).next = 0 as *mut GCObject;
     (*L).nCcalls = ((*L).nCcalls).wrapping_add(0x10000 as libc::c_int as u32);
-    (*g).frealloc = f;
-    (*g).ud = ud;
     (*g).warnf = None;
     (*g).ud_warn = 0 as *mut libc::c_void;
     (*g).mainthread = L;
-    (*g).seed = luai_makeseed(L);
+    (*g).seed = rand::random();
     (*g).gcstp = 2 as libc::c_int as u8;
     (*g).strt.nuse = 0 as libc::c_int;
     (*g).strt.size = (*g).strt.nuse;

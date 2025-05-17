@@ -151,7 +151,6 @@ pub unsafe fn luaS_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error:
     (*tb).hash = luaM_malloc_(
         L,
         128usize.wrapping_mul(::core::mem::size_of::<*mut TString>()),
-        0 as libc::c_int,
     ) as *mut *mut TString;
     tablerehash((*tb).hash, 0 as libc::c_int, 128 as libc::c_int);
     (*tb).size = 128 as libc::c_int;
