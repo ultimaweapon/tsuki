@@ -9,15 +9,16 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::lapi::{lua_checkstack, lua_compare, lua_geti, lua_getmetatable, lua_rawget, lua_seti};
+use crate::lapi::{
+    lua_call, lua_checkstack, lua_compare, lua_geti, lua_getmetatable, lua_rawget, lua_seti,
+};
 use crate::lauxlib::luaL_len;
-use crate::lstate::lua_KContext;
 use crate::{
-    C2RustUnnamed, lua_State, lua_callk, lua_createtable, lua_gettop, lua_isstring,
-    lua_pushinteger, lua_pushnil, lua_pushstring, lua_pushvalue, lua_rotate, lua_setfield,
-    lua_settop, lua_toboolean, lua_type, lua_typename, luaL_Buffer, luaL_Reg, luaL_addlstring,
-    luaL_addvalue, luaL_argerror, luaL_buffinit, luaL_checkinteger, luaL_checktype, luaL_error,
-    luaL_optinteger, luaL_optlstring, luaL_pushresult, luaL_setfuncs,
+    C2RustUnnamed, lua_State, lua_createtable, lua_gettop, lua_isstring, lua_pushinteger,
+    lua_pushnil, lua_pushstring, lua_pushvalue, lua_rotate, lua_setfield, lua_settop,
+    lua_toboolean, lua_type, lua_typename, luaL_Buffer, luaL_Reg, luaL_addlstring, luaL_addvalue,
+    luaL_argerror, luaL_buffinit, luaL_checkinteger, luaL_checktype, luaL_error, luaL_optinteger,
+    luaL_optlstring, luaL_pushresult, luaL_setfuncs,
 };
 use std::ffi::c_int;
 
@@ -294,13 +295,7 @@ unsafe fn sort_comp(
         lua_pushvalue(L, 2 as libc::c_int);
         lua_pushvalue(L, a - 1 as libc::c_int);
         lua_pushvalue(L, b - 2 as libc::c_int);
-        lua_callk(
-            L,
-            2 as libc::c_int,
-            1 as libc::c_int,
-            0 as libc::c_int as lua_KContext,
-            None,
-        )?;
+        lua_call(L, 2 as libc::c_int, 1 as libc::c_int)?;
         res = lua_toboolean(L, -(1 as libc::c_int));
         lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
         return Ok(res);

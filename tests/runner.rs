@@ -1,6 +1,6 @@
 use std::ptr::null;
 use tsuki::{
-    lua_close, lua_pcallk, lua_pop, luaL_loadbufferx, luaL_newstate, luaL_requiref, luaopen_base,
+    lua_close, lua_pcall, lua_pop, luaL_loadbufferx, luaL_newstate, luaL_requiref, luaopen_base,
 };
 
 #[test]
@@ -29,7 +29,7 @@ fn run(cat: &str, file: &str) {
     assert_eq!(status, 0);
 
     // Run.
-    assert_eq!(unsafe { lua_pcallk(lua, 0, 0, 0, None).unwrap() }, 0);
+    assert_eq!(unsafe { lua_pcall(lua, 0, 0).unwrap() }, 0);
 
     unsafe { lua_close(lua) };
 }

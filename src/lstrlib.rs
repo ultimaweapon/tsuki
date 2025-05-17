@@ -11,10 +11,10 @@
 #![allow(path_statements)]
 #![allow(unused_variables)]
 
-use crate::lstate::lua_KContext;
+use crate::lapi::lua_call;
 use crate::{
-    C2RustUnnamed, lua_State, lua_arith, lua_callk, lua_createtable, lua_dump, lua_gettable,
-    lua_gettop, lua_isinteger, lua_isstring, lua_newuserdatauv, lua_pushcclosure, lua_pushinteger,
+    C2RustUnnamed, lua_State, lua_arith, lua_createtable, lua_dump, lua_gettable, lua_gettop,
+    lua_isinteger, lua_isstring, lua_newuserdatauv, lua_pushcclosure, lua_pushinteger,
     lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rotate,
     lua_setfield, lua_setmetatable, lua_settop, lua_stringtonumber, lua_toboolean, lua_tointegerx,
     lua_tolstring, lua_tonumberx, lua_topointer, lua_touserdata, lua_type, lua_typename,
@@ -457,13 +457,7 @@ unsafe fn trymt(
         )?;
     }
     lua_rotate(L, -(3 as libc::c_int), 1 as libc::c_int);
-    lua_callk(
-        L,
-        2 as libc::c_int,
-        1 as libc::c_int,
-        0 as libc::c_int as lua_KContext,
-        None,
-    )
+    lua_call(L, 2 as libc::c_int, 1 as libc::c_int)
 }
 
 unsafe fn arith(
@@ -1604,13 +1598,7 @@ unsafe fn add_value(
             let mut n: libc::c_int = 0;
             lua_pushvalue(L, 3 as libc::c_int);
             n = push_captures(ms, s, e)?;
-            lua_callk(
-                L,
-                n,
-                1 as libc::c_int,
-                0 as libc::c_int as lua_KContext,
-                None,
-            )?;
+            lua_call(L, n, 1 as libc::c_int)?;
         }
         5 => {
             push_onecapture(ms, 0 as libc::c_int, s, e)?;

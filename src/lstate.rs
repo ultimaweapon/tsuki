@@ -28,6 +28,7 @@ use crate::ltable::{luaH_new, luaH_resize};
 use crate::ltm::luaT_init;
 use libc::{memcpy, time, time_t};
 use std::ffi::{c_char, c_int, c_void};
+use std::ptr::null;
 
 pub type lua_Hook = Option<unsafe extern "C" fn(*mut lua_State, *mut lua_Debug) -> ()>;
 pub type lua_Reader =
@@ -96,7 +97,7 @@ pub struct CallInfo {
     pub top: StkIdRel,
     pub previous: *mut CallInfo,
     pub next: *mut CallInfo,
-    pub u: C2RustUnnamed_1,
+    pub u: C2RustUnnamed_3,
     pub u2: C2RustUnnamed,
     pub nresults: libc::c_short,
     pub callstatus: libc::c_ushort,
@@ -105,9 +106,8 @@ pub struct CallInfo {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed {
-    pub funcidx: libc::c_int,
-    pub nyield: libc::c_int,
-    pub nres: libc::c_int,
+    pub funcidx: c_int,
+    pub nres: c_int,
     pub transferinfo: C2RustUnnamed_0,
 }
 
@@ -117,24 +117,6 @@ pub struct C2RustUnnamed_0 {
     pub ftransfer: libc::c_ushort,
     pub ntransfer: libc::c_ushort,
 }
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_1 {
-    pub l: C2RustUnnamed_3,
-    pub c: C2RustUnnamed_2,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_2 {
-    pub k: lua_KFunction,
-    pub ctx: lua_KContext,
-}
-
-pub type lua_KContext = isize;
-pub type lua_KFunction =
-    Option<unsafe extern "C" fn(*mut lua_State, libc::c_int, lua_KContext) -> libc::c_int>;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -288,7 +270,7 @@ pub unsafe extern "C" fn luaE_extendCI(mut L: *mut lua_State) -> *mut CallInfo {
     (*(*L).ci).next = ci;
     (*ci).previous = (*L).ci;
     (*ci).next = 0 as *mut CallInfo;
-    ::core::ptr::write_volatile(&mut (*ci).u.l.trap as *mut libc::c_int, 0 as libc::c_int);
+    ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 0 as libc::c_int);
     (*L).nci = ((*L).nci).wrapping_add(1);
     (*L).nci;
     return ci;
@@ -350,6 +332,7 @@ pub unsafe extern "C" fn luaE_checkcstack(mut L: *mut lua_State) {
         luaD_throw(L, 5 as libc::c_int);
     }
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaE_incCstack(mut L: *mut lua_State) {
     (*L).nCcalls = ((*L).nCcalls).wrapping_add(1);
@@ -361,6 +344,7 @@ pub unsafe extern "C" fn luaE_incCstack(mut L: *mut lua_State) {
         luaE_checkcstack(L);
     }
 }
+
 unsafe extern "C" fn stack_init(mut L1: *mut lua_State, mut L: *mut lua_State) {
     let mut i: libc::c_int = 0;
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
@@ -386,7 +370,7 @@ unsafe extern "C" fn stack_init(mut L1: *mut lua_State, mut L: *mut lua_State) {
     (*ci).next = (*ci).previous;
     (*ci).callstatus = ((1 as libc::c_int) << 1 as libc::c_int) as libc::c_ushort;
     (*ci).func.p = (*L1).top.p;
-    (*ci).u.c.k = None;
+    (*ci).u.savedpc = null();
     (*ci).nresults = 0 as libc::c_int as libc::c_short;
     (*(*L1).top.p).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     (*L1).top.p = ((*L1).top.p).offset(1);
@@ -394,6 +378,7 @@ unsafe extern "C" fn stack_init(mut L1: *mut lua_State, mut L: *mut lua_State) {
     (*ci).top.p = ((*L1).top.p).offset(20 as libc::c_int as isize);
     (*L1).ci = ci;
 }
+
 unsafe extern "C" fn freestack(mut L: *mut lua_State) {
     if ((*L).stack.p).is_null() {
         return;
@@ -408,6 +393,7 @@ unsafe extern "C" fn freestack(mut L: *mut lua_State) {
             .wrapping_mul(::core::mem::size_of::<StackValue>()),
     );
 }
+
 unsafe extern "C" fn init_registry(mut L: *mut lua_State, mut g: *mut global_State) {
     let mut registry: *mut Table = luaH_new(L);
     let mut io: *mut TValue = &mut (*g).l_registry;

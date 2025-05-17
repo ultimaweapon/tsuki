@@ -12,8 +12,8 @@
 #![allow(path_statements)]
 
 use crate::lapi::{
-    lua_callk, lua_concat, lua_copy, lua_error, lua_gc, lua_geti, lua_getmetatable, lua_gettop,
-    lua_isstring, lua_load, lua_next, lua_pcallk, lua_pushboolean, lua_pushcclosure,
+    lua_call, lua_concat, lua_copy, lua_error, lua_gc, lua_geti, lua_getmetatable, lua_gettop,
+    lua_isstring, lua_load, lua_next, lua_pcall, lua_pushboolean, lua_pushcclosure,
     lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue,
     lua_rawequal, lua_rawget, lua_rawgeti, lua_rawlen, lua_rawset, lua_rotate, lua_setfield,
     lua_setmetatable, lua_settop, lua_setupvalue, lua_stringtonumber, lua_toboolean, lua_tolstring,
@@ -24,7 +24,7 @@ use crate::lauxlib::{
     luaL_checkstack, luaL_checktype, luaL_error, luaL_getmetafield, luaL_loadbufferx,
     luaL_optinteger, luaL_optlstring, luaL_setfuncs, luaL_tolstring, luaL_typeerror, luaL_where,
 };
-use crate::lstate::{lua_KContext, lua_State};
+use crate::lstate::lua_State;
 use crate::{GcCommand, luaL_loadfilex};
 use libc::{isalnum, isdigit, strspn, toupper};
 use std::ffi::{c_char, c_int, c_void};
@@ -391,14 +391,6 @@ unsafe fn luaB_next(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
     }
 }
 
-unsafe extern "C" fn pairscont(
-    mut L: *mut lua_State,
-    mut status: libc::c_int,
-    mut k: lua_KContext,
-) -> libc::c_int {
-    return 3 as libc::c_int;
-}
-
 unsafe fn luaB_pairs(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
     luaL_checkany(L, 1 as libc::c_int)?;
     if luaL_getmetafield(
@@ -412,20 +404,7 @@ unsafe fn luaB_pairs(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
         lua_pushnil(L);
     } else {
         lua_pushvalue(L, 1 as libc::c_int);
-        lua_callk(
-            L,
-            1 as libc::c_int,
-            3 as libc::c_int,
-            0 as libc::c_int as lua_KContext,
-            Some(
-                pairscont
-                    as unsafe extern "C" fn(
-                        *mut lua_State,
-                        libc::c_int,
-                        lua_KContext,
-                    ) -> libc::c_int,
-            ),
-        )?;
+        lua_call(L, 1, 3)?;
     }
     return Ok(3 as libc::c_int);
 }
@@ -507,13 +486,7 @@ unsafe fn generic_reader(
         b"too many nested functions\0" as *const u8 as *const libc::c_char,
     )?;
     lua_pushvalue(L, 1 as libc::c_int);
-    lua_callk(
-        L,
-        0 as libc::c_int,
-        1 as libc::c_int,
-        0 as libc::c_int as lua_KContext,
-        None,
-    )?;
+    lua_call(L, 0, 1)?;
     if lua_type(L, -(1 as libc::c_int)) == 0 as libc::c_int {
         lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
         *size = 0 as libc::c_int as usize;
@@ -567,11 +540,7 @@ unsafe fn luaB_load(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
     load_aux(L, status, env)
 }
 
-unsafe extern "C" fn dofilecont(
-    mut L: *mut lua_State,
-    mut d1: libc::c_int,
-    mut d2: lua_KContext,
-) -> libc::c_int {
+unsafe extern "C" fn dofilecont(mut L: *mut lua_State, mut d1: libc::c_int) -> libc::c_int {
     return lua_gettop(L) - 1 as libc::c_int;
 }
 
@@ -589,21 +558,9 @@ unsafe fn luaB_dofile(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error
     {
         return Ok(lua_error(L));
     }
-    lua_callk(
-        L,
-        0 as libc::c_int,
-        -(1 as libc::c_int),
-        0 as libc::c_int as lua_KContext,
-        Some(
-            dofilecont
-                as unsafe extern "C" fn(*mut lua_State, libc::c_int, lua_KContext) -> libc::c_int,
-        ),
-    )?;
-    return Ok(dofilecont(
-        L,
-        0 as libc::c_int,
-        0 as libc::c_int as lua_KContext,
-    ));
+    lua_call(L, 0 as libc::c_int, -(1 as libc::c_int))?;
+
+    return Ok(dofilecont(L, 0 as libc::c_int));
 }
 
 unsafe fn luaB_assert(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -646,11 +603,7 @@ unsafe fn luaB_select(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error
     };
 }
 
-unsafe extern "C" fn finishpcall(
-    mut L: *mut lua_State,
-    mut status: libc::c_int,
-    mut extra: lua_KContext,
-) -> libc::c_int {
+unsafe extern "C" fn finishpcall(mut L: *mut lua_State, mut status: libc::c_int) -> libc::c_int {
     if ((status != 0 as libc::c_int && status != 1 as libc::c_int) as libc::c_int
         != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
@@ -659,7 +612,7 @@ unsafe extern "C" fn finishpcall(
         lua_pushvalue(L, -(2 as libc::c_int));
         return 2 as libc::c_int;
     } else {
-        return lua_gettop(L) - extra as libc::c_int;
+        return lua_gettop(L) - 0 as libc::c_int;
     };
 }
 
@@ -668,14 +621,8 @@ unsafe fn luaB_pcall(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
     luaL_checkany(L, 1 as libc::c_int)?;
     lua_pushboolean(L, 1 as libc::c_int);
     lua_rotate(L, 1 as libc::c_int, 1 as libc::c_int);
-    status = lua_pcallk(
-        L,
-        lua_gettop(L) - 2 as libc::c_int,
-        -(1 as libc::c_int),
-        0 as libc::c_int as lua_KContext,
-        Some(finishpcall),
-    )?;
-    return Ok(finishpcall(L, status, 0 as libc::c_int as lua_KContext));
+    status = lua_pcall(L, lua_gettop(L) - 2 as libc::c_int, -(1 as libc::c_int))?;
+    return Ok(finishpcall(L, status));
 }
 
 unsafe fn luaB_tostring(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {

@@ -20,8 +20,8 @@ use crate::lmem::{luaM_free_, luaM_realloc_, luaM_saferealloc_};
 use crate::lobject::{LClosure, Proto, StackValue, StkId, TString, TValue, UpVal};
 use crate::lparser::{C2RustUnnamed_9, Dyndata, Labeldesc, Labellist, Vardesc, luaY_parser};
 use crate::lstate::{
-    CallInfo, GCUnion, lua_CFunction, lua_Debug, lua_Hook, lua_KContext, lua_KFunction, lua_State,
-    luaE_checkcstack, luaE_extendCI, luaE_shrinkCI,
+    CallInfo, GCUnion, lua_CFunction, lua_Debug, lua_Hook, lua_State, luaE_checkcstack,
+    luaE_extendCI, luaE_shrinkCI,
 };
 use crate::lstring::{luaS_new, luaS_newlstr};
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
@@ -170,7 +170,7 @@ unsafe extern "C" fn correctstack(mut L: *mut lua_State) {
         (*ci).func.p =
             ((*L).stack.p as *mut libc::c_char).offset((*ci).func.offset as isize) as StkId;
         if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
-            ::core::ptr::write_volatile(&mut (*ci).u.l.trap as *mut libc::c_int, 1 as libc::c_int);
+            ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 1 as libc::c_int);
         }
         ci = (*ci).previous;
     }
@@ -393,8 +393,8 @@ pub unsafe extern "C" fn luaD_hookcall(mut L: *mut lua_State, mut ci: *mut CallI
                 0 as libc::c_int
             };
         let mut p: *mut Proto = (*((*(*ci).func.p).val.value_.gc as *mut GCUnion)).cl.l.p;
-        (*ci).u.l.savedpc = ((*ci).u.l.savedpc).offset(1);
-        (*ci).u.l.savedpc;
+        (*ci).u.savedpc = ((*ci).u.savedpc).offset(1);
+        (*ci).u.savedpc;
         luaD_hook(
             L,
             event,
@@ -402,8 +402,8 @@ pub unsafe extern "C" fn luaD_hookcall(mut L: *mut lua_State, mut ci: *mut CallI
             1 as libc::c_int,
             (*p).numparams as libc::c_int,
         );
-        (*ci).u.l.savedpc = ((*ci).u.l.savedpc).offset(-1);
-        (*ci).u.l.savedpc;
+        (*ci).u.savedpc = ((*ci).u.savedpc).offset(-1);
+        (*ci).u.savedpc;
     }
 }
 
@@ -415,7 +415,7 @@ unsafe extern "C" fn rethook(mut L: *mut lua_State, mut ci: *mut CallInfo, mut n
         if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
             let mut p: *mut Proto = (*((*(*ci).func.p).val.value_.gc as *mut GCUnion)).cl.l.p;
             if (*p).is_vararg != 0 {
-                delta = (*ci).u.l.nextraargs + (*p).numparams as libc::c_int + 1 as libc::c_int;
+                delta = (*ci).u.nextraargs + (*p).numparams as libc::c_int + 1 as libc::c_int;
             }
         }
         (*ci).func.p = ((*ci).func.p).offset(delta as isize);
@@ -426,7 +426,7 @@ unsafe extern "C" fn rethook(mut L: *mut lua_State, mut ci: *mut CallInfo, mut n
     }
     ci = (*ci).previous;
     if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
-        (*L).oldpc = ((*ci).u.l.savedpc)
+        (*L).oldpc = ((*ci).u.savedpc)
             .offset_from((*(*((*(*ci).func.p).val.value_.gc as *mut GCUnion)).cl.l.p).code)
             as libc::c_long as libc::c_int
             - 1 as libc::c_int;
@@ -696,7 +696,7 @@ pub unsafe fn luaD_pretailcall(
                 (*ci).top.p = func
                     .offset(1 as libc::c_int as isize)
                     .offset(fsize as isize);
-                (*ci).u.l.savedpc = (*p).code;
+                (*ci).u.savedpc = (*p).code;
                 (*ci).callstatus = ((*ci).callstatus as libc::c_int
                     | (1 as libc::c_int) << 5 as libc::c_int)
                     as libc::c_ushort;
@@ -762,7 +762,7 @@ pub unsafe fn luaD_precall(
                         .offset(fsize as isize),
                 );
                 (*L).ci = ci;
-                (*ci).u.l.savedpc = (*p).code;
+                (*ci).u.savedpc = (*p).code;
                 while narg < nfixparams {
                     let fresh2 = (*L).top.p;
                     (*L).top.p = ((*L).top.p).offset(1);
@@ -868,18 +868,11 @@ unsafe fn finishCcall(
     mut ci: *mut CallInfo,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut n: libc::c_int = 0;
+
     if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 9 as libc::c_int != 0 {
         n = (*ci).u2.nres;
     } else {
-        let mut status: libc::c_int = 1 as libc::c_int;
-        if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 4 as libc::c_int != 0 {
-            status = finishpcallk(L, ci)?;
-        }
-        if -(1 as libc::c_int) <= -(1 as libc::c_int) && (*(*L).ci).top.p < (*L).top.p {
-            (*(*L).ci).top.p = (*L).top.p;
-        }
-        n = (Some(((*ci).u.c.k).expect("non-null function pointer")))
-            .expect("non-null function pointer")(L, status, (*ci).u.c.ctx);
+        unreachable!("attempt to run coroutine continuation");
     }
 
     luaD_poscall(L, ci, n)
@@ -928,39 +921,6 @@ unsafe extern "C" fn resume_error(
     return 2 as libc::c_int;
 }
 
-unsafe fn resume(L: *mut lua_State, ud: *mut c_void) -> Result<(), Box<dyn std::error::Error>> {
-    let mut n: libc::c_int = *(ud as *mut libc::c_int);
-    let mut firstArg: StkId = ((*L).top.p).offset(-(n as isize));
-    let mut ci: *mut CallInfo = (*L).ci;
-    if (*L).status as libc::c_int == 0 as libc::c_int {
-        ccall(
-            L,
-            firstArg.offset(-(1 as libc::c_int as isize)),
-            -(1 as libc::c_int),
-            0 as libc::c_int as u32,
-        )?;
-    } else {
-        (*L).status = 0 as libc::c_int as u8;
-        if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
-            (*ci).u.l.savedpc = ((*ci).u.l.savedpc).offset(-1);
-            (*ci).u.l.savedpc;
-            (*L).top.p = firstArg;
-            luaV_execute(L, ci)?;
-        } else {
-            if ((*ci).u.c.k).is_some() {
-                n = (Some(((*ci).u.c.k).expect("non-null function pointer")))
-                    .expect("non-null function pointer")(
-                    L, 1 as libc::c_int, (*ci).u.c.ctx
-                );
-            }
-            luaD_poscall(L, ci, n)?;
-        }
-        unroll(L, 0 as *mut libc::c_void)?;
-    };
-
-    Ok(())
-}
-
 unsafe extern "C" fn precover(mut L: *mut lua_State, mut status: libc::c_int) -> libc::c_int {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     while status > 1 as libc::c_int && {
@@ -977,111 +937,9 @@ unsafe extern "C" fn precover(mut L: *mut lua_State, mut status: libc::c_int) ->
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_resume(
-    mut L: *mut lua_State,
-    mut from: *mut lua_State,
-    mut nargs: libc::c_int,
-    mut nresults: *mut libc::c_int,
-) -> libc::c_int {
-    let mut status: libc::c_int = 0;
-    if (*L).status as libc::c_int == 0 as libc::c_int {
-        if (*L).ci != &mut (*L).base_ci as *mut CallInfo {
-            return resume_error(
-                L,
-                b"cannot resume non-suspended coroutine\0" as *const u8 as *const libc::c_char,
-                nargs,
-            );
-        } else if ((*L).top.p).offset_from(((*(*L).ci).func.p).offset(1 as libc::c_int as isize))
-            as libc::c_long
-            == nargs as libc::c_long
-        {
-            return resume_error(
-                L,
-                b"cannot resume dead coroutine\0" as *const u8 as *const libc::c_char,
-                nargs,
-            );
-        }
-    } else if (*L).status as libc::c_int != 1 as libc::c_int {
-        return resume_error(
-            L,
-            b"cannot resume dead coroutine\0" as *const u8 as *const libc::c_char,
-            nargs,
-        );
-    }
-    (*L).nCcalls = if !from.is_null() {
-        (*from).nCcalls & 0xffff as libc::c_int as u32
-    } else {
-        0 as libc::c_int as u32
-    };
-    if (*L).nCcalls & 0xffff as libc::c_int as u32 >= 200 as libc::c_int as u32 {
-        return resume_error(
-            L,
-            b"C stack overflow\0" as *const u8 as *const libc::c_char,
-            nargs,
-        );
-    }
-    (*L).nCcalls = ((*L).nCcalls).wrapping_add(1);
-    (*L).nCcalls;
-    status = luaD_rawrunprotected(
-        L,
-        resume,
-        &mut nargs as *mut libc::c_int as *mut libc::c_void,
-    );
-    status = precover(L, status);
-    if !((!(status > 1 as libc::c_int) as libc::c_int != 0 as libc::c_int) as libc::c_int
-        as libc::c_long
-        != 0)
-    {
-        (*L).status = status as u8;
-        luaD_seterrorobj(L, status, (*L).top.p);
-        (*(*L).ci).top.p = (*L).top.p;
-    }
-    *nresults = if status == 1 as libc::c_int {
-        (*(*L).ci).u2.nyield
-    } else {
-        ((*L).top.p).offset_from(((*(*L).ci).func.p).offset(1 as libc::c_int as isize))
-            as libc::c_long as libc::c_int
-    };
-    return status;
-}
-
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn lua_isyieldable(mut L: *mut lua_State) -> libc::c_int {
     return ((*L).nCcalls & 0xffff0000 as libc::c_uint == 0 as libc::c_int as libc::c_uint)
         as libc::c_int;
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_yieldk(
-    mut L: *mut lua_State,
-    mut nresults: libc::c_int,
-    mut ctx: lua_KContext,
-    mut k: lua_KFunction,
-) -> libc::c_int {
-    let mut ci: *mut CallInfo = 0 as *mut CallInfo;
-    ci = (*L).ci;
-    if (!((*L).nCcalls & 0xffff0000 as libc::c_uint == 0 as libc::c_int as libc::c_uint)
-        as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
-        != 0
-    {
-        if L != (*(*L).l_G).mainthread {
-            luaG_runerror(L, "attempt to yield across a C-call boundary");
-        } else {
-            luaG_runerror(L, "attempt to yield from outside a coroutine");
-        }
-    }
-    (*L).status = 1 as libc::c_int as u8;
-    (*ci).u2.nyield = nresults;
-    if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
-    } else {
-        (*ci).u.c.k = k;
-        if ((*ci).u.c.k).is_some() {
-            (*ci).u.c.ctx = ctx;
-        }
-        luaD_throw(L, 1 as libc::c_int);
-    }
-    return 0 as libc::c_int;
 }
 
 unsafe fn closepaux(L: *mut lua_State, ud: *mut c_void) -> Result<(), Box<dyn std::error::Error>> {

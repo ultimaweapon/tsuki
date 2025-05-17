@@ -33,7 +33,7 @@ use std::ffi::CStr;
 use std::fmt::Display;
 
 unsafe extern "C" fn currentpc(mut ci: *mut CallInfo) -> libc::c_int {
-    return ((*ci).u.l.savedpc)
+    return ((*ci).u.savedpc)
         .offset_from((*(*((*(*ci).func.p).val.value_.gc as *mut GCUnion)).cl.l.p).code)
         as libc::c_long as libc::c_int
         - 1 as libc::c_int;
@@ -94,7 +94,7 @@ unsafe extern "C" fn getcurrentline(mut ci: *mut CallInfo) -> libc::c_int {
 unsafe extern "C" fn settraps(mut ci: *mut CallInfo) {
     while !ci.is_null() {
         if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
-            ::core::ptr::write_volatile(&mut (*ci).u.l.trap as *mut libc::c_int, 1 as libc::c_int);
+            ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 1 as libc::c_int);
         }
         ci = (*ci).previous;
     }
@@ -179,7 +179,7 @@ unsafe extern "C" fn findvararg(
     mut pos: *mut StkId,
 ) -> *const libc::c_char {
     if (*(*((*(*ci).func.p).val.value_.gc as *mut GCUnion)).cl.l.p).is_vararg != 0 {
-        let mut nextra: libc::c_int = (*ci).u.l.nextraargs;
+        let mut nextra: libc::c_int = (*ci).u.nextraargs;
         if n >= -nextra {
             *pos = ((*ci).func.p)
                 .offset(-(nextra as isize))
@@ -1171,8 +1171,8 @@ unsafe extern "C" fn changedline(
 pub unsafe extern "C" fn luaG_tracecall(mut L: *mut lua_State) -> libc::c_int {
     let mut ci: *mut CallInfo = (*L).ci;
     let mut p: *mut Proto = (*((*(*ci).func.p).val.value_.gc as *mut GCUnion)).cl.l.p;
-    ::core::ptr::write_volatile(&mut (*ci).u.l.trap as *mut libc::c_int, 1 as libc::c_int);
-    if (*ci).u.l.savedpc == (*p).code as *const u32 {
+    ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 1 as libc::c_int);
+    if (*ci).u.savedpc == (*p).code as *const u32 {
         if (*p).is_vararg != 0 {
             return 0 as libc::c_int;
         } else if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int == 0 {
@@ -1192,12 +1192,12 @@ pub unsafe extern "C" fn luaG_traceexec(mut L: *mut lua_State, mut pc: *const u3
         & ((1 as libc::c_int) << 2 as libc::c_int | (1 as libc::c_int) << 3 as libc::c_int)
         == 0
     {
-        ::core::ptr::write_volatile(&mut (*ci).u.l.trap as *mut libc::c_int, 0 as libc::c_int);
+        ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 0 as libc::c_int);
         return 0 as libc::c_int;
     }
     pc = pc.offset(1);
     pc;
-    (*ci).u.l.savedpc = pc;
+    (*ci).u.savedpc = pc;
     counthook = (mask as libc::c_int & (1 as libc::c_int) << 3 as libc::c_int != 0 && {
         (*L).hookcount -= 1;
         (*L).hookcount == 0 as libc::c_int
@@ -1213,13 +1213,12 @@ pub unsafe extern "C" fn luaG_traceexec(mut L: *mut lua_State, mut pc: *const u3
             as libc::c_ushort;
         return 1 as libc::c_int;
     }
-    if !(luaP_opmodes[(*((*ci).u.l.savedpc).offset(-(1 as libc::c_int as isize))
-        >> 0 as libc::c_int
+    if !(luaP_opmodes[(*((*ci).u.savedpc).offset(-(1 as libc::c_int as isize)) >> 0 as libc::c_int
         & !(!(0 as libc::c_int as u32) << 7 as libc::c_int) << 0 as libc::c_int)
         as OpCode as usize] as libc::c_int
         & (1 as libc::c_int) << 5 as libc::c_int
         != 0
-        && (*((*ci).u.l.savedpc).offset(-(1 as libc::c_int as isize))
+        && (*((*ci).u.savedpc).offset(-(1 as libc::c_int as isize))
             >> 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int + 1 as libc::c_int
             & !(!(0 as libc::c_int as u32) << 8 as libc::c_int) << 0 as libc::c_int)
             as libc::c_int

@@ -11,7 +11,7 @@
 #![allow(unused_variables)]
 
 use crate::lapi::{
-    lua_absindex, lua_callk, lua_checkstack, lua_closeslot, lua_concat, lua_copy, lua_createtable,
+    lua_absindex, lua_call, lua_checkstack, lua_closeslot, lua_concat, lua_copy, lua_createtable,
     lua_error, lua_getallocf, lua_getfield, lua_getmetatable, lua_gettop, lua_isinteger,
     lua_isnumber, lua_isstring, lua_len, lua_load, lua_newuserdatauv, lua_next, lua_pushboolean,
     lua_pushcclosure, lua_pushinteger, lua_pushlightuserdata, lua_pushlstring, lua_pushnil,
@@ -21,9 +21,7 @@ use crate::lapi::{
     lua_touserdata, lua_type, lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
-use crate::lstate::{
-    CallInfo, lua_Alloc, lua_CFunction, lua_Debug, lua_KContext, lua_State, lua_newstate,
-};
+use crate::lstate::{CallInfo, lua_Alloc, lua_CFunction, lua_Debug, lua_State, lua_newstate};
 use libc::{FILE, free, memcpy, realloc, strcmp, strlen, strncmp, strstr};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::fmt::Display;
@@ -1017,18 +1015,15 @@ pub unsafe fn luaL_callmeta(
     mut event: *const libc::c_char,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     obj = lua_absindex(L, obj);
+
     if luaL_getmetafield(L, obj, event)? == 0 as libc::c_int {
         return Ok(0 as libc::c_int);
     }
+
     lua_pushvalue(L, obj);
-    lua_callk(
-        L,
-        1 as libc::c_int,
-        1 as libc::c_int,
-        0 as libc::c_int as lua_KContext,
-        None,
-    )?;
-    return Ok(1 as libc::c_int);
+    lua_call(L, 1, 1)?;
+
+    return Ok(1);
 }
 
 pub unsafe fn luaL_len(
@@ -1168,13 +1163,7 @@ pub unsafe fn luaL_requiref(
         lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
         lua_pushcclosure(L, openf, 0 as libc::c_int);
         lua_pushstring(L, modname);
-        lua_callk(
-            L,
-            1 as libc::c_int,
-            1 as libc::c_int,
-            0 as libc::c_int as lua_KContext,
-            None,
-        )?;
+        lua_call(L, 1, 1)?;
         lua_pushvalue(L, -(1 as libc::c_int));
         lua_setfield(L, -(3 as libc::c_int), modname)?;
     }

@@ -417,7 +417,7 @@ pub unsafe extern "C" fn luaT_adjustvarargs(
     let mut actual: libc::c_int =
         ((*L).top.p).offset_from((*ci).func.p) as libc::c_long as libc::c_int - 1 as libc::c_int;
     let mut nextra: libc::c_int = actual - nfixparams;
-    (*ci).u.l.nextraargs = nextra;
+    (*ci).u.nextraargs = nextra;
     if ((((*L).stack_last.p).offset_from((*L).top.p) as libc::c_long
         <= ((*p).maxstacksize as libc::c_int + 1 as libc::c_int) as libc::c_long)
         as libc::c_int
@@ -460,7 +460,7 @@ pub unsafe extern "C" fn luaT_getvarargs(
     mut wanted: libc::c_int,
 ) {
     let mut i: libc::c_int = 0;
-    let mut nextra: libc::c_int = (*ci).u.l.nextraargs;
+    let mut nextra: libc::c_int = (*ci).u.nextraargs;
     if wanted < 0 as libc::c_int {
         wanted = nextra;
         if ((((*L).stack_last.p).offset_from((*L).top.p) as libc::c_long <= nextra as libc::c_long)
