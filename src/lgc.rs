@@ -11,7 +11,7 @@
 #![allow(unused_parens)]
 #![allow(unused_variables)]
 
-use crate::ldo::{luaD_callnoyield, luaD_pcall, luaD_shrinkstack};
+use crate::ldo::{luaD_call, luaD_pcall, luaD_shrinkstack};
 use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
 use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::lobject::{
@@ -1085,7 +1085,7 @@ unsafe fn GCTM(mut L: *mut lua_State) {
             L,
             (((*L).top.p).offset(-2) as *mut libc::c_char)
                 .offset_from((*L).stack.p as *mut libc::c_char),
-            |L| luaD_callnoyield(L, ((*L).top.p).offset(-2), 0),
+            |L| luaD_call(L, ((*L).top.p).offset(-2), 0),
         ));
 
         (*(*L).ci).callstatus = ((*(*L).ci).callstatus as libc::c_int

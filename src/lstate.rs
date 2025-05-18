@@ -11,8 +11,7 @@
 #![allow(unused_variables)]
 
 use crate::api_incr_top;
-use crate::ldebug::luaG_runerror;
-use crate::ldo::{luaD_closeprotected, luaD_rawrunprotected, luaD_reallocstack};
+use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
 use crate::lfunc::luaF_closeupval;
 use crate::lgc::{luaC_freeallobjects, luaC_newobjdt, luaC_step};
 use crate::llex::luaX_init;
@@ -53,7 +52,6 @@ pub struct lua_State {
     pub(crate) twups: *mut lua_State,
     pub(crate) base_ci: CallInfo,
     pub(crate) hook: lua_Hook,
-    pub(crate) nCcalls: u32,
     pub(crate) oldpc: libc::c_int,
     pub(crate) basehookcount: libc::c_int,
     pub(crate) hookcount: libc::c_int,
@@ -79,7 +77,7 @@ pub struct lua_Debug {
     pub ftransfer: libc::c_ushort,
     pub ntransfer: libc::c_ushort,
     pub short_src: [libc::c_char; 60],
-    pub i_ci: *mut CallInfo,
+    pub(crate) i_ci: *mut CallInfo,
 }
 
 #[derive(Copy, Clone)]
@@ -256,27 +254,6 @@ pub unsafe extern "C" fn luaE_shrinkCI(mut L: *mut lua_State) {
     }
 }
 
-pub unsafe fn luaE_checkcstack(L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
-    if (*L).nCcalls & 0xffff as libc::c_int as u32 == 200 as libc::c_int as u32 {
-        luaG_runerror(L, "C stack overflow")
-    } else if (*L).nCcalls & 0xffff >= (200 / 10 * 11) {
-        panic!("LUA_ERRERR");
-    } else {
-        Ok(())
-    }
-}
-
-pub unsafe fn luaE_incCstack(mut L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
-    (*L).nCcalls = ((*L).nCcalls).wrapping_add(1);
-    (*L).nCcalls;
-
-    if (*L).nCcalls & 0xffff >= 200 {
-        luaE_checkcstack(L)?;
-    }
-
-    Ok(())
-}
-
 unsafe extern "C" fn stack_init(mut L1: *mut lua_State, mut L: *mut lua_State) {
     let mut i: libc::c_int = 0;
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
@@ -361,13 +338,24 @@ unsafe fn init_registry(
     Ok(())
 }
 
+unsafe fn f_luaopen(L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
+    let mut g = (*L).l_G;
+    stack_init(L, L);
+    init_registry(L, g)?;
+    luaS_init(L)?;
+    luaT_init(L)?;
+    luaX_init(L)?;
+    (*g).gcstp = 0;
+    (*g).nilvalue.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+    Ok(())
+}
+
 unsafe fn preinit_thread(mut L: *mut lua_State, mut g: *mut global_State) {
     (*L).l_G = g;
     (*L).stack.p = 0 as StkId;
     (*L).ci = 0 as *mut CallInfo;
     (*L).nci = 0 as libc::c_int as libc::c_ushort;
     (*L).twups = L;
-    (*L).nCcalls = 0 as libc::c_int as u32;
     ::core::ptr::write_volatile(&mut (*L).hook as *mut lua_Hook, None);
     ::core::ptr::write_volatile(&mut (*L).hookmask as *mut libc::c_int, 0 as libc::c_int);
     (*L).basehookcount = 0 as libc::c_int;
@@ -462,12 +450,6 @@ pub unsafe fn lua_closethread(
     mut L: *mut lua_State,
     mut from: *mut lua_State,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    (*L).nCcalls = if !from.is_null() {
-        (*from).nCcalls & 0xffff as libc::c_int as u32
-    } else {
-        0 as libc::c_int as u32
-    };
-
     luaE_resetthread(L)
 }
 
@@ -493,7 +475,6 @@ pub unsafe fn lua_newstate() -> *mut lua_State {
     preinit_thread(L, g);
     (*g).allgc = L as *mut GCObject;
     (*L).next = 0 as *mut GCObject;
-    (*L).nCcalls = ((*L).nCcalls).wrapping_add(0x10000 as libc::c_int as u32);
     (*g).mainthread = L;
     (*g).seed = rand::random();
     (*g).gcstp = 2 as libc::c_int as u8;
@@ -540,19 +521,7 @@ pub unsafe fn lua_newstate() -> *mut lua_State {
         i += 1;
     }
 
-    if luaD_rawrunprotected(L, |L| {
-        let mut g = (*L).l_G;
-        stack_init(L, L);
-        init_registry(L, g)?;
-        luaS_init(L)?;
-        luaT_init(L)?;
-        luaX_init(L)?;
-        (*g).gcstp = 0;
-        (*g).nilvalue.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
-        Ok(())
-    })
-    .is_err()
-    {
+    if f_luaopen(L).is_err() {
         close_state(L);
         L = 0 as *mut lua_State;
     }

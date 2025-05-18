@@ -11,7 +11,7 @@
 #![allow(path_statements)]
 
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
-use crate::ldo::{luaD_call, luaD_callnoyield, luaD_growstack};
+use crate::ldo::{luaD_call, luaD_growstack};
 use crate::lgc::{luaC_fix, luaC_step};
 use crate::lobject::{GCObject, Proto, StkId, TString, TValue, Table, Udata, Value};
 use crate::lstate::{CallInfo, lua_State};
@@ -205,14 +205,7 @@ pub unsafe fn luaT_callTM(
     (*io1_2).tt_ = (*io2_2).tt_;
     (*L).top.p = func.offset(4 as libc::c_int as isize);
 
-    if (*(*L).ci).callstatus as libc::c_int
-        & ((1 as libc::c_int) << 1 as libc::c_int | (1 as libc::c_int) << 3 as libc::c_int)
-        == 0
-    {
-        luaD_call(L, func, 0 as libc::c_int)
-    } else {
-        luaD_callnoyield(L, func, 0 as libc::c_int)
-    }
+    luaD_call(L, func, 0 as libc::c_int)
 }
 
 pub unsafe fn luaT_callTMres(
@@ -239,14 +232,7 @@ pub unsafe fn luaT_callTMres(
     (*io1_1).tt_ = (*io2_1).tt_;
     (*L).top.p = ((*L).top.p).offset(3 as libc::c_int as isize);
 
-    if (*(*L).ci).callstatus as libc::c_int
-        & ((1 as libc::c_int) << 1 as libc::c_int | (1 as libc::c_int) << 3 as libc::c_int)
-        == 0
-    {
-        luaD_call(L, func, 1 as libc::c_int)?;
-    } else {
-        luaD_callnoyield(L, func, 1 as libc::c_int)?;
-    }
+    luaD_call(L, func, 1 as libc::c_int)?;
 
     res = ((*L).stack.p as *mut libc::c_char).offset(result as isize) as StkId;
     let mut io1_2: *mut TValue = &mut (*res).val;

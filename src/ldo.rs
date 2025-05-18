@@ -15,8 +15,7 @@ use crate::lmem::{luaM_free_, luaM_realloc_, luaM_saferealloc_};
 use crate::lobject::{CClosure, LClosure, Proto, StackValue, StkId, TValue, UpVal};
 use crate::lparser::{C2RustUnnamed_9, Dyndata, Labeldesc, Labellist, Vardesc, luaY_parser};
 use crate::lstate::{
-    CallInfo, lua_CFunction, lua_Debug, lua_Hook, lua_State, luaE_checkcstack, luaE_extendCI,
-    luaE_shrinkCI,
+    CallInfo, lua_CFunction, lua_Debug, lua_Hook, lua_State, luaE_extendCI, luaE_shrinkCI,
 };
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lundump::luaU_undump;
@@ -38,22 +37,6 @@ struct SParser {
 pub struct CloseP {
     pub level: StkId,
     pub status: Result<(), Box<dyn std::error::Error>>,
-}
-
-#[inline(always)]
-pub unsafe fn luaD_rawrunprotected<F>(
-    L: *mut lua_State,
-    f: F,
-) -> Result<(), Box<dyn std::error::Error>>
-where
-    F: FnOnce(*mut lua_State) -> Result<(), Box<dyn std::error::Error>>,
-{
-    let oldnCcalls = (*L).nCcalls;
-    let r = f(L);
-
-    (*L).nCcalls = oldnCcalls;
-
-    r
 }
 
 unsafe extern "C" fn relstack(L: *mut lua_State) {
@@ -424,7 +407,7 @@ unsafe fn moveresults(
                     | (1 as libc::c_int) << 9 as libc::c_int)
                     as libc::c_ushort;
                 (*(*L).ci).u2.nres = nres;
-                res = luaF_close(L, res, 1)?;
+                res = luaF_close(L, res)?;
                 (*(*L).ci).callstatus = ((*(*L).ci).callstatus as libc::c_int
                     & !((1 as libc::c_int) << 9 as libc::c_int))
                     as libc::c_ushort;
@@ -687,58 +670,19 @@ pub unsafe fn luaD_precall(
     }
 }
 
-unsafe fn ccall(
-    L: *mut lua_State,
-    mut func: StkId,
-    nResults: libc::c_int,
-    inc: u32,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut ci: *mut CallInfo = 0 as *mut CallInfo;
-    (*L).nCcalls = ((*L).nCcalls).wrapping_add(inc);
-    if (((*L).nCcalls & 0xffff as libc::c_int as u32 >= 200 as libc::c_int as u32) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
-        != 0
-    {
-        if ((((*L).stack_last.p).offset_from((*L).top.p) as libc::c_long
-            <= 0 as libc::c_int as libc::c_long) as libc::c_int
-            != 0 as libc::c_int) as libc::c_int as libc::c_long
-            != 0
-        {
-            let t__: isize =
-                (func as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
-            luaD_growstack(L, 0)?;
-            func = ((*L).stack.p as *mut libc::c_char).offset(t__ as isize) as StkId;
-        }
-        luaE_checkcstack(L)?;
-    }
-    ci = luaD_precall(L, func, nResults)?;
-    if !ci.is_null() {
-        (*ci).callstatus = ((1 as libc::c_int) << 2 as libc::c_int) as libc::c_ushort;
-        luaV_execute(L, ci)?;
-    }
-    (*L).nCcalls = ((*L).nCcalls).wrapping_sub(inc);
-    Ok(())
-}
-
 pub unsafe fn luaD_call(
     L: *mut lua_State,
     func: StkId,
     nResults: c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    ccall(L, func, nResults, 1 as libc::c_int as u32)
-}
+    let ci = luaD_precall(L, func, nResults)?;
 
-pub unsafe fn luaD_callnoyield(
-    L: *mut lua_State,
-    func: StkId,
-    nResults: c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
-    ccall(
-        L,
-        func,
-        nResults,
-        (0x10000 as libc::c_int | 1 as libc::c_int) as u32,
-    )
+    if !ci.is_null() {
+        (*ci).callstatus = ((1 as libc::c_int) << 2 as libc::c_int) as libc::c_ushort;
+        luaV_execute(L, ci)?;
+    }
+
+    Ok(())
 }
 
 unsafe fn finishCcall(
@@ -782,10 +726,7 @@ pub unsafe fn luaD_closeprotected(
             status,
         };
 
-        status = luaD_rawrunprotected(L, |L| {
-            luaF_close(L, pcl.level, 0)?;
-            Ok(())
-        });
+        status = luaF_close(L, pcl.level).map(|_| ());
 
         if status.is_ok() {
             return pcl.status;
@@ -806,7 +747,7 @@ where
 {
     let old_ci = (*L).ci;
     let old_allowhooks: u8 = (*L).allowhook;
-    let mut status = luaD_rawrunprotected(L, f);
+    let mut status = f(L);
 
     if status.is_err() {
         (*L).ci = old_ci;
@@ -881,8 +822,6 @@ pub unsafe fn luaD_protectedparser(
     p.buff.buffer = 0 as *mut libc::c_char;
     p.buff.buffsize = 0 as libc::c_int as usize;
 
-    (*L).nCcalls = ((*L).nCcalls).wrapping_add(0x10000 as libc::c_int as u32);
-
     // Parse.
     let status = luaD_pcall(
         L,
@@ -936,7 +875,6 @@ pub unsafe fn luaD_protectedparser(
         p.dyd.label.arr as *mut libc::c_void,
         (p.dyd.label.size as usize).wrapping_mul(::core::mem::size_of::<Labeldesc>()),
     );
-    (*L).nCcalls = ((*L).nCcalls).wrapping_sub(0x10000 as libc::c_int as u32);
 
     status
 }

@@ -38,7 +38,7 @@ use crate::lopcodes::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_FORLOOP, OP_FORPREP, OP_GETUPVAL, OP_MOVE, OP_NEWTABLE,
     OP_TAILCALL, OP_TBC, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_VARARG, OP_VARARGPREP, OpCode,
 };
-use crate::lstate::{lua_State, luaE_incCstack};
+use crate::lstate::lua_State;
 use crate::lstring::{luaS_new, luaS_newlstr};
 use crate::ltable::luaH_new;
 use crate::lzio::{Mbuffer, ZIO};
@@ -1893,8 +1893,9 @@ unsafe fn subexpr(
 ) -> Result<BinOpr, Box<dyn std::error::Error>> {
     let mut op: BinOpr = OPR_ADD;
     let mut uop: UnOpr = OPR_MINUS;
-    luaE_incCstack((*ls).L)?;
+
     uop = getunopr((*ls).t.token);
+
     if uop as libc::c_uint != OPR_NOUNOPR as libc::c_int as libc::c_uint {
         let mut line: libc::c_int = (*ls).linenumber;
         luaX_next(ls)?;
@@ -1921,8 +1922,7 @@ unsafe fn subexpr(
         luaK_posfix((*ls).fs, op, v, &mut v2, line_0)?;
         op = nextop;
     }
-    (*(*ls).L).nCcalls = ((*(*ls).L).nCcalls).wrapping_sub(1);
-    (*(*ls).L).nCcalls;
+
     return Ok(op);
 }
 
@@ -2047,10 +2047,8 @@ unsafe fn restassign(
         {
             check_conflict(ls, lh, &mut nv.v)?;
         }
-        luaE_incCstack((*ls).L)?;
+
         restassign(ls, &mut nv, nvars + 1 as libc::c_int)?;
-        (*(*ls).L).nCcalls = ((*(*ls).L).nCcalls).wrapping_sub(1);
-        (*(*ls).L).nCcalls;
     } else {
         let mut nexps: libc::c_int = 0;
         checknext(ls, '=' as i32)?;
@@ -2806,7 +2804,7 @@ unsafe fn retstat(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error
 
 unsafe fn statement(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
     let mut line: libc::c_int = (*ls).linenumber;
-    luaE_incCstack((*ls).L)?;
+
     match (*ls).t.token {
         59 => luaX_next(ls)?,
         266 => ifstat(ls, line)?,
@@ -2844,9 +2842,9 @@ unsafe fn statement(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Err
             exprstat(ls)?;
         }
     }
+
     (*(*ls).fs).freereg = luaY_nvarstack((*ls).fs) as u8;
-    (*(*ls).L).nCcalls = ((*(*ls).L).nCcalls).wrapping_sub(1);
-    (*(*ls).L).nCcalls;
+
     Ok(())
 }
 

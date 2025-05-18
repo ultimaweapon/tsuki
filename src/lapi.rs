@@ -8,7 +8,7 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::ldo::{luaD_callnoyield, luaD_growstack, luaD_pcall, luaD_protectedparser};
+use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall, luaD_protectedparser};
 use crate::ldump::luaU_dump;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lgc::{
@@ -162,7 +162,7 @@ pub unsafe fn lua_settop(
     }
     newtop = ((*L).top.p).offset(diff as isize);
     if diff < 0 as libc::c_int as isize && (*L).tbclist.p >= newtop {
-        newtop = luaF_close(L, newtop, 0)?;
+        newtop = luaF_close(L, newtop)?;
     }
     (*L).top.p = newtop;
     Ok(())
@@ -174,7 +174,7 @@ pub unsafe fn lua_closeslot(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut level: StkId = 0 as *mut StackValue;
     level = index2stack(L, idx);
-    level = luaF_close(L, level, 0)?;
+    level = luaF_close(L, level)?;
     (*level).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     Ok(())
 }
@@ -1413,7 +1413,7 @@ pub unsafe fn lua_call(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let func = ((*L).top.p).offset(-((nargs + 1) as isize));
 
-    luaD_callnoyield(L, func, nresults)?;
+    luaD_call(L, func, nresults)?;
 
     if nresults <= -1 && (*(*L).ci).top.p < (*L).top.p {
         (*(*L).ci).top.p = (*L).top.p;
@@ -1432,7 +1432,7 @@ pub unsafe fn lua_pcall(
     let status = luaD_pcall(
         L,
         (c.func as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char),
-        |L| luaD_callnoyield(L, c.func, c.nresults),
+        |L| luaD_call(L, c.func, c.nresults),
     );
 
     if nresults <= -1 && (*(*L).ci).top.p < (*L).top.p {

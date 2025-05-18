@@ -4386,7 +4386,7 @@ pub unsafe fn luaV_execute(
                         );
                         (*ci).u.savedpc = pc;
                         (*L).top.p = (*ci).top.p;
-                        luaF_close(L, ra_52, 1)?;
+                        luaF_close(L, ra_52)?;
                         trap = (*ci).u.trap;
                         continue;
                     }
@@ -5262,7 +5262,7 @@ pub unsafe fn luaV_execute(
                             if (*L).top.p < (*ci).top.p {
                                 (*L).top.p = (*ci).top.p;
                             }
-                            luaF_close(L, base, 1)?;
+                            luaF_close(L, base)?;
                             trap = (*ci).u.trap;
                             if (trap != 0 as libc::c_int) as libc::c_int as libc::c_long != 0 {
                                 base = ((*ci).func.p).offset(1 as libc::c_int as isize);

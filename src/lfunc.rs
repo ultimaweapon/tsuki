@@ -11,7 +11,7 @@
 #![allow(path_statements)]
 
 use crate::ldebug::{luaG_findlocal, luaG_runerror};
-use crate::ldo::{luaD_call, luaD_callnoyield};
+use crate::ldo::luaD_call;
 use crate::lgc::{luaC_barrier_, luaC_newobj};
 use crate::lmem::luaM_free_;
 use crate::lobject::{
@@ -141,7 +141,6 @@ unsafe fn callclosemethod(
     mut L: *mut lua_State,
     mut obj: *mut TValue,
     mut err: *mut TValue,
-    mut yy: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut top: StkId = (*L).top.p;
     let mut tm: *const TValue = luaT_gettmbyobj(L, obj, TM_CLOSE);
@@ -158,11 +157,8 @@ unsafe fn callclosemethod(
     (*io1_1).value_ = (*io2_1).value_;
     (*io1_1).tt_ = (*io2_1).tt_;
     (*L).top.p = top.offset(3 as libc::c_int as isize);
-    if yy != 0 {
-        luaD_call(L, top, 0 as libc::c_int)
-    } else {
-        luaD_callnoyield(L, top, 0 as libc::c_int)
-    }
+
+    luaD_call(L, top, 0 as libc::c_int)
 }
 
 unsafe fn checkclosemth(
@@ -192,12 +188,11 @@ unsafe fn checkclosemth(
 unsafe fn prepcallclosemth(
     L: *mut lua_State,
     level: StkId,
-    yy: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut uv: *mut TValue = &mut (*level).val;
     let errobj = &raw mut (*(*L).l_G).nilvalue;
 
-    callclosemethod(L, uv, errobj, yy)
+    callclosemethod(L, uv, errobj)
 }
 
 pub unsafe fn luaF_newtbcupval(
@@ -298,7 +293,6 @@ unsafe extern "C" fn poptbclist(mut L: *mut lua_State) {
 pub unsafe fn luaF_close(
     mut L: *mut lua_State,
     mut level: StkId,
-    mut yy: libc::c_int,
 ) -> Result<StkId, Box<dyn std::error::Error>> {
     let mut levelrel = (level as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
 
@@ -307,7 +301,7 @@ pub unsafe fn luaF_close(
     while (*L).tbclist.p >= level {
         let mut tbc: StkId = (*L).tbclist.p;
         poptbclist(L);
-        prepcallclosemth(L, tbc, yy)?;
+        prepcallclosemth(L, tbc)?;
         level = ((*L).stack.p as *mut libc::c_char).offset(levelrel as isize) as StkId;
     }
 
