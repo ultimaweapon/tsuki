@@ -20,7 +20,7 @@ use crate::lobject::{
     GCObject, Node, TString, TValue, Table, Value, luaO_hexavalue, luaO_str2num, luaO_utf8esc,
 };
 use crate::lparser::{Dyndata, FuncState};
-use crate::lstate::{GCUnion, lua_State};
+use crate::lstate::lua_State;
 use crate::lstring::luaS_newlstr;
 use crate::ltable::{luaH_finishset, luaH_getstr};
 use crate::lzio::{Mbuffer, ZIO, luaZ_fill};
@@ -180,7 +180,7 @@ pub unsafe fn luaX_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error:
             .wrapping_div(::core::mem::size_of::<libc::c_char>())
             .wrapping_sub(1),
     )?;
-    luaC_fix(L, &mut (*(e as *mut GCUnion)).gc);
+    luaC_fix(L, (e as *mut GCObject));
     i = 0 as libc::c_int;
     while i < TK_WHILE as libc::c_int - (255 as libc::c_int + 1 as libc::c_int) + 1 as libc::c_int {
         let mut ts: *mut TString = luaS_newlstr(
@@ -188,7 +188,7 @@ pub unsafe fn luaX_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error:
             luaX_tokens[i as usize].as_ptr().cast(),
             luaX_tokens[i as usize].len(),
         )?;
-        luaC_fix(L, &mut (*(ts as *mut GCUnion)).gc);
+        luaC_fix(L, (ts as *mut GCObject));
         (*ts).extra = (i + 1 as libc::c_int) as u8;
         i += 1;
         i;
@@ -263,14 +263,14 @@ pub unsafe fn luaX_newstring(
     let mut ts: *mut TString = luaS_newlstr(L, str, l)?;
     let mut o: *const TValue = luaH_getstr((*ls).h, ts);
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
-        ts = &mut (*((*(o as *mut Node)).u.key_val.gc as *mut GCUnion)).ts;
+        ts = ((*(o as *mut Node)).u.key_val.gc as *mut TString);
     } else {
         let fresh1 = (*L).top.p;
         (*L).top.p = ((*L).top.p).offset(1);
         let mut stv: *mut TValue = &mut (*fresh1).val;
         let mut io: *mut TValue = stv;
         let mut x_: *mut TString = ts;
-        (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
+        (*io).value_.gc = (x_ as *mut GCObject);
         (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         luaH_finishset(L, (*ls).h, stv, o, stv)?;
         if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {

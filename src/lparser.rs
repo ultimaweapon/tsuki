@@ -32,13 +32,13 @@ use crate::llex::{
 };
 use crate::lmem::{luaM_growaux_, luaM_shrinkvector_};
 use crate::lobject::{
-    AbsLineInfo, LClosure, LocVar, Proto, TString, TValue, Table, Upvaldesc, Value,
+    AbsLineInfo, GCObject, LClosure, LocVar, Proto, TString, TValue, Table, Upvaldesc, Value,
 };
 use crate::lopcodes::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_FORLOOP, OP_FORPREP, OP_GETUPVAL, OP_MOVE, OP_NEWTABLE,
     OP_TAILCALL, OP_TBC, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_VARARG, OP_VARARGPREP, OpCode,
 };
-use crate::lstate::{GCUnion, lua_State, luaE_incCstack};
+use crate::lstate::{lua_State, luaE_incCstack};
 use crate::lstring::{luaS_new, luaS_newlstr};
 use crate::ltable::luaH_new;
 use crate::lzio::{Mbuffer, ZIO};
@@ -376,11 +376,7 @@ unsafe fn registerlocalvar(
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
-        luaC_barrier_(
-            (*ls).L,
-            &mut (*(f as *mut GCUnion)).gc,
-            &mut (*(varname as *mut GCUnion)).gc,
-        );
+        luaC_barrier_((*ls).L, f as *mut GCObject, varname as *mut GCObject);
     } else {
     };
     let fresh3 = (*fs).ndebugvars;
@@ -625,8 +621,8 @@ unsafe fn newupvalue(
     {
         luaC_barrier_(
             (*(*fs).ls).L,
-            &mut (*((*fs).f as *mut GCUnion)).gc,
-            &mut (*(name as *mut GCUnion)).gc,
+            (*fs).f as *mut GCObject,
+            name as *mut GCObject,
         );
     } else {
     };
@@ -1051,11 +1047,7 @@ unsafe fn addprototype(mut ls: *mut LexState) -> Result<*mut Proto, Box<dyn std:
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
-        luaC_barrier_(
-            L,
-            &mut (*(f as *mut GCUnion)).gc,
-            &mut (*(clp as *mut GCUnion)).gc,
-        );
+        luaC_barrier_(L, f as *mut GCObject, clp as *mut GCObject);
     } else {
     };
     return Ok(clp);
@@ -1109,11 +1101,7 @@ unsafe extern "C" fn open_func(
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
-        luaC_barrier_(
-            (*ls).L,
-            &mut (*(f as *mut GCUnion)).gc,
-            &mut (*((*f).source as *mut GCUnion)).gc,
-        );
+        luaC_barrier_((*ls).L, f as *mut GCObject, (*f).source as *mut GCObject);
     } else {
     };
     (*f).maxstacksize = 2 as libc::c_int as u8;
@@ -2890,8 +2878,8 @@ unsafe fn mainfunc(
     {
         luaC_barrier_(
             (*ls).L,
-            &mut (*((*fs).f as *mut GCUnion)).gc,
-            &mut (*((*env).name as *mut GCUnion)).gc,
+            (*fs).f as *mut GCObject,
+            (*env).name as *mut GCObject,
         );
     } else {
     };
@@ -2954,7 +2942,7 @@ pub unsafe fn luaY_parser(
     let mut cl: *mut LClosure = luaF_newLclosure(L, 1 as libc::c_int);
     let mut io: *mut TValue = &mut (*(*L).top.p).val;
     let mut x_: *mut LClosure = cl;
-    (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
+    (*io).value_.gc = x_ as *mut GCObject;
     (*io).tt_ = (6 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -2962,7 +2950,7 @@ pub unsafe fn luaY_parser(
     lexstate.h = luaH_new(L)?;
     let mut io_0: *mut TValue = &mut (*(*L).top.p).val;
     let mut x__0: *mut Table = lexstate.h;
-    (*io_0).value_.gc = &mut (*(x__0 as *mut GCUnion)).gc;
+    (*io_0).value_.gc = x__0 as *mut GCObject;
     (*io_0).tt_ = (5 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -2974,11 +2962,7 @@ pub unsafe fn luaY_parser(
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
-        luaC_barrier_(
-            L,
-            &mut (*(cl as *mut GCUnion)).gc,
-            &mut (*((*cl).p as *mut GCUnion)).gc,
-        );
+        luaC_barrier_(L, cl as *mut GCObject, (*cl).p as *mut GCObject);
     } else {
     };
     (*funcstate.f).source = luaS_new(L, name)?;
@@ -2989,8 +2973,8 @@ pub unsafe fn luaY_parser(
     {
         luaC_barrier_(
             L,
-            &mut (*(funcstate.f as *mut GCUnion)).gc,
-            &mut (*((*funcstate.f).source as *mut GCUnion)).gc,
+            funcstate.f as *mut GCObject,
+            (*funcstate.f).source as *mut GCObject,
         );
     } else {
     };

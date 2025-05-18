@@ -14,7 +14,7 @@
 use crate::lgc::{luaC_fix, luaC_fullgc, luaC_newobj};
 use crate::lmem::{luaM_malloc_, luaM_realloc_, luaM_toobig};
 use crate::lobject::{GCObject, TString, Table, UValue, Udata};
-use crate::lstate::{GCUnion, global_State, lua_State, stringtable};
+use crate::lstate::{global_State, lua_State, stringtable};
 use libc::{memcmp, memcpy, strcmp, strlen};
 
 #[unsafe(no_mangle)]
@@ -161,7 +161,7 @@ pub unsafe fn luaS_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error:
             .wrapping_div(::core::mem::size_of::<libc::c_char>())
             .wrapping_sub(1),
     )?;
-    luaC_fix(L, &mut (*((*g).memerrmsg as *mut GCUnion)).gc);
+    luaC_fix(L, ((*g).memerrmsg as *mut GCObject));
 
     i = 0 as libc::c_int;
     while i < 53 as libc::c_int {
@@ -191,7 +191,7 @@ unsafe extern "C" fn createstrobj(
             .wrapping_mul(::core::mem::size_of::<libc::c_char>()),
     );
     o = luaC_newobj(L, tag, totalsize);
-    ts = &mut (*(o as *mut GCUnion)).ts;
+    ts = (o as *mut TString);
     (*ts).hash = h;
     (*ts).extra = 0 as libc::c_int as u8;
     *((*ts).contents).as_mut_ptr().offset(l as isize) = '\0' as i32 as libc::c_char;
@@ -408,7 +408,7 @@ pub unsafe fn luaS_newudata(
         })
         .wrapping_add(s),
     );
-    u = &mut (*(o as *mut GCUnion)).u;
+    u = (o as *mut Udata);
     (*u).len = s;
     (*u).nuvalue = nuvalue as libc::c_ushort;
     (*u).metatable = 0 as *mut Table;

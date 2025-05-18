@@ -15,10 +15,10 @@ use crate::ldo::{luaD_call, luaD_callnoyield};
 use crate::lgc::{luaC_barrier_, luaC_newobj};
 use crate::lmem::luaM_free_;
 use crate::lobject::{
-    AbsLineInfo, CClosure, GCObject, LClosure, LocVar, Proto, StackValue, StkId, TString, TValue,
-    UpVal, Upvaldesc,
+    AbsLineInfo, CClosure, Closure, GCObject, LClosure, LocVar, Proto, StackValue, StkId, TString,
+    TValue, UpVal, Upvaldesc,
 };
-use crate::lstate::{GCUnion, lua_State};
+use crate::lstate::lua_State;
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
 use std::ffi::CStr;
 
@@ -34,7 +34,7 @@ pub unsafe extern "C" fn luaF_newCclosure(
             + ::core::mem::size_of::<TValue>() as libc::c_ulong as libc::c_int * nupvals)
             as usize,
     );
-    let mut c: *mut CClosure = &mut (*(o as *mut GCUnion)).cl.c;
+    let mut c: *mut CClosure = &mut (*(o as *mut Closure)).c;
     (*c).nupvalues = nupvals as u8;
     return c;
 }
@@ -51,7 +51,7 @@ pub unsafe extern "C" fn luaF_newLclosure(
             + ::core::mem::size_of::<*mut TValue>() as libc::c_ulong as libc::c_int * nupvals)
             as usize,
     );
-    let mut c: *mut LClosure = &mut (*(o as *mut GCUnion)).cl.l;
+    let mut c: *mut LClosure = &mut (*(o as *mut Closure)).l;
     (*c).p = 0 as *mut Proto;
     (*c).nupvalues = nupvals as u8;
     loop {
@@ -76,7 +76,7 @@ pub unsafe extern "C" fn luaF_initupvals(mut L: *mut lua_State, mut cl: *mut LCl
             9 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int,
             ::core::mem::size_of::<UpVal>(),
         );
-        let mut uv: *mut UpVal = &mut (*(o as *mut GCUnion)).upv;
+        let mut uv: *mut UpVal = o as *mut UpVal;
         (*uv).v.p = &mut (*uv).u.value;
         (*(*uv).v.p).tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
         let ref mut fresh2 = *((*cl).upvals).as_mut_ptr().offset(i as isize);
@@ -86,11 +86,7 @@ pub unsafe extern "C" fn luaF_initupvals(mut L: *mut lua_State, mut cl: *mut LCl
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            luaC_barrier_(
-                L,
-                &mut (*(cl as *mut GCUnion)).gc,
-                &mut (*(uv as *mut GCUnion)).gc,
-            );
+            luaC_barrier_(L, cl as *mut GCObject, uv as *mut GCObject);
         } else {
         };
         i += 1;
@@ -108,7 +104,7 @@ unsafe extern "C" fn newupval(
         9 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int,
         ::core::mem::size_of::<UpVal>(),
     );
-    let mut uv: *mut UpVal = &mut (*(o as *mut GCUnion)).upv;
+    let mut uv: *mut UpVal = o as *mut UpVal;
     let mut next: *mut UpVal = *prev;
     (*uv).v.p = &mut (*level).val;
     (*uv).u.open.next = next;
@@ -275,11 +271,7 @@ pub unsafe extern "C" fn luaF_closeupval(mut L: *mut lua_State, mut level: StkId
                             | (1 as libc::c_int) << 4 as libc::c_int)
                         != 0
                 {
-                    luaC_barrier_(
-                        L,
-                        &mut (*(uv as *mut GCUnion)).gc,
-                        &mut (*((*slot).value_.gc as *mut GCUnion)).gc,
-                    );
+                    luaC_barrier_(L, uv as *mut GCObject, (*slot).value_.gc as *mut GCObject);
                 } else {
                 };
             } else {
@@ -329,7 +321,7 @@ pub unsafe extern "C" fn luaF_newproto(mut L: *mut lua_State) -> *mut Proto {
         9 as libc::c_int + 1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int,
         ::core::mem::size_of::<Proto>(),
     );
-    let mut f: *mut Proto = &mut (*(o as *mut GCUnion)).p;
+    let mut f: *mut Proto = o as *mut Proto;
     (*f).k = 0 as *mut TValue;
     (*f).sizek = 0 as libc::c_int;
     (*f).p = 0 as *mut *mut Proto;

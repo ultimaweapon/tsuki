@@ -29,7 +29,7 @@ use crate::lparser::{
     VKFLT, VKINT, VKSTR, VLOCAL, VNIL, VNONRELOC, VRELOC, VTRUE, VUPVAL, VVARARG, expdesc,
     luaY_nvarstack,
 };
-use crate::lstate::{GCUnion, lua_State};
+use crate::lstate::lua_State;
 use crate::ltable::{luaH_finishset, luaH_get};
 use crate::ltm::{TM_ADD, TM_SHL, TM_SHR, TM_SUB, TMS};
 use crate::lvm::{F2Ieq, luaV_equalobj, luaV_flttointeger, luaV_tointegerns};
@@ -133,7 +133,7 @@ pub unsafe extern "C" fn luaK_exp2const(
         7 => {
             let mut io: *mut TValue = v;
             let mut x_: *mut TString = (*e).u.strval;
-            (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
+            (*io).value_.gc = x_ as *mut GCObject;
             (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
             return 1 as libc::c_int;
         }
@@ -800,11 +800,7 @@ unsafe fn addk(
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            luaC_barrier_(
-                L,
-                &mut (*(f as *mut GCUnion)).gc,
-                &mut (*((*v).value_.gc as *mut GCUnion)).gc,
-            );
+            luaC_barrier_(L, f as *mut GCObject, (*v).value_.gc as *mut GCObject);
         } else {
         };
     } else {
@@ -824,7 +820,7 @@ unsafe fn stringK(
     };
     let mut io: *mut TValue = &mut o;
     let mut x_: *mut TString = s;
-    (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
+    (*io).value_.gc = x_ as *mut GCObject;
     (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     return addk(fs, &mut o, &mut o);
 }
@@ -920,7 +916,7 @@ unsafe fn nilK(mut fs: *mut FuncState) -> Result<c_int, Box<dyn std::error::Erro
     v.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     let mut io: *mut TValue = &mut k;
     let mut x_: *mut Table = (*(*fs).ls).h;
-    (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
+    (*io).value_.gc = x_ as *mut GCObject;
     (*io).tt_ = (5 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -996,7 +992,7 @@ unsafe extern "C" fn const2exp(mut v: *mut TValue, mut e: *mut expdesc) {
         }
         4 | 20 => {
             (*e).k = VKSTR;
-            (*e).u.strval = &mut (*((*v).value_.gc as *mut GCUnion)).ts;
+            (*e).u.strval = (*v).value_.gc as *mut TString;
         }
         _ => {}
     };

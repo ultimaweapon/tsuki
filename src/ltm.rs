@@ -13,8 +13,8 @@
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
 use crate::ldo::{luaD_call, luaD_callnoyield, luaD_growstack};
 use crate::lgc::{luaC_fix, luaC_step};
-use crate::lobject::{GCObject, Proto, StkId, TString, TValue, Table, Value};
-use crate::lstate::{CallInfo, GCUnion, lua_State};
+use crate::lobject::{GCObject, Proto, StkId, TString, TValue, Table, Udata, Value};
+use crate::lstate::{CallInfo, lua_State};
 use crate::lstring::luaS_new;
 use crate::ltable::luaH_getshortstr;
 use std::borrow::Cow;
@@ -88,7 +88,7 @@ pub unsafe fn luaT_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error:
         (*(*L).l_G).tmname[i as usize] = luaS_new(L, luaT_eventname[i as usize])?;
         luaC_fix(
             L,
-            &mut (*(*((*(*L).l_G).tmname).as_mut_ptr().offset(i as isize) as *mut GCUnion)).gc,
+            *((*(*L).l_G).tmname).as_mut_ptr().offset(i as isize) as *mut GCObject,
         );
         i += 1;
         i;
@@ -122,10 +122,10 @@ pub unsafe extern "C" fn luaT_gettmbyobj(
     let mut mt: *mut Table = 0 as *mut Table;
     match (*o).tt_ as libc::c_int & 0xf as libc::c_int {
         5 => {
-            mt = (*((*o).value_.gc as *mut GCUnion)).h.metatable;
+            mt = (*((*o).value_.gc as *mut Table)).metatable;
         }
         7 => {
-            mt = (*((*o).value_.gc as *mut GCUnion)).u.metatable;
+            mt = (*((*o).value_.gc as *mut Udata)).metatable;
         }
         _ => {
             mt = (*(*L).l_G).mt[((*o).tt_ as libc::c_int & 0xf as libc::c_int) as usize];
@@ -148,7 +148,7 @@ pub unsafe fn luaT_objtypename(
             | (0 as libc::c_int) << 4 as libc::c_int
             | (1 as libc::c_int) << 6 as libc::c_int
         && {
-            mt = (*((*o).value_.gc as *mut GCUnion)).h.metatable;
+            mt = (*((*o).value_.gc as *mut Table)).metatable;
             !mt.is_null()
         }
         || (*o).tt_ as libc::c_int
@@ -156,7 +156,7 @@ pub unsafe fn luaT_objtypename(
                 | (0 as libc::c_int) << 4 as libc::c_int
                 | (1 as libc::c_int) << 6 as libc::c_int
             && {
-                mt = (*((*o).value_.gc as *mut GCUnion)).u.metatable;
+                mt = (*((*o).value_.gc as *mut Udata)).metatable;
                 !mt.is_null()
             }
     {
@@ -166,7 +166,7 @@ pub unsafe fn luaT_objtypename(
         );
         if (*name).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int {
             return Ok(CStr::from_ptr(
-                ((*((*name).value_.gc as *mut GCUnion)).ts.contents).as_mut_ptr(),
+                ((*((*name).value_.gc as *mut TString)).contents).as_mut_ptr(),
             )
             .to_string_lossy()
             .into_owned()

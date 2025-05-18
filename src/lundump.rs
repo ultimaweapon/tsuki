@@ -14,8 +14,8 @@ use crate::ldo::luaD_inctop;
 use crate::lfunc::{luaF_newLclosure, luaF_newproto};
 use crate::lgc::luaC_barrier_;
 use crate::lmem::{luaM_malloc_, luaM_toobig};
-use crate::lobject::{AbsLineInfo, LClosure, LocVar, Proto, TString, TValue, Upvaldesc};
-use crate::lstate::{GCUnion, lua_State};
+use crate::lobject::{AbsLineInfo, GCObject, LClosure, LocVar, Proto, TString, TValue, Upvaldesc};
+use crate::lstate::lua_State;
 use crate::lstring::{luaS_createlngstrobj, luaS_newlstr};
 use crate::lzio::{ZIO, luaZ_fill, luaZ_read};
 use libc::{memcmp, strlen};
@@ -136,7 +136,7 @@ unsafe fn loadStringN(
             ts = luaS_createlngstrobj(L, size);
             let mut io: *mut TValue = &mut (*(*L).top.p).val;
             let mut x_: *mut TString = ts;
-            (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
+            (*io).value_.gc = x_ as *mut GCObject;
             (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
             luaD_inctop(L)?;
             loadBlock(
@@ -153,11 +153,7 @@ unsafe fn loadStringN(
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
-        luaC_barrier_(
-            L,
-            &mut (*(p as *mut GCUnion)).gc,
-            &mut (*(ts as *mut GCUnion)).gc,
-        );
+        luaC_barrier_(L, p as *mut GCObject, ts as *mut GCObject);
     } else {
     };
     return Ok(ts);
@@ -252,7 +248,7 @@ unsafe fn loadConstants(
             4 | 20 => {
                 let mut io_1: *mut TValue = o;
                 let mut x_: *mut TString = loadString(S, f)?;
-                (*io_1).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
+                (*io_1).value_.gc = x_ as *mut GCObject;
                 (*io_1).tt_ =
                     ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
             }
@@ -301,8 +297,8 @@ unsafe fn loadProtos(
         {
             luaC_barrier_(
                 (*S).L,
-                &mut (*(f as *mut GCUnion)).gc,
-                &mut (*(*((*f).p).offset(i as isize) as *mut GCUnion)).gc,
+                f as *mut GCObject,
+                *((*f).p).offset(i as isize) as *mut GCObject,
             );
         } else {
         };
@@ -556,7 +552,7 @@ pub unsafe fn luaU_undump(
     cl = luaF_newLclosure(L, loadByte(&mut S)? as libc::c_int);
     let mut io: *mut TValue = &mut (*(*L).top.p).val;
     let mut x_: *mut LClosure = cl;
-    (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
+    (*io).value_.gc = x_ as *mut GCObject;
     (*io).tt_ = (6 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -567,11 +563,7 @@ pub unsafe fn luaU_undump(
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
-        luaC_barrier_(
-            L,
-            &mut (*(cl as *mut GCUnion)).gc,
-            &mut (*((*cl).p as *mut GCUnion)).gc,
-        );
+        luaC_barrier_(L, cl as *mut GCObject, (*cl).p as *mut GCObject);
     } else {
     };
     loadFunction(&mut S, (*cl).p, 0 as *mut TString)?;

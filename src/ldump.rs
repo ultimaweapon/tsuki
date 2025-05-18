@@ -11,7 +11,7 @@
 #![allow(path_statements)]
 
 use crate::lobject::{Proto, TString, TValue};
-use crate::lstate::{GCUnion, lua_State, lua_Writer};
+use crate::lstate::{lua_State, lua_Writer};
 use std::ffi::{c_int, c_void};
 use std::ptr::null_mut;
 
@@ -160,7 +160,7 @@ unsafe fn dumpConstants(
         match tt {
             19 => dumpNumber(D, (*o).value_.n)?,
             3 => dumpInteger(D, (*o).value_.i)?,
-            4 | 20 => dumpString(D, &mut (*((*o).value_.gc as *mut GCUnion)).ts)?,
+            4 | 20 => dumpString(D, (*o).value_.gc as *mut TString)?,
             _ => {}
         }
         i += 1;

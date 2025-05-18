@@ -17,9 +17,7 @@ use crate::lfunc::luaF_closeupval;
 use crate::lgc::{luaC_freeallobjects, luaC_newobjdt, luaC_step};
 use crate::llex::luaX_init;
 use crate::lmem::{luaM_free_, luaM_malloc_};
-use crate::lobject::{
-    Closure, GCObject, Proto, StackValue, StkId, StkIdRel, TString, TValue, Table, Udata, UpVal,
-};
+use crate::lobject::{GCObject, StackValue, StkId, StkIdRel, TString, TValue, Table, UpVal};
 use crate::lstring::luaS_init;
 use crate::ltable::{luaH_new, luaH_resize};
 use crate::ltm::luaT_init;
@@ -189,18 +187,6 @@ pub struct LG {
     pub g: global_State,
 }
 
-#[repr(C)]
-pub union GCUnion {
-    pub gc: GCObject,
-    pub ts: TString,
-    pub u: Udata,
-    pub cl: Closure,
-    pub h: Table,
-    pub p: Proto,
-    pub th: lua_State,
-    pub upv: UpVal,
-}
-
 pub unsafe extern "C" fn luaE_setdebt(mut g: *mut global_State, mut debt: isize) {
     let mut tb: isize = ((*g).totalbytes + (*g).GCdebt) as usize as isize;
     if debt < tb - (!(0 as libc::c_int as usize) >> 1 as libc::c_int) as isize {
@@ -353,7 +339,7 @@ unsafe fn init_registry(
     let mut registry: *mut Table = luaH_new(L)?;
     let mut io: *mut TValue = &mut (*g).l_registry;
     let mut x_: *mut Table = registry;
-    (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
+    (*io).value_.gc = x_ as *mut GCObject;
     (*io).tt_ = (5 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -367,7 +353,7 @@ unsafe fn init_registry(
         .offset((1 as libc::c_int - 1 as libc::c_int) as isize)
         as *mut TValue;
     let mut x__0: *mut lua_State = L;
-    (*io_0).value_.gc = &mut (*(x__0 as *mut GCUnion)).gc;
+    (*io_0).value_.gc = x__0 as *mut GCObject;
     (*io_0).tt_ = (8 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -375,7 +361,7 @@ unsafe fn init_registry(
         .offset((2 as libc::c_int - 1 as libc::c_int) as isize)
         as *mut TValue;
     let mut x__1: *mut Table = luaH_new(L)?;
-    (*io_1).value_.gc = &mut (*(x__1 as *mut GCUnion)).gc;
+    (*io_1).value_.gc = x__1 as *mut GCObject;
     (*io_1).tt_ = (5 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -427,12 +413,12 @@ pub unsafe extern "C" fn lua_newthread(mut L: *mut lua_State) -> *mut lua_State 
     }
 
     o = luaC_newobjdt(L, 8, ::core::mem::size_of::<lua_State>(), 0);
-    L1 = &mut (*(o as *mut GCUnion)).th;
+    L1 = o as *mut lua_State;
 
     let mut io: *mut TValue = &mut (*(*L).top.p).val;
     let mut x_: *mut lua_State = L1;
 
-    (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
+    (*io).value_.gc = x_ as *mut GCObject;
     (*io).tt_ = (8 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -514,7 +500,7 @@ pub unsafe fn lua_newstate() -> *mut lua_State {
         & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int))
         as u8;
     preinit_thread(L, g);
-    (*g).allgc = &mut (*(L as *mut GCUnion)).gc;
+    (*g).allgc = L as *mut GCObject;
     (*L).next = 0 as *mut GCObject;
     (*L).nCcalls = ((*L).nCcalls).wrapping_add(0x10000 as libc::c_int as u32);
     (*g).warnf = None;
@@ -605,13 +591,12 @@ pub unsafe extern "C" fn luaE_warning(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaE_warnerror(mut L: *mut lua_State, mut where_0: *const libc::c_char) {
     let mut errobj: *mut TValue = &mut (*((*L).top.p).offset(-(1 as libc::c_int as isize))).val;
-    let mut msg: *const libc::c_char = if (*errobj).tt_ as libc::c_int & 0xf as libc::c_int
-        == 4 as libc::c_int
-    {
-        ((*((*errobj).value_.gc as *mut GCUnion)).ts.contents).as_mut_ptr() as *const libc::c_char
-    } else {
-        b"error object is not a string\0" as *const u8 as *const libc::c_char
-    };
+    let mut msg: *const libc::c_char =
+        if (*errobj).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int {
+            ((*((*errobj).value_.gc as *mut TString)).contents).as_mut_ptr() as *const libc::c_char
+        } else {
+            b"error object is not a string\0" as *const u8 as *const libc::c_char
+        };
     luaE_warning(
         L,
         b"error in \0" as *const u8 as *const libc::c_char,
