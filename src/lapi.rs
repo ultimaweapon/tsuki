@@ -19,8 +19,7 @@ use crate::lobject::{
     UpVal, Value, luaO_arith, luaO_str2num, luaO_tostring,
 };
 use crate::lstate::{
-    CallInfo, global_State, lua_CFunction, lua_Reader, lua_State, lua_WarnFunction, lua_Writer,
-    luaE_setdebt, luaE_warning,
+    CallInfo, global_State, lua_CFunction, lua_Reader, lua_State, lua_Writer, luaE_setdebt,
 };
 use crate::lstring::{luaS_new, luaS_newlstr, luaS_newudata};
 use crate::ltable::{
@@ -1684,23 +1683,6 @@ pub unsafe fn lua_len(
     luaV_objlen(L, (*L).top.p, t)?;
     api_incr_top(L);
     Ok(())
-}
-
-pub unsafe fn lua_setwarnf(
-    mut L: *mut lua_State,
-    mut f: lua_WarnFunction,
-    mut ud: *mut libc::c_void,
-) {
-    (*(*L).l_G).ud_warn = ud;
-    (*(*L).l_G).warnf = f;
-}
-
-pub unsafe fn lua_warning(
-    mut L: *mut lua_State,
-    mut msg: *const libc::c_char,
-    mut tocont: libc::c_int,
-) {
-    luaE_warning(L, msg, tocont);
 }
 
 pub unsafe fn lua_newuserdatauv(

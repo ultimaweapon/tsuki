@@ -7,11 +7,13 @@ Tsuki is a port of vanilla Lua 5.4 to Rust. This is porting, not binding; which 
 
 ## Differences from vanilla Lua
 
-- Panic when memory allocation is failed.
+- Panic when memory allocation is failed without retry.
 - Execution can only yield with Rust await.
 - First argument of `error` accept only a string.
 - No `xpcall` in basic library.
+- `warn` is enabled by default and does not support control message. The message also does not have `Lua warning: ` prefixed.
 - Second argument to `__close` metamethod always `nil`.
+- Any error in `__gc` metamethod will be ignored.
 - C locale is ignored.
 
 ## Non-goals

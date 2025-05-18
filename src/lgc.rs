@@ -18,7 +18,7 @@ use crate::lobject::{
     CClosure, GCObject, LClosure, Node, Proto, StkId, TString, TValue, Table, UValue, Udata, UpVal,
     Value,
 };
-use crate::lstate::{global_State, lua_State, luaE_freethread, luaE_setdebt, luaE_warnerror};
+use crate::lstate::{global_State, lua_State, luaE_freethread, luaE_setdebt};
 use crate::lstring::{luaS_clearcache, luaS_remove, luaS_resize};
 use crate::ltable::{luaH_free, luaH_realasize};
 use crate::ltm::{TM_GC, TM_MODE, luaT_gettm, luaT_gettmbyobj};
@@ -1081,22 +1081,18 @@ unsafe fn GCTM(mut L: *mut lua_State) {
             as libc::c_ushort;
 
         // Call __gc metamethod.
-        let status = luaD_pcall(
+        drop(luaD_pcall(
             L,
             (((*L).top.p).offset(-2) as *mut libc::c_char)
                 .offset_from((*L).stack.p as *mut libc::c_char),
             |L| luaD_callnoyield(L, ((*L).top.p).offset(-2), 0),
-        );
+        ));
 
         (*(*L).ci).callstatus = ((*(*L).ci).callstatus as libc::c_int
             & !((1 as libc::c_int) << 7 as libc::c_int))
             as libc::c_ushort;
         (*L).allowhook = oldah;
         (*g).gcstp = oldgcstp as u8;
-
-        if status.is_err() {
-            luaE_warnerror(L, b"__gc\0" as *const u8 as *const libc::c_char);
-        }
     }
 }
 

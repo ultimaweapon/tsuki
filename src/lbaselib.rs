@@ -17,7 +17,6 @@ use crate::lapi::{
     lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawget,
     lua_rawgeti, lua_rawlen, lua_rawset, lua_rotate, lua_setfield, lua_setmetatable, lua_settop,
     lua_setupvalue, lua_stringtonumber, lua_toboolean, lua_tolstring, lua_type, lua_typename,
-    lua_warning,
 };
 use crate::lauxlib::{
     luaL_Reg, luaL_argerror, luaL_checkany, luaL_checkinteger, luaL_checklstring, luaL_checkoption,
@@ -28,6 +27,7 @@ use crate::lstate::lua_State;
 use crate::{GcCommand, luaL_loadfilex};
 use libc::{isalnum, isdigit, strspn, toupper};
 use std::ffi::{c_char, c_int, c_void};
+use std::io::Write;
 use std::ptr::null_mut;
 
 unsafe fn luaB_print(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -65,14 +65,21 @@ unsafe fn luaB_warn(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
         i += 1;
         i;
     }
-    i = 1 as libc::c_int;
-    while i < n {
-        lua_warning(L, lua_tolstring(L, i, 0 as *mut usize)?, 1 as libc::c_int);
-        i += 1;
-        i;
+
+    // Print to stderr.
+    let mut dst = std::io::stderr().lock();
+
+    for i in 1..=n {
+        let mut len = 0;
+        let msg = lua_tolstring(L, i, &mut len)?;
+        let msg = std::slice::from_raw_parts(msg.cast(), len);
+
+        dst.write_all(msg).unwrap();
     }
-    lua_warning(L, lua_tolstring(L, n, 0 as *mut usize)?, 0 as libc::c_int);
-    return Ok(0 as libc::c_int);
+
+    writeln!(dst).unwrap();
+
+    Ok(0)
 }
 
 unsafe extern "C" fn b_str2int(

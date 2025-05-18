@@ -164,11 +164,7 @@ pub struct global_State {
     pub tmname: [*mut TString; 25],
     pub mt: [*mut Table; 9],
     pub strcache: [[*mut TString; 2]; 53],
-    pub warnf: lua_WarnFunction,
-    pub ud_warn: *mut libc::c_void,
 }
-
-pub type lua_WarnFunction = Option<unsafe fn(*mut c_void, *const c_char, c_int)>;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -498,8 +494,6 @@ pub unsafe fn lua_newstate() -> *mut lua_State {
     (*g).allgc = L as *mut GCObject;
     (*L).next = 0 as *mut GCObject;
     (*L).nCcalls = ((*L).nCcalls).wrapping_add(0x10000 as libc::c_int as u32);
-    (*g).warnf = None;
-    (*g).ud_warn = 0 as *mut libc::c_void;
     (*g).mainthread = L;
     (*g).seed = rand::random();
     (*g).gcstp = 2 as libc::c_int as u8;
@@ -566,47 +560,7 @@ pub unsafe fn lua_newstate() -> *mut lua_State {
     return L;
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn lua_close(mut L: *mut lua_State) {
     L = (*(*L).l_G).mainthread;
     close_state(L);
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaE_warning(
-    mut L: *mut lua_State,
-    mut msg: *const libc::c_char,
-    mut tocont: libc::c_int,
-) {
-    let mut wf: lua_WarnFunction = (*(*L).l_G).warnf;
-    if wf.is_some() {
-        wf.expect("non-null function pointer")((*(*L).l_G).ud_warn, msg, tocont);
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaE_warnerror(mut L: *mut lua_State, mut where_0: *const libc::c_char) {
-    let mut errobj: *mut TValue = &mut (*((*L).top.p).offset(-(1 as libc::c_int as isize))).val;
-    let mut msg: *const libc::c_char =
-        if (*errobj).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int {
-            ((*((*errobj).value_.gc as *mut TString)).contents).as_mut_ptr() as *const libc::c_char
-        } else {
-            b"error object is not a string\0" as *const u8 as *const libc::c_char
-        };
-    luaE_warning(
-        L,
-        b"error in \0" as *const u8 as *const libc::c_char,
-        1 as libc::c_int,
-    );
-    luaE_warning(L, where_0, 1 as libc::c_int);
-    luaE_warning(
-        L,
-        b" (\0" as *const u8 as *const libc::c_char,
-        1 as libc::c_int,
-    );
-    luaE_warning(L, msg, 1 as libc::c_int);
-    luaE_warning(
-        L,
-        b")\0" as *const u8 as *const libc::c_char,
-        0 as libc::c_int,
-    );
 }

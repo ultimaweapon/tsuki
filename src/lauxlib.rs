@@ -15,12 +15,11 @@ use crate::lapi::{
     lua_load, lua_newuserdatauv, lua_next, lua_pushboolean, lua_pushcclosure, lua_pushinteger,
     lua_pushlightuserdata, lua_pushlstring, lua_pushnil, lua_pushstring, lua_pushvalue,
     lua_rawequal, lua_rawget, lua_rawgeti, lua_rawlen, lua_rawseti, lua_rotate, lua_setfield,
-    lua_setglobal, lua_setmetatable, lua_settop, lua_setwarnf, lua_toboolean, lua_toclose,
-    lua_tointegerx, lua_tolstring, lua_tonumberx, lua_topointer, lua_touserdata, lua_type,
-    lua_typename,
+    lua_setglobal, lua_setmetatable, lua_settop, lua_toboolean, lua_toclose, lua_tointegerx,
+    lua_tolstring, lua_tonumberx, lua_topointer, lua_touserdata, lua_type, lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
-use crate::lstate::{CallInfo, lua_CFunction, lua_Debug, lua_State, lua_newstate};
+use crate::lstate::{CallInfo, lua_CFunction, lua_Debug, lua_State};
 use libc::{FILE, free, memcpy, realloc, strcmp, strlen, strncmp, strstr};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -1208,75 +1207,4 @@ pub unsafe fn luaL_gsub(
     luaL_pushresult(&mut b)?;
 
     lua_tolstring(L, -(1 as libc::c_int), 0 as *mut usize)
-}
-
-unsafe fn checkcontrol(
-    mut L: *mut lua_State,
-    mut message: *const libc::c_char,
-    mut tocont: libc::c_int,
-) -> libc::c_int {
-    if tocont != 0 || {
-        let fresh5 = message;
-        message = message.offset(1);
-        *fresh5 as libc::c_int != '@' as i32
-    } {
-        return 0 as libc::c_int;
-    } else {
-        if strcmp(message, b"off\0" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-            lua_setwarnf(L, Some(warnfoff), L as *mut libc::c_void);
-        } else if strcmp(message, b"on\0" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-            lua_setwarnf(L, Some(warnfon), L as *mut libc::c_void);
-        }
-        return 1 as libc::c_int;
-    };
-}
-
-unsafe fn warnfoff(
-    mut ud: *mut libc::c_void,
-    mut message: *const libc::c_char,
-    mut tocont: libc::c_int,
-) {
-    checkcontrol(ud as *mut lua_State, message, tocont);
-}
-
-unsafe fn warnfcont(
-    mut ud: *mut libc::c_void,
-    mut message: *const libc::c_char,
-    mut tocont: libc::c_int,
-) {
-    let mut L: *mut lua_State = ud as *mut lua_State;
-
-    eprint!("{}", CStr::from_ptr(message).to_string_lossy());
-
-    if tocont != 0 {
-        lua_setwarnf(L, Some(warnfcont), L as *mut libc::c_void);
-    } else {
-        eprintln!();
-
-        lua_setwarnf(L, Some(warnfon), L as *mut libc::c_void);
-    };
-}
-
-unsafe fn warnfon(
-    mut ud: *mut libc::c_void,
-    mut message: *const libc::c_char,
-    mut tocont: libc::c_int,
-) {
-    if checkcontrol(ud as *mut lua_State, message, tocont) != 0 {
-        return;
-    }
-
-    eprint!("Lua warning: ");
-
-    warnfcont(ud, message, tocont);
-}
-
-pub unsafe fn luaL_newstate() -> *mut lua_State {
-    let mut L: *mut lua_State = lua_newstate();
-
-    if (L != 0 as *mut lua_State) as libc::c_int as libc::c_long != 0 {
-        lua_setwarnf(L, Some(warnfoff), L as *mut libc::c_void);
-    }
-
-    return L;
 }
