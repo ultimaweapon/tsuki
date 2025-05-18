@@ -54,7 +54,6 @@ pub union Value {
     pub n: f64,
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GCObject {
     pub next: *mut GCObject,
@@ -69,7 +68,6 @@ pub struct TValue {
     pub tt_: u8,
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct UpVal {
     pub next: *mut GCObject,
@@ -100,7 +98,6 @@ pub union C2RustUnnamed_7 {
     pub offset: isize,
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct TString {
     pub next: *mut GCObject,
@@ -120,7 +117,6 @@ pub union C2RustUnnamed_8 {
     pub hnext: *mut TString,
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Table {
     pub next: *mut GCObject,
@@ -164,7 +160,6 @@ pub union UValue {
     pub l: libc::c_long,
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Udata {
     pub next: *mut GCObject,
@@ -201,7 +196,6 @@ pub struct AbsLineInfo {
     pub line: c_int,
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Proto {
     pub next: *mut GCObject,
@@ -230,7 +224,6 @@ pub struct Proto {
     pub gclist: *mut GCObject,
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CClosure {
     pub next: *mut GCObject,
@@ -242,7 +235,6 @@ pub struct CClosure {
     pub upvalue: [TValue; 1],
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct LClosure {
     pub next: *mut GCObject,

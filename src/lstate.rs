@@ -35,7 +35,6 @@ pub type lua_Writer = unsafe fn(
     *mut c_void,
 ) -> Result<c_int, Box<dyn std::error::Error>>;
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct lua_State {
     pub(crate) next: *mut GCObject,
