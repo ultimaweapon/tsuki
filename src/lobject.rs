@@ -256,13 +256,6 @@ pub struct LClosure {
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union Closure {
-    pub c: CClosure,
-    pub l: LClosure,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct BuffFS {
     pub L: *mut lua_State,
     pub pushed: c_int,

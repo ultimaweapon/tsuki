@@ -16,8 +16,8 @@ use crate::lgc::{
     luaC_barrier_, luaC_barrierback_, luaC_changemode, luaC_checkfinalizer, luaC_fullgc, luaC_step,
 };
 use crate::lobject::{
-    CClosure, Closure, GCObject, LClosure, Proto, StackValue, StkId, TString, TValue, Table,
-    UValue, Udata, UpVal, Value, luaO_arith, luaO_str2num, luaO_tostring,
+    CClosure, GCObject, LClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata,
+    UpVal, Value, luaO_arith, luaO_str2num, luaO_tostring,
 };
 use crate::lstate::{
     CallInfo, global_State, lua_CFunction, lua_Reader, lua_State, lua_WarnFunction, lua_Writer,
@@ -64,7 +64,7 @@ unsafe fn index2value(mut L: *mut lua_State, mut idx: libc::c_int) -> *mut TValu
                 | (2 as libc::c_int) << 4 as libc::c_int
                 | (1 as libc::c_int) << 6 as libc::c_int
         {
-            let mut func: *mut CClosure = &mut (*((*(*ci).func.p).val.value_.gc as *mut Closure)).c;
+            let mut func: *mut CClosure = (*(*ci).func.p).val.value_.gc as *mut CClosure;
             return if idx <= (*func).nupvalues as libc::c_int {
                 &mut *((*func).upvalue)
                     .as_mut_ptr()
@@ -233,9 +233,7 @@ pub unsafe fn lua_copy(mut L: *mut lua_State, mut fromidx: libc::c_int, mut toid
     (*io1).tt_ = (*io2).tt_;
     if toidx < -(1000000 as libc::c_int) - 1000 as libc::c_int {
         if (*fr).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
-            if (*((*(*(*L).ci).func.p).val.value_.gc as *mut Closure))
-                .c
-                .marked as libc::c_int
+            if (*((*(*(*L).ci).func.p).val.value_.gc as *mut CClosure)).marked as libc::c_int
                 & (1 as libc::c_int) << 5 as libc::c_int
                 != 0
                 && (*(*fr).value_.gc).marked as libc::c_int
@@ -245,7 +243,7 @@ pub unsafe fn lua_copy(mut L: *mut lua_State, mut fromidx: libc::c_int, mut toid
             {
                 luaC_barrier_(
                     L,
-                    &mut (*((*(*(*L).ci).func.p).val.value_.gc as *mut Closure)).c as *mut CClosure
+                    ((*(*(*L).ci).func.p).val.value_.gc as *mut CClosure) as *mut CClosure
                         as *mut GCObject,
                     (*fr).value_.gc as *mut GCObject,
                 );
@@ -505,7 +503,7 @@ pub unsafe fn lua_tocfunction(L: *mut lua_State, idx: c_int) -> Option<lua_CFunc
             | (2 as libc::c_int) << 4 as libc::c_int
             | (1 as libc::c_int) << 6 as libc::c_int
     {
-        return Some((*((*o).value_.gc as *mut Closure)).c.f);
+        return Some((*((*o).value_.gc as *mut CClosure)).f);
     } else {
         return None;
     };
@@ -1461,11 +1459,10 @@ pub unsafe fn lua_load(
     let status = luaD_protectedparser(L, &mut z, chunkname, mode);
 
     if status.is_ok() {
-        let mut f: *mut LClosure = &mut (*((*((*L).top.p).offset(-(1 as libc::c_int as isize)))
+        let mut f: *mut LClosure = (*((*L).top.p).offset(-(1 as libc::c_int as isize)))
             .val
             .value_
-            .gc as *mut Closure))
-            .l;
+            .gc as *mut LClosure;
         if (*f).nupvalues as libc::c_int >= 1 as libc::c_int {
             let mut gt: *const TValue = &mut *((*((*(*L).l_G).l_registry.value_.gc as *mut Table))
                 .array)
@@ -1519,7 +1516,7 @@ pub unsafe fn lua_dump(
     {
         luaU_dump(
             L,
-            (*((*o).value_.gc as *mut Closure)).l.p,
+            (*((*o).value_.gc as *mut LClosure)).p,
             writer,
             data,
             strip,
@@ -1748,7 +1745,7 @@ unsafe fn aux_upvalue(
 ) -> *const libc::c_char {
     match (*fi).tt_ as libc::c_int & 0x3f as libc::c_int {
         38 => {
-            let mut f: *mut CClosure = &mut (*((*fi).value_.gc as *mut Closure)).c;
+            let mut f: *mut CClosure = (*fi).value_.gc as *mut CClosure;
             if !((n as libc::c_uint).wrapping_sub(1 as libc::c_uint)
                 < (*f).nupvalues as libc::c_uint)
             {
@@ -1763,7 +1760,7 @@ unsafe fn aux_upvalue(
             return b"\0" as *const u8 as *const libc::c_char;
         }
         6 => {
-            let mut f_0: *mut LClosure = &mut (*((*fi).value_.gc as *mut Closure)).l;
+            let mut f_0: *mut LClosure = (*fi).value_.gc as *mut LClosure;
             let mut name: *mut TString = 0 as *mut TString;
             let mut p: *mut Proto = (*f_0).p;
             if !((n as libc::c_uint).wrapping_sub(1 as libc::c_uint)
@@ -1859,7 +1856,7 @@ unsafe fn getupvalref(
     static mut nullup: *const UpVal = 0 as *const UpVal;
     let mut f: *mut LClosure = 0 as *mut LClosure;
     let mut fi: *mut TValue = index2value(L, fidx);
-    f = &mut (*((*fi).value_.gc as *mut Closure)).l;
+    f = (*fi).value_.gc as *mut LClosure;
     if !pf.is_null() {
         *pf = f;
     }
@@ -1883,7 +1880,7 @@ pub unsafe fn lua_upvalueid(
             return *getupvalref(L, fidx, n, 0 as *mut *mut LClosure) as *mut libc::c_void;
         }
         38 => {
-            let mut f: *mut CClosure = &mut (*((*fi).value_.gc as *mut Closure)).c;
+            let mut f: *mut CClosure = (*fi).value_.gc as *mut CClosure;
             if 1 as libc::c_int <= n && n <= (*f).nupvalues as libc::c_int {
                 return &mut *((*f).upvalue)
                     .as_mut_ptr()

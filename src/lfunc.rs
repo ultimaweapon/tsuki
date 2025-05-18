@@ -15,8 +15,8 @@ use crate::ldo::{luaD_call, luaD_callnoyield};
 use crate::lgc::{luaC_barrier_, luaC_newobj};
 use crate::lmem::luaM_free_;
 use crate::lobject::{
-    AbsLineInfo, CClosure, Closure, GCObject, LClosure, LocVar, Proto, StackValue, StkId, TString,
-    TValue, UpVal, Upvaldesc,
+    AbsLineInfo, CClosure, GCObject, LClosure, LocVar, Proto, StackValue, StkId, TString, TValue,
+    UpVal, Upvaldesc,
 };
 use crate::lstate::lua_State;
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
@@ -34,7 +34,7 @@ pub unsafe extern "C" fn luaF_newCclosure(
             + ::core::mem::size_of::<TValue>() as libc::c_ulong as libc::c_int * nupvals)
             as usize,
     );
-    let mut c: *mut CClosure = &mut (*(o as *mut Closure)).c;
+    let mut c: *mut CClosure = o as *mut CClosure;
     (*c).nupvalues = nupvals as u8;
     return c;
 }
@@ -51,7 +51,7 @@ pub unsafe extern "C" fn luaF_newLclosure(
             + ::core::mem::size_of::<*mut TValue>() as libc::c_ulong as libc::c_int * nupvals)
             as usize,
     );
-    let mut c: *mut LClosure = &mut (*(o as *mut Closure)).l;
+    let mut c: *mut LClosure = o as *mut LClosure;
     (*c).p = 0 as *mut Proto;
     (*c).nupvalues = nupvals as u8;
     loop {

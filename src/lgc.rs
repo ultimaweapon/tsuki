@@ -15,8 +15,8 @@ use crate::ldo::{luaD_callnoyield, luaD_pcall, luaD_shrinkstack};
 use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
 use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::lobject::{
-    CClosure, Closure, GCObject, LClosure, Node, Proto, StkId, TString, TValue, Table, UValue,
-    Udata, UpVal, Value,
+    CClosure, GCObject, LClosure, Node, Proto, StkId, TString, TValue, Table, UValue, Udata, UpVal,
+    Value,
 };
 use crate::lstate::{global_State, lua_State, luaE_freethread, luaE_setdebt, luaE_warnerror};
 use crate::lstring::{luaS_clearcache, luaS_remove, luaS_resize};
@@ -27,8 +27,8 @@ use libc::strchr;
 unsafe fn getgclist(mut o: *mut GCObject) -> *mut *mut GCObject {
     match (*o).tt as libc::c_int {
         5 => return &mut (*(o as *mut Table)).gclist,
-        6 => return &mut (*(o as *mut Closure)).l.gclist,
-        38 => return &mut (*(o as *mut Closure)).c.gclist,
+        6 => return &mut (*(o as *mut LClosure)).gclist,
+        38 => return &mut (*(o as *mut CClosure)).gclist,
         8 => return &mut (*(o as *mut lua_State)).gclist,
         10 => return &mut (*(o as *mut Proto)).gclist,
         7 => {
@@ -763,8 +763,8 @@ unsafe fn propagatemark(mut g: *mut global_State) -> usize {
     match (*o).tt as libc::c_int {
         5 => return traversetable(g, (o as *mut Table)),
         7 => return traverseudata(g, (o as *mut Udata)) as usize,
-        6 => return traverseLclosure(g, &mut (*(o as *mut Closure)).l) as usize,
-        38 => return traverseCclosure(g, &mut (*(o as *mut Closure)).c) as usize,
+        6 => return traverseLclosure(g, (o as *mut LClosure)) as usize,
+        38 => return traverseCclosure(g, (o as *mut CClosure)) as usize,
         10 => return traverseproto(g, (o as *mut Proto)) as usize,
         8 => return traversethread(g, (o as *mut lua_State)) as usize,
         _ => return 0 as libc::c_int as usize,
@@ -896,7 +896,7 @@ unsafe fn freeobj(mut L: *mut lua_State, mut o: *mut GCObject) {
         10 => luaF_freeproto(L, (o as *mut Proto)),
         9 => freeupval(L, (o as *mut UpVal)),
         6 => {
-            let mut cl: *mut LClosure = &mut (*(o as *mut Closure)).l;
+            let mut cl: *mut LClosure = (o as *mut LClosure);
             luaM_free_(
                 L,
                 cl as *mut libc::c_void,
@@ -906,7 +906,7 @@ unsafe fn freeobj(mut L: *mut lua_State, mut o: *mut GCObject) {
             );
         }
         38 => {
-            let mut cl_0: *mut CClosure = &mut (*(o as *mut Closure)).c;
+            let mut cl_0: *mut CClosure = (o as *mut CClosure);
             luaM_free_(
                 L,
                 cl_0 as *mut libc::c_void,

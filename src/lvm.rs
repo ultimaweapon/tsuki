@@ -18,8 +18,8 @@ use crate::lfunc::{
 };
 use crate::lgc::{luaC_barrier_, luaC_barrierback_, luaC_step};
 use crate::lobject::{
-    Closure, GCObject, LClosure, Proto, StackValue, StkId, TString, TValue, Table, Udata, UpVal,
-    Upvaldesc, Value, luaO_str2num, luaO_tostring,
+    GCObject, LClosure, Proto, StackValue, StkId, TString, TValue, Table, Udata, UpVal, Upvaldesc,
+    Value, luaO_str2num, luaO_tostring,
 };
 use crate::lopcodes::OpCode;
 use crate::lstate::{CallInfo, lua_State};
@@ -1287,7 +1287,7 @@ pub unsafe fn luaV_execute(
     '_startfunc: loop {
         trap = (*L).hookmask;
         '_returning: loop {
-            cl = &mut (*((*(*ci).func.p).val.value_.gc as *mut Closure)).l;
+            cl = ((*(*ci).func.p).val.value_.gc as *mut LClosure);
             k = (*(*cl).p).k;
             pc = (*ci).u.savedpc;
             if (trap != 0 as libc::c_int) as libc::c_int as libc::c_long != 0 {
