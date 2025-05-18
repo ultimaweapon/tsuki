@@ -1,19 +1,25 @@
+use std::path::PathBuf;
 use std::ptr::null;
+use std::sync::LazyLock;
 use tsuki::{
     lua_close, lua_pcall, lua_pop, luaL_loadbufferx, luaL_newstate, luaL_requiref, luaopen_base,
 };
 
 #[test]
-fn basic_print() {
-    run("basic", "print.lua");
+fn close() {
+    run("close.lua");
 }
 
-fn run(cat: &str, file: &str) {
-    // Get path.
-    let mut path = std::env::current_dir().unwrap();
+#[test]
+fn print() {
+    run("print.lua");
+}
 
-    path.push("tests");
-    path.push(cat);
+fn run(file: &str) {
+    // Get path.
+    let mut path = ROOT.join("tests");
+
+    path.push("cases");
     path.push(file);
 
     // Setup Lua.
@@ -28,3 +34,5 @@ fn run(cat: &str, file: &str) {
 
     unsafe { lua_close(lua) };
 }
+
+static ROOT: LazyLock<PathBuf> = LazyLock::new(|| std::env::current_dir().unwrap());

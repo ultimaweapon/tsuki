@@ -228,6 +228,7 @@ pub unsafe extern "C" fn luaE_extendCI(mut L: *mut lua_State) -> *mut CallInfo {
     (*L).nci;
     return ci;
 }
+
 unsafe extern "C" fn freeCI(mut L: *mut lua_State) {
     let mut ci: *mut CallInfo = (*L).ci;
     let mut next: *mut CallInfo = (*ci).next;
@@ -247,7 +248,7 @@ unsafe extern "C" fn freeCI(mut L: *mut lua_State) {
         (*L).nci;
     }
 }
-#[unsafe(no_mangle)]
+
 pub unsafe extern "C" fn luaE_shrinkCI(mut L: *mut lua_State) {
     let mut ci: *mut CallInfo = (*(*L).ci).next;
     let mut next: *mut CallInfo = 0 as *mut CallInfo;
@@ -416,7 +417,6 @@ unsafe fn close_state(mut L: *mut lua_State) {
     free(L.cast());
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn lua_newthread(mut L: *mut lua_State) -> *mut lua_State {
     let mut g: *mut global_State = (*L).l_G;
     let mut o: *mut GCObject = 0 as *mut GCObject;
@@ -450,7 +450,6 @@ pub unsafe extern "C" fn lua_newthread(mut L: *mut lua_State) -> *mut lua_State 
     L1
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaE_freethread(mut L: *mut lua_State, mut L1: *mut lua_State) {
     luaF_closeupval(L1, (*L1).stack.p);
     freestack(L1);

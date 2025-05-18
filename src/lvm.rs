@@ -4425,7 +4425,7 @@ pub unsafe fn luaV_execute(
                         );
                         (*ci).u.savedpc = pc;
                         (*L).top.p = (*ci).top.p;
-                        luaF_close(L, ra_52, 1)?; // TODO: This use LUA_OK as a status.
+                        luaF_close(L, ra_52, 1)?;
                         trap = (*ci).u.trap;
                         continue;
                     }

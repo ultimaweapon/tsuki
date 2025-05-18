@@ -10,7 +10,6 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(unused_parens)]
 #![allow(unused_variables)]
-#![allow(path_statements)]
 
 use crate::ldo::{luaD_callnoyield, luaD_pcall, luaD_shrinkstack};
 use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
@@ -27,7 +26,7 @@ use crate::ltable::{luaH_free, luaH_realasize};
 use crate::ltm::{TM_GC, TM_MODE, luaT_gettm, luaT_gettmbyobj};
 use libc::strchr;
 
-unsafe extern "C" fn getgclist(mut o: *mut GCObject) -> *mut *mut GCObject {
+unsafe fn getgclist(mut o: *mut GCObject) -> *mut *mut GCObject {
     match (*o).tt as libc::c_int {
         5 => return &mut (*(o as *mut GCUnion)).h.gclist,
         6 => return &mut (*(o as *mut GCUnion)).cl.l.gclist,
@@ -42,7 +41,7 @@ unsafe extern "C" fn getgclist(mut o: *mut GCObject) -> *mut *mut GCObject {
     };
 }
 
-unsafe extern "C" fn linkgclist_(
+unsafe fn linkgclist_(
     mut o: *mut GCObject,
     mut pnext: *mut *mut GCObject,
     mut list: *mut *mut GCObject,
@@ -55,13 +54,13 @@ unsafe extern "C" fn linkgclist_(
             as u8 as libc::c_int) as u8;
 }
 
-unsafe extern "C" fn clearkey(mut n: *mut Node) {
+unsafe fn clearkey(mut n: *mut Node) {
     if (*n).u.key_tt as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
         (*n).u.key_tt = (9 as libc::c_int + 2 as libc::c_int) as u8;
     }
 }
 
-unsafe extern "C" fn iscleared(mut g: *mut global_State, mut o: *const GCObject) -> libc::c_int {
+unsafe fn iscleared(mut g: *mut global_State, mut o: *const GCObject) -> libc::c_int {
     if o.is_null() {
         return 0 as libc::c_int;
     } else if (*o).tt as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int {
@@ -78,12 +77,7 @@ unsafe extern "C" fn iscleared(mut g: *mut global_State, mut o: *const GCObject)
     };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaC_barrier_(
-    mut L: *mut lua_State,
-    mut o: *mut GCObject,
-    mut v: *mut GCObject,
-) {
+pub unsafe fn luaC_barrier_(mut L: *mut lua_State, mut o: *mut GCObject, mut v: *mut GCObject) {
     let mut g: *mut global_State = (*L).l_G;
     if (*g).gcstate as libc::c_int <= 2 as libc::c_int {
         reallymarkobject(g, v);
@@ -102,8 +96,7 @@ pub unsafe extern "C" fn luaC_barrier_(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaC_barrierback_(mut L: *mut lua_State, mut o: *mut GCObject) {
+pub unsafe fn luaC_barrierback_(mut L: *mut lua_State, mut o: *mut GCObject) {
     let mut g: *mut global_State = (*L).l_G;
     if (*o).marked as libc::c_int & 7 as libc::c_int == 6 as libc::c_int {
         (*o).marked = ((*o).marked as libc::c_int
@@ -122,8 +115,7 @@ pub unsafe extern "C" fn luaC_barrierback_(mut L: *mut lua_State, mut o: *mut GC
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaC_fix(mut L: *mut lua_State, mut o: *mut GCObject) {
+pub unsafe fn luaC_fix(mut L: *mut lua_State, mut o: *mut GCObject) {
     let mut g: *mut global_State = (*L).l_G;
     (*o).marked = ((*o).marked as libc::c_int
         & !((1 as libc::c_int) << 5 as libc::c_int
@@ -135,8 +127,7 @@ pub unsafe extern "C" fn luaC_fix(mut L: *mut lua_State, mut o: *mut GCObject) {
     (*g).fixedgc = o;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaC_newobjdt(
+pub unsafe fn luaC_newobjdt(
     mut L: *mut lua_State,
     mut tt: libc::c_int,
     mut sz: usize,
@@ -154,8 +145,7 @@ pub unsafe extern "C" fn luaC_newobjdt(
     return o;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaC_newobj(
+pub unsafe fn luaC_newobj(
     mut L: *mut lua_State,
     mut tt: libc::c_int,
     mut sz: usize,
@@ -163,7 +153,7 @@ pub unsafe extern "C" fn luaC_newobj(
     return luaC_newobjdt(L, tt, sz, 0 as libc::c_int as usize);
 }
 
-unsafe extern "C" fn reallymarkobject(mut g: *mut global_State, mut o: *mut GCObject) {
+unsafe fn reallymarkobject(mut g: *mut global_State, mut o: *mut GCObject) {
     let mut current_block_18: u64;
     match (*o).tt as libc::c_int {
         4 | 20 => {
@@ -233,7 +223,7 @@ unsafe extern "C" fn reallymarkobject(mut g: *mut global_State, mut o: *mut GCOb
     };
 }
 
-unsafe extern "C" fn markmt(mut g: *mut global_State) {
+unsafe fn markmt(mut g: *mut global_State) {
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < 9 as libc::c_int {
@@ -249,17 +239,15 @@ unsafe extern "C" fn markmt(mut g: *mut global_State) {
             }
         }
         i += 1;
-        i;
     }
 }
 
-unsafe extern "C" fn markbeingfnz(mut g: *mut global_State) -> usize {
+unsafe fn markbeingfnz(mut g: *mut global_State) -> usize {
     let mut o: *mut GCObject = 0 as *mut GCObject;
     let mut count: usize = 0 as libc::c_int as usize;
     o = (*g).tobefnz;
     while !o.is_null() {
         count = count.wrapping_add(1);
-        count;
         if (*o).marked as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
@@ -271,7 +259,7 @@ unsafe extern "C" fn markbeingfnz(mut g: *mut global_State) -> usize {
     return count;
 }
 
-unsafe extern "C" fn remarkupvals(mut g: *mut global_State) -> libc::c_int {
+unsafe fn remarkupvals(mut g: *mut global_State) -> libc::c_int {
     let mut thread: *mut lua_State = 0 as *mut lua_State;
     let mut p: *mut *mut lua_State = &mut (*g).twups;
     let mut work: libc::c_int = 0 as libc::c_int;
@@ -281,7 +269,6 @@ unsafe extern "C" fn remarkupvals(mut g: *mut global_State) -> libc::c_int {
             break;
         }
         work += 1;
-        work;
         if (*thread).marked as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             == 0
@@ -295,7 +282,6 @@ unsafe extern "C" fn remarkupvals(mut g: *mut global_State) -> libc::c_int {
             uv = (*thread).openupval;
             while !uv.is_null() {
                 work += 1;
-                work;
                 if (*uv).marked as libc::c_int
                     & ((1 as libc::c_int) << 3 as libc::c_int
                         | (1 as libc::c_int) << 4 as libc::c_int)
@@ -317,7 +303,7 @@ unsafe extern "C" fn remarkupvals(mut g: *mut global_State) -> libc::c_int {
     return work;
 }
 
-unsafe extern "C" fn cleargraylists(mut g: *mut global_State) {
+unsafe fn cleargraylists(mut g: *mut global_State) {
     (*g).grayagain = 0 as *mut GCObject;
     (*g).gray = (*g).grayagain;
     (*g).ephemeron = 0 as *mut GCObject;
@@ -325,7 +311,7 @@ unsafe extern "C" fn cleargraylists(mut g: *mut global_State) {
     (*g).weak = (*g).allweak;
 }
 
-unsafe extern "C" fn restartcollection(mut g: *mut global_State) {
+unsafe fn restartcollection(mut g: *mut global_State) {
     cleargraylists(g);
     if (*(*g).mainthread).marked as libc::c_int
         & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
@@ -344,7 +330,7 @@ unsafe extern "C" fn restartcollection(mut g: *mut global_State) {
     markbeingfnz(g);
 }
 
-unsafe extern "C" fn genlink(mut g: *mut global_State, mut o: *mut GCObject) {
+unsafe fn genlink(mut g: *mut global_State, mut o: *mut GCObject) {
     if (*o).marked as libc::c_int & 7 as libc::c_int == 5 as libc::c_int {
         linkgclist_(
             &mut (*(o as *mut GCUnion)).gc,
@@ -356,7 +342,7 @@ unsafe extern "C" fn genlink(mut g: *mut global_State, mut o: *mut GCObject) {
     }
 }
 
-unsafe extern "C" fn traverseweakvalue(mut g: *mut global_State, mut h: *mut Table) {
+unsafe fn traverseweakvalue(mut g: *mut global_State, mut h: *mut Table) {
     let mut n: *mut Node = 0 as *mut Node;
     let mut limit: *mut Node = &mut *((*h).node)
         .offset(((1 as libc::c_int) << (*h).lsizenode as libc::c_int) as usize as isize)
@@ -391,7 +377,6 @@ unsafe extern "C" fn traverseweakvalue(mut g: *mut global_State, mut h: *mut Tab
             }
         }
         n = n.offset(1);
-        n;
     }
     if (*g).gcstate as libc::c_int == 2 as libc::c_int && hasclears != 0 {
         linkgclist_(
@@ -408,7 +393,7 @@ unsafe extern "C" fn traverseweakvalue(mut g: *mut global_State, mut h: *mut Tab
     };
 }
 
-unsafe extern "C" fn traverseephemeron(
+unsafe fn traverseephemeron(
     mut g: *mut global_State,
     mut h: *mut Table,
     mut inv: libc::c_int,
@@ -433,7 +418,6 @@ unsafe extern "C" fn traverseephemeron(
             reallymarkobject(g, (*((*h).array).offset(i as isize)).value_.gc);
         }
         i = i.wrapping_add(1);
-        i;
     }
     i = 0 as libc::c_int as libc::c_uint;
     while i < nsize {
@@ -475,7 +459,6 @@ unsafe extern "C" fn traverseephemeron(
             reallymarkobject(g, (*n).i_val.value_.gc);
         }
         i = i.wrapping_add(1);
-        i;
     }
     if (*g).gcstate as libc::c_int == 0 as libc::c_int {
         linkgclist_(
@@ -501,7 +484,7 @@ unsafe extern "C" fn traverseephemeron(
     return marked;
 }
 
-unsafe extern "C" fn traversestrongtable(mut g: *mut global_State, mut h: *mut Table) {
+unsafe fn traversestrongtable(mut g: *mut global_State, mut h: *mut Table) {
     let mut n: *mut Node = 0 as *mut Node;
     let mut limit: *mut Node = &mut *((*h).node)
         .offset(((1 as libc::c_int) << (*h).lsizenode as libc::c_int) as usize as isize)
@@ -520,7 +503,6 @@ unsafe extern "C" fn traversestrongtable(mut g: *mut global_State, mut h: *mut T
             reallymarkobject(g, (*((*h).array).offset(i as isize)).value_.gc);
         }
         i = i.wrapping_add(1);
-        i;
     }
     n = &mut *((*h).node).offset(0 as libc::c_int as isize) as *mut Node;
     while n < limit {
@@ -545,12 +527,11 @@ unsafe extern "C" fn traversestrongtable(mut g: *mut global_State, mut h: *mut T
             }
         }
         n = n.offset(1);
-        n;
     }
     genlink(g, &mut (*(h as *mut GCUnion)).gc);
 }
 
-unsafe extern "C" fn traversetable(mut g: *mut global_State, mut h: *mut Table) -> usize {
+unsafe fn traversetable(mut g: *mut global_State, mut h: *mut Table) -> usize {
     let mut weakkey: *const libc::c_char = 0 as *const libc::c_char;
     let mut weakvalue: *const libc::c_char = 0 as *const libc::c_char;
     let mut mode: *const TValue = if ((*h).metatable).is_null() {
@@ -614,7 +595,7 @@ unsafe extern "C" fn traversetable(mut g: *mut global_State, mut h: *mut Table) 
         ) as usize;
 }
 
-unsafe extern "C" fn traverseudata(mut g: *mut global_State, mut u: *mut Udata) -> libc::c_int {
+unsafe fn traverseudata(mut g: *mut global_State, mut u: *mut Udata) -> libc::c_int {
     let mut i: libc::c_int = 0;
     if !((*u).metatable).is_null() {
         if (*(*u).metatable).marked as libc::c_int
@@ -636,13 +617,12 @@ unsafe extern "C" fn traverseudata(mut g: *mut global_State, mut u: *mut Udata) 
             reallymarkobject(g, (*((*u).uv).as_mut_ptr().offset(i as isize)).uv.value_.gc);
         }
         i += 1;
-        i;
     }
     genlink(g, &mut (*(u as *mut GCUnion)).gc);
     return 1 as libc::c_int + (*u).nuvalue as libc::c_int;
 }
 
-unsafe extern "C" fn traverseproto(mut g: *mut global_State, mut f: *mut Proto) -> libc::c_int {
+unsafe fn traverseproto(mut g: *mut global_State, mut f: *mut Proto) -> libc::c_int {
     let mut i: libc::c_int = 0;
     if !((*f).source).is_null() {
         if (*(*f).source).marked as libc::c_int
@@ -664,7 +644,6 @@ unsafe extern "C" fn traverseproto(mut g: *mut global_State, mut f: *mut Proto) 
             reallymarkobject(g, (*((*f).k).offset(i as isize)).value_.gc);
         }
         i += 1;
-        i;
     }
     i = 0 as libc::c_int;
     while i < (*f).sizeupvalues {
@@ -680,7 +659,6 @@ unsafe extern "C" fn traverseproto(mut g: *mut global_State, mut f: *mut Proto) 
             }
         }
         i += 1;
-        i;
     }
     i = 0 as libc::c_int;
     while i < (*f).sizep {
@@ -693,7 +671,6 @@ unsafe extern "C" fn traverseproto(mut g: *mut global_State, mut f: *mut Proto) 
             }
         }
         i += 1;
-        i;
     }
     i = 0 as libc::c_int;
     while i < (*f).sizelocvars {
@@ -709,15 +686,11 @@ unsafe extern "C" fn traverseproto(mut g: *mut global_State, mut f: *mut Proto) 
             }
         }
         i += 1;
-        i;
     }
     return 1 as libc::c_int + (*f).sizek + (*f).sizeupvalues + (*f).sizep + (*f).sizelocvars;
 }
 
-unsafe extern "C" fn traverseCclosure(
-    mut g: *mut global_State,
-    mut cl: *mut CClosure,
-) -> libc::c_int {
+unsafe fn traverseCclosure(mut g: *mut global_State, mut cl: *mut CClosure) -> libc::c_int {
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < (*cl).nupvalues as libc::c_int {
@@ -734,15 +707,11 @@ unsafe extern "C" fn traverseCclosure(
             );
         }
         i += 1;
-        i;
     }
     return 1 as libc::c_int + (*cl).nupvalues as libc::c_int;
 }
 
-unsafe extern "C" fn traverseLclosure(
-    mut g: *mut global_State,
-    mut cl: *mut LClosure,
-) -> libc::c_int {
+unsafe fn traverseLclosure(mut g: *mut global_State, mut cl: *mut LClosure) -> libc::c_int {
     let mut i: libc::c_int = 0;
     if !((*cl).p).is_null() {
         if (*(*cl).p).marked as libc::c_int
@@ -764,15 +733,11 @@ unsafe extern "C" fn traverseLclosure(
             }
         }
         i += 1;
-        i;
     }
     return 1 as libc::c_int + (*cl).nupvalues as libc::c_int;
 }
 
-unsafe extern "C" fn traversethread(
-    mut g: *mut global_State,
-    mut th: *mut lua_State,
-) -> libc::c_int {
+unsafe fn traversethread(mut g: *mut global_State, mut th: *mut lua_State) -> libc::c_int {
     let mut uv: *mut UpVal = 0 as *mut UpVal;
     let mut o: StkId = (*th).stack.p;
     if (*th).marked as libc::c_int & 7 as libc::c_int > 1 as libc::c_int
@@ -796,7 +761,6 @@ unsafe extern "C" fn traversethread(
             reallymarkobject(g, (*o).val.value_.gc);
         }
         o = o.offset(1);
-        o;
     }
     uv = (*th).openupval;
     while !uv.is_null() {
@@ -816,7 +780,6 @@ unsafe extern "C" fn traversethread(
         while o < ((*th).stack_last.p).offset(5 as libc::c_int as isize) {
             (*o).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
             o = o.offset(1);
-            o;
         }
         if !((*th).twups != th) && !((*th).openupval).is_null() {
             (*th).twups = (*g).twups;
@@ -827,7 +790,7 @@ unsafe extern "C" fn traversethread(
         + ((*th).stack_last.p).offset_from((*th).stack.p) as libc::c_long as libc::c_int;
 }
 
-unsafe extern "C" fn propagatemark(mut g: *mut global_State) -> usize {
+unsafe fn propagatemark(mut g: *mut global_State) -> usize {
     let mut o: *mut GCObject = (*g).gray;
     (*o).marked = ((*o).marked as libc::c_int | (1 as libc::c_int) << 5 as libc::c_int) as u8;
     (*g).gray = *getgclist(o);
@@ -842,7 +805,7 @@ unsafe extern "C" fn propagatemark(mut g: *mut global_State) -> usize {
     };
 }
 
-unsafe extern "C" fn propagateall(mut g: *mut global_State) -> usize {
+unsafe fn propagateall(mut g: *mut global_State) -> usize {
     let mut tot: usize = 0 as libc::c_int as usize;
     while !((*g).gray).is_null() {
         tot = tot.wrapping_add(propagatemark(g));
@@ -850,7 +813,7 @@ unsafe extern "C" fn propagateall(mut g: *mut global_State) -> usize {
     return tot;
 }
 
-unsafe extern "C" fn convergeephemerons(mut g: *mut global_State) {
+unsafe fn convergeephemerons(mut g: *mut global_State) {
     let mut changed: libc::c_int = 0;
     let mut dir: libc::c_int = 0 as libc::c_int;
     loop {
@@ -879,7 +842,7 @@ unsafe extern "C" fn convergeephemerons(mut g: *mut global_State) {
     }
 }
 
-unsafe extern "C" fn clearbykeys(mut g: *mut global_State, mut l: *mut GCObject) {
+unsafe fn clearbykeys(mut g: *mut global_State, mut l: *mut GCObject) {
     while !l.is_null() {
         let mut h: *mut Table = &mut (*(l as *mut GCUnion)).h;
         let mut limit: *mut Node = &mut *((*h).node)
@@ -903,17 +866,12 @@ unsafe extern "C" fn clearbykeys(mut g: *mut global_State, mut l: *mut GCObject)
                 clearkey(n);
             }
             n = n.offset(1);
-            n;
         }
         l = (*(l as *mut GCUnion)).h.gclist;
     }
 }
 
-unsafe extern "C" fn clearbyvalues(
-    mut g: *mut global_State,
-    mut l: *mut GCObject,
-    mut f: *mut GCObject,
-) {
+unsafe fn clearbyvalues(mut g: *mut global_State, mut l: *mut GCObject, mut f: *mut GCObject) {
     while l != f {
         let mut h: *mut Table = &mut (*(l as *mut GCUnion)).h;
         let mut n: *mut Node = 0 as *mut Node;
@@ -937,7 +895,6 @@ unsafe extern "C" fn clearbyvalues(
                 (*o).tt_ = (0 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
             }
             i = i.wrapping_add(1);
-            i;
         }
         n = &mut *((*h).node).offset(0 as libc::c_int as isize) as *mut Node;
         while n < limit {
@@ -956,27 +913,22 @@ unsafe extern "C" fn clearbyvalues(
                 clearkey(n);
             }
             n = n.offset(1);
-            n;
         }
         l = (*(l as *mut GCUnion)).h.gclist;
     }
 }
 
-unsafe extern "C" fn freeupval(mut L: *mut lua_State, mut uv: *mut UpVal) {
+unsafe fn freeupval(mut L: *mut lua_State, mut uv: *mut UpVal) {
     if (*uv).v.p != &mut (*uv).u.value as *mut TValue {
         luaF_unlinkupval(uv);
     }
     luaM_free_(L, uv as *mut libc::c_void, ::core::mem::size_of::<UpVal>());
 }
 
-unsafe extern "C" fn freeobj(mut L: *mut lua_State, mut o: *mut GCObject) {
-    match (*o).tt as libc::c_int {
-        10 => {
-            luaF_freeproto(L, &mut (*(o as *mut GCUnion)).p);
-        }
-        9 => {
-            freeupval(L, &mut (*(o as *mut GCUnion)).upv);
-        }
+unsafe fn freeobj(mut L: *mut lua_State, mut o: *mut GCObject) {
+    match (*o).tt {
+        10 => luaF_freeproto(L, &mut (*(o as *mut GCUnion)).p),
+        9 => freeupval(L, &mut (*(o as *mut GCUnion)).upv),
         6 => {
             let mut cl: *mut LClosure = &mut (*(o as *mut GCUnion)).cl.l;
             luaM_free_(
@@ -997,12 +949,8 @@ unsafe extern "C" fn freeobj(mut L: *mut lua_State, mut o: *mut GCObject) {
                         * (*cl_0).nupvalues as libc::c_int) as usize,
             );
         }
-        5 => {
-            luaH_free(L, &mut (*(o as *mut GCUnion)).h);
-        }
-        8 => {
-            luaE_freethread(L, &mut (*(o as *mut GCUnion)).th);
-        }
+        5 => luaH_free(L, &mut (*(o as *mut GCUnion)).h),
+        8 => luaE_freethread(L, &mut (*(o as *mut GCUnion)).th),
         7 => {
             let mut u: *mut Udata = &mut (*(o as *mut GCUnion)).u;
             luaM_free_(
@@ -1043,10 +991,10 @@ unsafe extern "C" fn freeobj(mut L: *mut lua_State, mut o: *mut GCObject) {
             );
         }
         _ => {}
-    };
+    }
 }
 
-unsafe extern "C" fn sweeplist(
+unsafe fn sweeplist(
     mut L: *mut lua_State,
     mut p: *mut *mut GCObject,
     mut countin: libc::c_int,
@@ -1076,7 +1024,6 @@ unsafe extern "C" fn sweeplist(
             p = &mut (*curr).next;
         }
         i += 1;
-        i;
     }
     if !countout.is_null() {
         *countout = i;
@@ -1088,10 +1035,7 @@ unsafe extern "C" fn sweeplist(
     };
 }
 
-unsafe extern "C" fn sweeptolive(
-    mut L: *mut lua_State,
-    mut p: *mut *mut GCObject,
-) -> *mut *mut GCObject {
+unsafe fn sweeptolive(mut L: *mut lua_State, mut p: *mut *mut GCObject) -> *mut *mut GCObject {
     let mut old: *mut *mut GCObject = p;
     loop {
         p = sweeplist(L, p, 1 as libc::c_int, 0 as *mut libc::c_int);
@@ -1102,7 +1046,7 @@ unsafe extern "C" fn sweeptolive(
     return p;
 }
 
-unsafe extern "C" fn checkSizes(mut L: *mut lua_State, mut g: *mut global_State) {
+unsafe fn checkSizes(mut L: *mut lua_State, mut g: *mut global_State) {
     if (*g).gcemergency == 0 {
         if (*g).strt.nuse < (*g).strt.size / 4 as libc::c_int {
             let mut olddebt: isize = (*g).GCdebt;
@@ -1112,7 +1056,7 @@ unsafe extern "C" fn checkSizes(mut L: *mut lua_State, mut g: *mut global_State)
     }
 }
 
-unsafe extern "C" fn udata2finalize(mut g: *mut global_State) -> *mut GCObject {
+unsafe fn udata2finalize(mut g: *mut global_State) -> *mut GCObject {
     let mut o: *mut GCObject = (*g).tobefnz;
     (*g).tobefnz = (*o).next;
     (*o).next = (*g).allgc;
@@ -1135,7 +1079,7 @@ unsafe extern "C" fn udata2finalize(mut g: *mut global_State) -> *mut GCObject {
     return o;
 }
 
-unsafe extern "C" fn GCTM(mut L: *mut lua_State) {
+unsafe fn GCTM(mut L: *mut lua_State) {
     let mut g: *mut global_State = (*L).l_G;
     let mut tm: *const TValue = 0 as *const TValue;
     let mut v: TValue = TValue {
@@ -1197,7 +1141,6 @@ unsafe extern "C" fn runafewfinalizers(mut L: *mut lua_State, mut n: libc::c_int
     while i < n && !((*g).tobefnz).is_null() {
         GCTM(L);
         i += 1;
-        i;
     }
     return i;
 }
