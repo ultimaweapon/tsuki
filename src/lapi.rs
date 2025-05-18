@@ -1,5 +1,4 @@
 #![allow(
-    dead_code,
     mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
@@ -1524,10 +1523,6 @@ pub unsafe fn lua_dump(
     } else {
         Ok(1)
     }
-}
-
-pub unsafe fn lua_status(mut L: *mut lua_State) -> libc::c_int {
-    return (*L).status as libc::c_int;
 }
 
 pub unsafe fn lua_gc(mut L: *mut lua_State, cmd: GcCommand) -> libc::c_int {

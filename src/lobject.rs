@@ -255,8 +255,7 @@ pub struct BuffFS {
     pub space: [c_char; 199],
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaO_ceillog2(mut x: libc::c_uint) -> c_int {
+pub unsafe fn luaO_ceillog2(mut x: libc::c_uint) -> c_int {
     static mut log_2: [u8; 256] = [
         0 as c_int as u8,
         1 as c_int as u8,

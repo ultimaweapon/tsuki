@@ -1,11 +1,9 @@
 #![allow(
-    dead_code,
     mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
-    unused_mut
+    unused_assignments
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
@@ -16,13 +14,13 @@ use libc::{free, realloc};
 use std::ffi::{CStr, c_void};
 
 pub unsafe fn luaM_growaux_(
-    mut L: *mut lua_State,
-    mut block: *mut libc::c_void,
-    mut nelems: libc::c_int,
-    mut psize: *mut libc::c_int,
-    mut size_elems: libc::c_int,
-    mut limit: libc::c_int,
-    mut what: *const libc::c_char,
+    L: *mut lua_State,
+    block: *mut libc::c_void,
+    nelems: libc::c_int,
+    psize: *mut libc::c_int,
+    size_elems: libc::c_int,
+    limit: libc::c_int,
+    what: *const libc::c_char,
 ) -> Result<*mut c_void, Box<dyn std::error::Error>> {
     let mut newblock: *mut libc::c_void = 0 as *mut libc::c_void;
     let mut size: libc::c_int = *psize;
@@ -59,36 +57,32 @@ pub unsafe fn luaM_growaux_(
 }
 
 pub unsafe fn luaM_shrinkvector_(
-    mut L: *mut lua_State,
-    mut block: *mut libc::c_void,
-    mut size: *mut libc::c_int,
-    mut final_n: libc::c_int,
-    mut size_elem: libc::c_int,
+    L: *mut lua_State,
+    block: *mut libc::c_void,
+    size: *mut libc::c_int,
+    final_n: libc::c_int,
+    size_elem: libc::c_int,
 ) -> *mut libc::c_void {
     let mut newblock: *mut libc::c_void = 0 as *mut libc::c_void;
-    let mut oldsize: usize = (*size * size_elem) as usize;
-    let mut newsize: usize = (final_n * size_elem) as usize;
+    let oldsize: usize = (*size * size_elem) as usize;
+    let newsize: usize = (final_n * size_elem) as usize;
     newblock = luaM_saferealloc_(L, block, oldsize, newsize);
     *size = final_n;
     return newblock;
 }
 
-pub unsafe fn luaM_toobig(mut L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaM_toobig(L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
     luaG_runerror(L, "memory allocation error: block too big")
 }
 
-pub unsafe fn luaM_free_(mut L: *mut lua_State, mut block: *mut libc::c_void, mut osize: usize) {
-    let mut g: *mut global_State = (*L).l_G;
+pub unsafe fn luaM_free_(L: *mut lua_State, block: *mut libc::c_void, osize: usize) {
+    let g: *mut global_State = (*L).l_G;
     free(block);
     (*g).GCdebt = ((*g).GCdebt as usize).wrapping_sub(osize) as isize as isize;
 }
 
-unsafe fn tryagain(
-    mut L: *mut lua_State,
-    mut block: *mut libc::c_void,
-    mut nsize: usize,
-) -> *mut libc::c_void {
-    let mut g: *mut global_State = (*L).l_G;
+unsafe fn tryagain(L: *mut lua_State, block: *mut libc::c_void, nsize: usize) -> *mut libc::c_void {
+    let g: *mut global_State = (*L).l_G;
 
     if (*g).nilvalue.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int
         && (*g).gcstopem == 0
@@ -101,12 +95,12 @@ unsafe fn tryagain(
 }
 
 pub unsafe fn luaM_realloc_(
-    mut L: *mut lua_State,
-    mut block: *mut libc::c_void,
-    mut osize: usize,
-    mut nsize: usize,
+    L: *mut lua_State,
+    block: *mut libc::c_void,
+    osize: usize,
+    nsize: usize,
 ) -> *mut libc::c_void {
-    let mut g: *mut global_State = (*L).l_G;
+    let g: *mut global_State = (*L).l_G;
     let mut newblock = if nsize == 0 {
         free(block);
         0 as *mut libc::c_void
@@ -130,28 +124,25 @@ pub unsafe fn luaM_realloc_(
 }
 
 pub unsafe fn luaM_saferealloc_(
-    mut L: *mut lua_State,
-    mut block: *mut libc::c_void,
-    mut osize: usize,
-    mut nsize: usize,
+    L: *mut lua_State,
+    block: *mut libc::c_void,
+    osize: usize,
+    nsize: usize,
 ) -> *mut libc::c_void {
-    let mut newblock: *mut libc::c_void = luaM_realloc_(L, block, osize, nsize);
+    let newblock: *mut libc::c_void = luaM_realloc_(L, block, osize, nsize);
 
-    if ((newblock.is_null() && nsize > 0 as libc::c_int as usize) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
-        != 0
-    {
+    if newblock.is_null() && nsize > 0 {
         todo!("invoke handle_alloc_error");
     }
 
     newblock
 }
 
-pub unsafe fn luaM_malloc_(mut L: *mut lua_State, mut size: usize) -> *mut c_void {
+pub unsafe fn luaM_malloc_(L: *mut lua_State, size: usize) -> *mut c_void {
     if size == 0 {
         return 0 as *mut libc::c_void;
     } else {
-        let mut g: *mut global_State = (*L).l_G;
+        let g: *mut global_State = (*L).l_G;
         let mut newblock: *mut libc::c_void = realloc(0 as *mut libc::c_void, size);
 
         if ((newblock == 0 as *mut libc::c_void) as libc::c_int != 0 as libc::c_int) as libc::c_int

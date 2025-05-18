@@ -40,7 +40,6 @@ pub struct lua_State {
     pub(crate) next: *mut GCObject,
     pub(crate) tt: u8,
     pub(crate) marked: u8,
-    pub(crate) status: u8,
     pub(crate) allowhook: u8,
     pub(crate) nci: libc::c_ushort,
     pub(crate) top: StkIdRel,
@@ -121,7 +120,6 @@ pub struct C2RustUnnamed_3 {
 
 pub type lua_CFunction = unsafe fn(*mut lua_State) -> Result<c_int, Box<dyn std::error::Error>>;
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct global_State {
     pub totalbytes: isize,
@@ -380,7 +378,6 @@ unsafe fn preinit_thread(mut L: *mut lua_State, mut g: *mut global_State) {
     (*L).allowhook = 1 as libc::c_int as u8;
     (*L).hookcount = (*L).basehookcount;
     (*L).openupval = 0 as *mut UpVal;
-    (*L).status = 0 as libc::c_int as u8;
     (*L).oldpc = 0 as libc::c_int;
 }
 
@@ -451,7 +448,6 @@ pub unsafe fn luaE_resetthread(mut L: *mut lua_State) -> Result<(), Box<dyn std:
     (*(*L).stack.p).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     (*ci).func.p = (*L).stack.p;
     (*ci).callstatus = ((1 as libc::c_int) << 1 as libc::c_int) as libc::c_ushort;
-    (*L).status = 0 as libc::c_int as u8;
 
     let status = luaD_closeprotected(L, 1, Ok(()));
 
