@@ -46,10 +46,8 @@ unsafe fn linkgclist_(
 ) {
     *pnext = *list;
     *list = o;
-    (*o).marked = ((*o).marked as libc::c_int
-        & !((1 as libc::c_int) << 5 as libc::c_int
-            | ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int))
-            as u8 as libc::c_int) as u8;
+
+    (*o).marked = ((*o).marked & !(1 << 5 | (1 << 3 | 1 << 4)));
 }
 
 unsafe fn clearkey(mut n: *mut Node) {
@@ -121,41 +119,27 @@ pub unsafe fn luaC_fix(mut L: *mut lua_State, mut o: *mut GCObject) {
     (*g).fixedgc = o;
 }
 
-pub unsafe fn luaC_newobjdt(
-    mut L: *mut lua_State,
-    mut tt: libc::c_int,
-    mut sz: usize,
-    mut offset: usize,
-) -> *mut GCObject {
-    let mut g: *mut global_State = (*L).l_G;
-    let mut p: *mut libc::c_char = luaM_malloc_(L, sz) as *mut libc::c_char;
-    let mut o: *mut GCObject = p.offset(offset as isize) as *mut GCObject;
-    (*o).marked = ((*g).currentwhite as libc::c_int
-        & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int))
-        as u8;
-    (*o).tt = tt as u8;
-    (*o).next = (*g).allgc;
-    (*g).allgc = o;
-    return o;
-}
-
 pub unsafe fn luaC_newobj(
     mut L: *mut lua_State,
     mut tt: libc::c_int,
     mut sz: usize,
 ) -> *mut GCObject {
-    return luaC_newobjdt(L, tt, sz, 0 as libc::c_int as usize);
+    let mut g: *mut global_State = (*L).l_G;
+    let mut o = luaM_malloc_(L, sz) as *mut GCObject;
+
+    (*o).marked = ((*g).currentwhite & (1 << 3 | 1 << 4));
+    (*o).tt = tt as u8;
+    (*o).next = (*g).allgc;
+    (*g).allgc = o;
+
+    return o;
 }
 
 unsafe fn reallymarkobject(mut g: *mut global_State, mut o: *mut GCObject) {
-    let mut current_block_18: u64;
-    match (*o).tt as libc::c_int {
+    match (*o).tt {
         4 | 20 => {
-            (*o).marked = ((*o).marked as libc::c_int
-                & !((1 as libc::c_int) << 3 as libc::c_int
-                    | (1 as libc::c_int) << 4 as libc::c_int)
-                | (1 as libc::c_int) << 5 as libc::c_int) as u8;
-            current_block_18 = 18317007320854588510;
+            (*o).marked = ((*o).marked & !(1 << 3 | 1 << 4) | 1 << 5);
+            return;
         }
         9 => {
             let mut uv: *mut UpVal = (o as *mut UpVal);
@@ -179,7 +163,8 @@ unsafe fn reallymarkobject(mut g: *mut global_State, mut o: *mut GCObject) {
             {
                 reallymarkobject(g, (*(*uv).v.p).value_.gc);
             }
-            current_block_18 = 18317007320854588510;
+
+            return;
         }
         7 => {
             let mut u: *mut Udata = (o as *mut Udata);
@@ -197,24 +182,14 @@ unsafe fn reallymarkobject(mut g: *mut global_State, mut o: *mut GCObject) {
                     & !((1 as libc::c_int) << 3 as libc::c_int
                         | (1 as libc::c_int) << 4 as libc::c_int)
                     | (1 as libc::c_int) << 5 as libc::c_int) as u8;
-                current_block_18 = 18317007320854588510;
-            } else {
-                current_block_18 = 15904375183555213903;
+                return;
             }
         }
-        6 | 38 | 5 | 8 | 10 => {
-            current_block_18 = 15904375183555213903;
-        }
-        _ => {
-            current_block_18 = 18317007320854588510;
-        }
+        6 | 38 | 5 | 8 | 10 => {}
+        _ => return,
     }
-    match current_block_18 {
-        15904375183555213903 => {
-            linkgclist_((o as *mut GCObject), getgclist(o), &mut (*g).gray);
-        }
-        _ => {}
-    };
+
+    linkgclist_(o, getgclist(o), &raw mut (*g).gray);
 }
 
 unsafe fn markmt(mut g: *mut global_State) {
@@ -307,19 +282,13 @@ unsafe fn cleargraylists(mut g: *mut global_State) {
 
 unsafe fn restartcollection(mut g: *mut global_State) {
     cleargraylists(g);
-    if (*(*g).mainthread).marked as libc::c_int
-        & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
-        != 0
-    {
-        reallymarkobject(g, ((*g).mainthread as *mut GCObject));
-    }
-    if (*g).l_registry.tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0
-        && (*(*g).l_registry.value_.gc).marked as libc::c_int
-            & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
-            != 0
+
+    if (*g).l_registry.tt_ & 1 << 6 != 0
+        && (*(*g).l_registry.value_.gc).marked & (1 << 3 | 1 << 4) != 0
     {
         reallymarkobject(g, (*g).l_registry.value_.gc);
     }
+
     markmt(g);
     markbeingfnz(g);
 }
@@ -1592,14 +1561,13 @@ unsafe extern "C" fn deletelist(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaC_freeallobjects(mut L: *mut lua_State) {
+pub unsafe fn luaC_freeallobjects(mut L: *mut lua_State) {
     let mut g: *mut global_State = (*L).l_G;
     (*g).gcstp = 4 as libc::c_int as u8;
     luaC_changemode(L, 0 as libc::c_int);
     separatetobefnz(g, 1 as libc::c_int);
     callallpendingfinalizers(L);
-    deletelist(L, (*g).allgc, ((*g).mainthread as *mut GCObject));
+    deletelist(L, (*g).allgc, L as *mut GCObject);
     deletelist(L, (*g).fixedgc, 0 as *mut GCObject);
 }
 
@@ -1668,7 +1636,8 @@ unsafe extern "C" fn sweepstep(
         return 0 as libc::c_int;
     };
 }
-unsafe extern "C" fn singlestep(mut L: *mut lua_State) -> usize {
+
+unsafe fn singlestep(mut L: *mut lua_State) -> usize {
     let mut g: *mut global_State = (*L).l_G;
     let mut work: usize = 0;
     (*g).gcstopem = 1 as libc::c_int as u8;

@@ -678,7 +678,7 @@ pub unsafe fn lua_pushlightuserdata(mut L: *mut lua_State, mut p: *mut libc::c_v
     api_incr_top(L);
 }
 
-pub unsafe fn lua_pushthread(mut L: *mut lua_State) -> libc::c_int {
+pub unsafe fn lua_pushthread(mut L: *mut lua_State) {
     let mut io: *mut TValue = &mut (*(*L).top.p).val;
     let mut x_: *mut lua_State = L;
     (*io).value_.gc = x_ as *mut GCObject;
@@ -686,7 +686,6 @@ pub unsafe fn lua_pushthread(mut L: *mut lua_State) -> libc::c_int {
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     api_incr_top(L);
-    return ((*(*L).l_G).mainthread == L) as libc::c_int;
 }
 
 unsafe fn auxgetstr(

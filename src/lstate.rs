@@ -13,7 +13,7 @@
 use crate::api_incr_top;
 use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
 use crate::lfunc::luaF_closeupval;
-use crate::lgc::{luaC_freeallobjects, luaC_newobjdt, luaC_step};
+use crate::lgc::{luaC_freeallobjects, luaC_newobj, luaC_step};
 use crate::llex::luaX_init;
 use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::lobject::{GCObject, StackValue, StkId, StkIdRel, TString, TValue, Table, UpVal};
@@ -22,7 +22,7 @@ use crate::ltable::{luaH_new, luaH_resize};
 use crate::ltm::luaT_init;
 use libc::{free, realloc};
 use std::ffi::{c_char, c_int, c_void};
-use std::ptr::null;
+use std::ptr::{null, null_mut};
 
 pub type lua_Hook = Option<unsafe extern "C" fn(*mut lua_State, *mut lua_Debug) -> ()>;
 pub type lua_Reader =
@@ -157,7 +157,6 @@ pub struct global_State {
     pub finobjold1: *mut GCObject,
     pub finobjrold: *mut GCObject,
     pub twups: *mut lua_State,
-    pub mainthread: *mut lua_State,
     pub memerrmsg: *mut TString,
     pub tmname: [*mut TString; 25],
     pub mt: [*mut Table; 9],
@@ -319,14 +318,17 @@ unsafe fn init_registry(
         2 as libc::c_int as libc::c_uint,
         0 as libc::c_int as libc::c_uint,
     )?;
+
+    // Create dummy object for LUA_RIDX_MAINTHREAD.
     let mut io_0: *mut TValue = &mut *((*registry).array)
         .offset((1 as libc::c_int - 1 as libc::c_int) as isize)
         as *mut TValue;
-    let mut x__0: *mut lua_State = L;
-    (*io_0).value_.gc = x__0 as *mut GCObject;
-    (*io_0).tt_ = (8 as libc::c_int
+
+    (*io_0).value_.gc = luaH_new(L)? as *mut GCObject;
+    (*io_0).tt_ = (5 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+
     let mut io_1: *mut TValue = &mut *((*registry).array)
         .offset((2 as libc::c_int - 1 as libc::c_int) as isize)
         as *mut TValue;
@@ -383,7 +385,7 @@ unsafe fn close_state(mut L: *mut lua_State) {
     free(L.cast());
 }
 
-pub unsafe extern "C" fn lua_newthread(mut L: *mut lua_State) -> *mut lua_State {
+pub unsafe fn lua_newthread(mut L: *mut lua_State) -> *mut lua_State {
     let mut g: *mut global_State = (*L).l_G;
     let mut o: *mut GCObject = 0 as *mut GCObject;
     let mut L1: *mut lua_State = 0 as *mut lua_State;
@@ -392,7 +394,7 @@ pub unsafe extern "C" fn lua_newthread(mut L: *mut lua_State) -> *mut lua_State 
         luaC_step(L);
     }
 
-    o = luaC_newobjdt(L, 8, ::core::mem::size_of::<lua_State>(), 0);
+    o = luaC_newobj(L, 8, ::core::mem::size_of::<lua_State>());
     L1 = o as *mut lua_State;
 
     let mut io: *mut TValue = &mut (*(*L).top.p).val;
@@ -416,7 +418,7 @@ pub unsafe extern "C" fn lua_newthread(mut L: *mut lua_State) -> *mut lua_State 
     L1
 }
 
-pub unsafe extern "C" fn luaE_freethread(mut L: *mut lua_State, mut L1: *mut lua_State) {
+pub unsafe fn luaE_freethread(mut L: *mut lua_State, mut L1: *mut lua_State) {
     luaF_closeupval(L1, (*L1).stack.p);
     freestack(L1);
     luaM_free_(
@@ -462,20 +464,19 @@ pub unsafe fn lua_newstate() -> *mut lua_State {
     let mut L: *mut lua_State = 0 as *mut lua_State;
     let mut g: *mut global_State = 0 as *mut global_State;
     let mut l: *mut LG = realloc(0 as *mut libc::c_void, ::core::mem::size_of::<LG>()) as *mut LG;
+
     if l.is_null() {
         return 0 as *mut lua_State;
     }
-    L = &mut (*l).l;
-    g = &mut (*l).g;
-    (*L).tt = (8 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
-    (*g).currentwhite = ((1 as libc::c_int) << 3 as libc::c_int) as u8;
-    (*L).marked = ((*g).currentwhite as libc::c_int
-        & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int))
-        as u8;
+
+    L = &raw mut (*l).l;
+    g = &raw mut (*l).g;
+
+    (*L).tt = 8 | 0 << 4;
+    (*g).currentwhite = 1 << 3;
+    (*L).marked = (*g).currentwhite & (1 << 3 | 1 << 4);
     preinit_thread(L, g);
-    (*g).allgc = L as *mut GCObject;
-    (*L).next = 0 as *mut GCObject;
-    (*g).mainthread = L;
+    (*g).allgc = null_mut();
     (*g).seed = rand::random();
     (*g).gcstp = 2 as libc::c_int as u8;
     (*g).strt.nuse = 0 as libc::c_int;
@@ -522,14 +523,18 @@ pub unsafe fn lua_newstate() -> *mut lua_State {
     }
 
     if f_luaopen(L).is_err() {
+        (*L).next = (*g).allgc;
+        (*g).allgc = L as *mut GCObject;
         close_state(L);
         L = 0 as *mut lua_State;
     }
 
+    (*L).next = (*g).allgc;
+    (*g).allgc = L as *mut GCObject;
+
     return L;
 }
 
-pub unsafe extern "C" fn lua_close(mut L: *mut lua_State) {
-    L = (*(*L).l_G).mainthread;
+pub unsafe fn lua_close(mut L: *mut lua_State) {
     close_state(L);
 }
