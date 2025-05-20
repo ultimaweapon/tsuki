@@ -873,7 +873,7 @@ pub unsafe extern "C" fn luaO_utf8esc(mut buff: *mut c_char, mut x: libc::c_ulon
 }
 
 unsafe fn tostringbuff(mut obj: *mut TValue, buff: *mut c_char) -> c_int {
-    if (*obj).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
+    if (*obj).tt_ == 3 | 0 << 4 {
         sprintf(
             buff,
             b"%lld\0" as *const u8 as *const c_char,

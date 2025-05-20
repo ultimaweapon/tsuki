@@ -841,18 +841,15 @@ pub unsafe fn luaV_concat(
     mut L: *mut lua_State,
     mut total: c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if total == 1 as libc::c_int {
+    if total == 1 {
         return Ok(());
     }
+
     loop {
         let mut top: StkId = (*L).top.p;
         let mut n: libc::c_int = 2 as libc::c_int;
-        if !((*top.offset(-(2 as libc::c_int as isize))).val.tt_ as libc::c_int
-            & 0xf as libc::c_int
-            == 4 as libc::c_int
-            || (*top.offset(-(2 as libc::c_int as isize))).val.tt_ as libc::c_int
-                & 0xf as libc::c_int
-                == 3 as libc::c_int)
+
+        if !((*top.offset(-2)).val.tt_ & 0xf == 4 || (*top.offset(-2)).val.tt_ & 0xf == 3)
             || !((*top.offset(-(1 as libc::c_int as isize))).val.tt_ as libc::c_int
                 & 0xf as libc::c_int
                 == 4 as libc::c_int

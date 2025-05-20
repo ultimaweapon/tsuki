@@ -1975,7 +1975,8 @@ unsafe fn str_format(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
                 strfrmt = getformat(L, strfrmt, form.as_mut_ptr())?;
                 let fresh19 = strfrmt;
                 strfrmt = strfrmt.offset(1);
-                match *fresh19 as libc::c_int {
+
+                match *fresh19 as u8 {
                     99 => {
                         checkformat(
                             L,
@@ -2003,7 +2004,7 @@ unsafe fn str_format(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
                         flags = b"-#0\0" as *const u8 as *const libc::c_char;
                         current_block = 5689001924483802034;
                     }
-                    97 | 65 => {
+                    b'a' | b'A' => {
                         checkformat(
                             L,
                             form.as_mut_ptr(),
@@ -2015,7 +2016,7 @@ unsafe fn str_format(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
                             buff,
                             maxitem as usize,
                             form.as_mut_ptr(),
-                            luaL_checknumber(L, arg),
+                            luaL_checknumber(L, arg)? as f64,
                         );
                         current_block = 11793792312832361944;
                     }
@@ -2089,6 +2090,7 @@ unsafe fn str_format(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
                         );
                     }
                 }
+
                 match current_block {
                     5689001924483802034 => {
                         let mut n: i64 = luaL_checkinteger(L, arg)?;

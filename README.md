@@ -5,6 +5,10 @@ Tsuki is a port of vanilla Lua 5.4 to Rust. This is porting, not binding; which 
 > [!WARNING]
 > Tsuki currently in alpha stage. Do not use it on production!
 
+## Features
+
+- Any error propagated to the caller via Rust `Result` instead of long jump.
+
 ## Differences from vanilla Lua
 
 - Panic when memory allocation is failed without retry.

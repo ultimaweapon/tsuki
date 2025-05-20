@@ -22,6 +22,7 @@ pub use self::lbaselib::luaopen_base;
 pub use self::lmathlib::luaopen_math;
 pub use self::lstate::{lua_State, lua_close, lua_newstate, lua_newthread};
 pub use self::lstrlib::luaopen_string;
+pub use self::ltablib::luaopen_table;
 
 use std::ffi::c_int;
 

@@ -24,7 +24,7 @@ use libc::{FILE, free, memcpy, realloc, strcmp, strlen, strncmp, strstr};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::fmt::Display;
-use std::ptr::null;
+use std::ptr::{null, null_mut};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -1040,6 +1040,7 @@ pub unsafe fn luaL_tolstring(
     mut len: *mut usize,
 ) -> Result<*const libc::c_char, Box<dyn std::error::Error>> {
     idx = lua_absindex(L, idx);
+
     if luaL_callmeta(L, idx, b"__tostring\0" as *const u8 as *const libc::c_char)? != 0 {
         if lua_isstring(L, -(1 as libc::c_int)) == 0 {
             luaL_error(L, "'__tostring' must return a string")?;
@@ -1050,7 +1051,15 @@ pub unsafe fn luaL_tolstring(
                 if lua_isinteger(L, idx) != 0 {
                     lua_pushlstring(L, lua_tointegerx(L, idx, 0 as *mut libc::c_int).to_string())?;
                 } else {
-                    lua_pushlstring(L, lua_tonumberx(L, idx, 0 as *mut libc::c_int).to_string())?;
+                    // Lua expect 0.0 as "0.0". The problem is there is no way to force Rust to
+                    // output "0.0" so we need to do this manually.
+                    let v = lua_tonumberx(L, idx, null_mut());
+
+                    if v.fract() == 0.0 {
+                        lua_pushlstring(L, format!("{v:.1}"))?;
+                    } else {
+                        lua_pushlstring(L, v.to_string())?;
+                    }
                 }
             }
             4 => lua_pushvalue(L, idx),

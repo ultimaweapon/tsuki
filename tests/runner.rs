@@ -3,7 +3,7 @@ use std::ptr::null;
 use std::sync::LazyLock;
 use tsuki::{
     lua_close, lua_newstate, lua_pcall, lua_pop, luaL_loadbufferx, luaL_requiref, luaopen_base,
-    luaopen_math, luaopen_string,
+    luaopen_math, luaopen_string, luaopen_table,
 };
 
 #[test]
@@ -31,6 +31,11 @@ fn print() {
     run("print.lua").unwrap();
 }
 
+#[test]
+fn strings() {
+    run("strings.lua").unwrap();
+}
+
 fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Get path.
     let mut path = ROOT.join("tests");
@@ -47,6 +52,8 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     unsafe { luaL_requiref(lua, c"math".as_ptr(), luaopen_math, 1).unwrap() };
     unsafe { lua_pop(lua, 1).unwrap() };
     unsafe { luaL_requiref(lua, c"string".as_ptr(), luaopen_string, 1).unwrap() };
+    unsafe { lua_pop(lua, 1).unwrap() };
+    unsafe { luaL_requiref(lua, c"table".as_ptr(), luaopen_table, 1).unwrap() };
     unsafe { lua_pop(lua, 1).unwrap() };
 
     // Build chunk name.
