@@ -3398,9 +3398,8 @@ pub unsafe fn luaV_execute(
                             let mut i2_9: i64 = (*v2_11).value_.i;
                             pc = pc.offset(1);
                             let mut io_27: *mut TValue = &mut (*ra_34).val;
-                            (*io_27).value_.i = (i1_9 as u64 * i2_9 as u64) as i64;
-                            (*io_27).tt_ =
-                                (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+                            (*io_27).value_.i = ((i1_9 as u64).wrapping_mul(i2_9 as u64)) as i64;
+                            (*io_27).tt_ = (3 | 0 << 4);
                         } else {
                             let mut n1_8: f64 = 0.;
                             let mut n2_8: f64 = 0.;

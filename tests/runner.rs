@@ -27,6 +27,11 @@ fn gc() {
 }
 
 #[test]
+fn math() {
+    run("math.lua").unwrap();
+}
+
+#[test]
 fn print() {
     run("print.lua").unwrap();
 }

@@ -781,7 +781,9 @@ unsafe extern "C" fn l_str2int(mut s: *const c_char, mut result: *mut i64) -> *c
             & (1 as c_int) << 4 as c_int
             != 0
         {
-            a = (a * 16 as c_int as u64).wrapping_add(luaO_hexavalue(*s as c_int) as u64);
+            a = a
+                .wrapping_mul(16)
+                .wrapping_add(luaO_hexavalue(*s as c_int) as u64);
             empty = 0 as c_int;
             s = s.offset(1);
         }
