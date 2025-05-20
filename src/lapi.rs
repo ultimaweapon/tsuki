@@ -11,9 +11,7 @@
 use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall, luaD_protectedparser};
 use crate::ldump::luaU_dump;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
-use crate::lgc::{
-    luaC_barrier_, luaC_barrierback_, luaC_changemode, luaC_checkfinalizer, luaC_fullgc, luaC_step,
-};
+use crate::lgc::{luaC_barrier_, luaC_barrierback_, luaC_changemode, luaC_fullgc, luaC_step};
 use crate::lobject::{
     CClosure, GCObject, LClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata,
     UpVal, Value, luaO_arith, luaO_str2num, luaO_tostring,
@@ -1309,7 +1307,8 @@ pub unsafe fn lua_setmetatable(mut L: *mut lua_State, mut objindex: libc::c_int)
             .value_
             .gc as *mut Table;
     }
-    match (*obj).tt_ as libc::c_int & 0xf as libc::c_int {
+
+    match (*obj).tt_ & 0xf {
         5 => {
             let ref mut fresh3 = (*((*obj).value_.gc as *mut Table)).metatable;
             *fresh3 = mt;
@@ -1323,9 +1322,7 @@ pub unsafe fn lua_setmetatable(mut L: *mut lua_State, mut objindex: libc::c_int)
                         != 0
                 {
                     luaC_barrier_(L, (*obj).value_.gc as *mut GCObject, mt as *mut GCObject);
-                } else {
                 };
-                luaC_checkfinalizer(L, (*obj).value_.gc, mt);
             }
         }
         7 => {
@@ -1345,15 +1342,14 @@ pub unsafe fn lua_setmetatable(mut L: *mut lua_State, mut objindex: libc::c_int)
                         ((*obj).value_.gc as *mut Udata) as *mut Udata as *mut GCObject,
                         mt as *mut GCObject,
                     );
-                } else {
                 };
-                luaC_checkfinalizer(L, (*obj).value_.gc, mt);
             }
         }
         _ => {
             (*(*L).l_G).mt[((*obj).tt_ as libc::c_int & 0xf as libc::c_int) as usize] = mt;
         }
     }
+
     (*L).top.p = ((*L).top.p).offset(-1);
     (*L).top.p;
     return 1 as libc::c_int;

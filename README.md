@@ -7,7 +7,7 @@ Tsuki is a port of vanilla Lua 5.4 to Rust. This is porting, not binding; which 
 
 ## Features
 
-- Any error propagated to the caller via Rust `Result` instead of long jump.
+- Any error propagated to the caller via Rust `Result` instead of a long jump.
 
 ## Differences from vanilla Lua
 
@@ -16,7 +16,7 @@ Tsuki is a port of vanilla Lua 5.4 to Rust. This is porting, not binding; which 
 - No `xpcall` in basic library.
 - `warn` is enabled by default without message prefixes and does not support control message.
 - Second argument to `__close` metamethod always `nil`.
-- Any error in `__gc` metamethod will be ignored.
+- `__gc` metamethod is ignored.
 - C locale is ignored.
 
 ## Non-goals

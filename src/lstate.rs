@@ -141,21 +141,16 @@ pub struct global_State {
     pub gcstepsize: u8,
     pub allgc: *mut GCObject,
     pub sweepgc: *mut *mut GCObject,
-    pub finobj: *mut GCObject,
     pub gray: *mut GCObject,
     pub grayagain: *mut GCObject,
     pub weak: *mut GCObject,
     pub ephemeron: *mut GCObject,
     pub allweak: *mut GCObject,
-    pub tobefnz: *mut GCObject,
     pub fixedgc: *mut GCObject,
     pub survival: *mut GCObject,
     pub old1: *mut GCObject,
     pub reallyold: *mut GCObject,
     pub firstold1: *mut GCObject,
-    pub finobjsur: *mut GCObject,
-    pub finobjold1: *mut GCObject,
-    pub finobjrold: *mut GCObject,
     pub twups: *mut lua_State,
     pub memerrmsg: *mut TString,
     pub tmname: [*mut TString; 25],
@@ -488,15 +483,10 @@ pub unsafe fn lua_newstate() -> *mut lua_State {
     (*g).gcstopem = 0 as libc::c_int as u8;
     (*g).gcemergency = 0 as libc::c_int as u8;
     (*g).fixedgc = 0 as *mut GCObject;
-    (*g).tobefnz = (*g).fixedgc;
-    (*g).finobj = (*g).tobefnz;
     (*g).reallyold = 0 as *mut GCObject;
     (*g).old1 = (*g).reallyold;
     (*g).survival = (*g).old1;
     (*g).firstold1 = (*g).survival;
-    (*g).finobjrold = 0 as *mut GCObject;
-    (*g).finobjold1 = (*g).finobjrold;
-    (*g).finobjsur = (*g).finobjold1;
     (*g).sweepgc = 0 as *mut *mut GCObject;
     (*g).grayagain = 0 as *mut GCObject;
     (*g).gray = (*g).grayagain;

@@ -45,52 +45,6 @@ end
 
 _G["while"] = 234
 
-
---
--- tests for GC activation when creating different kinds of objects
---
-local function GC1 ()
-  local u
-  local b     -- (above 'u' it in the stack)
-  local finish = false
-  u = setmetatable({}, {__gc = function () finish = true end})
-  b = {34}
-  repeat u = {} until finish
-  assert(b[1] == 34)   -- 'u' was collected, but 'b' was not
-
-  finish = false; local i = 1
-  u = setmetatable({}, {__gc = function () finish = true end})
-  repeat i = i + 1; u = tostring(i) .. tostring(i) until finish
-  assert(b[1] == 34)   -- 'u' was collected, but 'b' was not
-
-  finish = false
-  u = setmetatable({}, {__gc = function () finish = true end})
-  repeat local i; u = function () return i end until finish
-  assert(b[1] == 34)   -- 'u' was collected, but 'b' was not
-end
-
-local function GC2 ()
-  local u
-  local finish = false
-  u = {setmetatable({}, {__gc = function () finish = true end})}
-  local b = {34}
-  repeat u = {{}} until finish
-  assert(b[1] == 34)   -- 'u' was collected, but 'b' was not
-
-  finish = false; local i = 1
-  u = {setmetatable({}, {__gc = function () finish = true end})}
-  repeat i = i + 1; u = {tostring(i) .. tostring(i)} until finish
-  assert(b[1] == 34)   -- 'u' was collected, but 'b' was not
-
-  finish = false
-  u = {setmetatable({}, {__gc = function () finish = true end})}
-  repeat local i; u = {function () return i end} until finish
-  assert(b[1] == 34)   -- 'u' was collected, but 'b' was not
-end
-
-local function GC()  GC1(); GC2() end
-
-
 do
   print("creating many objects")
 
@@ -304,68 +258,18 @@ local C1 = setmetatable({[t] = 1}, {__mode = 'k'})
 a.x = t  -- this should not prevent 't' from being removed from
          -- weak table 'C' by the time 'a' is finalized
 
-setmetatable(a, {__gc = function (u)
-                          assert(C.key == nil)
-                          assert(type(next(C1)) == 'table')
-                          end})
-
 a, t = nil
 collectgarbage()
 collectgarbage()
 assert(next(C) == nil and next(C1) == nil)
 C, C1 = nil
 
-
--- ephemerons
-local mt = {__mode = 'k'}
-a = {{10},{20},{30},{40}}; setmetatable(a, mt)
-x = nil
-for i = 1, 100 do local n = {}; a[n] = {k = {x}}; x = n end
-GC()
-local n = x
-local i = 0
-while n do n = a[n].k[1]; i = i + 1 end
-assert(i == 100)
-x = nil
-GC()
-for i = 1, 4 do assert(a[i][1] == i * 10); a[i] = undef end
-assert(next(a) == nil)
-
-local K = {}
-a[K] = {}
-for i=1,10 do a[K][i] = {}; a[a[K][i]] = setmetatable({}, mt) end
-x = nil
-local k = 1
-for j = 1,100 do
-  local n = {}; local nk = k%10 + 1
-  a[a[K][nk]][n] = {x, k = k}; x = n; k = nk
-end
-GC()
-local n = x
-local i = 0
-while n do local t = a[a[K][k]][n]; n = t[1]; k = t.k; i = i + 1 end
-assert(i == 100)
-K = nil
-GC()
-
 -- __gc x weak tables
 local u = setmetatable({}, {__gc = true})
 -- __gc metamethod should be collected before running
 setmetatable(getmetatable(u), {__mode = "v"})
-getmetatable(u).__gc = function (o) os.exit(1) end  -- cannot happen
 u = nil
 collectgarbage()
-
-local u = setmetatable({}, {__gc = true})
-local m = getmetatable(u)
-m.x = {[{0}] = 1; [0] = {1}}; setmetatable(m.x, {__mode = "kv"});
-m.__gc = function (o)
-  assert(next(getmetatable(o).x) == nil)
-  m = 10
-end
-u, m = nil
-collectgarbage()
-assert(m==10)
 
 do   -- tests for string keys in weak tables
   collectgarbage(); collectgarbage()
@@ -418,29 +322,12 @@ do
   local setmetatable,assert,type,print,getmetatable =
         setmetatable,assert,type,print,getmetatable
   local tt = {}
-  tt.__gc = function (o)
-    assert(getmetatable(o) == tt)
-    -- create new objects during GC
-    local a = 'xuxu'..(10+3)..'joao', {}
-    ___Glob = o  -- ressurrect object!
-    setmetatable({}, tt)  -- creates a new one with same metatable
-    print(">>> closing state " .. "<<<\n")
-  end
   local u = setmetatable({}, tt)
   ___Glob = {u}   -- avoid object being collected before program end
 end
 
 -- just to make sure
 assert(collectgarbage'isrunning')
-
-do    -- check that the collector is not reentrant in incremental mode
-  local res = true
-  setmetatable({}, {__gc = function ()
-    res = collectgarbage()
-  end})
-  collectgarbage()
-  assert(not res)
-end
 
 
 collectgarbage(oldmode)

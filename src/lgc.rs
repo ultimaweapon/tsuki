@@ -9,17 +9,16 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::ldo::{luaD_call, luaD_pcall, luaD_shrinkstack};
+use crate::ldo::luaD_shrinkstack;
 use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
 use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::lobject::{
     CClosure, GCObject, LClosure, Node, Proto, StkId, TString, TValue, Table, UValue, Udata, UpVal,
-    Value,
 };
 use crate::lstate::{global_State, lua_State, luaE_freethread, luaE_setdebt};
 use crate::lstring::{luaS_clearcache, luaS_remove, luaS_resize};
 use crate::ltable::{luaH_free, luaH_realasize};
-use crate::ltm::{TM_GC, TM_MODE, luaT_gettm, luaT_gettmbyobj};
+use crate::ltm::{TM_MODE, luaT_gettm};
 use libc::strchr;
 
 unsafe fn getgclist(mut o: *mut GCObject) -> *mut *mut GCObject {
@@ -209,23 +208,6 @@ unsafe fn markmt(mut g: *mut global_State) {
     }
 }
 
-unsafe fn markbeingfnz(mut g: *mut global_State) -> usize {
-    let mut o: *mut GCObject = 0 as *mut GCObject;
-    let mut count: usize = 0 as libc::c_int as usize;
-    o = (*g).tobefnz;
-    while !o.is_null() {
-        count = count.wrapping_add(1);
-        if (*o).marked as libc::c_int
-            & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
-            != 0
-        {
-            reallymarkobject(g, o as *mut GCObject);
-        }
-        o = (*o).next;
-    }
-    return count;
-}
-
 unsafe fn remarkupvals(mut g: *mut global_State) -> libc::c_int {
     let mut thread: *mut lua_State = 0 as *mut lua_State;
     let mut p: *mut *mut lua_State = &mut (*g).twups;
@@ -288,7 +270,6 @@ unsafe fn restartcollection(mut g: *mut global_State) {
     }
 
     markmt(g);
-    markbeingfnz(g);
 }
 
 unsafe fn genlink(mut g: *mut global_State, mut o: *mut GCObject) {
@@ -984,130 +965,11 @@ unsafe fn checkSizes(mut L: *mut lua_State, mut g: *mut global_State) {
     }
 }
 
-unsafe fn udata2finalize(mut g: *mut global_State) -> *mut GCObject {
-    let mut o: *mut GCObject = (*g).tobefnz;
-    (*g).tobefnz = (*o).next;
-    (*o).next = (*g).allgc;
-    (*g).allgc = o;
-    (*o).marked = ((*o).marked as libc::c_int
-        & !((1 as libc::c_int) << 6 as libc::c_int) as u8 as libc::c_int) as u8;
-    if 3 as libc::c_int <= (*g).gcstate as libc::c_int
-        && (*g).gcstate as libc::c_int <= 6 as libc::c_int
-    {
-        (*o).marked = ((*o).marked as libc::c_int
-            & !((1 as libc::c_int) << 5 as libc::c_int
-                | ((1 as libc::c_int) << 3 as libc::c_int
-                    | (1 as libc::c_int) << 4 as libc::c_int))
-            | ((*g).currentwhite as libc::c_int
-                & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int))
-                as u8 as libc::c_int) as u8;
-    } else if (*o).marked as libc::c_int & 7 as libc::c_int == 3 as libc::c_int {
-        (*g).firstold1 = o;
-    }
-    return o;
-}
-
-unsafe fn GCTM(mut L: *mut lua_State) {
-    let mut g: *mut global_State = (*L).l_G;
-    let mut tm: *const TValue = 0 as *const TValue;
-    let mut v: TValue = TValue {
-        value_: Value {
-            gc: 0 as *mut GCObject,
-        },
-        tt_: 0,
-    };
-    let mut io: *mut TValue = &mut v;
-    let mut i_g: *mut GCObject = udata2finalize(g);
-    (*io).value_.gc = i_g;
-    (*io).tt_ = ((*i_g).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
-    tm = luaT_gettmbyobj(L, &mut v, TM_GC);
-    if !((*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
-        let mut oldah: u8 = (*L).allowhook;
-        let mut oldgcstp: libc::c_int = (*g).gcstp as libc::c_int;
-        (*g).gcstp = ((*g).gcstp as libc::c_int | 2 as libc::c_int) as u8;
-        (*L).allowhook = 0 as libc::c_int as u8;
-        let fresh0 = (*L).top.p;
-        (*L).top.p = ((*L).top.p).offset(1);
-        let mut io1: *mut TValue = &mut (*fresh0).val;
-        let mut io2: *const TValue = tm;
-        (*io1).value_ = (*io2).value_;
-        (*io1).tt_ = (*io2).tt_;
-        let fresh1 = (*L).top.p;
-        (*L).top.p = ((*L).top.p).offset(1);
-        let mut io1_0: *mut TValue = &mut (*fresh1).val;
-        let mut io2_0: *const TValue = &mut v;
-        (*io1_0).value_ = (*io2_0).value_;
-        (*io1_0).tt_ = (*io2_0).tt_;
-        (*(*L).ci).callstatus = ((*(*L).ci).callstatus as libc::c_int
-            | (1 as libc::c_int) << 7 as libc::c_int)
-            as libc::c_ushort;
-
-        // Call __gc metamethod.
-        drop(luaD_pcall(
-            L,
-            (((*L).top.p).offset(-2) as *mut libc::c_char)
-                .offset_from((*L).stack.p as *mut libc::c_char),
-            |L| luaD_call(L, ((*L).top.p).offset(-2), 0),
-        ));
-
-        (*(*L).ci).callstatus = ((*(*L).ci).callstatus as libc::c_int
-            & !((1 as libc::c_int) << 7 as libc::c_int))
-            as libc::c_ushort;
-        (*L).allowhook = oldah;
-        (*g).gcstp = oldgcstp as u8;
-    }
-}
-
-unsafe fn runafewfinalizers(mut L: *mut lua_State, mut n: libc::c_int) -> libc::c_int {
-    let mut g: *mut global_State = (*L).l_G;
-    let mut i: libc::c_int = 0;
-    i = 0 as libc::c_int;
-    while i < n && !((*g).tobefnz).is_null() {
-        GCTM(L);
-        i += 1;
-    }
-    return i;
-}
-
-unsafe fn callallpendingfinalizers(mut L: *mut lua_State) {
-    let mut g: *mut global_State = (*L).l_G;
-    while !((*g).tobefnz).is_null() {
-        GCTM(L);
-    }
-}
-
 unsafe fn findlast(mut p: *mut *mut GCObject) -> *mut *mut GCObject {
     while !(*p).is_null() {
         p = &mut (**p).next;
     }
     return p;
-}
-
-unsafe fn separatetobefnz(mut g: *mut global_State, mut all: libc::c_int) {
-    let mut curr: *mut GCObject = 0 as *mut GCObject;
-    let mut p: *mut *mut GCObject = &mut (*g).finobj;
-    let mut lastnext: *mut *mut GCObject = findlast(&mut (*g).tobefnz);
-    loop {
-        curr = *p;
-        if !(curr != (*g).finobjold1) {
-            break;
-        }
-        if !((*curr).marked as libc::c_int
-            & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
-            != 0
-            || all != 0)
-        {
-            p = &mut (*curr).next;
-        } else {
-            if curr == (*g).finobjsur {
-                (*g).finobjsur = (*curr).next;
-            }
-            *p = (*curr).next;
-            (*curr).next = *lastnext;
-            *lastnext = curr;
-            lastnext = &mut (*curr).next;
-        }
-    }
 }
 
 unsafe fn checkpointer(mut p: *mut *mut GCObject, mut o: *mut GCObject) {
@@ -1121,52 +983,6 @@ unsafe fn correctpointers(mut g: *mut global_State, mut o: *mut GCObject) {
     checkpointer(&mut (*g).old1, o);
     checkpointer(&mut (*g).reallyold, o);
     checkpointer(&mut (*g).firstold1, o);
-}
-
-pub unsafe fn luaC_checkfinalizer(mut L: *mut lua_State, mut o: *mut GCObject, mut mt: *mut Table) {
-    let mut g: *mut global_State = (*L).l_G;
-    if (*o).marked as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0
-        || (if mt.is_null() {
-            0 as *const TValue
-        } else {
-            if (*mt).flags as libc::c_uint & (1 as libc::c_uint) << TM_GC as libc::c_int != 0 {
-                0 as *const TValue
-            } else {
-                luaT_gettm(mt, TM_GC, (*g).tmname[TM_GC as libc::c_int as usize])
-            }
-        })
-        .is_null()
-        || (*g).gcstp as libc::c_int & 4 as libc::c_int != 0
-    {
-        return;
-    } else {
-        let mut p: *mut *mut GCObject = 0 as *mut *mut GCObject;
-        if 3 as libc::c_int <= (*g).gcstate as libc::c_int
-            && (*g).gcstate as libc::c_int <= 6 as libc::c_int
-        {
-            (*o).marked = ((*o).marked as libc::c_int
-                & !((1 as libc::c_int) << 5 as libc::c_int
-                    | ((1 as libc::c_int) << 3 as libc::c_int
-                        | (1 as libc::c_int) << 4 as libc::c_int))
-                | ((*g).currentwhite as libc::c_int
-                    & ((1 as libc::c_int) << 3 as libc::c_int
-                        | (1 as libc::c_int) << 4 as libc::c_int)) as u8
-                    as libc::c_int) as u8;
-            if (*g).sweepgc == &mut (*o).next as *mut *mut GCObject {
-                (*g).sweepgc = sweeptolive(L, (*g).sweepgc);
-            }
-        } else {
-            correctpointers(g, o);
-        }
-        p = &mut (*g).allgc;
-        while *p != o {
-            p = &mut (**p).next;
-        }
-        *p = (*o).next;
-        (*o).next = (*g).finobj;
-        (*g).finobj = o;
-        (*o).marked = ((*o).marked as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
-    };
 }
 
 unsafe fn setpause(mut g: *mut global_State) {
@@ -1377,20 +1193,15 @@ unsafe fn finishgencycle(mut L: *mut lua_State, mut g: *mut global_State) {
     correctgraylists(g);
     checkSizes(L, g);
     (*g).gcstate = 0 as libc::c_int as u8;
-    if (*g).gcemergency == 0 {
-        callallpendingfinalizers(L);
-    }
 }
 
 unsafe fn youngcollection(mut L: *mut lua_State, mut g: *mut global_State) {
     let mut psurvival: *mut *mut GCObject = 0 as *mut *mut GCObject;
-    let mut dummy: *mut GCObject = 0 as *mut GCObject;
     if !((*g).firstold1).is_null() {
         markold(g, (*g).firstold1, (*g).reallyold);
         (*g).firstold1 = 0 as *mut GCObject;
     }
-    markold(g, (*g).finobj, (*g).finobjrold);
-    markold(g, (*g).tobefnz, 0 as *mut GCObject);
+
     atomic(L);
     (*g).gcstate = 3 as libc::c_int as u8;
     psurvival = sweepgen(L, g, &mut (*g).allgc, (*g).survival, &mut (*g).firstold1);
@@ -1398,13 +1209,7 @@ unsafe fn youngcollection(mut L: *mut lua_State, mut g: *mut global_State) {
     (*g).reallyold = (*g).old1;
     (*g).old1 = *psurvival;
     (*g).survival = (*g).allgc;
-    dummy = 0 as *mut GCObject;
-    psurvival = sweepgen(L, g, &mut (*g).finobj, (*g).finobjsur, &mut dummy);
-    sweepgen(L, g, psurvival, (*g).finobjold1, &mut dummy);
-    (*g).finobjrold = (*g).finobjold1;
-    (*g).finobjold1 = *psurvival;
-    (*g).finobjsur = (*g).finobj;
-    sweepgen(L, g, &mut (*g).tobefnz, 0 as *mut GCObject, &mut dummy);
+
     finishgencycle(L, g);
 }
 
@@ -1416,11 +1221,6 @@ unsafe fn atomic2gen(mut L: *mut lua_State, mut g: *mut global_State) {
     (*g).old1 = (*g).survival;
     (*g).reallyold = (*g).old1;
     (*g).firstold1 = 0 as *mut GCObject;
-    sweep2old(L, &mut (*g).finobj);
-    (*g).finobjsur = (*g).finobj;
-    (*g).finobjold1 = (*g).finobjsur;
-    (*g).finobjrold = (*g).finobjold1;
-    sweep2old(L, &mut (*g).tobefnz);
     (*g).gckind = 1 as libc::c_int as u8;
     (*g).lastatomic = 0 as libc::c_int as usize;
     (*g).GCestimate = ((*g).totalbytes + (*g).GCdebt) as usize;
@@ -1450,11 +1250,6 @@ unsafe fn enterinc(mut g: *mut global_State) {
     (*g).survival = 0 as *mut GCObject;
     (*g).old1 = (*g).survival;
     (*g).reallyold = (*g).old1;
-    whitelist(g, (*g).finobj);
-    whitelist(g, (*g).tobefnz);
-    (*g).finobjsur = 0 as *mut GCObject;
-    (*g).finobjold1 = (*g).finobjsur;
-    (*g).finobjrold = (*g).finobjold1;
     (*g).gcstate = 8 as libc::c_int as u8;
     (*g).gckind = 0 as libc::c_int as u8;
     (*g).lastatomic = 0 as libc::c_int as usize;
@@ -1540,8 +1335,6 @@ pub unsafe fn luaC_freeallobjects(mut L: *mut lua_State) {
     let mut g: *mut global_State = (*L).l_G;
     (*g).gcstp = 4 as libc::c_int as u8;
     luaC_changemode(L, 0 as libc::c_int);
-    separatetobefnz(g, 1 as libc::c_int);
-    callallpendingfinalizers(L);
     deletelist(L, (*g).allgc, L as *mut GCObject);
     deletelist(L, (*g).fixedgc, 0 as *mut GCObject);
 }
@@ -1578,8 +1371,6 @@ unsafe fn atomic(mut L: *mut lua_State) -> usize {
     clearbyvalues(g, (*g).allweak, 0 as *mut GCObject);
     origweak = (*g).weak;
     origall = (*g).allweak;
-    separatetobefnz(g, 0 as libc::c_int);
-    work = work.wrapping_add(markbeingfnz(g));
     work = work.wrapping_add(propagateall(g));
     convergeephemerons(g);
     clearbykeys(g, (*g).ephemeron);
@@ -1635,28 +1426,15 @@ unsafe fn singlestep(mut L: *mut lua_State) -> usize {
             entersweep(L);
             (*g).GCestimate = ((*g).totalbytes + (*g).GCdebt) as usize;
         }
-        3 => {
-            work = sweepstep(L, g, 4 as libc::c_int, &mut (*g).finobj) as usize;
-        }
-        4 => {
-            work = sweepstep(L, g, 5 as libc::c_int, &mut (*g).tobefnz) as usize;
-        }
-        5 => {
-            work = sweepstep(L, g, 6 as libc::c_int, 0 as *mut *mut GCObject) as usize;
-        }
+        3 => work = sweepstep(L, g, 6, 0 as *mut *mut GCObject) as usize,
         6 => {
             checkSizes(L, g);
             (*g).gcstate = 7 as libc::c_int as u8;
             work = 0 as libc::c_int as usize;
         }
         7 => {
-            if !((*g).tobefnz).is_null() && (*g).gcemergency == 0 {
-                (*g).gcstopem = 0 as libc::c_int as u8;
-                work = (runafewfinalizers(L, 10 as libc::c_int) * 50 as libc::c_int) as usize;
-            } else {
-                (*g).gcstate = 8 as libc::c_int as u8;
-                work = 0 as libc::c_int as usize;
-            }
+            (*g).gcstate = 8 as libc::c_int as u8;
+            work = 0 as libc::c_int as usize;
         }
         _ => return 0 as libc::c_int as usize,
     }
