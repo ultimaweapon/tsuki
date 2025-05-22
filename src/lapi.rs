@@ -16,9 +16,7 @@ use crate::lobject::{
     CClosure, GCObject, LClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata,
     UpVal, Value, luaO_arith, luaO_str2num, luaO_tostring,
 };
-use crate::lstate::{
-    CallInfo, global_State, lua_CFunction, lua_Reader, lua_State, lua_Writer, luaE_setdebt,
-};
+use crate::lstate::{CallInfo, lua_CFunction, lua_Reader, lua_State, lua_Writer, luaE_setdebt};
 use crate::lstring::{luaS_new, luaS_newlstr, luaS_newudata};
 use crate::ltable::{
     luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_new, luaH_next, luaH_resize, luaH_set,
@@ -45,14 +43,14 @@ unsafe fn index2value(mut L: *mut lua_State, mut idx: libc::c_int) -> *mut TValu
     if idx > 0 as libc::c_int {
         let mut o: StkId = ((*ci).func.p).offset(idx as isize);
         if o >= (*L).top.p {
-            return &mut (*(*L).l_G).nilvalue;
+            return (*(*L).l_G).nilvalue.get();
         } else {
             return &mut (*o).val;
         }
     } else if !(idx <= -(1000000 as libc::c_int) - 1000 as libc::c_int) {
         return &mut (*((*L).top.p).offset(idx as isize)).val;
     } else if idx == -(1000000 as libc::c_int) - 1000 as libc::c_int {
-        return &mut (*(*L).l_G).l_registry;
+        return (*(*L).l_G).l_registry.get();
     } else {
         idx = -(1000000 as libc::c_int) - 1000 as libc::c_int - idx;
         if (*(*ci).func.p).val.tt_ as libc::c_int
@@ -66,10 +64,10 @@ unsafe fn index2value(mut L: *mut lua_State, mut idx: libc::c_int) -> *mut TValu
                     .as_mut_ptr()
                     .offset((idx - 1 as libc::c_int) as isize) as *mut TValue
             } else {
-                &mut (*(*L).l_G).nilvalue
+                (*(*L).l_G).nilvalue.get()
             };
         } else {
-            return &mut (*(*L).l_G).nilvalue;
+            return (*(*L).l_G).nilvalue.get();
         }
     };
 }
@@ -261,7 +259,7 @@ pub unsafe fn lua_pushvalue(mut L: *mut lua_State, mut idx: libc::c_int) {
 pub unsafe fn lua_type(mut L: *mut lua_State, mut idx: libc::c_int) -> libc::c_int {
     let mut o: *const TValue = index2value(L, idx);
     return if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int)
-        || o != &mut (*(*L).l_G).nilvalue as *mut TValue as *const TValue
+        || o != (*(*L).l_G).nilvalue.get() as *mut TValue as *const TValue
     {
         (*o).tt_ as libc::c_int & 0xf as libc::c_int
     } else {
@@ -325,9 +323,9 @@ pub unsafe fn lua_rawequal(
     let mut o1: *const TValue = index2value(L, index1);
     let mut o2: *const TValue = index2value(L, index2);
     return if (!((*o1).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int)
-        || o1 != &mut (*(*L).l_G).nilvalue as *mut TValue as *const TValue)
+        || o1 != (*(*L).l_G).nilvalue.get() as *mut TValue as *const TValue)
         && (!((*o2).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int)
-            || o2 != &mut (*(*L).l_G).nilvalue as *mut TValue as *const TValue)
+            || o2 != (*(*L).l_G).nilvalue.get() as *mut TValue as *const TValue)
     {
         luaV_equalobj(0 as *mut lua_State, o1, o2)
     } else {
@@ -370,9 +368,9 @@ pub unsafe fn lua_compare(
     o1 = index2value(L, index1);
     o2 = index2value(L, index2);
     if (!((*o1).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int)
-        || o1 != &mut (*(*L).l_G).nilvalue as *mut TValue as *const TValue)
+        || o1 != (*(*L).l_G).nilvalue.get() as *mut TValue as *const TValue)
         && (!((*o2).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int)
-            || o2 != &mut (*(*L).l_G).nilvalue as *mut TValue as *const TValue)
+            || o2 != (*(*L).l_G).nilvalue.get() as *mut TValue as *const TValue)
     {
         match op {
             0 => {
@@ -464,7 +462,7 @@ pub unsafe fn lua_tolstring(
             return Ok(0 as *const libc::c_char);
         }
         luaO_tostring(L, o)?;
-        if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+        if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
             luaC_step(L);
         }
         o = index2value(L, idx);
@@ -596,7 +594,7 @@ pub unsafe fn lua_pushlstring(
     (*io).value_.gc = x_ as *mut GCObject;
     (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     api_incr_top(L);
-    if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+    if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
     return Ok(((*ts).contents).as_mut_ptr());
@@ -618,7 +616,7 @@ pub unsafe fn lua_pushstring(
         s = ((*ts).contents).as_mut_ptr();
     }
     api_incr_top(L);
-    if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+    if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
     return Ok(s);
@@ -654,7 +652,7 @@ pub unsafe fn lua_pushcclosure(mut L: *mut lua_State, mut fn_0: lua_CFunction, m
             | (2 as libc::c_int) << 4 as libc::c_int
             | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         api_incr_top(L);
-        if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+        if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
             luaC_step(L);
         }
     };
@@ -736,7 +734,7 @@ pub unsafe fn lua_getglobal(
     name: impl AsRef<[u8]>,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut G: *const TValue = 0 as *const TValue;
-    G = &mut *((*((*(*L).l_G).l_registry.value_.gc as *mut Table)).array)
+    G = &mut *((*((*(*(*L).l_G).l_registry.get()).value_.gc as *mut Table)).array)
         .offset((2 as libc::c_int - 1 as libc::c_int) as isize) as *mut TValue;
     return auxgetstr(L, G, name.as_ref());
 }
@@ -916,7 +914,7 @@ pub unsafe fn lua_createtable(
     if narray > 0 as libc::c_int || nrec > 0 as libc::c_int {
         luaH_resize(L, t, narray as libc::c_uint, nrec as libc::c_uint)?;
     }
-    if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+    if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
     Ok(())
@@ -935,7 +933,7 @@ pub unsafe fn lua_getmetatable(mut L: *mut lua_State, mut objindex: libc::c_int)
             mt = (*((*obj).value_.gc as *mut Udata)).metatable;
         }
         _ => {
-            mt = (*(*L).l_G).mt[((*obj).tt_ as libc::c_int & 0xf as libc::c_int) as usize];
+            mt = (*(*L).l_G).mt[((*obj).tt_ & 0xf) as usize].get();
         }
     }
     if !mt.is_null() {
@@ -1043,7 +1041,7 @@ pub unsafe fn lua_setglobal(
     mut name: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut G: *const TValue = 0 as *const TValue;
-    G = &mut *((*((*(*L).l_G).l_registry.value_.gc as *mut Table)).array)
+    G = &mut *((*((*(*(*L).l_G).l_registry.get()).value_.gc as *mut Table)).array)
         .offset((2 as libc::c_int - 1 as libc::c_int) as isize) as *mut TValue;
     auxsetstr(L, G, name)
 }
@@ -1346,7 +1344,7 @@ pub unsafe fn lua_setmetatable(mut L: *mut lua_State, mut objindex: libc::c_int)
             }
         }
         _ => {
-            (*(*L).l_G).mt[((*obj).tt_ as libc::c_int & 0xf as libc::c_int) as usize] = mt;
+            (*(*L).l_G).mt[((*obj).tt_ & 0xf) as usize].set(mt);
         }
     }
 
@@ -1457,10 +1455,10 @@ pub unsafe fn lua_load(
             .value_
             .gc as *mut LClosure;
         if (*f).nupvalues as libc::c_int >= 1 as libc::c_int {
-            let mut gt: *const TValue = &mut *((*((*(*L).l_G).l_registry.value_.gc as *mut Table))
-                .array)
-                .offset((2 as libc::c_int - 1 as libc::c_int) as isize)
-                as *mut TValue;
+            let mut gt: *const TValue =
+                &mut *((*((*(*(*L).l_G).l_registry.get()).value_.gc as *mut Table)).array)
+                    .offset((2 as libc::c_int - 1 as libc::c_int) as isize)
+                    as *mut TValue;
             let mut io1: *mut TValue =
                 (**((*f).upvals).as_mut_ptr().offset(0 as libc::c_int as isize))
                     .v
@@ -1521,92 +1519,87 @@ pub unsafe fn lua_dump(
 
 pub unsafe fn lua_gc(mut L: *mut lua_State, cmd: GcCommand) -> libc::c_int {
     let mut res: libc::c_int = 0 as libc::c_int;
-    let mut g: *mut global_State = (*L).l_G;
+    let g = (*L).l_G;
 
-    if (*g).gcstp as libc::c_int & 2 as libc::c_int != 0 {
+    if (*g).gcstp.get() as libc::c_int & 2 as libc::c_int != 0 {
         return -1;
     }
 
     match cmd {
         GcCommand::Stop => {
-            (*g).gcstp = 1 as libc::c_int as u8;
+            (*g).gcstp.set(1 as libc::c_int as u8);
         }
         GcCommand::Restart => {
             luaE_setdebt(g, 0 as libc::c_int as isize);
-            (*g).gcstp = 0 as libc::c_int as u8;
+            (*g).gcstp.set(0 as libc::c_int as u8);
         }
         GcCommand::Collect => {
             luaC_fullgc(L, 0 as libc::c_int);
         }
         GcCommand::Count => {
-            res = (((*g).totalbytes + (*g).GCdebt) as usize >> 10 as libc::c_int) as libc::c_int;
+            res = (((*g).totalbytes.get() + (*g).GCdebt.get()) as usize >> 10) as libc::c_int;
         }
         GcCommand::CountByte => {
-            res = (((*g).totalbytes + (*g).GCdebt) as usize & 0x3ff as libc::c_int as usize)
-                as libc::c_int;
+            res = (((*g).totalbytes.get() + (*g).GCdebt.get()) as usize & 0x3ff) as libc::c_int;
         }
         GcCommand::Step(data) => {
             let mut debt: isize = 1 as libc::c_int as isize;
-            let mut oldstp: u8 = (*g).gcstp;
-            (*g).gcstp = 0 as libc::c_int as u8;
+            let mut oldstp: u8 = (*g).gcstp.get();
+            (*g).gcstp.set(0 as libc::c_int as u8);
             if data == 0 as libc::c_int {
                 luaE_setdebt(g, 0 as libc::c_int as isize);
                 luaC_step(L);
             } else {
-                debt = data as isize * 1024 as libc::c_int as isize + (*g).GCdebt;
+                debt = data as isize * 1024 as libc::c_int as isize + (*g).GCdebt.get();
                 luaE_setdebt(g, debt);
-                if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+                if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
                     luaC_step(L);
                 }
             }
-            (*g).gcstp = oldstp;
-            if debt > 0 as libc::c_int as isize && (*g).gcstate as libc::c_int == 8 as libc::c_int {
+            (*g).gcstp.set(oldstp);
+            if debt > 0 as libc::c_int as isize && (*g).gcstate.get() as libc::c_int == 8 {
                 res = 1 as libc::c_int;
             }
         }
         GcCommand::SetPause(data_0) => {
-            res = (*g).gcpause as libc::c_int * 4 as libc::c_int;
-            (*g).gcpause = (data_0 / 4 as libc::c_int) as u8;
+            res = (*g).gcpause.get() as libc::c_int * 4 as libc::c_int;
+            (*g).gcpause.set((data_0 / 4 as libc::c_int) as u8);
         }
         GcCommand::SetStepMul(data_1) => {
-            res = (*g).gcstepmul as libc::c_int * 4 as libc::c_int;
-            (*g).gcstepmul = (data_1 / 4 as libc::c_int) as u8;
+            res = (*g).gcstepmul.get() as libc::c_int * 4 as libc::c_int;
+            (*g).gcstepmul.set((data_1 / 4 as libc::c_int) as u8);
         }
         GcCommand::GetRunning => {
-            res = ((*g).gcstp as libc::c_int == 0 as libc::c_int) as libc::c_int;
+            res = ((*g).gcstp.get() as libc::c_int == 0 as libc::c_int) as libc::c_int;
         }
         GcCommand::SetGen(minormul, majormul) => {
-            res = if (*g).gckind as libc::c_int == 1 as libc::c_int
-                || (*g).lastatomic != 0 as libc::c_int as usize
-            {
+            res = if (*g).gckind.get() as libc::c_int == 1 || (*g).lastatomic.get() != 0 {
                 10 as libc::c_int
             } else {
                 11 as libc::c_int
             };
             if minormul != 0 as libc::c_int {
-                (*g).genminormul = minormul as u8;
+                (*g).genminormul.set(minormul as u8);
             }
             if majormul != 0 as libc::c_int {
-                (*g).genmajormul = (majormul / 4 as libc::c_int) as u8;
+                (*g).genmajormul.set((majormul / 4 as libc::c_int) as u8);
             }
             luaC_changemode(L, 1 as libc::c_int);
         }
         GcCommand::SetInc(pause, stepmul, stepsize) => {
-            res = if (*g).gckind as libc::c_int == 1 as libc::c_int
-                || (*g).lastatomic != 0 as libc::c_int as usize
-            {
+            res = if (*g).gckind.get() as libc::c_int == 1 || (*g).lastatomic.get() != 0 {
                 10 as libc::c_int
             } else {
                 11 as libc::c_int
             };
             if pause != 0 as libc::c_int {
-                (*g).gcpause = (pause / 4 as libc::c_int) as u8;
+                (*g).gcpause.set((pause / 4 as libc::c_int) as u8);
             }
             if stepmul != 0 as libc::c_int {
-                (*g).gcstepmul = (stepmul / 4 as libc::c_int) as u8;
+                (*g).gcstepmul.set((stepmul / 4 as libc::c_int) as u8);
             }
             if stepsize != 0 as libc::c_int {
-                (*g).gcstepsize = stepsize as u8;
+                (*g).gcstepsize.set(stepsize as u8);
             }
             luaC_changemode(L, 0 as libc::c_int);
         }
@@ -1663,7 +1656,7 @@ pub unsafe fn lua_concat(
         (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         api_incr_top(L);
     }
-    if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+    if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
     Ok(())
@@ -1694,7 +1687,7 @@ pub unsafe fn lua_newuserdatauv(
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     api_incr_top(L);
-    if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+    if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
     return Ok((u as *mut libc::c_char).offset(

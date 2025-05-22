@@ -20,11 +20,25 @@ pub use self::lauxlib::{
 };
 pub use self::lbaselib::luaopen_base;
 pub use self::lmathlib::luaopen_math;
-pub use self::lstate::{lua_State, lua_close, lua_newstate, lua_newthread};
+pub use self::lstate::{lua_State, lua_closethread};
 pub use self::lstrlib::luaopen_string;
 pub use self::ltablib::luaopen_table;
 
+use self::lgc::luaC_freeallobjects;
+use self::llex::luaX_init;
+use self::lmem::luaM_free_;
+use self::lobject::{GCObject, StackValue, TString, TValue, Table, Value};
+use self::lstring::luaS_init;
+use self::ltable::{luaH_new, luaH_resize};
+use self::ltm::luaT_init;
+use std::alloc::{Layout, handle_alloc_error};
+use std::cell::{Cell, UnsafeCell};
 use std::ffi::c_int;
+use std::marker::PhantomPinned;
+use std::ops::Deref;
+use std::pin::Pin;
+use std::ptr::{addr_of_mut, null, null_mut};
+use std::rc::Rc;
 
 mod error;
 mod gc;
@@ -66,4 +80,317 @@ unsafe extern "C" fn api_incr_top(td: *mut lua_State) {
     if unsafe { (*td).top.p > (*(*td).ci).top.p } {
         panic!("stack overflow");
     }
+}
+
+/// Global states shared with all Lua threads.
+#[repr(C)]
+pub struct Lua {
+    totalbytes: Cell<isize>,
+    GCdebt: Cell<isize>,
+    GCestimate: Cell<usize>,
+    lastatomic: Cell<usize>,
+    strt: UnsafeCell<stringtable>,
+    l_registry: UnsafeCell<TValue>,
+    nilvalue: UnsafeCell<TValue>,
+    seed: libc::c_uint,
+    currentwhite: Cell<u8>,
+    gcstate: Cell<u8>,
+    gckind: Cell<u8>,
+    gcstopem: Cell<u8>,
+    genminormul: Cell<u8>,
+    genmajormul: Cell<u8>,
+    gcstp: Cell<u8>,
+    gcemergency: Cell<u8>,
+    gcpause: Cell<u8>,
+    gcstepmul: Cell<u8>,
+    gcstepsize: Cell<u8>,
+    allgc: Cell<*mut GCObject>,
+    sweepgc: Cell<*mut *mut GCObject>,
+    gray: Cell<*mut GCObject>,
+    grayagain: Cell<*mut GCObject>,
+    weak: Cell<*mut GCObject>,
+    ephemeron: Cell<*mut GCObject>,
+    allweak: Cell<*mut GCObject>,
+    fixedgc: Cell<*mut GCObject>,
+    survival: Cell<*mut GCObject>,
+    old1: Cell<*mut GCObject>,
+    reallyold: Cell<*mut GCObject>,
+    firstold1: Cell<*mut GCObject>,
+    twups: Cell<*mut lua_State>,
+    memerrmsg: Cell<*mut TString>,
+    tmname: [Cell<*mut TString>; 25],
+    mt: [Cell<*mut Table>; 9],
+    strcache: [[Cell<*mut TString>; 2]; 53],
+    phantom: PhantomPinned,
+}
+
+impl Lua {
+    pub fn new() -> Result<Pin<Rc<Self>>, Box<dyn std::error::Error>> {
+        let g = Rc::pin(Self {
+            totalbytes: Cell::new(size_of::<Self>() as isize),
+            GCdebt: Cell::new(0),
+            GCestimate: Cell::new(0), // TODO: Lua does not initialize this.
+            lastatomic: Cell::new(0),
+            strt: UnsafeCell::new(stringtable {
+                hash: 0 as *mut *mut TString,
+                nuse: 0,
+                size: 0,
+            }),
+            l_registry: UnsafeCell::new(TValue {
+                value_: Value { i: 0 },
+                tt_: (0 | 0 << 4),
+            }),
+            nilvalue: UnsafeCell::new(TValue {
+                value_: Value { i: 0 },
+                tt_: (0 | 0 << 4),
+            }),
+            seed: rand::random(),
+            currentwhite: Cell::new(1 << 3),
+            gcstate: Cell::new(8),
+            gckind: Cell::new(0),
+            gcstopem: Cell::new(0),
+            genminormul: Cell::new(20 as libc::c_int as u8),
+            genmajormul: Cell::new((100 as libc::c_int / 4 as libc::c_int) as u8),
+            gcstp: Cell::new(2),
+            gcemergency: Cell::new(0),
+            gcpause: Cell::new((200 as libc::c_int / 4 as libc::c_int) as u8),
+            gcstepmul: Cell::new((100 as libc::c_int / 4 as libc::c_int) as u8),
+            gcstepsize: Cell::new(13 as libc::c_int as u8),
+            allgc: Cell::new(null_mut()),
+            sweepgc: Cell::new(0 as *mut *mut GCObject),
+            gray: Cell::new(null_mut()),
+            grayagain: Cell::new(null_mut()),
+            weak: Cell::new(null_mut()),
+            ephemeron: Cell::new(null_mut()),
+            allweak: Cell::new(null_mut()),
+            fixedgc: Cell::new(null_mut()),
+            survival: Cell::new(null_mut()),
+            old1: Cell::new(null_mut()),
+            reallyold: Cell::new(null_mut()),
+            firstold1: Cell::new(null_mut()),
+            twups: Cell::new(null_mut()),
+            memerrmsg: Cell::new(null_mut()),
+            tmname: [
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+            ],
+            mt: [
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+            ],
+            strcache: [
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+                [Cell::new(null_mut()), Cell::new(null_mut())],
+            ],
+            phantom: PhantomPinned,
+        });
+
+        // Setup registry.
+        let td = g.spawn();
+        let registry: *mut Table = unsafe { luaH_new(td)? };
+        let io: *mut TValue = g.l_registry.get();
+
+        unsafe { (*io).value_.gc = registry as *mut GCObject };
+        unsafe { (*io).tt_ = 5 | 0 << 4 | 1 << 6 };
+
+        unsafe { luaH_resize(td, registry, 2, 0) }?;
+
+        // Create dummy object for LUA_RIDX_MAINTHREAD.
+        let io_0 = unsafe { ((*registry).array).offset(1 - 1) as *mut TValue };
+
+        unsafe { (*io_0).value_.gc = luaH_new(td)? as *mut GCObject };
+        unsafe { (*io_0).tt_ = 5 | 0 << 4 | 1 << 6 };
+
+        // Create LUA_RIDX_GLOBALS.
+        let io_1 = unsafe { ((*registry).array).offset(2 - 1) as *mut TValue };
+
+        unsafe { (*io_1).value_.gc = luaH_new(td)? as *mut GCObject };
+        unsafe { (*io_1).tt_ = 5 | 0 << 4 | 1 << 6 };
+
+        // Initialize internal module.
+        unsafe { luaS_init(td)? };
+        unsafe { luaT_init(td)? };
+        unsafe { luaX_init(td)? };
+
+        g.gcstp.set(0);
+
+        Ok(g)
+    }
+
+    pub fn spawn(self: &Pin<Rc<Self>>) -> *mut lua_State {
+        // Create new thread.
+        let td = unsafe { self.create_object(8, Layout::new::<lua_State>()) as *mut lua_State };
+
+        unsafe { (*td).l_G = self.deref() };
+        unsafe { (*td).stack.p = null_mut() };
+        unsafe { (*td).ci = null_mut() };
+        unsafe { (*td).nci = 0 };
+        unsafe { (*td).twups = td };
+        unsafe { addr_of_mut!((*td).hook).write(None) };
+        unsafe { (*td).hookmask = 0 };
+        unsafe { (*td).basehookcount = 0 };
+        unsafe { (*td).allowhook = 1 };
+        unsafe { (*td).hookcount = (*td).basehookcount };
+        unsafe { (*td).openupval = null_mut() };
+        unsafe { (*td).oldpc = 0 };
+
+        // Allocate stack.
+        let layout = Layout::array::<StackValue>(2 * 20 + 5).unwrap();
+        let stack = unsafe { std::alloc::alloc(layout) as *mut StackValue };
+
+        if stack.is_null() {
+            handle_alloc_error(layout);
+        }
+
+        for i in 0..(2 * 20 + 5) {
+            unsafe { (*stack.offset(i)).val.tt_ = 0 | 0 << 4 };
+        }
+
+        unsafe { (*td).stack.p = stack };
+        unsafe { (*td).top.p = (*td).stack.p };
+        unsafe { (*td).stack_last.p = ((*td).stack.p).offset(2 * 20) };
+        unsafe { (*td).tbclist.p = (*td).stack.p };
+
+        // Setup base CI.
+        let ci = unsafe { addr_of_mut!((*td).base_ci) };
+
+        unsafe { (*ci).previous = null_mut() };
+        unsafe { (*ci).next = (*ci).previous };
+        unsafe { (*ci).callstatus = 1 << 1 };
+        unsafe { (*ci).func.p = (*td).top.p };
+        unsafe { (*ci).u.savedpc = null() };
+        unsafe { (*ci).nresults = 0 };
+        unsafe { (*(*td).top.p).val.tt_ = 0 | 0 << 4 };
+        unsafe { (*td).top.p = ((*td).top.p).offset(1) };
+        unsafe { (*ci).top.p = ((*td).top.p).offset(20) };
+        unsafe { (*td).ci = ci };
+
+        td
+    }
+
+    unsafe fn create_object(&self, tt: u8, layout: Layout) -> *mut GCObject {
+        let o = unsafe { std::alloc::alloc(layout) as *mut GCObject };
+
+        if o.is_null() {
+            handle_alloc_error(layout);
+        }
+
+        unsafe { (*o).marked = self.currentwhite.get() & (1 << 3 | 1 << 4) };
+        unsafe { (*o).tt = tt };
+        unsafe { (*o).next = self.allgc.get() };
+        self.allgc.set(o);
+
+        self.GCdebt
+            .set((self.GCdebt.get() as usize).wrapping_add(layout.size()) as isize);
+
+        o
+    }
+
+    fn decrease_gc_debt(&self, bytes: usize) {
+        let v = (self.GCdebt.get() as usize).wrapping_sub(bytes);
+
+        self.GCdebt.set(v as isize);
+    }
+}
+
+impl Drop for Lua {
+    fn drop(&mut self) {
+        unsafe { luaC_freeallobjects(self) };
+        unsafe {
+            luaM_free_(
+                self,
+                (*self.strt.get()).hash as *mut libc::c_void,
+                ((*self.strt.get()).size as usize).wrapping_mul(size_of::<*mut TString>()),
+            )
+        };
+    }
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+struct stringtable {
+    hash: *mut *mut TString,
+    nuse: libc::c_int,
+    size: libc::c_int,
 }

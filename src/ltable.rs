@@ -10,6 +10,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(path_statements)]
 
+use crate::Lua;
 use crate::ldebug::luaG_runerror;
 use crate::lgc::{luaC_barrierback_, luaC_newobj};
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
@@ -355,16 +356,17 @@ pub unsafe fn luaH_next(
     return Ok(0 as libc::c_int);
 }
 
-unsafe extern "C" fn freehash(mut L: *mut lua_State, mut t: *mut Table) {
+unsafe fn freehash(g: *const Lua, mut t: *mut Table) {
     if !((*t).lastfree).is_null() {
         luaM_free_(
-            L,
+            g,
             (*t).node as *mut libc::c_void,
             (((1 as libc::c_int) << (*t).lsizenode as libc::c_int) as usize)
-                .wrapping_mul(::core::mem::size_of::<Node>()),
+                .wrapping_mul(size_of::<Node>()),
         );
     }
 }
+
 unsafe extern "C" fn computesizes(
     mut nums: *mut libc::c_uint,
     mut pna: *mut libc::c_uint,
@@ -513,7 +515,7 @@ unsafe fn setnodevector(
         }
         size = ((1 as libc::c_int) << lsize) as libc::c_uint;
         (*t).node = luaM_malloc_(
-            L,
+            (*L).l_G,
             (size as usize).wrapping_mul(::core::mem::size_of::<Node>()),
         ) as *mut Node;
         i = 0 as libc::c_int;
@@ -629,21 +631,24 @@ pub unsafe fn luaH_resize(
         != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
     {
-        freehash(L, &mut newt);
+        freehash((*L).l_G, &mut newt);
         todo!("invoke handle_alloc_error");
     }
     exchangehashpart(t, &mut newt);
     (*t).array = newarray;
     (*t).alimit = newasize;
     i = oldasize;
+
     while i < newasize {
         (*((*t).array).offset(i as isize)).tt_ =
             (0 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
         i = i.wrapping_add(1);
         i;
     }
+
     reinsert(L, &mut newt, t)?;
-    freehash(L, &mut newt);
+    freehash((*L).l_G, &mut newt);
+
     Ok(())
 }
 
@@ -696,7 +701,7 @@ unsafe fn rehash(
 
 pub unsafe fn luaH_new(mut L: *mut lua_State) -> Result<*mut Table, Box<dyn std::error::Error>> {
     let mut o: *mut GCObject = luaC_newobj(
-        L,
+        (*L).l_G,
         5 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int,
         ::core::mem::size_of::<Table>(),
     );
@@ -709,16 +714,16 @@ pub unsafe fn luaH_new(mut L: *mut lua_State) -> Result<*mut Table, Box<dyn std:
     return Ok(t);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaH_free(mut L: *mut lua_State, mut t: *mut Table) {
-    freehash(L, t);
+pub unsafe fn luaH_free(g: *const Lua, mut t: *mut Table) {
+    freehash(g, t);
     luaM_free_(
-        L,
+        g,
         (*t).array as *mut libc::c_void,
         (luaH_realasize(t) as usize).wrapping_mul(::core::mem::size_of::<TValue>()),
     );
-    luaM_free_(L, t as *mut libc::c_void, ::core::mem::size_of::<Table>());
+    luaM_free_(g, t as *mut libc::c_void, size_of::<Table>());
 }
+
 unsafe extern "C" fn getfreepos(mut t: *mut Table) -> *mut Node {
     if !((*t).lastfree).is_null() {
         while (*t).lastfree > (*t).node {

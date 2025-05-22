@@ -6,8 +6,9 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use crate::Lua;
 use crate::ldebug::luaG_runerror;
-use crate::lstate::{global_State, lua_State};
+use crate::lstate::lua_State;
 use libc::{free, realloc};
 use std::ffi::{CStr, c_void};
 
@@ -72,10 +73,9 @@ pub unsafe fn luaM_toobig(L: *mut lua_State) -> Result<(), Box<dyn std::error::E
     luaG_runerror(L, "memory allocation error: block too big")
 }
 
-pub unsafe fn luaM_free_(L: *mut lua_State, block: *mut libc::c_void, osize: usize) {
-    let g: *mut global_State = (*L).l_G;
+pub unsafe fn luaM_free_(g: *const Lua, block: *mut libc::c_void, osize: usize) {
     free(block);
-    (*g).GCdebt = ((*g).GCdebt as usize).wrapping_sub(osize) as isize as isize;
+    (*g).decrease_gc_debt(osize);
 }
 
 pub unsafe fn luaM_realloc_(
@@ -84,7 +84,7 @@ pub unsafe fn luaM_realloc_(
     osize: usize,
     nsize: usize,
 ) -> *mut libc::c_void {
-    let g: *mut global_State = (*L).l_G;
+    let g = (*L).l_G;
     let newblock = if nsize == 0 {
         free(block);
         0 as *mut libc::c_void
@@ -98,9 +98,13 @@ pub unsafe fn luaM_realloc_(
     {
         return 0 as *mut libc::c_void;
     }
-    (*g).GCdebt = ((*g).GCdebt as usize)
-        .wrapping_add(nsize)
-        .wrapping_sub(osize) as isize;
+
+    (*g).GCdebt.set(
+        ((*g).GCdebt.get() as usize)
+            .wrapping_add(nsize)
+            .wrapping_sub(osize) as isize,
+    );
+
     return newblock;
 }
 
@@ -119,20 +123,17 @@ pub unsafe fn luaM_saferealloc_(
     newblock
 }
 
-pub unsafe fn luaM_malloc_(L: *mut lua_State, size: usize) -> *mut c_void {
+pub unsafe fn luaM_malloc_(g: *const Lua, size: usize) -> *mut c_void {
     if size == 0 {
         return 0 as *mut libc::c_void;
     } else {
-        let g: *mut global_State = (*L).l_G;
         let newblock: *mut libc::c_void = realloc(0 as *mut libc::c_void, size);
 
-        if ((newblock == 0 as *mut libc::c_void) as libc::c_int != 0 as libc::c_int) as libc::c_int
-            as libc::c_long
-            != 0
-        {
+        if newblock == 0 as *mut libc::c_void {
             todo!("invoke handle_alloc_error");
         }
-        (*g).GCdebt = ((*g).GCdebt as usize).wrapping_add(size) as isize as isize;
+        (*g).GCdebt
+            .set(((*g).GCdebt.get() as usize).wrapping_add(size) as isize);
         return newblock;
     };
 }

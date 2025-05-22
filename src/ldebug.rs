@@ -881,9 +881,11 @@ unsafe extern "C" fn funcnamefromcode(
         }
         _ => return 0 as *const libc::c_char,
     }
-    *name = ((*(*(*L).l_G).tmname[tm as usize]).contents)
+
+    *name = ((*(*(*L).l_G).tmname[tm as usize].get()).contents)
         .as_mut_ptr()
         .offset(2 as libc::c_int as isize);
+
     return b"metamethod\0" as *const u8 as *const libc::c_char;
 }
 unsafe extern "C" fn funcnamefromcall(

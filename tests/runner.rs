@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::ptr::null;
 use std::sync::LazyLock;
 use tsuki::{
-    lua_close, lua_newstate, lua_pcall, lua_pop, luaL_loadbufferx, luaL_requiref, luaopen_base,
+    Lua, lua_closethread, lua_pcall, lua_pop, luaL_loadbufferx, luaL_requiref, luaopen_base,
     luaopen_math, luaopen_string, luaopen_table,
 };
 
@@ -50,7 +50,8 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     // Setup Lua.
     let content = std::fs::read(&path).unwrap();
-    let lua = unsafe { lua_newstate() };
+    let lua = Lua::new().unwrap();
+    let lua = lua.spawn();
 
     unsafe { luaL_requiref(lua, c"_G".as_ptr(), luaopen_base, 0).unwrap() };
     unsafe { lua_pop(lua, 1).unwrap() };
@@ -75,7 +76,7 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
         r = unsafe { lua_pcall(lua, 0, 0) };
     }
 
-    unsafe { lua_close(lua) };
+    unsafe { lua_closethread(lua).unwrap() };
     r
 }
 

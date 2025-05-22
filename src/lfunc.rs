@@ -10,6 +10,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(path_statements)]
 
+use crate::Lua;
 use crate::ldebug::{luaG_findlocal, luaG_runerror};
 use crate::ldo::luaD_call;
 use crate::lgc::{luaC_barrier_, luaC_newobj};
@@ -22,13 +23,9 @@ use crate::lstate::lua_State;
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
 use std::ffi::CStr;
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaF_newCclosure(
-    mut L: *mut lua_State,
-    mut nupvals: libc::c_int,
-) -> *mut CClosure {
+pub unsafe fn luaF_newCclosure(mut L: *mut lua_State, mut nupvals: libc::c_int) -> *mut CClosure {
     let mut o: *mut GCObject = luaC_newobj(
-        L,
+        (*L).l_G,
         6 as libc::c_int | (2 as libc::c_int) << 4 as libc::c_int,
         (32 as libc::c_ulong as libc::c_int
             + ::core::mem::size_of::<TValue>() as libc::c_ulong as libc::c_int * nupvals)
@@ -39,13 +36,9 @@ pub unsafe extern "C" fn luaF_newCclosure(
     return c;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaF_newLclosure(
-    mut L: *mut lua_State,
-    mut nupvals: libc::c_int,
-) -> *mut LClosure {
+pub unsafe fn luaF_newLclosure(mut L: *mut lua_State, mut nupvals: libc::c_int) -> *mut LClosure {
     let mut o: *mut GCObject = luaC_newobj(
-        L,
+        (*L).l_G,
         6 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int,
         (32 as libc::c_ulong as libc::c_int
             + ::core::mem::size_of::<*mut TValue>() as libc::c_ulong as libc::c_int * nupvals)
@@ -66,13 +59,12 @@ pub unsafe extern "C" fn luaF_newLclosure(
     return c;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaF_initupvals(mut L: *mut lua_State, mut cl: *mut LClosure) {
+pub unsafe fn luaF_initupvals(mut L: *mut lua_State, mut cl: *mut LClosure) {
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < (*cl).nupvalues as libc::c_int {
         let mut o: *mut GCObject = luaC_newobj(
-            L,
+            (*L).l_G,
             9 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int,
             ::core::mem::size_of::<UpVal>(),
         );
@@ -94,13 +86,13 @@ pub unsafe extern "C" fn luaF_initupvals(mut L: *mut lua_State, mut cl: *mut LCl
     }
 }
 
-unsafe extern "C" fn newupval(
+unsafe fn newupval(
     mut L: *mut lua_State,
     mut level: StkId,
     mut prev: *mut *mut UpVal,
 ) -> *mut UpVal {
     let mut o: *mut GCObject = luaC_newobj(
-        L,
+        (*L).l_G,
         9 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int,
         ::core::mem::size_of::<UpVal>(),
     );
@@ -113,10 +105,12 @@ unsafe extern "C" fn newupval(
         (*next).u.open.previous = &mut (*uv).u.open.next;
     }
     *prev = uv;
+
     if !((*L).twups != L) {
-        (*L).twups = (*(*L).l_G).twups;
-        (*(*L).l_G).twups = L;
+        (*L).twups = (*(*L).l_G).twups.get();
+        (*(*L).l_G).twups.set(L);
     }
+
     return uv;
 }
 
@@ -190,7 +184,7 @@ unsafe fn prepcallclosemth(
     level: StkId,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut uv: *mut TValue = &mut (*level).val;
-    let errobj = &raw mut (*(*L).l_G).nilvalue;
+    let errobj = (*(*L).l_G).nilvalue.get();
 
     callclosemethod(L, uv, errobj)
 }
@@ -308,10 +302,9 @@ pub unsafe fn luaF_close(
     return Ok(level);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaF_newproto(mut L: *mut lua_State) -> *mut Proto {
+pub unsafe fn luaF_newproto(mut L: *mut lua_State) -> *mut Proto {
     let mut o: *mut GCObject = luaC_newobj(
-        L,
+        (*L).l_G,
         9 as libc::c_int + 1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int,
         ::core::mem::size_of::<Proto>(),
     );
@@ -339,44 +332,43 @@ pub unsafe extern "C" fn luaF_newproto(mut L: *mut lua_State) -> *mut Proto {
     return f;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaF_freeproto(mut L: *mut lua_State, mut f: *mut Proto) {
+pub unsafe fn luaF_freeproto(g: *const Lua, mut f: *mut Proto) {
     luaM_free_(
-        L,
+        g,
         (*f).code as *mut libc::c_void,
         ((*f).sizecode as usize).wrapping_mul(::core::mem::size_of::<u32>()),
     );
     luaM_free_(
-        L,
+        g,
         (*f).p as *mut libc::c_void,
         ((*f).sizep as usize).wrapping_mul(::core::mem::size_of::<*mut Proto>()),
     );
     luaM_free_(
-        L,
+        g,
         (*f).k as *mut libc::c_void,
         ((*f).sizek as usize).wrapping_mul(::core::mem::size_of::<TValue>()),
     );
     luaM_free_(
-        L,
+        g,
         (*f).lineinfo as *mut libc::c_void,
         ((*f).sizelineinfo as usize).wrapping_mul(::core::mem::size_of::<i8>()),
     );
     luaM_free_(
-        L,
+        g,
         (*f).abslineinfo as *mut libc::c_void,
         ((*f).sizeabslineinfo as usize).wrapping_mul(::core::mem::size_of::<AbsLineInfo>()),
     );
     luaM_free_(
-        L,
+        g,
         (*f).locvars as *mut libc::c_void,
         ((*f).sizelocvars as usize).wrapping_mul(::core::mem::size_of::<LocVar>()),
     );
     luaM_free_(
-        L,
+        g,
         (*f).upvalues as *mut libc::c_void,
         ((*f).sizeupvalues as usize).wrapping_mul(::core::mem::size_of::<Upvaldesc>()),
     );
-    luaM_free_(L, f as *mut libc::c_void, ::core::mem::size_of::<Proto>());
+    luaM_free_(g, f as *mut libc::c_void, size_of::<Proto>());
 }
 
 #[unsafe(no_mangle)]

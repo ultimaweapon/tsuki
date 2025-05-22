@@ -93,16 +93,16 @@ pub unsafe fn luaD_reallocstack(L: *mut lua_State, newsize: c_int) {
         ((*L).stack_last.p).offset_from((*L).stack.p) as libc::c_long as libc::c_int;
     let mut i: libc::c_int = 0;
     let mut newstack: StkId = 0 as *mut StackValue;
-    let oldgcstop: libc::c_int = (*(*L).l_G).gcstopem as libc::c_int;
+    let oldgcstop: libc::c_int = (*(*L).l_G).gcstopem.get() as libc::c_int;
     relstack(L);
-    (*(*L).l_G).gcstopem = 1 as libc::c_int as u8;
+    (*(*L).l_G).gcstopem.set(1 as libc::c_int as u8);
     newstack = luaM_realloc_(
         L,
         (*L).stack.p as *mut libc::c_void,
         ((oldsize + 5 as libc::c_int) as usize).wrapping_mul(::core::mem::size_of::<StackValue>()),
         ((newsize + 5 as libc::c_int) as usize).wrapping_mul(::core::mem::size_of::<StackValue>()),
     ) as *mut StackValue;
-    (*(*L).l_G).gcstopem = oldgcstop as u8;
+    (*(*L).l_G).gcstopem.set(oldgcstop as u8);
     if ((newstack == 0 as *mut libc::c_void as StkId) as libc::c_int != 0 as libc::c_int)
         as libc::c_int as libc::c_long
         != 0
@@ -343,7 +343,7 @@ unsafe fn tryfuncTM(
         != 0
     {
         let t__: isize = (func as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
-        if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+        if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
             luaC_step(L);
         }
         luaD_growstack(L, 1)?;
@@ -498,7 +498,7 @@ unsafe fn precallC(
         != 0
     {
         let t__: isize = (func as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
-        if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+        if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
             luaC_step(L);
         }
         luaD_growstack(L, 20)?;
@@ -566,7 +566,7 @@ pub unsafe fn luaD_pretailcall(
                 {
                     let t__: isize =
                         (func as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
-                    if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+                    if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
                         luaC_step(L);
                     }
                     luaD_growstack(L, fsize - delta)?;
@@ -640,7 +640,7 @@ pub unsafe fn luaD_precall(
                 {
                     let t__: isize =
                         (func as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
-                    if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+                    if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
                         luaC_step(L);
                     }
                     luaD_growstack(L, fsize)?;
@@ -861,17 +861,17 @@ pub unsafe fn luaD_protectedparser(
     ) as *mut libc::c_char;
     p.buff.buffsize = 0 as libc::c_int as usize;
     luaM_free_(
-        L,
+        (*L).l_G,
         p.dyd.actvar.arr as *mut libc::c_void,
         (p.dyd.actvar.size as usize).wrapping_mul(::core::mem::size_of::<Vardesc>()),
     );
     luaM_free_(
-        L,
+        (*L).l_G,
         p.dyd.gt.arr as *mut libc::c_void,
         (p.dyd.gt.size as usize).wrapping_mul(::core::mem::size_of::<Labeldesc>()),
     );
     luaM_free_(
-        L,
+        (*L).l_G,
         p.dyd.label.arr as *mut libc::c_void,
         (p.dyd.label.size as usize).wrapping_mul(::core::mem::size_of::<Labeldesc>()),
     );

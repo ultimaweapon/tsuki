@@ -1165,7 +1165,7 @@ unsafe fn close_func(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Er
         ::core::mem::size_of::<Upvaldesc>() as libc::c_ulong as libc::c_int,
     ) as *mut Upvaldesc;
     (*ls).fs = (*fs).prev;
-    if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+    if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
     Ok(())

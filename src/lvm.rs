@@ -350,7 +350,7 @@ pub unsafe fn luaV_finishget(
                 luaT_gettm(
                     (*((*t).value_.gc as *mut Table)).metatable,
                     TM_INDEX,
-                    (*(*L).l_G).tmname[TM_INDEX as libc::c_int as usize],
+                    (*(*L).l_G).tmname[TM_INDEX as usize].get(),
                 )
             };
             if tm.is_null() {
@@ -410,7 +410,7 @@ pub unsafe fn luaV_finishset(
                 luaT_gettm(
                     (*h).metatable,
                     TM_NEWINDEX,
-                    (*(*L).l_G).tmname[TM_NEWINDEX as libc::c_int as usize],
+                    (*(*L).l_G).tmname[TM_NEWINDEX as usize].get(),
                 )
             };
             if tm.is_null() {
@@ -743,7 +743,7 @@ pub unsafe fn luaV_equalobj(
                 luaT_gettm(
                     (*((*t1).value_.gc as *mut Udata)).metatable,
                     TM_EQ,
-                    (*(*L).l_G).tmname[TM_EQ as libc::c_int as usize],
+                    (*(*L).l_G).tmname[TM_EQ as usize].get(),
                 )
             };
             if tm.is_null() {
@@ -758,7 +758,7 @@ pub unsafe fn luaV_equalobj(
                     luaT_gettm(
                         (*((*t2).value_.gc as *mut Udata)).metatable,
                         TM_EQ,
-                        (*(*L).l_G).tmname[TM_EQ as libc::c_int as usize],
+                        (*(*L).l_G).tmname[TM_EQ as usize].get(),
                     )
                 };
             }
@@ -782,7 +782,7 @@ pub unsafe fn luaV_equalobj(
                 luaT_gettm(
                     (*((*t1).value_.gc as *mut Table)).metatable,
                     TM_EQ,
-                    (*(*L).l_G).tmname[TM_EQ as libc::c_int as usize],
+                    (*(*L).l_G).tmname[TM_EQ as usize].get(),
                 )
             };
             if tm.is_null() {
@@ -797,7 +797,7 @@ pub unsafe fn luaV_equalobj(
                     luaT_gettm(
                         (*((*t2).value_.gc as *mut Table)).metatable,
                         TM_EQ,
-                        (*(*L).l_G).tmname[TM_EQ as libc::c_int as usize],
+                        (*(*L).l_G).tmname[TM_EQ as usize].get(),
                     )
                 };
             }
@@ -1019,7 +1019,7 @@ pub unsafe fn luaV_objlen(
                 luaT_gettm(
                     (*h).metatable,
                     TM_LEN,
-                    (*(*L).l_G).tmname[TM_LEN as libc::c_int as usize],
+                    (*(*L).l_G).tmname[TM_LEN as usize].get(),
                 )
             };
             if tm.is_null() {
@@ -2251,7 +2251,7 @@ pub unsafe fn luaV_execute(
                         if b_3 != 0 as libc::c_int || c_1 != 0 as libc::c_int {
                             luaH_resize(L, t, c_1 as libc::c_uint, b_3 as libc::c_uint)?;
                         }
-                        if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+                        if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
                             (*ci).u.savedpc = pc;
                             (*L).top.p = ra_17.offset(1 as libc::c_int as isize);
                             luaC_step(L);
@@ -4365,7 +4365,7 @@ pub unsafe fn luaV_execute(
                         (*ci).u.savedpc = pc;
                         luaV_concat(L, n_1)?;
                         trap = (*ci).u.trap;
-                        if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+                        if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
                             (*ci).u.savedpc = pc;
                             (*L).top.p = (*L).top.p;
                             luaC_step(L);
@@ -5560,7 +5560,7 @@ pub unsafe fn luaV_execute(
                         (*ci).u.savedpc = pc;
                         (*L).top.p = (*ci).top.p;
                         pushclosure(L, p, ((*cl).upvals).as_mut_ptr(), base, ra_77);
-                        if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+                        if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
                             (*ci).u.savedpc = pc;
                             (*L).top.p = ra_77.offset(1 as libc::c_int as isize);
                             luaC_step(L);

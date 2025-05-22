@@ -273,7 +273,7 @@ pub unsafe fn luaX_newstring(
         (*io).value_.gc = (x_ as *mut GCObject);
         (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         luaH_finishset(L, (*ls).h, stv, o, stv)?;
-        if (*(*L).l_G).GCdebt > 0 as libc::c_int as isize {
+        if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
             luaC_step(L);
         }
         (*L).top.p = ((*L).top.p).offset(-1);
