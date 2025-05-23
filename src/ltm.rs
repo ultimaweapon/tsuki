@@ -86,7 +86,10 @@ pub unsafe fn luaT_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error:
 
     while i < TM_N as libc::c_int {
         (*(*L).l_G).tmname[i as usize].set(luaS_new(L, luaT_eventname[i as usize])?);
-        luaC_fix(L, (*(*L).l_G).tmname[i as usize].get() as *mut GCObject);
+        luaC_fix(
+            &*(*L).l_G,
+            (*(*L).l_G).tmname[i as usize].get() as *mut GCObject,
+        );
         i += 1;
         i;
     }

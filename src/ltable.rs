@@ -826,8 +826,7 @@ unsafe fn luaH_newkey(
     Ok(())
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaH_getint(mut t: *mut Table, mut key: i64) -> *const TValue {
+pub unsafe fn luaH_getint(mut t: *mut Table, mut key: i64) -> *const TValue {
     let mut alimit: u64 = (*t).alimit as u64;
     if (key as u64).wrapping_sub(1 as libc::c_uint as u64) < alimit {
         return &mut *((*t).array).offset((key - 1 as libc::c_int as i64) as isize) as *mut TValue;
@@ -858,16 +857,9 @@ pub unsafe extern "C" fn luaH_getint(mut t: *mut Table, mut key: i64) -> *const 
     };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaH_getshortstr(
-    mut t: *mut Table,
-    mut key: *mut TString,
-) -> *const TValue {
-    let mut n: *mut Node = &mut *((*t).node).offset(
-        ((*key).hash
-            & (((1 as libc::c_int) << (*t).lsizenode as libc::c_int) - 1 as libc::c_int)
-                as libc::c_uint) as libc::c_int as isize,
-    ) as *mut Node;
+pub unsafe fn luaH_getshortstr(mut t: *mut Table, mut key: *mut TString) -> *const TValue {
+    let mut n = ((*t).node).offset(((*key).hash & ((1 << (*t).lsizenode) - 1)) as isize);
+
     loop {
         if (*n).u.key_tt as libc::c_int
             == 4 as libc::c_int

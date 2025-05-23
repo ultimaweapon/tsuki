@@ -209,7 +209,7 @@ pub unsafe fn luaE_freethread(g: *const Lua, mut L1: *mut lua_State) {
     (*g).decrease_gc_debt(size_of::<lua_State>());
 }
 
-pub unsafe fn luaE_resetthread(mut L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn lua_closethread(L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
     (*L).ci = &mut (*L).base_ci;
     let mut ci: *mut CallInfo = (*L).ci;
     (*(*L).stack.p).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -227,8 +227,4 @@ pub unsafe fn luaE_resetthread(mut L: *mut lua_State) -> Result<(), Box<dyn std:
     );
 
     return status;
-}
-
-pub unsafe fn lua_closethread(L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
-    luaE_resetthread(L)
 }

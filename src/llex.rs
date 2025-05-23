@@ -180,7 +180,7 @@ pub unsafe fn luaX_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error:
             .wrapping_div(::core::mem::size_of::<libc::c_char>())
             .wrapping_sub(1),
     )?;
-    luaC_fix(L, (e as *mut GCObject));
+    luaC_fix(&*(*L).l_G, (e as *mut GCObject));
     i = 0 as libc::c_int;
     while i < TK_WHILE as libc::c_int - (255 as libc::c_int + 1 as libc::c_int) + 1 as libc::c_int {
         let mut ts: *mut TString = luaS_newlstr(
@@ -188,7 +188,7 @@ pub unsafe fn luaX_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error:
             luaX_tokens[i as usize].as_ptr().cast(),
             luaX_tokens[i as usize].len(),
         )?;
-        luaC_fix(L, (ts as *mut GCObject));
+        luaC_fix(&*(*L).l_G, (ts as *mut GCObject));
         (*ts).extra = (i + 1 as libc::c_int) as u8;
         i += 1;
         i;

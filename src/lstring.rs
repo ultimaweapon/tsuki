@@ -9,17 +9,15 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(unused_parens)]
-#![allow(path_statements)]
 
 use crate::lgc::{luaC_fix, luaC_fullgc, luaC_newobj};
 use crate::lmem::{luaM_malloc_, luaM_realloc_, luaM_toobig};
 use crate::lobject::{GCObject, TString, Table, UValue, Udata};
 use crate::lstate::lua_State;
-use crate::{Lua, stringtable};
+use crate::{Lua, StringTable};
 use libc::{memcmp, memcpy, strcmp, strlen};
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaS_eqlngstr(mut a: *mut TString, mut b: *mut TString) -> libc::c_int {
+pub unsafe fn luaS_eqlngstr(mut a: *mut TString, mut b: *mut TString) -> libc::c_int {
     let mut len: usize = (*a).u.lnglen;
     return (a == b
         || len == (*b).u.lnglen
@@ -30,8 +28,7 @@ pub unsafe extern "C" fn luaS_eqlngstr(mut a: *mut TString, mut b: *mut TString)
             ) == 0 as libc::c_int) as libc::c_int;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaS_hash(
+pub unsafe fn luaS_hash(
     mut str: *const libc::c_char,
     mut l: usize,
     mut seed: libc::c_uint,
@@ -45,7 +42,6 @@ pub unsafe extern "C" fn luaS_hash(
                     as libc::c_uint,
             );
         l = l.wrapping_sub(1);
-        l;
     }
     return h;
 }
@@ -60,18 +56,13 @@ pub unsafe extern "C" fn luaS_hashlongstr(mut ts: *mut TString) -> libc::c_uint 
     return (*ts).hash;
 }
 
-unsafe extern "C" fn tablerehash(
-    mut vect: *mut *mut TString,
-    mut osize: libc::c_int,
-    mut nsize: libc::c_int,
-) {
+unsafe fn tablerehash(mut vect: *mut *mut TString, mut osize: libc::c_int, mut nsize: libc::c_int) {
     let mut i: libc::c_int = 0;
     i = osize;
     while i < nsize {
         let ref mut fresh0 = *vect.offset(i as isize);
         *fresh0 = 0 as *mut TString;
         i += 1;
-        i;
     }
     i = 0 as libc::c_int;
     while i < osize {
@@ -88,7 +79,6 @@ unsafe extern "C" fn tablerehash(
             p = hnext;
         }
         i += 1;
-        i;
     }
 }
 
@@ -134,11 +124,9 @@ pub unsafe fn luaS_clearcache(g: *const Lua) {
                 (*g).strcache[i as usize][j as usize].set((*g).memerrmsg.get());
             }
             j += 1;
-            j;
         }
 
         i += 1;
-        i;
     }
 }
 
@@ -164,7 +152,7 @@ pub unsafe fn luaS_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error:
             .wrapping_sub(1),
     )?);
 
-    luaC_fix(L, ((*g).memerrmsg.get() as *mut GCObject));
+    luaC_fix(&*(*L).l_G, ((*g).memerrmsg.get() as *mut GCObject));
 
     i = 0 as libc::c_int;
 
@@ -173,10 +161,8 @@ pub unsafe fn luaS_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error:
         while j < 2 as libc::c_int {
             (*g).strcache[i as usize][j as usize].set((*g).memerrmsg.get());
             j += 1;
-            j;
         }
         i += 1;
-        i;
     }
 
     Ok(())
@@ -228,7 +214,7 @@ pub unsafe fn luaS_remove(g: *const Lua, mut ts: *mut TString) {
     (*tb).nuse;
 }
 
-unsafe extern "C" fn growstrtab(mut L: *mut lua_State, mut tb: *mut stringtable) {
+unsafe extern "C" fn growstrtab(mut L: *mut lua_State, mut tb: *mut StringTable) {
     if (((*tb).nuse == 2147483647 as libc::c_int) as libc::c_int != 0 as libc::c_int) as libc::c_int
         as libc::c_long
         != 0
@@ -259,7 +245,7 @@ unsafe extern "C" fn internshrstr(
 ) -> *mut TString {
     let mut ts: *mut TString = 0 as *mut TString;
     let g = (*L).l_G;
-    let mut tb: *mut stringtable = (*g).strt.get();
+    let mut tb = (*g).strt.get();
     let mut h: libc::c_uint = luaS_hash(str, l, (*g).seed);
     let mut list: *mut *mut TString = &mut *((*tb).hash)
         .offset((h & ((*tb).size - 1 as libc::c_int) as libc::c_uint) as libc::c_int as isize)
@@ -423,7 +409,6 @@ pub unsafe fn luaS_newudata(
         (*((*u).uv).as_mut_ptr().offset(i as isize)).uv.tt_ =
             (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
         i += 1;
-        i;
     }
     return Ok(u);
 }

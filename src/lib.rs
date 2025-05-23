@@ -83,13 +83,12 @@ unsafe extern "C" fn api_incr_top(td: *mut lua_State) {
 }
 
 /// Global states shared with all Lua threads.
-#[repr(C)]
 pub struct Lua {
     totalbytes: Cell<isize>,
     GCdebt: Cell<isize>,
     GCestimate: Cell<usize>,
     lastatomic: Cell<usize>,
-    strt: UnsafeCell<stringtable>,
+    strt: UnsafeCell<StringTable>,
     l_registry: UnsafeCell<TValue>,
     nilvalue: UnsafeCell<TValue>,
     seed: libc::c_uint,
@@ -121,7 +120,7 @@ pub struct Lua {
     tmname: [Cell<*mut TString>; 25],
     mt: [Cell<*mut Table>; 9],
     strcache: [[Cell<*mut TString>; 2]; 53],
-    phantom: PhantomPinned,
+    _phantom: PhantomPinned,
 }
 
 impl Lua {
@@ -131,8 +130,8 @@ impl Lua {
             GCdebt: Cell::new(0),
             GCestimate: Cell::new(0), // TODO: Lua does not initialize this.
             lastatomic: Cell::new(0),
-            strt: UnsafeCell::new(stringtable {
-                hash: 0 as *mut *mut TString,
+            strt: UnsafeCell::new(StringTable {
+                hash: null_mut(),
                 nuse: 0,
                 size: 0,
             }),
@@ -263,7 +262,7 @@ impl Lua {
                 [Cell::new(null_mut()), Cell::new(null_mut())],
                 [Cell::new(null_mut()), Cell::new(null_mut())],
             ],
-            phantom: PhantomPinned,
+            _phantom: PhantomPinned,
         });
 
         // Setup registry.
@@ -387,9 +386,8 @@ impl Drop for Lua {
     }
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
-struct stringtable {
+struct StringTable {
     hash: *mut *mut TString,
     nuse: libc::c_int,
     size: libc::c_int,

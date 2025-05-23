@@ -874,8 +874,7 @@ pub unsafe fn luaL_addvalue(mut B: *mut luaL_Buffer) -> Result<(), Box<dyn std::
     lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaL_buffinit(mut L: *mut lua_State, mut B: *mut luaL_Buffer) {
+pub unsafe fn luaL_buffinit(mut L: *mut lua_State, mut B: *mut luaL_Buffer) {
     (*B).L = L;
     (*B).b = ((*B).init.b).as_mut_ptr();
     (*B).n = 0 as libc::c_int as usize;
