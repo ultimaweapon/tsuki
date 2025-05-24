@@ -8,9 +8,9 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use crate::gc::luaC_step;
 use crate::ldebug::{luaG_callerror, luaG_runerror};
 use crate::lfunc::{luaF_close, luaF_initupvals};
-use crate::lgc::luaC_step;
 use crate::lmem::{luaM_free_, luaM_realloc_, luaM_saferealloc_};
 use crate::lobject::{CClosure, LClosure, Proto, StackValue, StkId, TValue, UpVal};
 use crate::lparser::{C2RustUnnamed_9, Dyndata, Labeldesc, Labellist, Vardesc, luaY_parser};

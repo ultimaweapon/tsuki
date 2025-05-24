@@ -11,9 +11,9 @@
 #![allow(path_statements)]
 
 use crate::Lua;
+use crate::gc::{luaC_barrier_, luaC_newobj};
 use crate::ldebug::{luaG_findlocal, luaG_runerror};
 use crate::ldo::luaD_call;
-use crate::lgc::{luaC_barrier_, luaC_newobj};
 use crate::lmem::luaM_free_;
 use crate::lobject::{
     AbsLineInfo, CClosure, GCObject, LClosure, LocVar, Proto, StackValue, StkId, TString, TValue,

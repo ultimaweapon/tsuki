@@ -11,8 +11,8 @@
 #![allow(path_statements)]
 
 use crate::Lua;
+use crate::gc::{luaC_barrierback_, luaC_newobj};
 use crate::ldebug::luaG_runerror;
-use crate::lgc::{luaC_barrierback_, luaC_newobj};
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
 use crate::lobject::{
     GCObject, Node, NodeKey, StkId, TString, TValue, Table, Value, luaO_ceillog2,

@@ -11,12 +11,12 @@
 #![allow(unused_variables)]
 #![allow(unused_parens)]
 
+use crate::gc::{luaC_barrier_, luaC_barrierback_, luaC_step};
 use crate::ldebug::{luaG_forerror, luaG_runerror, luaG_tracecall, luaG_traceexec, luaG_typeerror};
 use crate::ldo::{luaD_call, luaD_hookcall, luaD_poscall, luaD_precall, luaD_pretailcall};
 use crate::lfunc::{
     luaF_close, luaF_closeupval, luaF_findupval, luaF_newLclosure, luaF_newtbcupval,
 };
-use crate::lgc::{luaC_barrier_, luaC_barrierback_, luaC_step};
 use crate::lobject::{
     GCObject, LClosure, Proto, StackValue, StkId, TString, TValue, Table, Udata, UpVal, Upvaldesc,
     Value, luaO_str2num, luaO_tostring,

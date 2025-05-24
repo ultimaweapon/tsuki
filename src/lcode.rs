@@ -10,7 +10,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(path_statements)]
 
-use crate::lgc::luaC_barrier_;
+use crate::gc::luaC_barrier_;
 use crate::llex::{LexState, luaX_syntaxerror};
 use crate::lmem::luaM_growaux_;
 use crate::lobject::{

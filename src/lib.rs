@@ -24,7 +24,6 @@ pub use self::lstate::{lua_State, lua_closethread};
 pub use self::lstrlib::luaopen_string;
 pub use self::ltablib::luaopen_table;
 
-use self::lgc::luaC_freeallobjects;
 use self::llex::luaX_init;
 use self::lmem::luaM_free_;
 use self::lobject::{GCObject, StackValue, TString, TValue, Table, Value};
@@ -51,7 +50,6 @@ mod ldebug;
 mod ldo;
 mod ldump;
 mod lfunc;
-mod lgc;
 mod llex;
 mod lmathlib;
 mod lmem;

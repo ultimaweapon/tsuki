@@ -10,9 +10,9 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(path_statements)]
 
+use crate::gc::{luaC_fix, luaC_step};
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
 use crate::ldo::{luaD_call, luaD_growstack};
-use crate::lgc::{luaC_fix, luaC_step};
 use crate::lobject::{GCObject, Proto, StkId, TString, TValue, Table, Udata, Value};
 use crate::lstate::{CallInfo, lua_State};
 use crate::lstring::luaS_new;

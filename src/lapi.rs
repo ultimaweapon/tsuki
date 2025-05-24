@@ -8,10 +8,10 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use crate::gc::{luaC_barrier_, luaC_barrierback_, luaC_changemode, luaC_fullgc, luaC_step};
 use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall, luaD_protectedparser};
 use crate::ldump::luaU_dump;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
-use crate::lgc::{luaC_barrier_, luaC_barrierback_, luaC_changemode, luaC_fullgc, luaC_step};
 use crate::lobject::{
     CClosure, GCObject, LClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata,
     UpVal, Value, luaO_arith, luaO_str2num, luaO_tostring,

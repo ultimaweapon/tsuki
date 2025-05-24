@@ -12,9 +12,9 @@
 #![allow(unused_parens)]
 #![allow(path_statements)]
 
+use crate::gc::{luaC_fix, luaC_step};
 use crate::lctype::luai_ctype_;
 use crate::ldebug::luaG_addinfo;
-use crate::lgc::{luaC_fix, luaC_step};
 use crate::lmem::luaM_saferealloc_;
 use crate::lobject::{
     GCObject, Node, TString, TValue, Table, Value, luaO_hexavalue, luaO_str2num, luaO_utf8esc,

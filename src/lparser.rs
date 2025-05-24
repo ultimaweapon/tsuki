@@ -11,6 +11,7 @@
 #![allow(unused_variables)]
 #![allow(path_statements)]
 
+use crate::gc::{luaC_barrier_, luaC_step};
 use crate::lcode::{
     BinOpr, OPR_ADD, OPR_AND, OPR_BAND, OPR_BNOT, OPR_BOR, OPR_BXOR, OPR_CONCAT, OPR_DIV, OPR_EQ,
     OPR_GE, OPR_GT, OPR_IDIV, OPR_LE, OPR_LEN, OPR_LT, OPR_MINUS, OPR_MOD, OPR_MUL, OPR_NE,
@@ -24,7 +25,6 @@ use crate::lcode::{
 };
 use crate::ldo::luaD_inctop;
 use crate::lfunc::{luaF_newLclosure, luaF_newproto};
-use crate::lgc::{luaC_barrier_, luaC_step};
 use crate::llex::{
     LexState, SemInfo, TK_BREAK, TK_DBCOLON, TK_DO, TK_ELSE, TK_ELSEIF, TK_END, TK_EOS, TK_FOR,
     TK_FUNCTION, TK_IF, TK_IN, TK_NAME, TK_REPEAT, TK_RETURN, TK_THEN, TK_UNTIL, TK_WHILE, Token,

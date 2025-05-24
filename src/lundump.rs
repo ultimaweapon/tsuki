@@ -10,9 +10,9 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(path_statements)]
 
+use crate::gc::luaC_barrier_;
 use crate::ldo::luaD_inctop;
 use crate::lfunc::{luaF_newLclosure, luaF_newproto};
-use crate::lgc::luaC_barrier_;
 use crate::lmem::{luaM_malloc_, luaM_toobig};
 use crate::lobject::{AbsLineInfo, GCObject, LClosure, LocVar, Proto, TString, TValue, Upvaldesc};
 use crate::lstate::lua_State;

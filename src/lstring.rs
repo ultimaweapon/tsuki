@@ -10,7 +10,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(unused_parens)]
 
-use crate::lgc::{luaC_fix, luaC_fullgc, luaC_newobj};
+use crate::gc::{luaC_fix, luaC_fullgc, luaC_newobj};
 use crate::lmem::{luaM_malloc_, luaM_realloc_, luaM_toobig};
 use crate::lobject::{GCObject, TString, Table, UValue, Udata};
 use crate::lstate::lua_State;
