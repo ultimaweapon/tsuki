@@ -16,12 +16,13 @@ use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
 use crate::lobject::{
     CClosure, GCObject, LClosure, Node, Proto, StkId, TString, TValue, Table, UValue, Udata, UpVal,
 };
-use crate::lstate::{lua_State, luaE_freethread, luaE_setdebt};
+use crate::lstate::{lua_State, luaE_freethread};
 use crate::lstring::{luaS_clearcache, luaS_remove, luaS_resize};
 use crate::ltable::{luaH_free, luaH_realasize};
 use crate::ltm::{TM_MODE, luaT_gettm};
 use libc::strchr;
-use std::alloc::Layout;
+use std::alloc::{Layout, handle_alloc_error};
+use std::cell::{Cell, RefCell};
 use std::ffi::c_int;
 use std::mem::offset_of;
 use std::ptr::null_mut;
@@ -92,7 +93,7 @@ pub unsafe fn luaC_barrier_(mut L: *mut lua_State, mut o: *mut GCObject, mut v: 
             & !((1 as libc::c_int) << 5 as libc::c_int
                 | ((1 as libc::c_int) << 3 as libc::c_int
                     | (1 as libc::c_int) << 4 as libc::c_int))
-            | ((*g).currentwhite.get() as libc::c_int
+            | ((*g).gc.currentwhite() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int))
                 as u8 as libc::c_int) as u8;
     }
@@ -116,7 +117,7 @@ pub unsafe fn luaC_barrierback_(mut L: *mut lua_State, mut o: *mut GCObject) {
 pub unsafe fn luaC_fix(g: &Lua, o: *mut GCObject) {
     (*o).marked = (*o).marked & !(1 << 5 | (1 << 3 | 1 << 4));
     (*o).marked = ((*o).marked as libc::c_int & !(7 as libc::c_int) | 4 as libc::c_int) as u8;
-    (*g).allgc.set((*o).next);
+    (*g).gc.allgc.set((*o).next);
     (*o).next = (*g).fixedgc.get();
     (*g).fixedgc.set(o);
 }
@@ -827,7 +828,7 @@ unsafe fn freeupval(g: *const Lua, mut uv: *mut UpVal) {
         luaF_unlinkupval(uv);
     }
 
-    (*g).free_object(uv.cast(), layout);
+    (*g).gc.dealloc(uv.cast(), layout);
 }
 
 unsafe fn freeobj(g: *const Lua, mut o: *mut GCObject) {
@@ -841,7 +842,7 @@ unsafe fn freeobj(g: *const Lua, mut o: *mut GCObject) {
             let align = align_of::<LClosure>();
             let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
-            (*g).free_object(cl.cast(), layout);
+            (*g).gc.dealloc(cl.cast(), layout);
         }
         38 => {
             let mut cl_0: *mut CClosure = o as *mut CClosure;
@@ -850,7 +851,7 @@ unsafe fn freeobj(g: *const Lua, mut o: *mut GCObject) {
             let align = align_of::<CClosure>();
             let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
-            (*g).free_object(cl_0.cast(), layout);
+            (*g).gc.dealloc(cl_0.cast(), layout);
         }
         5 => luaH_free(g, o as *mut Table),
         8 => luaE_freethread(g, o as *mut lua_State),
@@ -868,7 +869,7 @@ unsafe fn freeobj(g: *const Lua, mut o: *mut GCObject) {
             .unwrap()
             .pad_to_align();
 
-            (*g).free_object(o.cast(), layout);
+            (*g).gc.dealloc(o.cast(), layout);
         }
         4 => {
             let mut ts: *mut TString = o as *mut TString;
@@ -877,7 +878,7 @@ unsafe fn freeobj(g: *const Lua, mut o: *mut GCObject) {
             let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
             luaS_remove(g, ts);
-            (*g).free_object(ts.cast(), layout);
+            (*g).gc.dealloc(ts.cast(), layout);
         }
         20 => {
             let mut ts_0: *mut TString = o as *mut TString;
@@ -885,7 +886,7 @@ unsafe fn freeobj(g: *const Lua, mut o: *mut GCObject) {
             let align = align_of::<TString>();
             let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
-            (*g).free_object(ts_0.cast(), layout);
+            (*g).gc.dealloc(ts_0.cast(), layout);
         }
         _ => unreachable!(),
     }
@@ -898,9 +899,9 @@ unsafe fn sweeplist(
     mut countout: *mut libc::c_int,
 ) -> *mut *mut GCObject {
     let g = &*(*L).l_G;
-    let ow = g.currentwhite.get() ^ (1 << 3 | 1 << 4);
+    let ow = g.gc.currentwhite() ^ (1 << 3 | 1 << 4);
     let mut i = 0;
-    let white = g.currentwhite.get() & (1 << 3 | 1 << 4);
+    let white = g.gc.currentwhite() & (1 << 3 | 1 << 4);
 
     while !(*p).is_null() && i < countin {
         let curr: *mut GCObject = *p;
@@ -939,10 +940,10 @@ unsafe fn sweeptolive(mut L: *mut lua_State, mut p: *mut *mut GCObject) -> *mut 
 
 unsafe fn checkSizes(mut L: *mut lua_State, g: *const Lua) {
     if (*(*g).strt.get()).nuse < (*(*g).strt.get()).size / 4 {
-        let mut olddebt: isize = (*g).GCdebt.get();
+        let mut olddebt: isize = (*g).gc.debt.get();
         luaS_resize(L, (*(*g).strt.get()).size / 2 as libc::c_int);
         (*g).GCestimate
-            .set(((*g).GCestimate.get()).wrapping_add(((*g).GCdebt.get() - olddebt) as usize));
+            .set(((*g).GCestimate.get()).wrapping_add(((*g).gc.debt.get() - olddebt) as usize));
     }
 }
 
@@ -980,13 +981,14 @@ unsafe fn setpause(g: *const Lua) {
         (!(0 as libc::c_int as usize) >> 1 as libc::c_int) as isize
     };
 
-    debt = (((*g).totalbytes.get() + (*g).GCdebt.get()) as usize).wrapping_sub(threshold as usize)
-        as isize;
+    debt = (((*g).gc.totalbytes.get() + (*g).gc.debt.get()) as usize)
+        .wrapping_sub(threshold as usize) as isize;
 
     if debt > 0 as libc::c_int as isize {
         debt = 0 as libc::c_int as isize;
     }
-    luaE_setdebt(g, debt);
+
+    (*g).gc.set_debt(debt);
 }
 
 unsafe fn sweep2old(mut L: *mut lua_State, mut p: *mut *mut GCObject) {
@@ -1046,7 +1048,7 @@ unsafe fn sweepgen(
         5 as libc::c_int as u8,
         6 as libc::c_int as u8,
     ];
-    let mut white: libc::c_int = ((*g).currentwhite.get() as libc::c_int
+    let mut white: libc::c_int = ((*g).gc.currentwhite() as libc::c_int
         & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int))
         as u8 as libc::c_int;
     let mut curr: *mut GCObject = 0 as *mut GCObject;
@@ -1083,7 +1085,7 @@ unsafe fn sweepgen(
 }
 
 unsafe fn whitelist(g: *const Lua, mut p: *mut GCObject) {
-    let white = (*g).currentwhite.get() & (1 << 3 | 1 << 4);
+    let white = (*g).gc.currentwhite() & (1 << 3 | 1 << 4);
 
     while !p.is_null() {
         (*p).marked = (*p).marked & !(1 << 5 | (1 << 3 | 1 << 4) | 7) | white;
@@ -1182,14 +1184,14 @@ unsafe fn youngcollection(mut L: *mut lua_State, g: *const Lua) {
     (*g).gcstate.set(3);
     psurvival = sweepgen(
         g,
-        (*g).allgc.as_ptr(),
+        (*g).gc.allgc.as_ptr(),
         (*g).survival.get(),
         (*g).firstold1.as_ptr(),
     );
     sweepgen(g, psurvival, (*g).old1.get(), (*g).firstold1.as_ptr());
     (*g).reallyold.set((*g).old1.get());
     (*g).old1.set(*psurvival);
-    (*g).survival.set((*g).allgc.get());
+    (*g).survival.set((*g).gc.allgc.get());
 
     finishgencycle(L, g);
 }
@@ -1197,22 +1199,21 @@ unsafe fn youngcollection(mut L: *mut lua_State, g: *const Lua) {
 unsafe fn atomic2gen(mut L: *mut lua_State, g: *const Lua) {
     cleargraylists(&*g);
     (*g).gcstate.set(3);
-    sweep2old(L, (*g).allgc.as_ptr());
-    (*g).survival.set((*g).allgc.get());
+    sweep2old(L, (*g).gc.allgc.as_ptr());
+    (*g).survival.set((*g).gc.allgc.get());
     (*g).old1.set((*g).survival.get());
     (*g).reallyold.set((*g).old1.get());
     (*g).firstold1.set(0 as *mut GCObject);
     (*g).gckind.set(1);
     (*g).lastatomic.set(0);
     (*g).GCestimate
-        .set(((*g).totalbytes.get() + (*g).GCdebt.get()) as usize);
+        .set(((*g).gc.totalbytes.get() + (*g).gc.debt.get()) as usize);
     finishgencycle(L, g);
 }
 
 unsafe fn setminordebt(g: *const Lua) {
-    luaE_setdebt(
-        g,
-        -((((*g).totalbytes.get() + (*g).GCdebt.get()) as usize / 100) as isize
+    (*g).gc.set_debt(
+        -((((*g).gc.totalbytes.get() + (*g).gc.debt.get()) as usize / 100) as isize
             * (*g).genminormul.get() as isize),
     );
 }
@@ -1228,7 +1229,7 @@ unsafe fn entergen(mut L: *mut lua_State, g: *const Lua) -> usize {
 }
 
 unsafe fn enterinc(g: *const Lua) {
-    whitelist(g, (*g).allgc.get());
+    whitelist(g, (*g).gc.allgc.get());
     (*g).survival.set(0 as *mut GCObject);
     (*g).old1.set((*g).survival.get());
     (*g).reallyold.set((*g).old1.get());
@@ -1269,7 +1270,7 @@ unsafe fn stepgenfull(mut L: *mut lua_State, g: *const Lua) {
         setminordebt(g);
     } else {
         (*g).GCestimate
-            .set(((*g).totalbytes.get() + (*g).GCdebt.get()) as usize);
+            .set(((*g).gc.totalbytes.get() + (*g).gc.debt.get()) as usize);
         entersweep(L);
         luaC_runtilstate(L, (1 as libc::c_int) << 8 as libc::c_int);
         setpause(g);
@@ -1285,12 +1286,12 @@ unsafe fn genstep(mut L: *mut lua_State, g: *const Lua) {
         let mut majorinc: usize =
             majorbase / 100 as usize * ((*g).genmajormul.get() as libc::c_int * 4) as usize;
 
-        if (*g).GCdebt.get() > 0
-            && ((*g).totalbytes.get() + (*g).GCdebt.get()) as usize
+        if (*g).gc.debt.get() > 0
+            && ((*g).gc.totalbytes.get() + (*g).gc.debt.get()) as usize
                 > majorbase.wrapping_add(majorinc)
         {
             let mut numobjs: usize = fullgen(L, g);
-            if !((((*g).totalbytes.get() + (*g).GCdebt.get()) as usize)
+            if !((((*g).gc.totalbytes.get() + (*g).gc.debt.get()) as usize)
                 < majorbase.wrapping_add(majorinc / 2 as libc::c_int as usize))
             {
                 (*g).lastatomic.set(numobjs);
@@ -1307,7 +1308,7 @@ unsafe fn genstep(mut L: *mut lua_State, g: *const Lua) {
 unsafe fn entersweep(mut L: *mut lua_State) {
     let g = (*L).l_G;
     (*g).gcstate.set(3);
-    (*g).sweepgc.set(sweeptolive(L, (*g).allgc.as_ptr()));
+    (*g).sweepgc.set(sweeptolive(L, (*g).gc.allgc.as_ptr()));
 }
 
 unsafe fn deletelist(g: &Lua, mut p: *mut GCObject, mut limit: *mut GCObject) {
@@ -1327,7 +1328,7 @@ pub unsafe fn luaC_freeallobjects(g: &Lua) {
 
     (*g).lastatomic.set(0);
 
-    deletelist(g, (*g).allgc.get(), null_mut());
+    deletelist(g, (*g).gc.allgc.get(), null_mut());
     deletelist(g, (*g).fixedgc.get(), null_mut());
 }
 
@@ -1370,7 +1371,8 @@ unsafe fn atomic(L: *mut lua_State) -> usize {
     clearbyvalues(g, g.allweak.get(), origall);
     luaS_clearcache(g);
 
-    g.currentwhite.set(g.currentwhite.get() ^ (1 << 3 | 1 << 4));
+    g.gc.currentwhite
+        .set(g.gc.currentwhite() ^ (1 << 3 | 1 << 4));
 
     work
 }
@@ -1382,7 +1384,7 @@ unsafe fn sweepstep(
     mut nextlist: *mut *mut GCObject,
 ) -> libc::c_int {
     if !((*g).sweepgc.get()).is_null() {
-        let mut olddebt: isize = (*g).GCdebt.get();
+        let mut olddebt: isize = (*g).gc.debt.get();
         let mut count: libc::c_int = 0;
         (*g).sweepgc.set(sweeplist(
             L,
@@ -1391,7 +1393,7 @@ unsafe fn sweepstep(
             &mut count,
         ));
         (*g).GCestimate
-            .set(((*g).GCestimate.get()).wrapping_add(((*g).GCdebt.get() - olddebt) as usize));
+            .set(((*g).GCestimate.get()).wrapping_add(((*g).gc.debt.get() - olddebt) as usize));
         return count;
     } else {
         (*g).gcstate.set(nextstate as u8);
@@ -1424,7 +1426,7 @@ unsafe fn singlestep(L: *mut lua_State) -> usize {
             work = atomic(L);
             entersweep(L);
             g.GCestimate
-                .set((g.totalbytes.get() + g.GCdebt.get()) as usize);
+                .set((g.gc.totalbytes.get() + g.gc.debt.get()) as usize);
         }
         3 => work = sweepstep(L, g, 6, null_mut()) as usize,
         6 => {
@@ -1455,7 +1457,7 @@ pub unsafe fn luaC_runtilstate(mut L: *mut lua_State, mut statesmask: libc::c_in
 unsafe fn incstep(mut L: *mut lua_State, g: *const Lua) {
     let mut stepmul: libc::c_int =
         (*g).gcstepmul.get() as libc::c_int * 4 as libc::c_int | 1 as libc::c_int;
-    let mut debt: isize = ((*g).GCdebt.get() as libc::c_ulong)
+    let mut debt: isize = ((*g).gc.debt.get() as libc::c_ulong)
         .wrapping_div(::core::mem::size_of::<TValue>() as libc::c_ulong)
         .wrapping_mul(stepmul as libc::c_ulong) as isize;
     let mut stepsize: isize = (if (*g).gcstepsize.get() as libc::c_ulong
@@ -1484,7 +1486,7 @@ unsafe fn incstep(mut L: *mut lua_State, g: *const Lua) {
         debt = ((debt / stepmul as isize) as libc::c_ulong)
             .wrapping_mul(::core::mem::size_of::<TValue>() as libc::c_ulong)
             as isize;
-        luaE_setdebt(g, debt);
+        (*g).gc.set_debt(debt);
     };
 }
 
@@ -1492,7 +1494,7 @@ pub unsafe fn luaC_step(mut L: *mut lua_State) {
     let g = (*L).l_G;
 
     if !((*g).gcstp.get() == 0) {
-        luaE_setdebt(g, -(2000 as libc::c_int) as isize);
+        (*g).gc.set_debt(-2000);
     } else if (*g).gckind.get() == 1 || (*g).lastatomic.get() != 0 {
         genstep(L, g);
     } else {
@@ -1525,7 +1527,82 @@ pub unsafe fn luaC_fullgc(L: *mut lua_State) {
 
 /// Garbage Collector for Lua objects.
 pub struct Gc {
-    collectable: ObjectList,
+    currentwhite: Cell<u8>,
+    totalbytes: Cell<isize>,
+    debt: Cell<isize>,
+    allgc: Cell<*mut GCObject>,
+    collectable: RefCell<ObjectList>,
+}
+
+impl Gc {
+    pub(super) fn new(totalbytes: usize) -> Self {
+        Self {
+            currentwhite: Cell::new(1 << 3),
+            totalbytes: Cell::new(totalbytes.try_into().unwrap()),
+            debt: Cell::new(0),
+            allgc: Cell::new(null_mut()),
+            collectable: RefCell::default(),
+        }
+    }
+
+    #[inline(always)]
+    pub(crate) fn currentwhite(&self) -> u8 {
+        self.currentwhite.get()
+    }
+
+    #[inline(always)]
+    pub(crate) fn totalbytes(&self) -> isize {
+        self.totalbytes.get()
+    }
+
+    #[inline(always)]
+    pub(crate) fn debt(&self) -> isize {
+        self.debt.get()
+    }
+
+    pub(crate) fn set_debt(&self, mut debt: isize) {
+        let tb: isize = self.totalbytes.get() + self.debt.get();
+
+        if debt < tb - (!(0 as libc::c_int as usize) >> 1) as isize {
+            debt = tb - (!(0 as libc::c_int as usize) >> 1 as libc::c_int) as isize;
+        }
+
+        self.totalbytes.set(tb - debt);
+        self.debt.set(debt);
+    }
+
+    pub(crate) unsafe fn alloc(&self, tt: u8, layout: Layout) -> *mut GCObject {
+        let o = unsafe { std::alloc::alloc(layout) as *mut GCObject };
+
+        if o.is_null() {
+            handle_alloc_error(layout);
+        }
+
+        unsafe { (*o).marked = self.currentwhite.get() & (1 << 3 | 1 << 4) };
+        unsafe { (*o).tt = tt };
+        unsafe { (*o).next = self.allgc.get() };
+
+        self.allgc.set(o);
+        self.debt
+            .set(self.debt.get().checked_add_unsigned(layout.size()).unwrap());
+
+        o
+    }
+
+    pub(crate) unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        unsafe { std::alloc::dealloc(ptr, layout) };
+        self.decrease_debt(layout.size());
+    }
+
+    pub(crate) fn increase_debt(&self, bytes: usize) {
+        self.debt
+            .set(self.debt.get().checked_add_unsigned(bytes).unwrap());
+    }
+
+    pub(crate) fn decrease_debt(&self, bytes: usize) {
+        self.debt
+            .set(self.debt.get().checked_sub_unsigned(bytes).unwrap());
+    }
 }
 
 /// Command to control the garbage collector.

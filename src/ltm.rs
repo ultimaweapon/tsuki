@@ -458,7 +458,7 @@ pub unsafe fn luaT_getvarargs(
             let mut t__: isize =
                 (where_0 as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
 
-            if (*(*L).l_G).GCdebt.get() > 0 {
+            if (*(*L).l_G).gc.debt() > 0 {
                 luaC_step(L);
             }
 

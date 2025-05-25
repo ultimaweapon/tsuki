@@ -11,6 +11,7 @@ use crate::ldebug::luaG_runerror;
 use crate::lstate::lua_State;
 use libc::{free, realloc};
 use std::ffi::{CStr, c_void};
+use std::ptr::null_mut;
 
 pub unsafe fn luaM_growaux_(
     L: *mut lua_State,
@@ -75,7 +76,7 @@ pub unsafe fn luaM_toobig(L: *mut lua_State) -> Result<(), Box<dyn std::error::E
 
 pub unsafe fn luaM_free_(g: *const Lua, block: *mut libc::c_void, osize: usize) {
     free(block);
-    (*g).decrease_gc_debt(osize);
+    (*g).gc.decrease_debt(osize);
 }
 
 pub unsafe fn luaM_realloc_(
@@ -99,11 +100,8 @@ pub unsafe fn luaM_realloc_(
         return 0 as *mut libc::c_void;
     }
 
-    (*g).GCdebt.set(
-        ((*g).GCdebt.get() as usize)
-            .wrapping_add(nsize)
-            .wrapping_sub(osize) as isize,
-    );
+    (*g).gc.increase_debt(nsize);
+    (*g).gc.decrease_debt(osize);
 
     return newblock;
 }
@@ -125,15 +123,16 @@ pub unsafe fn luaM_saferealloc_(
 
 pub unsafe fn luaM_malloc_(g: *const Lua, size: usize) -> *mut c_void {
     if size == 0 {
-        return 0 as *mut libc::c_void;
+        null_mut()
     } else {
         let newblock: *mut libc::c_void = realloc(0 as *mut libc::c_void, size);
 
         if newblock == 0 as *mut libc::c_void {
             todo!("invoke handle_alloc_error");
         }
-        (*g).GCdebt
-            .set(((*g).GCdebt.get() as usize).wrapping_add(size) as isize);
-        return newblock;
-    };
+
+        (*g).gc.increase_debt(size);
+
+        newblock
+    }
 }

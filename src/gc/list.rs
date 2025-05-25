@@ -1,8 +1,8 @@
 use super::object::Object;
-use std::collections::VecDeque;
 
 /// List of Lua objects optimized for CPU cache to be operate by GC.
+#[derive(Default)]
 pub(super) struct ObjectList {
     list: Vec<Object>,
-    holes: VecDeque<usize>,
+    holes: Vec<usize>,
 }

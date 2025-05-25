@@ -702,7 +702,7 @@ unsafe fn rehash(
 
 pub unsafe fn luaH_new(mut L: *mut lua_State) -> Result<*mut Table, Box<dyn std::error::Error>> {
     let layout = Layout::new::<Table>();
-    let o = (*(*L).l_G).create_object(5 | 0 << 4, layout);
+    let o = (*(*L).l_G).gc.alloc(5 | 0 << 4, layout);
     let mut t: *mut Table = o as *mut Table;
 
     (*t).metatable = 0 as *mut Table;
@@ -724,7 +724,7 @@ pub unsafe fn luaH_free(g: *const Lua, mut t: *mut Table) {
         (luaH_realasize(t) as usize).wrapping_mul(size_of::<TValue>()),
     );
 
-    (*g).free_object(t.cast(), layout);
+    (*g).gc.dealloc(t.cast(), layout);
 }
 
 unsafe extern "C" fn getfreepos(mut t: *mut Table) -> *mut Node {

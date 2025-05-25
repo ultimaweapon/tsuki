@@ -24,7 +24,7 @@ pub use self::lstate::{lua_State, lua_closethread};
 pub use self::lstrlib::luaopen_string;
 pub use self::ltablib::luaopen_table;
 
-use self::gc::luaC_freeallobjects;
+use self::gc::{Gc, luaC_freeallobjects};
 use self::llex::luaX_init;
 use self::lmem::luaM_free_;
 use self::lobject::{GCObject, StackValue, TString, TValue, Table, Value};
@@ -83,15 +83,13 @@ unsafe extern "C" fn api_incr_top(td: *mut lua_State) {
 
 /// Global states shared with all Lua threads.
 pub struct Lua {
-    totalbytes: Cell<isize>,
-    GCdebt: Cell<isize>,
+    gc: Gc,
     GCestimate: Cell<usize>,
     lastatomic: Cell<usize>,
     strt: UnsafeCell<StringTable>,
     l_registry: UnsafeCell<TValue>,
     nilvalue: UnsafeCell<TValue>,
     seed: libc::c_uint,
-    currentwhite: Cell<u8>,
     gcstate: Cell<u8>,
     gckind: Cell<u8>,
     gcstopem: Cell<u8>,
@@ -101,7 +99,6 @@ pub struct Lua {
     gcpause: Cell<u8>,
     gcstepmul: Cell<u8>,
     gcstepsize: Cell<u8>,
-    allgc: Cell<*mut GCObject>,
     sweepgc: Cell<*mut *mut GCObject>,
     gray: Cell<*mut GCObject>,
     grayagain: Cell<*mut GCObject>,
@@ -124,8 +121,7 @@ pub struct Lua {
 impl Lua {
     pub fn new() -> Result<Pin<Rc<Self>>, Box<dyn std::error::Error>> {
         let g = Rc::pin(Self {
-            totalbytes: Cell::new(size_of::<Self>() as isize),
-            GCdebt: Cell::new(0),
+            gc: Gc::new(size_of::<Self>()),
             GCestimate: Cell::new(0), // TODO: Lua does not initialize this.
             lastatomic: Cell::new(0),
             strt: UnsafeCell::new(StringTable {
@@ -142,7 +138,6 @@ impl Lua {
                 tt_: (0 | 0 << 4),
             }),
             seed: rand::random(),
-            currentwhite: Cell::new(1 << 3),
             gcstate: Cell::new(8),
             gckind: Cell::new(0),
             gcstopem: Cell::new(0),
@@ -152,7 +147,6 @@ impl Lua {
             gcpause: Cell::new((200 as libc::c_int / 4 as libc::c_int) as u8),
             gcstepmul: Cell::new((100 as libc::c_int / 4 as libc::c_int) as u8),
             gcstepsize: Cell::new(13 as libc::c_int as u8),
-            allgc: Cell::new(null_mut()),
             sweepgc: Cell::new(0 as *mut *mut GCObject),
             gray: Cell::new(null_mut()),
             grayagain: Cell::new(null_mut()),
@@ -296,7 +290,7 @@ impl Lua {
 
     pub fn spawn(self: &Pin<Rc<Self>>) -> *mut lua_State {
         // Create new thread.
-        let td = unsafe { self.create_object(8, Layout::new::<lua_State>()) as *mut lua_State };
+        let td = unsafe { self.gc.alloc(8, Layout::new::<lua_State>()) as *mut lua_State };
 
         unsafe { (*td).l_G = self.deref() };
         unsafe { (*td).stack.p = null_mut() };
@@ -343,35 +337,6 @@ impl Lua {
         unsafe { (*td).ci = ci };
 
         td
-    }
-
-    unsafe fn create_object(&self, tt: u8, layout: Layout) -> *mut GCObject {
-        let o = unsafe { std::alloc::alloc(layout) as *mut GCObject };
-
-        if o.is_null() {
-            handle_alloc_error(layout);
-        }
-
-        unsafe { (*o).marked = self.currentwhite.get() & (1 << 3 | 1 << 4) };
-        unsafe { (*o).tt = tt };
-        unsafe { (*o).next = self.allgc.get() };
-        self.allgc.set(o);
-
-        self.GCdebt
-            .set((self.GCdebt.get() as usize).wrapping_add(layout.size()) as isize);
-
-        o
-    }
-
-    unsafe fn free_object(&self, ptr: *mut u8, layout: Layout) {
-        unsafe { std::alloc::dealloc(ptr, layout) };
-        self.decrease_gc_debt(layout.size());
-    }
-
-    fn decrease_gc_debt(&self, bytes: usize) {
-        let v = (self.GCdebt.get() as usize).wrapping_sub(bytes);
-
-        self.GCdebt.set(v as isize);
     }
 }
 

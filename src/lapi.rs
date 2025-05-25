@@ -16,7 +16,7 @@ use crate::lobject::{
     CClosure, GCObject, LClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata,
     UpVal, Value, luaO_arith, luaO_str2num, luaO_tostring,
 };
-use crate::lstate::{CallInfo, lua_CFunction, lua_Reader, lua_State, lua_Writer, luaE_setdebt};
+use crate::lstate::{CallInfo, lua_CFunction, lua_Reader, lua_State, lua_Writer};
 use crate::lstring::{luaS_new, luaS_newlstr, luaS_newudata};
 use crate::ltable::{
     luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_new, luaH_next, luaH_resize, luaH_set,
@@ -462,7 +462,7 @@ pub unsafe fn lua_tolstring(
             return Ok(0 as *const libc::c_char);
         }
         luaO_tostring(L, o)?;
-        if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
+        if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
             luaC_step(L);
         }
         o = index2value(L, idx);
@@ -594,7 +594,7 @@ pub unsafe fn lua_pushlstring(
     (*io).value_.gc = x_ as *mut GCObject;
     (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     api_incr_top(L);
-    if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
+    if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
     return Ok(((*ts).contents).as_mut_ptr());
@@ -616,7 +616,7 @@ pub unsafe fn lua_pushstring(
         s = ((*ts).contents).as_mut_ptr();
     }
     api_incr_top(L);
-    if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
+    if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
     return Ok(s);
@@ -652,7 +652,7 @@ pub unsafe fn lua_pushcclosure(mut L: *mut lua_State, mut fn_0: lua_CFunction, m
             | (2 as libc::c_int) << 4 as libc::c_int
             | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         api_incr_top(L);
-        if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
+        if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
             luaC_step(L);
         }
     };
@@ -914,7 +914,7 @@ pub unsafe fn lua_createtable(
     if narray > 0 as libc::c_int || nrec > 0 as libc::c_int {
         luaH_resize(L, t, narray as libc::c_uint, nrec as libc::c_uint)?;
     }
-    if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
+    if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
     Ok(())
@@ -1528,27 +1528,27 @@ pub unsafe fn lua_gc(mut L: *mut lua_State, cmd: GcCommand) -> libc::c_int {
     match cmd {
         GcCommand::Stop => (*g).gcstp.set(1),
         GcCommand::Restart => {
-            luaE_setdebt(g, 0 as libc::c_int as isize);
+            (*g).gc.set_debt(0);
             (*g).gcstp.set(0 as libc::c_int as u8);
         }
         GcCommand::Collect => luaC_fullgc(L),
         GcCommand::Count => {
-            res = (((*g).totalbytes.get() + (*g).GCdebt.get()) as usize >> 10) as libc::c_int;
+            res = (((*g).gc.totalbytes() + (*g).gc.debt()) as usize >> 10) as libc::c_int;
         }
         GcCommand::CountByte => {
-            res = (((*g).totalbytes.get() + (*g).GCdebt.get()) as usize & 0x3ff) as libc::c_int;
+            res = (((*g).gc.totalbytes() + (*g).gc.debt()) as usize & 0x3ff) as libc::c_int;
         }
         GcCommand::Step(data) => {
             let mut debt: isize = 1 as libc::c_int as isize;
             let mut oldstp: u8 = (*g).gcstp.get();
             (*g).gcstp.set(0 as libc::c_int as u8);
             if data == 0 as libc::c_int {
-                luaE_setdebt(g, 0 as libc::c_int as isize);
+                (*g).gc.set_debt(0);
                 luaC_step(L);
             } else {
-                debt = data as isize * 1024 as libc::c_int as isize + (*g).GCdebt.get();
-                luaE_setdebt(g, debt);
-                if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
+                debt = data as isize * 1024 as libc::c_int as isize + (*g).gc.debt();
+                (*g).gc.set_debt(debt);
+                if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
                     luaC_step(L);
                 }
             }
@@ -1652,7 +1652,7 @@ pub unsafe fn lua_concat(
         (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         api_incr_top(L);
     }
-    if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
+    if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
     Ok(())
@@ -1683,7 +1683,7 @@ pub unsafe fn lua_newuserdatauv(
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     api_incr_top(L);
-    if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
+    if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
     return Ok((u as *mut libc::c_char).offset(

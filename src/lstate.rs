@@ -70,7 +70,7 @@ impl Drop for lua_State {
         .unwrap();
 
         unsafe { std::alloc::dealloc(self.stack.p.cast(), layout) };
-        unsafe { (*self.l_G).decrease_gc_debt(layout.size()) };
+        unsafe { (*self.l_G).gc.decrease_debt(layout.size()) };
     }
 }
 
@@ -134,15 +134,6 @@ pub struct C2RustUnnamed_3 {
 
 pub type lua_CFunction = unsafe fn(*mut lua_State) -> Result<c_int, Box<dyn std::error::Error>>;
 
-pub unsafe fn luaE_setdebt(g: *const Lua, mut debt: isize) {
-    let mut tb: isize = ((*g).totalbytes.get() + (*g).GCdebt.get()) as usize as isize;
-    if debt < tb - (!(0 as libc::c_int as usize) >> 1 as libc::c_int) as isize {
-        debt = tb - (!(0 as libc::c_int as usize) >> 1 as libc::c_int) as isize;
-    }
-    (*g).totalbytes.set(tb - debt);
-    (*g).GCdebt.set(debt);
-}
-
 pub unsafe fn luaE_extendCI(mut L: *mut lua_State) -> *mut CallInfo {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     ci = luaM_malloc_((*L).l_G, ::core::mem::size_of::<CallInfo>()) as *mut CallInfo;
@@ -205,7 +196,7 @@ pub unsafe fn luaE_shrinkCI(mut L: *mut lua_State) {
 
 pub unsafe fn luaE_freethread(g: *const Lua, mut L1: *mut lua_State) {
     std::ptr::drop_in_place(L1);
-    (*g).free_object(L1.cast(), Layout::new::<lua_State>());
+    (*g).gc.dealloc(L1.cast(), Layout::new::<lua_State>());
 }
 
 pub unsafe fn lua_closethread(L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {

@@ -30,7 +30,7 @@ pub unsafe fn luaF_newCclosure(mut L: *mut lua_State, nupvals: libc::c_int) -> *
     let size = offset_of!(CClosure, upvalue) + size_of::<TValue>() * usize::from(nupvals);
     let align = align_of::<CClosure>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = (*(*L).l_G).create_object(6 | 2 << 4, layout);
+    let o = (*(*L).l_G).gc.alloc(6 | 2 << 4, layout);
     let mut c: *mut CClosure = o as *mut CClosure;
 
     (*c).nupvalues = nupvals;
@@ -43,7 +43,7 @@ pub unsafe fn luaF_newLclosure(mut L: *mut lua_State, mut nupvals: libc::c_int) 
     let size = offset_of!(LClosure, upvals) + size_of::<*mut TValue>() * usize::from(nupvals);
     let align = align_of::<LClosure>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = (*(*L).l_G).create_object(6 | 0 << 4, layout);
+    let o = (*(*L).l_G).gc.alloc(6 | 0 << 4, layout);
     let mut c: *mut LClosure = o as *mut LClosure;
 
     (*c).p = 0 as *mut Proto;
@@ -63,7 +63,7 @@ pub unsafe fn luaF_initupvals(mut L: *mut lua_State, mut cl: *mut LClosure) {
 
     while i < (*cl).nupvalues as libc::c_int {
         let layout = Layout::new::<UpVal>();
-        let o = (*(*L).l_G).create_object(9 | 0 << 4, layout);
+        let o = (*(*L).l_G).gc.alloc(9 | 0 << 4, layout);
         let mut uv: *mut UpVal = o as *mut UpVal;
 
         (*uv).v.p = &mut (*uv).u.value;
@@ -89,7 +89,7 @@ unsafe fn newupval(
     mut prev: *mut *mut UpVal,
 ) -> *mut UpVal {
     let layout = Layout::new::<UpVal>();
-    let o = (*(*L).l_G).create_object(9 | 0 << 4, layout);
+    let o = (*(*L).l_G).gc.alloc(9 | 0 << 4, layout);
     let mut uv: *mut UpVal = o as *mut UpVal;
     let mut next: *mut UpVal = *prev;
 
@@ -299,7 +299,7 @@ pub unsafe fn luaF_close(
 
 pub unsafe fn luaF_newproto(mut L: *mut lua_State) -> *mut Proto {
     let layout = Layout::new::<Proto>();
-    let o = (*(*L).l_G).create_object(9 + 1 | 0 << 4, layout);
+    let o = (*(*L).l_G).gc.alloc(9 + 1 | 0 << 4, layout);
     let mut f: *mut Proto = o as *mut Proto;
 
     (*f).k = 0 as *mut TValue;
@@ -365,7 +365,7 @@ pub unsafe fn luaF_freeproto(g: *const Lua, mut f: *mut Proto) {
     // Free proto.
     let layout = Layout::new::<Proto>();
 
-    (*g).free_object(f.cast(), layout);
+    (*g).gc.dealloc(f.cast(), layout);
 }
 
 #[unsafe(no_mangle)]

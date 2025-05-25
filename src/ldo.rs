@@ -343,7 +343,7 @@ unsafe fn tryfuncTM(
         != 0
     {
         let t__: isize = (func as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
-        if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
+        if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
             luaC_step(L);
         }
         luaD_growstack(L, 1)?;
@@ -498,7 +498,7 @@ unsafe fn precallC(
         != 0
     {
         let t__: isize = (func as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
-        if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
+        if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
             luaC_step(L);
         }
         luaD_growstack(L, 20)?;
@@ -566,7 +566,7 @@ pub unsafe fn luaD_pretailcall(
                 {
                     let t__: isize =
                         (func as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
-                    if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
+                    if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
                         luaC_step(L);
                     }
                     luaD_growstack(L, fsize - delta)?;
@@ -640,7 +640,7 @@ pub unsafe fn luaD_precall(
                 {
                     let t__: isize =
                         (func as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
-                    if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
+                    if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
                         luaC_step(L);
                     }
                     luaD_growstack(L, fsize)?;

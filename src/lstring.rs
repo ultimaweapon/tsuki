@@ -173,7 +173,7 @@ unsafe fn createstrobj(L: *mut lua_State, l: usize, tag: u8, h: libc::c_uint) ->
     let size = offset_of!(TString, contents) + l + 1;
     let align = align_of::<TString>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = (*(*L).l_G).create_object(tag, layout);
+    let o = (*(*L).l_G).gc.alloc(tag, layout);
     let ts = o as *mut TString;
 
     (*ts).hash = h;
@@ -234,6 +234,7 @@ unsafe fn internshrstr(
         .offset((h & ((*tb).size - 1 as libc::c_int) as libc::c_uint) as libc::c_int as isize)
         as *mut *mut TString;
     ts = *list;
+
     while !ts.is_null() {
         if l == (*ts).shrlen as usize
             && memcmp(
@@ -242,21 +243,18 @@ unsafe fn internshrstr(
                 l.wrapping_mul(::core::mem::size_of::<libc::c_char>()) as _,
             ) == 0 as libc::c_int
         {
-            if (*ts).marked as libc::c_int
-                & ((*g).currentwhite.get() as libc::c_int
-                    ^ ((1 as libc::c_int) << 3 as libc::c_int
-                        | (1 as libc::c_int) << 4 as libc::c_int))
-                != 0
-            {
+            if (*ts).marked & ((*g).gc.currentwhite() ^ (1 << 3 | 1 << 4)) != 0 {
                 (*ts).marked = ((*ts).marked as libc::c_int
                     ^ ((1 as libc::c_int) << 3 as libc::c_int
                         | (1 as libc::c_int) << 4 as libc::c_int))
                     as u8;
             }
+
             return ts;
         }
         ts = (*ts).u.hnext;
     }
+
     if (*tb).nuse >= (*tb).size {
         growstrtab(L, tb);
         list = &mut *((*tb).hash)
@@ -372,7 +370,7 @@ pub unsafe fn luaS_newudata(
     let size = min + s;
     let align = align_of::<Udata>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = (*(*L).l_G).create_object(7 | 0 << 4, layout);
+    let o = (*(*L).l_G).gc.alloc(7 | 0 << 4, layout);
     let u = o as *mut Udata;
 
     (*u).len = s;

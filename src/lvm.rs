@@ -2248,15 +2248,18 @@ pub unsafe fn luaV_execute(
                             | (0 as libc::c_int) << 4 as libc::c_int
                             | (1 as libc::c_int) << 6 as libc::c_int)
                             as u8;
+
                         if b_3 != 0 as libc::c_int || c_1 != 0 as libc::c_int {
                             luaH_resize(L, t, c_1 as libc::c_uint, b_3 as libc::c_uint)?;
                         }
-                        if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
+
+                        if (*(*L).l_G).gc.debt() > 0 {
                             (*ci).u.savedpc = pc;
                             (*L).top.p = ra_17.offset(1 as libc::c_int as isize);
                             luaC_step(L);
                             trap = (*ci).u.trap;
                         }
+
                         continue;
                     }
                     20 => {
@@ -4365,12 +4368,14 @@ pub unsafe fn luaV_execute(
                         (*ci).u.savedpc = pc;
                         luaV_concat(L, n_1)?;
                         trap = (*ci).u.trap;
-                        if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
+
+                        if (*(*L).l_G).gc.debt() > 0 {
                             (*ci).u.savedpc = pc;
                             (*L).top.p = (*L).top.p;
                             luaC_step(L);
                             trap = (*ci).u.trap;
                         }
+
                         continue;
                     }
                     54 => {
@@ -5560,12 +5565,14 @@ pub unsafe fn luaV_execute(
                         (*ci).u.savedpc = pc;
                         (*L).top.p = (*ci).top.p;
                         pushclosure(L, p, ((*cl).upvals).as_mut_ptr(), base, ra_77);
-                        if (*(*L).l_G).GCdebt.get() > 0 as libc::c_int as isize {
+
+                        if (*(*L).l_G).gc.debt() > 0 {
                             (*ci).u.savedpc = pc;
                             (*L).top.p = ra_77.offset(1 as libc::c_int as isize);
                             luaC_step(L);
                             trap = (*ci).u.trap;
                         }
+
                         continue;
                     }
                     80 => {
