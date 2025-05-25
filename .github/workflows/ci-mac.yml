@@ -3,7 +3,7 @@ on:
   workflow_call:
 jobs:
   build:
-    name: Build
+    name: macOS
     runs-on: macos-latest
     steps:
     - name: Check out repository

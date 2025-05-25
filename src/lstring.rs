@@ -10,12 +10,14 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(unused_parens)]
 
-use crate::gc::{luaC_fix, luaC_fullgc, luaC_newobj};
+use crate::gc::{luaC_fix, luaC_fullgc};
 use crate::lmem::{luaM_malloc_, luaM_realloc_, luaM_toobig};
 use crate::lobject::{GCObject, TString, Table, UValue, Udata};
 use crate::lstate::lua_State;
 use crate::{Lua, StringTable};
 use libc::{memcmp, memcpy, strcmp, strlen};
+use std::alloc::Layout;
+use std::mem::offset_of;
 
 pub unsafe fn luaS_eqlngstr(mut a: *mut TString, mut b: *mut TString) -> libc::c_int {
     let mut len: usize = (*a).u.lnglen;
@@ -168,36 +170,26 @@ pub unsafe fn luaS_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error:
     Ok(())
 }
 
-unsafe extern "C" fn createstrobj(
-    mut L: *mut lua_State,
-    mut l: usize,
-    mut tag: libc::c_int,
-    mut h: libc::c_uint,
-) -> *mut TString {
-    let mut ts: *mut TString = 0 as *mut TString;
-    let mut o: *mut GCObject = 0 as *mut GCObject;
-    let mut totalsize: usize = 0;
-    totalsize = 24usize.wrapping_add(
-        l.wrapping_add(1 as libc::c_int as usize)
-            .wrapping_mul(::core::mem::size_of::<libc::c_char>()),
-    );
-    o = luaC_newobj((*L).l_G, tag, totalsize);
-    ts = (o as *mut TString);
+unsafe fn createstrobj(L: *mut lua_State, l: usize, tag: u8, h: libc::c_uint) -> *mut TString {
+    let size = offset_of!(TString, contents) + l + 1;
+    let align = align_of::<TString>();
+    let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
+    let o = (*(*L).l_G).create_object(tag, layout);
+    let ts = (o as *mut TString);
+
     (*ts).hash = h;
     (*ts).extra = 0 as libc::c_int as u8;
     *((*ts).contents).as_mut_ptr().offset(l as isize) = '\0' as i32 as libc::c_char;
+
     return ts;
 }
 
 pub unsafe fn luaS_createlngstrobj(mut L: *mut lua_State, mut l: usize) -> *mut TString {
-    let mut ts: *mut TString = createstrobj(
-        L,
-        l,
-        4 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int,
-        (*(*L).l_G).seed,
-    );
+    let ts: *mut TString = createstrobj(L, l, 4 | 1 << 4, (*(*L).l_G).seed);
+
     (*ts).u.lnglen = l;
     (*ts).shrlen = 0xff as libc::c_int as u8;
+
     return ts;
 }
 
@@ -238,7 +230,8 @@ unsafe extern "C" fn growstrtab(mut L: *mut lua_State, mut tb: *mut StringTable)
         luaS_resize(L, (*tb).size * 2 as libc::c_int);
     }
 }
-unsafe extern "C" fn internshrstr(
+
+unsafe fn internshrstr(
     mut L: *mut lua_State,
     mut str: *const libc::c_char,
     mut l: usize,
@@ -280,22 +273,20 @@ unsafe extern "C" fn internshrstr(
             .offset((h & ((*tb).size - 1 as libc::c_int) as libc::c_uint) as libc::c_int as isize)
             as *mut *mut TString;
     }
-    ts = createstrobj(
-        L,
-        l,
-        4 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int,
-        h,
-    );
+
+    ts = createstrobj(L, l, 4 | 0 << 4, h);
+
     (*ts).shrlen = l as u8;
     memcpy(
         ((*ts).contents).as_mut_ptr() as *mut libc::c_void,
         str as *const libc::c_void,
-        l.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
+        l,
     );
     (*ts).u.hnext = *list;
     *list = ts;
     (*tb).nuse += 1;
     (*tb).nuse;
+
     return ts;
 }
 
@@ -366,9 +357,13 @@ pub unsafe fn luaS_newudata(
     mut s: usize,
     mut nuvalue: libc::c_int,
 ) -> Result<*mut Udata, Box<dyn std::error::Error>> {
-    let mut u: *mut Udata = 0 as *mut Udata;
     let mut i: libc::c_int = 0;
-    let mut o: *mut GCObject = 0 as *mut GCObject;
+    let min = if nuvalue == 0 {
+        offset_of!(Udata, gclist)
+    } else {
+        offset_of!(Udata, uv) + size_of::<UValue>().wrapping_mul(nuvalue as usize)
+    };
+
     if ((s
         > (if (::core::mem::size_of::<usize>() as libc::c_ulong)
             < ::core::mem::size_of::<i64>() as libc::c_ulong
@@ -377,38 +372,28 @@ pub unsafe fn luaS_newudata(
         } else {
             0x7fffffffffffffff as libc::c_longlong as usize
         })
-        .wrapping_sub(
-            (if nuvalue == 0 as libc::c_int {
-                32
-            } else {
-                40usize
-                    .wrapping_add((::core::mem::size_of::<UValue>()).wrapping_mul(nuvalue as usize))
-            }),
-        )) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
+        .wrapping_sub(min)) as libc::c_int
+        != 0) as libc::c_int as libc::c_long
         != 0
     {
         luaM_toobig(L)?;
     }
-    o = luaC_newobj(
-        (*L).l_G,
-        7 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int,
-        (if nuvalue == 0 as libc::c_int {
-            32
-        } else {
-            40usize.wrapping_add((::core::mem::size_of::<UValue>()).wrapping_mul(nuvalue as usize))
-        })
-        .wrapping_add(s),
-    );
-    u = (o as *mut Udata);
+
+    let size = min + s;
+    let align = align_of::<Udata>();
+    let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
+    let o = (*(*L).l_G).create_object(7 | 0 << 4, layout);
+    let u = (o as *mut Udata);
+
     (*u).len = s;
     (*u).nuvalue = nuvalue as libc::c_ushort;
     (*u).metatable = 0 as *mut Table;
     i = 0 as libc::c_int;
+
     while i < nuvalue {
-        (*((*u).uv).as_mut_ptr().offset(i as isize)).uv.tt_ =
-            (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+        (*((*u).uv).as_mut_ptr().offset(i as isize)).uv.tt_ = (0 | 0 << 4);
         i += 1;
     }
+
     return Ok(u);
 }

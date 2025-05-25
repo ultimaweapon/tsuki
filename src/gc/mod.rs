@@ -9,10 +9,10 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use self::list::ObjectList;
 use crate::Lua;
 use crate::ldo::luaD_shrinkstack;
 use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
-use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::lobject::{
     CClosure, GCObject, LClosure, Node, Proto, StkId, TString, TValue, Table, UValue, Udata, UpVal,
 };
@@ -21,8 +21,13 @@ use crate::lstring::{luaS_clearcache, luaS_remove, luaS_resize};
 use crate::ltable::{luaH_free, luaH_realasize};
 use crate::ltm::{TM_MODE, luaT_gettm};
 use libc::strchr;
+use std::alloc::Layout;
 use std::ffi::c_int;
+use std::mem::offset_of;
 use std::ptr::null_mut;
+
+mod list;
+mod object;
 
 unsafe fn getgclist(mut o: *mut GCObject) -> *mut *mut GCObject {
     match (*o).tt as libc::c_int {
@@ -114,17 +119,6 @@ pub unsafe fn luaC_fix(g: &Lua, o: *mut GCObject) {
     (*g).allgc.set((*o).next);
     (*o).next = (*g).fixedgc.get();
     (*g).fixedgc.set(o);
-}
-
-pub unsafe fn luaC_newobj(g: *const Lua, mut tt: libc::c_int, mut sz: usize) -> *mut GCObject {
-    let mut o = luaM_malloc_(g, sz) as *mut GCObject;
-
-    (*o).marked = (*g).currentwhite.get() & (1 << 3 | 1 << 4);
-    (*o).tt = tt as u8;
-    (*o).next = (*g).allgc.get();
-    (*g).allgc.set(o);
-
-    return o;
 }
 
 unsafe fn reallymarkobject(g: *const Lua, mut o: *mut GCObject) {
@@ -829,10 +823,13 @@ unsafe fn clearbyvalues(g: *const Lua, mut l: *mut GCObject, mut f: *mut GCObjec
 }
 
 unsafe fn freeupval(g: *const Lua, mut uv: *mut UpVal) {
+    let layout = Layout::new::<UpVal>();
+
     if (*uv).v.p != &mut (*uv).u.value as *mut TValue {
         luaF_unlinkupval(uv);
     }
-    luaM_free_(g, uv as *mut libc::c_void, ::core::mem::size_of::<UpVal>());
+
+    (*g).free_object(uv.cast(), layout);
 }
 
 unsafe fn freeobj(g: *const Lua, mut o: *mut GCObject) {
@@ -841,62 +838,56 @@ unsafe fn freeobj(g: *const Lua, mut o: *mut GCObject) {
         9 => freeupval(g, o as *mut UpVal),
         6 => {
             let mut cl: *mut LClosure = o as *mut LClosure;
+            let nupvalues = usize::from((*cl).nupvalues);
+            let size = offset_of!(LClosure, upvals) + size_of::<*mut TValue>() * nupvalues;
+            let align = align_of::<LClosure>();
+            let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
-            luaM_free_(
-                g,
-                cl as *mut libc::c_void,
-                (32 as libc::c_ulong as libc::c_int
-                    + ::core::mem::size_of::<*mut TValue>() as libc::c_ulong as libc::c_int
-                        * (*cl).nupvalues as libc::c_int) as usize,
-            );
+            (*g).free_object(cl.cast(), layout);
         }
         38 => {
             let mut cl_0: *mut CClosure = o as *mut CClosure;
+            let nupvalues = usize::from((*cl_0).nupvalues);
+            let size = offset_of!(CClosure, upvalue) + size_of::<TValue>() * nupvalues;
+            let align = align_of::<CClosure>();
+            let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
-            luaM_free_(
-                g,
-                cl_0 as *mut libc::c_void,
-                (32 as libc::c_ulong as libc::c_int
-                    + ::core::mem::size_of::<TValue>() as libc::c_ulong as libc::c_int
-                        * (*cl_0).nupvalues as libc::c_int) as usize,
-            );
+            (*g).free_object(cl_0.cast(), layout);
         }
         5 => luaH_free(g, o as *mut Table),
         8 => luaE_freethread(g, o as *mut lua_State),
         7 => {
             let mut u: *mut Udata = o as *mut Udata;
-
-            luaM_free_(
-                g,
-                o as *mut libc::c_void,
+            let layout = Layout::from_size_align(
                 (if (*u).nuvalue == 0 {
-                    32
+                    offset_of!(Udata, gclist)
                 } else {
-                    40usize.wrapping_add(
-                        (::core::mem::size_of::<UValue>()).wrapping_mul((*u).nuvalue.into()),
-                    )
+                    offset_of!(Udata, uv) + size_of::<UValue>().wrapping_mul((*u).nuvalue.into())
                 })
                 .wrapping_add((*u).len),
-            );
+                align_of::<Udata>(),
+            )
+            .unwrap()
+            .pad_to_align();
+
+            (*g).free_object(o.cast(), layout);
         }
         4 => {
             let mut ts: *mut TString = o as *mut TString;
+            let size = offset_of!(TString, contents) + usize::from((*ts).shrlen) + 1;
+            let align = align_of::<TString>();
+            let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
             luaS_remove(g, ts);
-            luaM_free_(
-                g,
-                ts as *mut libc::c_void,
-                24usize.wrapping_add(usize::from((*ts).shrlen) + 1),
-            );
+            (*g).free_object(ts.cast(), layout);
         }
         20 => {
             let mut ts_0: *mut TString = o as *mut TString;
+            let size = offset_of!(TString, contents) + (*ts_0).u.lnglen + 1;
+            let align = align_of::<TString>();
+            let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
-            luaM_free_(
-                g,
-                ts_0 as *mut libc::c_void,
-                24usize.wrapping_add(((*ts_0).u.lnglen).wrapping_add(1)),
-            );
+            (*g).free_object(ts_0.cast(), layout);
         }
         _ => unreachable!(),
     }
@@ -1538,6 +1529,11 @@ pub unsafe fn luaC_fullgc(mut L: *mut lua_State, mut isemergency: libc::c_int) {
     }
 
     (*g).gcemergency.set(0 as libc::c_int as u8);
+}
+
+/// Garbage Collector for Lua objects.
+pub struct Gc {
+    collectable: ObjectList,
 }
 
 /// Command to control the garbage collector.

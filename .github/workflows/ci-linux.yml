@@ -3,12 +3,16 @@ on:
   workflow_call:
 jobs:
   build:
-    name: Build
+    name: Linux
     runs-on: ubuntu-latest
     steps:
     - name: Check out repository
       uses: actions/checkout@v4
       with:
         submodules: recursive
+    - name: Install Rust nightly
+      run: rustup toolchain install nightly
     - name: Run tests
-      run: cargo test -r
+      run: cargo +nightly test -r
+      env:
+        RUSTFLAGS: -Zsanitizer=address

@@ -205,8 +205,7 @@ pub unsafe fn luaE_shrinkCI(mut L: *mut lua_State) {
 
 pub unsafe fn luaE_freethread(g: *const Lua, mut L1: *mut lua_State) {
     std::ptr::drop_in_place(L1);
-    std::alloc::dealloc(L1.cast(), Layout::new::<lua_State>());
-    (*g).decrease_gc_debt(size_of::<lua_State>());
+    (*g).free_object(L1.cast(), Layout::new::<lua_State>());
 }
 
 pub unsafe fn lua_closethread(L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {

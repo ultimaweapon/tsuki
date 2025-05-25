@@ -1,5 +1,5 @@
 pub use self::error::*;
-pub use self::gc::*;
+pub use self::gc::GcCommand;
 pub use self::lapi::{
     lua_arith, lua_call, lua_createtable, lua_dump, lua_getglobal, lua_getiuservalue, lua_gettable,
     lua_gettop, lua_getupvalue, lua_iscfunction, lua_isinteger, lua_isstring, lua_isuserdata,
@@ -24,6 +24,7 @@ pub use self::lstate::{lua_State, lua_closethread};
 pub use self::lstrlib::luaopen_string;
 pub use self::ltablib::luaopen_table;
 
+use self::gc::luaC_freeallobjects;
 use self::llex::luaX_init;
 use self::lmem::luaM_free_;
 use self::lobject::{GCObject, StackValue, TString, TValue, Table, Value};
@@ -362,6 +363,11 @@ impl Lua {
             .set((self.GCdebt.get() as usize).wrapping_add(layout.size()) as isize);
 
         o
+    }
+
+    unsafe fn free_object(&self, ptr: *mut u8, layout: Layout) {
+        unsafe { std::alloc::dealloc(ptr, layout) };
+        self.decrease_gc_debt(layout.size());
     }
 
     fn decrease_gc_debt(&self, bytes: usize) {

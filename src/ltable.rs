@@ -11,7 +11,7 @@
 #![allow(path_statements)]
 
 use crate::Lua;
-use crate::gc::{luaC_barrierback_, luaC_newobj};
+use crate::gc::luaC_barrierback_;
 use crate::ldebug::luaG_runerror;
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
 use crate::lobject::{
@@ -22,6 +22,7 @@ use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::ltm::TM_EQ;
 use crate::lvm::{F2Ieq, luaV_flttointeger};
 use libm::frexp;
+use std::alloc::Layout;
 use std::ffi::{c_int, c_uint};
 
 static mut dummynode_: Node = Node {
@@ -700,28 +701,30 @@ unsafe fn rehash(
 }
 
 pub unsafe fn luaH_new(mut L: *mut lua_State) -> Result<*mut Table, Box<dyn std::error::Error>> {
-    let mut o: *mut GCObject = luaC_newobj(
-        (*L).l_G,
-        5 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int,
-        ::core::mem::size_of::<Table>(),
-    );
+    let layout = Layout::new::<Table>();
+    let o = (*(*L).l_G).create_object(5 | 0 << 4, layout);
     let mut t: *mut Table = o as *mut Table;
+
     (*t).metatable = 0 as *mut Table;
     (*t).flags = !(!(0 as libc::c_uint) << TM_EQ as libc::c_int + 1 as libc::c_int) as u8;
     (*t).array = 0 as *mut TValue;
     (*t).alimit = 0 as libc::c_int as libc::c_uint;
     setnodevector(L, t, 0 as libc::c_int as libc::c_uint)?;
+
     return Ok(t);
 }
 
 pub unsafe fn luaH_free(g: *const Lua, mut t: *mut Table) {
+    let layout = Layout::new::<Table>();
+
     freehash(g, t);
     luaM_free_(
         g,
         (*t).array as *mut libc::c_void,
-        (luaH_realasize(t) as usize).wrapping_mul(::core::mem::size_of::<TValue>()),
+        (luaH_realasize(t) as usize).wrapping_mul(size_of::<TValue>()),
     );
-    luaM_free_(g, t as *mut libc::c_void, size_of::<Table>());
+
+    (*g).free_object(t.cast(), layout);
 }
 
 unsafe extern "C" fn getfreepos(mut t: *mut Table) -> *mut Node {
