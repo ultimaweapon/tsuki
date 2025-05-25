@@ -8,9 +8,8 @@
     unused_mut
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
-#![allow(unused_parens)]
 
-use crate::gc::{luaC_fix, luaC_fullgc};
+use crate::gc::luaC_fix;
 use crate::lmem::{luaM_malloc_, luaM_realloc_, luaM_toobig};
 use crate::lobject::{GCObject, TString, Table, UValue, Udata};
 use crate::lstate::lua_State;
@@ -154,7 +153,7 @@ pub unsafe fn luaS_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error:
             .wrapping_sub(1),
     )?);
 
-    luaC_fix(&*(*L).l_G, ((*g).memerrmsg.get() as *mut GCObject));
+    luaC_fix(&*(*L).l_G, (*g).memerrmsg.get() as *mut GCObject);
 
     i = 0 as libc::c_int;
 
@@ -175,7 +174,7 @@ unsafe fn createstrobj(L: *mut lua_State, l: usize, tag: u8, h: libc::c_uint) ->
     let align = align_of::<TString>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
     let o = (*(*L).l_G).create_object(tag, layout);
-    let ts = (o as *mut TString);
+    let ts = o as *mut TString;
 
     (*ts).hash = h;
     (*ts).extra = 0 as libc::c_int as u8;
@@ -206,16 +205,7 @@ pub unsafe fn luaS_remove(g: *const Lua, mut ts: *mut TString) {
     (*tb).nuse;
 }
 
-unsafe extern "C" fn growstrtab(mut L: *mut lua_State, mut tb: *mut StringTable) {
-    if (((*tb).nuse == 2147483647 as libc::c_int) as libc::c_int != 0 as libc::c_int) as libc::c_int
-        as libc::c_long
-        != 0
-    {
-        luaC_fullgc(L, 1 as libc::c_int);
-        if (*tb).nuse == 2147483647 as libc::c_int {
-            todo!("invoke handle_alloc_error");
-        }
-    }
+unsafe fn growstrtab(mut L: *mut lua_State, mut tb: *mut StringTable) {
     if (*tb).size
         <= (if 2147483647 as libc::c_int as usize
             <= (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<*mut TString>())
@@ -225,7 +215,7 @@ unsafe extern "C" fn growstrtab(mut L: *mut lua_State, mut tb: *mut StringTable)
             (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<*mut TString>())
                 as libc::c_uint
         }) as libc::c_int
-            / 2 as libc::c_int
+            / 2
     {
         luaS_resize(L, (*tb).size * 2 as libc::c_int);
     }
@@ -383,7 +373,7 @@ pub unsafe fn luaS_newudata(
     let align = align_of::<Udata>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
     let o = (*(*L).l_G).create_object(7 | 0 << 4, layout);
-    let u = (o as *mut Udata);
+    let u = o as *mut Udata;
 
     (*u).len = s;
     (*u).nuvalue = nuvalue as libc::c_ushort;
@@ -391,7 +381,7 @@ pub unsafe fn luaS_newudata(
     i = 0 as libc::c_int;
 
     while i < nuvalue {
-        (*((*u).uv).as_mut_ptr().offset(i as isize)).uv.tt_ = (0 | 0 << 4);
+        (*((*u).uv).as_mut_ptr().offset(i as isize)).uv.tt_ = 0 | 0 << 4;
         i += 1;
     }
 

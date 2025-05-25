@@ -1521,21 +1521,17 @@ pub unsafe fn lua_gc(mut L: *mut lua_State, cmd: GcCommand) -> libc::c_int {
     let mut res: libc::c_int = 0 as libc::c_int;
     let g = (*L).l_G;
 
-    if (*g).gcstp.get() as libc::c_int & 2 as libc::c_int != 0 {
+    if (*g).gcstp.get() & 2 != 0 {
         return -1;
     }
 
     match cmd {
-        GcCommand::Stop => {
-            (*g).gcstp.set(1 as libc::c_int as u8);
-        }
+        GcCommand::Stop => (*g).gcstp.set(1),
         GcCommand::Restart => {
             luaE_setdebt(g, 0 as libc::c_int as isize);
             (*g).gcstp.set(0 as libc::c_int as u8);
         }
-        GcCommand::Collect => {
-            luaC_fullgc(L, 0 as libc::c_int);
-        }
+        GcCommand::Collect => luaC_fullgc(L),
         GcCommand::Count => {
             res = (((*g).totalbytes.get() + (*g).GCdebt.get()) as usize >> 10) as libc::c_int;
         }

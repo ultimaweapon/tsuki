@@ -674,9 +674,7 @@ unsafe fn traversethread(g: *const Lua, mut th: *mut lua_State) -> libc::c_int {
     }
 
     if (*g).gcstate.get() == 2 {
-        if (*g).gcemergency.get() == 0 {
-            luaD_shrinkstack(th);
-        }
+        luaD_shrinkstack(th);
 
         o = (*th).top.p;
         while o < ((*th).stack_last.p).offset(5 as libc::c_int as isize) {
@@ -940,13 +938,11 @@ unsafe fn sweeptolive(mut L: *mut lua_State, mut p: *mut *mut GCObject) -> *mut 
 }
 
 unsafe fn checkSizes(mut L: *mut lua_State, g: *const Lua) {
-    if (*g).gcemergency.get() == 0 {
-        if (*(*g).strt.get()).nuse < (*(*g).strt.get()).size / 4 {
-            let mut olddebt: isize = (*g).GCdebt.get();
-            luaS_resize(L, (*(*g).strt.get()).size / 2 as libc::c_int);
-            (*g).GCestimate
-                .set(((*g).GCestimate.get()).wrapping_add(((*g).GCdebt.get() - olddebt) as usize));
-        }
+    if (*(*g).strt.get()).nuse < (*(*g).strt.get()).size / 4 {
+        let mut olddebt: isize = (*g).GCdebt.get();
+        luaS_resize(L, (*(*g).strt.get()).size / 2 as libc::c_int);
+        (*g).GCestimate
+            .set(((*g).GCestimate.get()).wrapping_add(((*g).GCdebt.get() - olddebt) as usize));
     }
 }
 
@@ -1517,18 +1513,14 @@ unsafe fn fullinc(mut L: *mut lua_State, g: *const Lua) {
     setpause(g);
 }
 
-pub unsafe fn luaC_fullgc(mut L: *mut lua_State, mut isemergency: libc::c_int) {
+pub unsafe fn luaC_fullgc(L: *mut lua_State) {
     let g = (*L).l_G;
-
-    (*g).gcemergency.set(isemergency as u8);
 
     if (*g).gckind.get() == 0 {
         fullinc(L, g);
     } else {
         fullgen(L, g);
     }
-
-    (*g).gcemergency.set(0 as libc::c_int as u8);
 }
 
 /// Garbage Collector for Lua objects.
