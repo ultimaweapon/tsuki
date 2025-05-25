@@ -117,7 +117,7 @@ unsafe extern "C" fn mainpositionTV(mut t: *const Table, mut key: *const TValue)
         20 => {
             let mut ts_0: *mut TString = (*key).value_.gc as *mut TString;
             return &mut *((*t).node).offset(
-                ((luaS_hashlongstr as unsafe extern "C" fn(*mut TString) -> libc::c_uint)(ts_0)
+                (luaS_hashlongstr(ts_0)
                     & (((1 as libc::c_int) << (*t).lsizenode as libc::c_int) - 1 as libc::c_int)
                         as libc::c_uint) as libc::c_int as isize,
             ) as *mut Node;
