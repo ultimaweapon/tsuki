@@ -24,8 +24,6 @@ use std::ffi::c_int;
 use std::mem::offset_of;
 use std::ptr::null_mut;
 
-mod object;
-
 unsafe fn getgclist(o: *mut GCObject) -> *mut *mut GCObject {
     match (*o).tt {
         5 => &raw mut (*(o as *mut Table)).gclist,

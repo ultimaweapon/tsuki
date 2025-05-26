@@ -8,6 +8,7 @@ Tsuki is a port of vanilla Lua 5.4 to Rust. This is porting, not binding; which 
 ## Features
 
 - Any error propagated to the caller via Rust `Result` instead of a long jump.
+- All values owned by Rust will exempt from GC automatically (no need to move it to Lua registry).
 
 ## Differences from vanilla Lua
 
