@@ -124,10 +124,7 @@ unsafe fn reallymarkobject(g: *const Lua, o: *mut GCObject) {
                             | (1 as libc::c_int) << 4 as libc::c_int)) as u8
                         as libc::c_int) as u8;
             } else {
-                (*uv).marked = ((*uv).marked as libc::c_int
-                    & !((1 as libc::c_int) << 3 as libc::c_int
-                        | (1 as libc::c_int) << 4 as libc::c_int)
-                    | (1 as libc::c_int) << 5 as libc::c_int) as u8;
+                (*uv).marked = (*uv).marked & !(1 << 3 | 1 << 4) | 1 << 5;
             }
 
             if (*(*uv).v.p).tt_ & 1 << 6 != 0
@@ -804,6 +801,8 @@ unsafe fn freeupval(g: *const Lua, uv: *mut UpVal) {
 }
 
 unsafe fn freeobj(g: *const Lua, o: *mut GCObject) {
+    (*g).gcstp.set((*g).gcstp.get() | 2);
+
     match (*o).tt {
         10 => luaF_freeproto(g, o as *mut Proto),
         9 => freeupval(g, o as *mut UpVal),
@@ -862,6 +861,8 @@ unsafe fn freeobj(g: *const Lua, o: *mut GCObject) {
         }
         _ => unreachable!(),
     }
+
+    (*g).gcstp.set((*g).gcstp.get() & !2);
 }
 
 unsafe fn sweeplist(
