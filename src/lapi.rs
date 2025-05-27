@@ -30,6 +30,7 @@ use crate::lvm::{
 use crate::lzio::Zio;
 use crate::{GcCommand, api_incr_top};
 use std::ffi::{c_int, c_void};
+use std::mem::offset_of;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -506,15 +507,13 @@ pub unsafe fn lua_tocfunction(L: *mut lua_State, idx: c_int) -> Option<lua_CFunc
 unsafe fn touserdata(mut o: *const TValue) -> *mut libc::c_void {
     match (*o).tt_ as libc::c_int & 0xf as libc::c_int {
         7 => {
-            return (((*o).value_.gc as *mut Udata) as *mut Udata as *mut libc::c_char).offset(
-                (if (*((*o).value_.gc as *mut Udata)).nuvalue as libc::c_int == 0 as libc::c_int {
-                    32 as libc::c_ulong
+            return ((*o).value_.gc as *mut libc::c_char).offset(
+                (if (*((*o).value_.gc as *mut Udata)).nuvalue == 0 {
+                    offset_of!(Udata, gclist)
                 } else {
-                    (40 as libc::c_ulong).wrapping_add(
-                        (::core::mem::size_of::<UValue>() as libc::c_ulong).wrapping_mul(
-                            (*((*o).value_.gc as *mut Udata)).nuvalue as libc::c_ulong,
-                        ),
-                    )
+                    offset_of!(UValue, uv)
+                        + size_of::<UValue>()
+                            .wrapping_mul((*((*o).value_.gc as *mut Udata)).nuvalue.into())
                 }) as isize,
             ) as *mut libc::c_void;
         }
@@ -1686,14 +1685,12 @@ pub unsafe fn lua_newuserdatauv(
     if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
+
     return Ok((u as *mut libc::c_char).offset(
-        (if (*u).nuvalue as libc::c_int == 0 as libc::c_int {
-            32 as libc::c_ulong
+        (if (*u).nuvalue == 0 {
+            offset_of!(Udata, gclist)
         } else {
-            (40 as libc::c_ulong).wrapping_add(
-                (::core::mem::size_of::<UValue>() as libc::c_ulong)
-                    .wrapping_mul((*u).nuvalue as libc::c_ulong),
-            )
+            offset_of!(Udata, uv) + size_of::<UValue>().wrapping_mul((*u).nuvalue.into())
         }) as isize,
     ) as *mut libc::c_void);
 }
