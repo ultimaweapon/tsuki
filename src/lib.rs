@@ -53,6 +53,7 @@ mod lfunc;
 mod llex;
 mod lmathlib;
 mod lmem;
+mod loadlib;
 mod lobject;
 mod lopcodes;
 mod lparser;
