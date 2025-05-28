@@ -7,6 +7,8 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+pub use self::handle::*;
+
 use crate::Lua;
 use crate::ldo::luaD_shrinkstack;
 use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
@@ -22,7 +24,10 @@ use std::alloc::{Layout, handle_alloc_error};
 use std::cell::Cell;
 use std::ffi::c_int;
 use std::mem::offset_of;
+use std::ops::Deref;
 use std::ptr::null_mut;
+
+mod handle;
 
 unsafe fn getgclist(o: *mut GCObject) -> *mut *mut GCObject {
     match (*o).tt {
@@ -1296,6 +1301,12 @@ unsafe fn atomic(L: *mut lua_State) -> usize {
         reallymarkobject(g, (*g.l_registry.get()).value_.gc);
     }
 
+    for &o in g.handle_table.borrow().deref() {
+        if !o.is_null() {
+            reallymarkobject(g, o);
+        }
+    }
+
     markmt(g);
     work = work.wrapping_add(propagateall(g));
     work = work.wrapping_add(remarkupvals(g) as usize);
@@ -1521,6 +1532,8 @@ impl Gc {
 
         unsafe { (*o).marked = self.currentwhite.get() & (1 << 3 | 1 << 4) };
         unsafe { (*o).tt = tt };
+        unsafe { (*o).refs = 0 };
+        unsafe { (*o).handle = 0 };
         unsafe { (*o).next = self.allgc.get() };
 
         self.allgc.set(o);

@@ -32,6 +32,8 @@ pub struct lua_State {
     pub(crate) next: *mut GCObject,
     pub(crate) tt: u8,
     pub(crate) marked: u8,
+    pub(crate) refs: usize,
+    pub(crate) handle: usize,
     pub(crate) allowhook: u8,
     pub(crate) nci: libc::c_ushort,
     pub(crate) top: StkIdRel,

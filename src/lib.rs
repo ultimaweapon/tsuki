@@ -31,7 +31,7 @@ use self::lstring::luaS_init;
 use self::ltable::{luaH_new, luaH_resize};
 use self::ltm::luaT_init;
 use std::alloc::{Layout, handle_alloc_error};
-use std::cell::{Cell, UnsafeCell};
+use std::cell::{Cell, RefCell, UnsafeCell};
 use std::ffi::c_int;
 use std::marker::PhantomPinned;
 use std::ops::Deref;
@@ -115,6 +115,8 @@ pub struct Lua {
     tmname: [Cell<*mut TString>; 25],
     mt: [Cell<*mut Table>; 9],
     strcache: [[Cell<*mut TString>; 2]; 53],
+    handle_table: RefCell<Vec<*mut GCObject>>,
+    handle_free: RefCell<Vec<usize>>,
     _phantom: PhantomPinned,
 }
 
@@ -253,6 +255,8 @@ impl Lua {
                 [Cell::new(null_mut()), Cell::new(null_mut())],
                 [Cell::new(null_mut()), Cell::new(null_mut())],
             ],
+            handle_table: RefCell::default(),
+            handle_free: RefCell::default(),
             _phantom: PhantomPinned,
         });
 
