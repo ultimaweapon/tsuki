@@ -33,7 +33,7 @@ unsafe fn getgclist(o: *mut GCObject) -> *mut *mut GCObject {
         5 => &raw mut (*(o as *mut Table)).gclist,
         6 => &raw mut (*(o as *mut LClosure)).gclist,
         38 => &raw mut (*(o as *mut CClosure)).gclist,
-        8 => &raw mut (*(o as *mut Thread)).gclist,
+        8 => (*(o as *mut Thread)).gclist.as_ptr(),
         10 => &raw mut (*(o as *mut Proto)).gclist,
         7 => &raw mut (*(o as *mut Udata)).gclist,
         _ => null_mut(),
@@ -192,17 +192,13 @@ unsafe fn remarkupvals(g: *const Lua) -> libc::c_int {
             break;
         }
         work += 1;
-        if (*thread).marked as libc::c_int
-            & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
-            == 0
-            && !((*thread).openupval).is_null()
-        {
-            p = &mut (*thread).twups;
+        if (*thread).marked.get() & (1 << 3 | 1 << 4) == 0 && !(*thread).openupval.get().is_null() {
+            p = (*thread).twups.as_ptr();
         } else {
             let mut uv: *mut UpVal = 0 as *mut UpVal;
-            *p = (*thread).twups;
-            (*thread).twups = thread;
-            uv = (*thread).openupval;
+            *p = (*thread).twups.get();
+            (*thread).twups.set(thread);
+            uv = (*thread).openupval.get();
             while !uv.is_null() {
                 work += 1;
                 if (*uv).marked as libc::c_int
@@ -616,10 +612,10 @@ unsafe fn traverseLclosure(g: *const Lua, cl: *mut LClosure) -> libc::c_int {
 unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
     let mut uv: *mut UpVal = 0 as *mut UpVal;
     let mut o: StkId = (*th).stack.p;
-    if (*th).marked as libc::c_int & 7 as libc::c_int > 1 || (*g).gcstate.get() == 0 {
+    if (*th).marked.get() & 7 > 1 || (*g).gcstate.get() == 0 {
         linkgclist_(
             th as *mut GCObject,
-            &mut (*th).gclist,
+            (*th).gclist.as_ptr(),
             (*g).grayagain.as_ptr(),
         );
     }
@@ -636,7 +632,7 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
         }
         o = o.offset(1);
     }
-    uv = (*th).openupval;
+    uv = (*th).openupval.get();
     while !uv.is_null() {
         if (*uv).marked as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
@@ -655,8 +651,8 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
             (*o).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
             o = o.offset(1);
         }
-        if !((*th).twups != th) && !((*th).openupval).is_null() {
-            (*th).twups = (*g).twups.get();
+        if !((*th).twups.get() != th) && !((*th).openupval.get()).is_null() {
+            (*th).twups.set((*g).twups.get());
             (*g).twups.set(th);
         }
     }
@@ -963,7 +959,7 @@ unsafe fn sweep2old(L: *mut Thread, mut p: *mut *mut GCObject) {
                 let th: *mut Thread = curr as *mut Thread;
                 linkgclist_(
                     th as *mut GCObject,
-                    &mut (*th).gclist,
+                    (*th).gclist.as_ptr(),
                     (*g).grayagain.as_ptr(),
                 );
             } else if (*curr).tt as libc::c_int
@@ -1293,7 +1289,7 @@ unsafe fn atomic(L: *mut Thread) -> usize {
     g.grayagain.set(null_mut());
     g.gcstate.set(2);
 
-    if (*L).marked & (1 << 3 | 1 << 4) != 0 {
+    if (*L).marked.get() & (1 << 3 | 1 << 4) != 0 {
         reallymarkobject(g, L as *mut GCObject);
     }
 

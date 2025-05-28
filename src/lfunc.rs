@@ -96,8 +96,8 @@ unsafe fn newupval(mut L: *mut Thread, mut level: StkId, mut prev: *mut *mut UpV
     }
     *prev = uv;
 
-    if !((*L).twups != L) {
-        (*L).twups = (*(*L).l_G).twups.get();
+    if !((*L).twups.get() != L) {
+        (*L).twups.set((*(*L).l_G).twups.get());
         (*(*L).l_G).twups.set(L);
     }
 
@@ -106,7 +106,7 @@ unsafe fn newupval(mut L: *mut Thread, mut level: StkId, mut prev: *mut *mut UpV
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaF_findupval(mut L: *mut Thread, mut level: StkId) -> *mut UpVal {
-    let mut pp: *mut *mut UpVal = &mut (*L).openupval;
+    let mut pp: *mut *mut UpVal = (*L).openupval.as_ptr();
     let mut p: *mut UpVal = 0 as *mut UpVal;
     loop {
         p = *pp;
@@ -220,7 +220,7 @@ pub unsafe extern "C" fn luaF_closeupval(mut L: *mut Thread, mut level: StkId) {
     let mut uv: *mut UpVal = 0 as *mut UpVal;
     let mut upl: StkId = 0 as *mut StackValue;
     loop {
-        uv = (*L).openupval;
+        uv = (*L).openupval.get();
         if !(!uv.is_null() && {
             upl = (*uv).v.p as StkId;
             upl >= level

@@ -1272,7 +1272,7 @@ pub unsafe fn luaV_execute(
     let mut pc: *const u32 = 0 as *const u32;
     let mut trap: libc::c_int = 0;
     '_startfunc: loop {
-        trap = (*L).hookmask;
+        trap = (*L).hookmask.get();
         '_returning: loop {
             cl = ((*(*ci).func.p).val.value_.gc as *mut LClosure);
             k = (*(*cl).p).k;
@@ -5275,7 +5275,7 @@ pub unsafe fn luaV_execute(
                         break;
                     }
                     71 => {
-                        if ((*L).hookmask != 0 as libc::c_int) as libc::c_int as libc::c_long != 0 {
+                        if ((*L).hookmask.get() != 0) as libc::c_int as libc::c_long != 0 {
                             let mut ra_68: StkId = base.offset(
                                 (i >> 0 as libc::c_int + 7 as libc::c_int
                                     & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
@@ -5306,7 +5306,7 @@ pub unsafe fn luaV_execute(
                         break;
                     }
                     72 => {
-                        if ((*L).hookmask != 0 as libc::c_int) as libc::c_int as libc::c_long != 0 {
+                        if ((*L).hookmask.get() != 0) as libc::c_int as libc::c_long != 0 {
                             let mut ra_69: StkId = base.offset(
                                 (i >> 0 as libc::c_int + 7 as libc::c_int
                                     & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
@@ -5600,7 +5600,7 @@ pub unsafe fn luaV_execute(
                         trap = (*ci).u.trap;
                         if (trap != 0 as libc::c_int) as libc::c_int as libc::c_long != 0 {
                             luaD_hookcall(L, ci)?;
-                            (*L).oldpc = 1 as libc::c_int;
+                            (*L).oldpc.set(1);
                         }
                         base = ((*ci).func.p).offset(1 as libc::c_int as isize);
                         continue;

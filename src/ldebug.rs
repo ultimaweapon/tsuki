@@ -90,7 +90,7 @@ unsafe extern "C" fn getcurrentline(mut ci: *mut CallInfo) -> libc::c_int {
     );
 }
 
-unsafe extern "C" fn settraps(mut ci: *mut CallInfo) {
+unsafe fn settraps(mut ci: *mut CallInfo) {
     while !ci.is_null() {
         if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
             ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 1 as libc::c_int);
@@ -99,8 +99,7 @@ unsafe extern "C" fn settraps(mut ci: *mut CallInfo) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_sethook(
+pub unsafe fn lua_sethook(
     mut L: *mut Thread,
     mut func: lua_Hook,
     mut mask: libc::c_int,
@@ -110,35 +109,30 @@ pub unsafe extern "C" fn lua_sethook(
         mask = 0 as libc::c_int;
         func = None;
     }
-    ::core::ptr::write_volatile(&mut (*L).hook as *mut lua_Hook, func);
-    (*L).basehookcount = count;
-    (*L).hookcount = (*L).basehookcount;
-    ::core::ptr::write_volatile(
-        &mut (*L).hookmask as *mut libc::c_int,
-        mask as u8 as libc::c_int,
-    );
+
+    (*L).hook.set(func);
+    (*L).basehookcount.set(count);
+    (*L).hookcount.set((*L).basehookcount.get());
+    (*L).hookmask.set(mask);
+
     if mask != 0 {
         settraps((*L).ci);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_gethook(mut L: *mut Thread) -> lua_Hook {
-    return (*L).hook;
+pub unsafe fn lua_gethook(mut L: *mut Thread) -> lua_Hook {
+    return (*L).hook.get();
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_gethookmask(mut L: *mut Thread) -> libc::c_int {
-    return (*L).hookmask;
+pub unsafe fn lua_gethookmask(mut L: *mut Thread) -> libc::c_int {
+    return (*L).hookmask.get();
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_gethookcount(mut L: *mut Thread) -> libc::c_int {
-    return (*L).basehookcount;
+pub unsafe fn lua_gethookcount(mut L: *mut Thread) -> libc::c_int {
+    return (*L).basehookcount.get();
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_getstack(
+pub unsafe fn lua_getstack(
     mut L: *mut Thread,
     mut level: libc::c_int,
     mut ar: *mut lua_Debug,
@@ -1186,7 +1180,7 @@ pub unsafe fn luaG_traceexec(
     mut pc: *const u32,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut ci: *mut CallInfo = (*L).ci;
-    let mut mask: u8 = (*L).hookmask as u8;
+    let mut mask: u8 = (*L).hookmask.get() as u8;
     let mut p: *const Proto = (*((*(*ci).func.p).val.value_.gc as *mut LClosure)).p;
     let mut counthook: libc::c_int = 0;
     if mask as libc::c_int
@@ -1200,11 +1194,11 @@ pub unsafe fn luaG_traceexec(
     pc;
     (*ci).u.savedpc = pc;
     counthook = (mask as libc::c_int & (1 as libc::c_int) << 3 as libc::c_int != 0 && {
-        (*L).hookcount -= 1;
-        (*L).hookcount == 0 as libc::c_int
+        (*L).hookcount.set((*L).hookcount.get() - 1);
+        (*L).hookcount.get() == 0
     }) as libc::c_int;
     if counthook != 0 {
-        (*L).hookcount = (*L).basehookcount;
+        (*L).hookcount.set((*L).basehookcount.get());
     } else if mask as libc::c_int & (1 as libc::c_int) << 2 as libc::c_int == 0 {
         return Ok(1 as libc::c_int);
     }
@@ -1237,8 +1231,8 @@ pub unsafe fn luaG_traceexec(
         )?;
     }
     if mask as libc::c_int & (1 as libc::c_int) << 2 as libc::c_int != 0 {
-        let mut oldpc: libc::c_int = if (*L).oldpc < (*p).sizecode {
-            (*L).oldpc
+        let mut oldpc: libc::c_int = if (*L).oldpc.get() < (*p).sizecode {
+            (*L).oldpc.get()
         } else {
             0 as libc::c_int
         };
@@ -1254,7 +1248,8 @@ pub unsafe fn luaG_traceexec(
                 0 as libc::c_int,
             )?;
         }
-        (*L).oldpc = npci;
+
+        (*L).oldpc.set(npci);
     }
 
     Ok(1)

@@ -91,8 +91,8 @@ pub unsafe fn luaE_extendCI(mut L: *mut Thread) -> *mut CallInfo {
     (*ci).previous = (*L).ci;
     (*ci).next = 0 as *mut CallInfo;
     ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 0 as libc::c_int);
-    (*L).nci = ((*L).nci).wrapping_add(1);
-    (*L).nci;
+    (*L).nci.set((*L).nci.get().wrapping_add(1));
+
     return ci;
 }
 
@@ -109,8 +109,8 @@ pub unsafe fn luaE_shrinkCI(mut L: *mut Thread) {
         }
         let mut next2: *mut CallInfo = (*next).next;
         (*ci).next = next2;
-        (*L).nci = ((*L).nci).wrapping_sub(1);
-        (*L).nci;
+        (*L).nci.set((*L).nci.get().wrapping_sub(1));
+
         luaM_free_(
             (*L).l_G,
             next as *mut libc::c_void,

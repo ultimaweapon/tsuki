@@ -4,33 +4,34 @@ use crate::lmem::luaM_free_;
 use crate::lobject::{GCObject, StackValue, StkIdRel, UpVal};
 use crate::lstate::{CallInfo, lua_Hook};
 use std::alloc::Layout;
+use std::cell::Cell;
 use std::marker::PhantomPinned;
 
 /// Lua thread (AKA coroutine).
 #[repr(C)]
 pub struct Thread {
-    pub(crate) next: *mut GCObject,
-    pub(crate) tt: u8,
-    pub(crate) marked: u8,
-    pub(crate) refs: usize,
-    pub(crate) handle: usize,
-    pub(crate) allowhook: u8,
-    pub(crate) nci: libc::c_ushort,
+    pub(crate) next: Cell<*mut GCObject>,
+    pub(crate) tt: Cell<u8>,
+    pub(crate) marked: Cell<u8>,
+    pub(crate) refs: Cell<usize>,
+    pub(crate) handle: Cell<usize>,
+    pub(crate) allowhook: Cell<u8>,
+    pub(crate) nci: Cell<libc::c_ushort>,
     pub(crate) top: StkIdRel,
     pub(crate) l_G: *const Lua,
     pub(crate) ci: *mut CallInfo,
     pub(crate) stack_last: StkIdRel,
     pub(crate) stack: StkIdRel,
-    pub(crate) openupval: *mut UpVal,
+    pub(crate) openupval: Cell<*mut UpVal>,
     pub(crate) tbclist: StkIdRel,
-    pub(crate) gclist: *mut GCObject,
-    pub(crate) twups: *mut Thread,
+    pub(crate) gclist: Cell<*mut GCObject>,
+    pub(crate) twups: Cell<*mut Thread>,
     pub(crate) base_ci: CallInfo,
-    pub(crate) hook: lua_Hook,
-    pub(crate) oldpc: libc::c_int,
-    pub(crate) basehookcount: libc::c_int,
-    pub(crate) hookcount: libc::c_int,
-    pub(crate) hookmask: libc::c_int,
+    pub(crate) hook: Cell<lua_Hook>,
+    pub(crate) oldpc: Cell<libc::c_int>,
+    pub(crate) basehookcount: Cell<libc::c_int>,
+    pub(crate) hookcount: Cell<libc::c_int>,
+    pub(crate) hookmask: Cell<libc::c_int>,
     phantom: PhantomPinned,
 }
 
@@ -59,7 +60,7 @@ impl Drop for Thread {
             next = unsafe { (*ci).next };
 
             unsafe { luaM_free_(self.l_G, ci as *mut libc::c_void, size_of::<CallInfo>()) };
-            self.nci = (self.nci).wrapping_sub(1);
+            self.nci.set(self.nci.get().wrapping_sub(1));
         }
 
         // Free stack.

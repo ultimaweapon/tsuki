@@ -301,15 +301,16 @@ impl Lua {
         unsafe { (*td).l_G = self.deref() };
         unsafe { (*td).stack.p = null_mut() };
         unsafe { (*td).ci = null_mut() };
-        unsafe { (*td).nci = 0 };
-        unsafe { (*td).twups = td };
-        unsafe { addr_of_mut!((*td).hook).write(None) };
-        unsafe { (*td).hookmask = 0 };
-        unsafe { (*td).basehookcount = 0 };
-        unsafe { (*td).allowhook = 1 };
-        unsafe { (*td).hookcount = (*td).basehookcount };
-        unsafe { (*td).openupval = null_mut() };
-        unsafe { (*td).oldpc = 0 };
+        unsafe { addr_of_mut!((*td).nci).write(Cell::new(0)) };
+        unsafe { addr_of_mut!((*td).gclist).write(Cell::new(null_mut())) };
+        unsafe { addr_of_mut!((*td).twups).write(Cell::new(td)) };
+        unsafe { addr_of_mut!((*td).hook).write(Cell::new(None)) };
+        unsafe { addr_of_mut!((*td).hookmask).write(Cell::new(0)) };
+        unsafe { addr_of_mut!((*td).basehookcount).write(Cell::new(0)) };
+        unsafe { addr_of_mut!((*td).allowhook).write(Cell::new(1)) };
+        unsafe { addr_of_mut!((*td).hookcount).write(Cell::new(0)) };
+        unsafe { addr_of_mut!((*td).openupval).write(Cell::new(null_mut())) };
+        unsafe { addr_of_mut!((*td).oldpc).write(Cell::new(0)) };
 
         // Allocate stack.
         let layout = Layout::array::<StackValue>(2 * 20 + 5).unwrap();

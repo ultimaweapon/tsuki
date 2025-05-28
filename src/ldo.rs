@@ -38,14 +38,14 @@ pub struct CloseP {
     pub status: Result<(), Box<dyn std::error::Error>>,
 }
 
-unsafe extern "C" fn relstack(L: *mut Thread) {
+unsafe fn relstack(L: *mut Thread) {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     let mut up: *mut UpVal = 0 as *mut UpVal;
     (*L).top.offset =
         ((*L).top.p as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
     (*L).tbclist.offset =
         ((*L).tbclist.p as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
-    up = (*L).openupval;
+    up = (*L).openupval.get();
     while !up.is_null() {
         (*up).v.offset = ((*up).v.p as StkId as *mut libc::c_char)
             .offset_from((*L).stack.p as *mut libc::c_char);
@@ -61,13 +61,13 @@ unsafe extern "C" fn relstack(L: *mut Thread) {
     }
 }
 
-unsafe extern "C" fn correctstack(L: *mut Thread) {
+unsafe fn correctstack(L: *mut Thread) {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     let mut up: *mut UpVal = 0 as *mut UpVal;
     (*L).top.p = ((*L).stack.p as *mut libc::c_char).offset((*L).top.offset as isize) as StkId;
     (*L).tbclist.p =
         ((*L).stack.p as *mut libc::c_char).offset((*L).tbclist.offset as isize) as StkId;
-    up = (*L).openupval;
+    up = (*L).openupval.get();
     while !up.is_null() {
         (*up).v.p = &mut (*(((*L).stack.p as *mut libc::c_char).offset((*up).v.offset as isize)
             as StkId))
@@ -205,8 +205,8 @@ pub unsafe fn luaD_hook(
     ftransfer: libc::c_int,
     ntransfer: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let hook: lua_Hook = (*L).hook;
-    if hook.is_some() && (*L).allowhook as libc::c_int != 0 {
+    let hook: lua_Hook = (*L).hook.get();
+    if hook.is_some() && (*L).allowhook.get() != 0 {
         let mut mask: libc::c_int = (1 as libc::c_int) << 3 as libc::c_int;
         let ci: *mut CallInfo = (*L).ci;
         let top: isize =
@@ -255,12 +255,12 @@ pub unsafe fn luaD_hook(
         if (*ci).top.p < ((*L).top.p).offset(20 as libc::c_int as isize) {
             (*ci).top.p = ((*L).top.p).offset(20 as libc::c_int as isize);
         }
-        (*L).allowhook = 0 as libc::c_int as u8;
+        (*L).allowhook.set(0);
         (*ci).callstatus = ((*ci).callstatus as libc::c_int | mask) as libc::c_ushort;
         (Some(hook.expect("non-null function pointer"))).expect("non-null function pointer")(
             L, &mut ar,
         );
-        (*L).allowhook = 1 as libc::c_int as u8;
+        (*L).allowhook.set(1);
         (*ci).top.p = ((*L).stack.p as *mut libc::c_char).offset(ci_top as isize) as StkId;
         (*L).top.p = ((*L).stack.p as *mut libc::c_char).offset(top as isize) as StkId;
         (*ci).callstatus = ((*ci).callstatus as libc::c_int & !mask) as libc::c_ushort;
@@ -272,8 +272,9 @@ pub unsafe fn luaD_hookcall(
     L: *mut Thread,
     ci: *mut CallInfo,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    (*L).oldpc = 0 as libc::c_int;
-    if (*L).hookmask & (1 as libc::c_int) << 0 as libc::c_int != 0 {
+    (*L).oldpc.set(0);
+
+    if (*L).hookmask.get() & 1 << 0 != 0 {
         let event: libc::c_int =
             if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0 {
                 4 as libc::c_int
@@ -301,7 +302,7 @@ unsafe fn rethook(
     mut ci: *mut CallInfo,
     nres: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if (*L).hookmask & (1 as libc::c_int) << 1 as libc::c_int != 0 {
+    if (*L).hookmask.get() & 1 << 1 != 0 {
         let firstres: StkId = ((*L).top.p).offset(-(nres as isize));
         let mut delta: libc::c_int = 0 as libc::c_int;
         let mut ftransfer: libc::c_int = 0;
@@ -318,12 +319,16 @@ unsafe fn rethook(
         (*ci).func.p = ((*ci).func.p).offset(-(delta as isize));
     }
     ci = (*ci).previous;
+
     if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
-        (*L).oldpc = ((*ci).u.savedpc)
-            .offset_from((*(*((*(*ci).func.p).val.value_.gc as *mut LClosure)).p).code)
-            as libc::c_long as libc::c_int
-            - 1 as libc::c_int;
+        (*L).oldpc.set(
+            ((*ci).u.savedpc)
+                .offset_from((*(*((*(*ci).func.p).val.value_.gc as *mut LClosure)).p).code)
+                as libc::c_long as libc::c_int
+                - 1,
+        );
     }
+
     Ok(())
 }
 
@@ -404,7 +409,7 @@ unsafe fn moveresults(
                 (*(*L).ci).callstatus = ((*(*L).ci).callstatus as libc::c_int
                     & !((1 as libc::c_int) << 9 as libc::c_int))
                     as libc::c_ushort;
-                if (*L).hookmask != 0 {
+                if (*L).hookmask.get() != 0 {
                     let savedres: isize =
                         (res as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
                     rethook(L, (*L).ci, nres)?;
@@ -444,8 +449,8 @@ pub unsafe fn luaD_poscall(
     nres: c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let wanted: libc::c_int = (*ci).nresults as libc::c_int;
-    if (((*L).hookmask != 0 && !(wanted < -(1 as libc::c_int))) as libc::c_int != 0 as libc::c_int)
-        as libc::c_int as libc::c_long
+    if (((*L).hookmask.get() != 0 && !(wanted < -(1 as libc::c_int))) as libc::c_int
+        != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
     {
         rethook(L, ci, nres)?;
@@ -508,10 +513,7 @@ unsafe fn precallC(
 
     (*L).ci = ci;
 
-    if ((*L).hookmask & (1 as libc::c_int) << 0 as libc::c_int != 0 as libc::c_int) as libc::c_int
-        as libc::c_long
-        != 0
-    {
+    if ((*L).hookmask.get() & (1 as libc::c_int) << 0 != 0) as libc::c_int as libc::c_long != 0 {
         let narg: libc::c_int =
             ((*L).top.p).offset_from(func) as libc::c_long as libc::c_int - 1 as libc::c_int;
         luaD_hook(
@@ -708,7 +710,7 @@ pub unsafe fn luaD_closeprotected(
     mut status: Result<(), Box<dyn std::error::Error>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let old_ci: *mut CallInfo = (*L).ci;
-    let old_allowhooks: u8 = (*L).allowhook;
+    let old_allowhooks: u8 = (*L).allowhook.get();
 
     loop {
         let pcl = CloseP {
@@ -722,7 +724,7 @@ pub unsafe fn luaD_closeprotected(
             return pcl.status;
         } else {
             (*L).ci = old_ci;
-            (*L).allowhook = old_allowhooks;
+            (*L).allowhook.set(old_allowhooks);
         }
     }
 }
@@ -736,12 +738,12 @@ where
     F: FnOnce(*mut Thread) -> Result<(), Box<dyn std::error::Error>>,
 {
     let old_ci = (*L).ci;
-    let old_allowhooks: u8 = (*L).allowhook;
+    let old_allowhooks: u8 = (*L).allowhook.get();
     let mut status = f(L);
 
     if status.is_err() {
         (*L).ci = old_ci;
-        (*L).allowhook = old_allowhooks;
+        (*L).allowhook.set(old_allowhooks);
         status = luaD_closeprotected(L, old_top, status);
         (*L).top.p = ((*L).stack.p as *mut libc::c_char).offset(old_top) as StkId;
         luaD_shrinkstack(L);
