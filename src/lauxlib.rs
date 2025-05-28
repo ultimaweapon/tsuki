@@ -9,6 +9,7 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use crate::Thread;
 use crate::lapi::{
     lua_absindex, lua_call, lua_checkstack, lua_closeslot, lua_concat, lua_copy, lua_createtable,
     lua_getfield, lua_getmetatable, lua_gettop, lua_isinteger, lua_isnumber, lua_isstring, lua_len,
@@ -19,7 +20,7 @@ use crate::lapi::{
     lua_tolstring, lua_tonumberx, lua_topointer, lua_touserdata, lua_type, lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
-use crate::lstate::{CallInfo, lua_CFunction, lua_Debug, lua_State};
+use crate::lstate::{CallInfo, lua_CFunction, lua_Debug};
 use libc::{FILE, free, memcpy, realloc, strcmp, strlen, strncmp, strstr};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -32,7 +33,7 @@ pub struct luaL_Buffer {
     pub(crate) b: *mut libc::c_char,
     pub(crate) size: usize,
     pub(crate) n: usize,
-    pub(crate) L: *mut lua_State,
+    pub(crate) L: *mut Thread,
     pub(crate) init: C2RustUnnamed,
 }
 
@@ -77,7 +78,7 @@ pub struct UBox {
 }
 
 unsafe fn findfield(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut objidx: libc::c_int,
     mut level: libc::c_int,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -104,7 +105,7 @@ unsafe fn findfield(
 }
 
 unsafe fn pushglobalfuncname(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut ar: *mut lua_Debug,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut top: libc::c_int = lua_gettop(L);
@@ -136,7 +137,7 @@ unsafe fn pushglobalfuncname(
 }
 
 unsafe fn pushfuncname(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut ar: *mut lua_Debug,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if pushglobalfuncname(L, ar)? != 0 {
@@ -177,7 +178,7 @@ unsafe fn pushfuncname(
     Ok(())
 }
 
-unsafe extern "C" fn lastlevel(mut L: *mut lua_State) -> libc::c_int {
+unsafe extern "C" fn lastlevel(mut L: *mut Thread) -> libc::c_int {
     let mut ar: lua_Debug = lua_Debug {
         event: 0,
         name: 0 as *const libc::c_char,
@@ -215,8 +216,8 @@ unsafe extern "C" fn lastlevel(mut L: *mut lua_State) -> libc::c_int {
 }
 
 pub unsafe fn luaL_traceback(
-    mut L: *mut lua_State,
-    mut L1: *mut lua_State,
+    mut L: *mut Thread,
+    mut L1: *mut Thread,
     mut msg: *const libc::c_char,
     mut level: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -224,7 +225,7 @@ pub unsafe fn luaL_traceback(
         b: 0 as *mut libc::c_char,
         size: 0,
         n: 0,
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         init: C2RustUnnamed { n: 0. },
     };
     let mut ar: lua_Debug = lua_Debug {
@@ -316,7 +317,7 @@ pub unsafe fn luaL_traceback(
 }
 
 pub unsafe fn luaL_argerror(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
     extramsg: impl Display,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -373,7 +374,7 @@ pub unsafe fn luaL_argerror(
 }
 
 pub unsafe fn luaL_typeerror(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
     expect: impl Display,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -389,7 +390,7 @@ pub unsafe fn luaL_typeerror(
 }
 
 unsafe fn tag_error(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
     mut tag: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -398,7 +399,7 @@ unsafe fn tag_error(
 }
 
 pub unsafe fn luaL_where(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     level: c_int,
 ) -> Result<Cow<'static, str>, Box<dyn std::error::Error>> {
     let mut ar: lua_Debug = lua_Debug {
@@ -438,14 +439,14 @@ pub unsafe fn luaL_where(
 }
 
 pub unsafe fn luaL_error(
-    L: *mut lua_State,
+    L: *mut Thread,
     m: impl Display,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     Err(format!("{}{}", luaL_where(L, 1)?, m).into())
 }
 
 pub unsafe fn luaL_fileresult(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut stat: libc::c_int,
     mut fname: *const libc::c_char,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -472,7 +473,7 @@ pub unsafe fn luaL_fileresult(
 }
 
 pub unsafe fn luaL_newmetatable(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut tname: *const libc::c_char,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     if lua_getfield(
@@ -497,7 +498,7 @@ pub unsafe fn luaL_newmetatable(
 }
 
 pub unsafe fn luaL_setmetatable(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut tname: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
     lua_getfield(
@@ -510,7 +511,7 @@ pub unsafe fn luaL_setmetatable(
 }
 
 pub unsafe fn luaL_testudata(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut ud: libc::c_int,
     tname: &str,
 ) -> Result<*mut libc::c_void, Box<dyn std::error::Error>> {
@@ -529,7 +530,7 @@ pub unsafe fn luaL_testudata(
 }
 
 pub unsafe fn luaL_checkudata(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut ud: libc::c_int,
     name: &str,
 ) -> Result<*mut libc::c_void, Box<dyn std::error::Error>> {
@@ -542,7 +543,7 @@ pub unsafe fn luaL_checkudata(
 }
 
 pub unsafe fn luaL_checkoption<'a>(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
     mut def: *const libc::c_char,
     lst: impl IntoIterator<Item = &'a str>,
@@ -570,7 +571,7 @@ pub unsafe fn luaL_checkoption<'a>(
 }
 
 pub unsafe fn luaL_checkstack(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut space: libc::c_int,
     mut msg: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -589,7 +590,7 @@ pub unsafe fn luaL_checkstack(
 }
 
 pub unsafe fn luaL_checktype(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
     mut t: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -602,7 +603,7 @@ pub unsafe fn luaL_checktype(
 }
 
 pub unsafe fn luaL_checkany(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if ((lua_type(L, arg) == -(1 as libc::c_int)) as libc::c_int != 0 as libc::c_int) as libc::c_int
@@ -615,7 +616,7 @@ pub unsafe fn luaL_checkany(
 }
 
 pub unsafe fn luaL_checklstring(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
     mut len: *mut usize,
 ) -> Result<*const libc::c_char, Box<dyn std::error::Error>> {
@@ -627,7 +628,7 @@ pub unsafe fn luaL_checklstring(
 }
 
 pub unsafe fn luaL_optlstring(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
     mut def: *const libc::c_char,
     mut len: *mut usize,
@@ -643,7 +644,7 @@ pub unsafe fn luaL_optlstring(
 }
 
 pub unsafe fn luaL_checknumber(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
 ) -> Result<f64, Box<dyn std::error::Error>> {
     let mut isnum: libc::c_int = 0;
@@ -655,7 +656,7 @@ pub unsafe fn luaL_checknumber(
 }
 
 pub unsafe fn luaL_optnumber(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
     mut def: f64,
 ) -> Result<f64, Box<dyn std::error::Error>> {
@@ -667,7 +668,7 @@ pub unsafe fn luaL_optnumber(
 }
 
 unsafe fn interror(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if lua_isnumber(L, arg) != 0 {
@@ -679,7 +680,7 @@ unsafe fn interror(
 }
 
 pub unsafe fn luaL_checkinteger(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
 ) -> Result<i64, Box<dyn std::error::Error>> {
     let mut isnum: libc::c_int = 0;
@@ -691,7 +692,7 @@ pub unsafe fn luaL_checkinteger(
 }
 
 pub unsafe fn luaL_optinteger(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
     mut def: i64,
 ) -> Result<i64, Box<dyn std::error::Error>> {
@@ -703,7 +704,7 @@ pub unsafe fn luaL_optinteger(
 }
 
 unsafe fn resizebox(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut idx: libc::c_int,
     mut newsize: usize,
 ) -> Result<*mut c_void, Box<dyn std::error::Error>> {
@@ -726,7 +727,7 @@ unsafe fn resizebox(
     return Ok(temp);
 }
 
-unsafe fn boxgc(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn boxgc(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     resizebox(L, 1 as libc::c_int, 0 as libc::c_int as usize)?;
     Ok(0)
 }
@@ -755,7 +756,7 @@ static mut boxmt: [luaL_Reg; 3] = [
     },
 ];
 
-unsafe fn newbox(mut L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn newbox(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
     let mut box_0 = lua_newuserdatauv(L, ::core::mem::size_of::<UBox>(), 0)? as *mut UBox;
     (*box_0).box_0 = 0 as *mut libc::c_void;
     (*box_0).bsize = 0 as libc::c_int as usize;
@@ -791,7 +792,7 @@ unsafe fn prepbuffsize(
     if ((*B).size).wrapping_sub((*B).n) >= sz {
         return Ok(((*B).b).offset((*B).n as isize));
     } else {
-        let mut L: *mut lua_State = (*B).L;
+        let mut L: *mut Thread = (*B).L;
         let mut newbuff: *mut libc::c_char = 0 as *mut libc::c_char;
         let mut newsize: usize = newbuffsize(B, sz)?;
         if (*B).b != ((*B).init.b).as_mut_ptr() {
@@ -843,7 +844,7 @@ pub unsafe fn luaL_addstring(
 }
 
 pub unsafe fn luaL_pushresult(mut B: *mut luaL_Buffer) -> Result<(), Box<dyn std::error::Error>> {
-    let mut L: *mut lua_State = (*B).L;
+    let mut L: *mut Thread = (*B).L;
     lua_pushlstring(L, std::slice::from_raw_parts((*B).b.cast(), (*B).n))?;
     if (*B).b != ((*B).init.b).as_mut_ptr() {
         lua_closeslot(L, -(2 as libc::c_int))?;
@@ -861,7 +862,7 @@ pub unsafe fn luaL_pushresultsize(
 }
 
 pub unsafe fn luaL_addvalue(mut B: *mut luaL_Buffer) -> Result<(), Box<dyn std::error::Error>> {
-    let mut L: *mut lua_State = (*B).L;
+    let mut L: *mut Thread = (*B).L;
     let mut len: usize = 0;
     let mut s: *const libc::c_char = lua_tolstring(L, -(1 as libc::c_int), &mut len)?;
     let mut b: *mut libc::c_char = prepbuffsize(B, len, -(2 as libc::c_int))?;
@@ -874,7 +875,7 @@ pub unsafe fn luaL_addvalue(mut B: *mut luaL_Buffer) -> Result<(), Box<dyn std::
     lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)
 }
 
-pub unsafe fn luaL_buffinit(mut L: *mut lua_State, mut B: *mut luaL_Buffer) {
+pub unsafe fn luaL_buffinit(mut L: *mut Thread, mut B: *mut luaL_Buffer) {
     (*B).L = L;
     (*B).b = ((*B).init.b).as_mut_ptr();
     (*B).n = 0 as libc::c_int as usize;
@@ -886,7 +887,7 @@ pub unsafe fn luaL_buffinit(mut L: *mut lua_State, mut B: *mut luaL_Buffer) {
 }
 
 pub unsafe fn luaL_buffinitsize(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut B: *mut luaL_Buffer,
     mut sz: usize,
 ) -> Result<*mut c_char, Box<dyn std::error::Error>> {
@@ -895,7 +896,7 @@ pub unsafe fn luaL_buffinitsize(
 }
 
 pub unsafe fn luaL_ref(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut t: libc::c_int,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut ref_0: libc::c_int = 0;
@@ -923,7 +924,7 @@ pub unsafe fn luaL_ref(
 }
 
 pub unsafe fn luaL_unref(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut t: libc::c_int,
     mut ref_0: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -938,7 +939,7 @@ pub unsafe fn luaL_unref(
 }
 
 pub unsafe fn luaL_loadfilex(
-    L: *mut lua_State,
+    L: *mut Thread,
     filename: *const c_char,
     mode: *const c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -959,7 +960,7 @@ unsafe fn getS(
 }
 
 pub unsafe fn luaL_loadbufferx(
-    L: *mut lua_State,
+    L: *mut Thread,
     chunk: impl AsRef<[u8]>,
     name: *const c_char,
     mode: *const c_char,
@@ -974,14 +975,14 @@ pub unsafe fn luaL_loadbufferx(
 }
 
 pub unsafe fn luaL_loadstring(
-    L: *mut lua_State,
+    L: *mut Thread,
     s: *const c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
     luaL_loadbufferx(L, CStr::from_ptr(s).to_bytes(), s, null())
 }
 
 pub unsafe fn luaL_getmetafield(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut obj: libc::c_int,
     mut event: *const libc::c_char,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -1002,7 +1003,7 @@ pub unsafe fn luaL_getmetafield(
 }
 
 pub unsafe fn luaL_callmeta(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut obj: libc::c_int,
     mut event: *const libc::c_char,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -1019,7 +1020,7 @@ pub unsafe fn luaL_callmeta(
 }
 
 pub unsafe fn luaL_len(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut idx: libc::c_int,
 ) -> Result<i64, Box<dyn std::error::Error>> {
     let mut l: i64 = 0;
@@ -1034,7 +1035,7 @@ pub unsafe fn luaL_len(
 }
 
 pub unsafe fn luaL_tolstring(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut idx: libc::c_int,
     mut len: *mut usize,
 ) -> Result<*const libc::c_char, Box<dyn std::error::Error>> {
@@ -1098,7 +1099,7 @@ pub unsafe fn luaL_tolstring(
 }
 
 pub unsafe fn luaL_setfuncs(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut l: *const luaL_Reg,
     mut nup: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -1131,7 +1132,7 @@ pub unsafe fn luaL_setfuncs(
 }
 
 pub unsafe fn luaL_getsubtable(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut idx: libc::c_int,
     mut fname: *const libc::c_char,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -1148,7 +1149,7 @@ pub unsafe fn luaL_getsubtable(
 }
 
 pub unsafe fn luaL_requiref(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut modname: *const libc::c_char,
     mut openf: lua_CFunction,
     mut glb: libc::c_int,
@@ -1197,7 +1198,7 @@ pub unsafe fn luaL_addgsub(
 }
 
 pub unsafe fn luaL_gsub(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut s: *const libc::c_char,
     mut p: *const libc::c_char,
     mut r: *const libc::c_char,
@@ -1206,7 +1207,7 @@ pub unsafe fn luaL_gsub(
         b: 0 as *mut libc::c_char,
         size: 0,
         n: 0,
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         init: C2RustUnnamed { n: 0. },
     };
 

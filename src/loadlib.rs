@@ -13,7 +13,7 @@ use crate::lapi::{lua_copy, lua_getfield, lua_pushboolean, lua_rawgeti, lua_raws
 use crate::lauxlib::{luaL_addgsub, luaL_getsubtable, luaL_gsub};
 use crate::lstate::lua_CFunction;
 use crate::{
-    C2RustUnnamed, lua_State, lua_call, lua_createtable, lua_isstring, lua_pushcclosure,
+    C2RustUnnamed, Thread, lua_call, lua_createtable, lua_isstring, lua_pushcclosure,
     lua_pushlstring, lua_pushnil, lua_pushstring, lua_pushvalue, lua_rotate, lua_setfield,
     lua_settop, lua_toboolean, lua_tolstring, lua_type, luaL_Buffer, luaL_Reg, luaL_addstring,
     luaL_buffinit, luaL_checklstring, luaL_error, luaL_loadfilex, luaL_optlstring,
@@ -25,7 +25,7 @@ use std::fmt::Write;
 use std::ptr::{addr_of, null_mut};
 
 unsafe fn setpath(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut fieldname: *const libc::c_char,
     mut dft: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -67,14 +67,14 @@ unsafe fn getnextfilename(
 }
 
 unsafe fn pusherrornotfound(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut path: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut b: luaL_Buffer = luaL_Buffer {
         b: 0 as *mut libc::c_char,
         size: 0,
         n: 0,
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         init: C2RustUnnamed { n: 0. },
     };
     luaL_buffinit(L, &mut b);
@@ -90,7 +90,7 @@ unsafe fn pusherrornotfound(
 }
 
 unsafe fn searchpath(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut name: *const libc::c_char,
     mut path: *const libc::c_char,
     mut sep: *const libc::c_char,
@@ -100,7 +100,7 @@ unsafe fn searchpath(
         b: 0 as *mut libc::c_char,
         size: 0,
         n: 0,
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         init: C2RustUnnamed { n: 0. },
     };
     let mut pathname: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -139,7 +139,7 @@ unsafe fn searchpath(
     return Ok(0 as *const libc::c_char);
 }
 
-unsafe fn ll_searchpath(mut L: *mut lua_State) -> Result<libc::c_int, Box<dyn std::error::Error>> {
+unsafe fn ll_searchpath(mut L: *mut Thread) -> Result<libc::c_int, Box<dyn std::error::Error>> {
     let mut f: *const libc::c_char = searchpath(
         L,
         luaL_checklstring(L, 1 as libc::c_int, 0 as *mut usize)?,
@@ -168,7 +168,7 @@ unsafe fn ll_searchpath(mut L: *mut lua_State) -> Result<libc::c_int, Box<dyn st
 }
 
 unsafe fn findfile(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut name: *const libc::c_char,
     pname: &str,
     mut dirsep: *const libc::c_char,
@@ -196,7 +196,7 @@ unsafe fn findfile(
     );
 }
 
-unsafe fn searcher_Lua(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn searcher_Lua(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let name: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, 0 as *mut usize)?;
     let filename = findfile(
         L,
@@ -229,7 +229,7 @@ unsafe fn searcher_Lua(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::erro
     }
 }
 
-unsafe fn searcher_preload(L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn searcher_preload(L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let name = CStr::from_ptr(luaL_checklstring(L, 1 as libc::c_int, 0 as *mut usize)?);
 
     lua_getfield(
@@ -250,7 +250,7 @@ unsafe fn searcher_preload(L: *mut lua_State) -> Result<c_int, Box<dyn std::erro
     };
 }
 
-unsafe fn findloader(mut L: *mut lua_State, name: &CStr) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn findloader(mut L: *mut Thread, name: &CStr) -> Result<(), Box<dyn std::error::Error>> {
     if (lua_getfield(
         L,
         -(1000000 as libc::c_int) - 1000 as libc::c_int - 1 as libc::c_int,
@@ -293,7 +293,7 @@ unsafe fn findloader(mut L: *mut lua_State, name: &CStr) -> Result<(), Box<dyn s
     }
 }
 
-unsafe fn ll_require(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn ll_require(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let name = luaL_checklstring(L, 1, 0 as *mut usize)?;
     let name = CStr::from_ptr(name);
 
@@ -391,7 +391,7 @@ static mut ll_funcs: [luaL_Reg; 2] = [
     },
 ];
 
-unsafe fn createsearcherstable(mut L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn createsearcherstable(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
     static searchers: [lua_CFunction; 2] = [searcher_preload, searcher_Lua];
 
     lua_createtable(
@@ -415,7 +415,7 @@ unsafe fn createsearcherstable(mut L: *mut lua_State) -> Result<(), Box<dyn std:
     )
 }
 
-pub unsafe fn luaopen_package(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+pub unsafe fn luaopen_package(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     lua_createtable(
         L,
         0 as libc::c_int,

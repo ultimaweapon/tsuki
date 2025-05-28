@@ -10,7 +10,6 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(path_statements)]
 
-use crate::Lua;
 use crate::gc::luaC_barrier_;
 use crate::ldebug::{luaG_findlocal, luaG_runerror};
 use crate::ldo::luaD_call;
@@ -19,13 +18,13 @@ use crate::lobject::{
     AbsLineInfo, CClosure, GCObject, LClosure, LocVar, Proto, StackValue, StkId, TString, TValue,
     UpVal, Upvaldesc,
 };
-use crate::lstate::lua_State;
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
+use crate::{Lua, Thread};
 use std::alloc::Layout;
 use std::ffi::CStr;
 use std::mem::offset_of;
 
-pub unsafe fn luaF_newCclosure(mut L: *mut lua_State, nupvals: libc::c_int) -> *mut CClosure {
+pub unsafe fn luaF_newCclosure(mut L: *mut Thread, nupvals: libc::c_int) -> *mut CClosure {
     let nupvals = u8::try_from(nupvals).unwrap();
     let size = offset_of!(CClosure, upvalue) + size_of::<TValue>() * usize::from(nupvals);
     let align = align_of::<CClosure>();
@@ -38,7 +37,7 @@ pub unsafe fn luaF_newCclosure(mut L: *mut lua_State, nupvals: libc::c_int) -> *
     return c;
 }
 
-pub unsafe fn luaF_newLclosure(mut L: *mut lua_State, mut nupvals: libc::c_int) -> *mut LClosure {
+pub unsafe fn luaF_newLclosure(mut L: *mut Thread, mut nupvals: libc::c_int) -> *mut LClosure {
     let mut nupvals = u8::try_from(nupvals).unwrap();
     let size = offset_of!(LClosure, upvals) + size_of::<*mut TValue>() * usize::from(nupvals);
     let align = align_of::<LClosure>();
@@ -57,7 +56,7 @@ pub unsafe fn luaF_newLclosure(mut L: *mut lua_State, mut nupvals: libc::c_int) 
     return c;
 }
 
-pub unsafe fn luaF_initupvals(mut L: *mut lua_State, mut cl: *mut LClosure) {
+pub unsafe fn luaF_initupvals(mut L: *mut Thread, mut cl: *mut LClosure) {
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
 
@@ -83,11 +82,7 @@ pub unsafe fn luaF_initupvals(mut L: *mut lua_State, mut cl: *mut LClosure) {
     }
 }
 
-unsafe fn newupval(
-    mut L: *mut lua_State,
-    mut level: StkId,
-    mut prev: *mut *mut UpVal,
-) -> *mut UpVal {
+unsafe fn newupval(mut L: *mut Thread, mut level: StkId, mut prev: *mut *mut UpVal) -> *mut UpVal {
     let layout = Layout::new::<UpVal>();
     let o = (*(*L).l_G).gc.alloc(9 | 0 << 4, layout);
     let mut uv: *mut UpVal = o as *mut UpVal;
@@ -110,7 +105,7 @@ unsafe fn newupval(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaF_findupval(mut L: *mut lua_State, mut level: StkId) -> *mut UpVal {
+pub unsafe extern "C" fn luaF_findupval(mut L: *mut Thread, mut level: StkId) -> *mut UpVal {
     let mut pp: *mut *mut UpVal = &mut (*L).openupval;
     let mut p: *mut UpVal = 0 as *mut UpVal;
     loop {
@@ -127,7 +122,7 @@ pub unsafe extern "C" fn luaF_findupval(mut L: *mut lua_State, mut level: StkId)
 }
 
 unsafe fn callclosemethod(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut obj: *mut TValue,
     mut err: *mut TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -151,7 +146,7 @@ unsafe fn callclosemethod(
 }
 
 unsafe fn checkclosemth(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut level: StkId,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut tm: *const TValue = luaT_gettmbyobj(L, &mut (*level).val, TM_CLOSE);
@@ -174,10 +169,7 @@ unsafe fn checkclosemth(
     Ok(())
 }
 
-unsafe fn prepcallclosemth(
-    L: *mut lua_State,
-    level: StkId,
-) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn prepcallclosemth(L: *mut Thread, level: StkId) -> Result<(), Box<dyn std::error::Error>> {
     let mut uv: *mut TValue = &mut (*level).val;
     let errobj = (*(*L).l_G).nilvalue.get();
 
@@ -185,7 +177,7 @@ unsafe fn prepcallclosemth(
 }
 
 pub unsafe fn luaF_newtbcupval(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut level: StkId,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if (*level).val.tt_ as libc::c_int == 1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
@@ -224,7 +216,7 @@ pub unsafe extern "C" fn luaF_unlinkupval(mut uv: *mut UpVal) {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaF_closeupval(mut L: *mut lua_State, mut level: StkId) {
+pub unsafe extern "C" fn luaF_closeupval(mut L: *mut Thread, mut level: StkId) {
     let mut uv: *mut UpVal = 0 as *mut UpVal;
     let mut upl: StkId = 0 as *mut StackValue;
     loop {
@@ -264,7 +256,7 @@ pub unsafe extern "C" fn luaF_closeupval(mut L: *mut lua_State, mut level: StkId
     }
 }
 
-unsafe extern "C" fn poptbclist(mut L: *mut lua_State) {
+unsafe extern "C" fn poptbclist(mut L: *mut Thread) {
     let mut tbc: StkId = (*L).tbclist.p;
     tbc = tbc.offset(-((*tbc).tbclist.delta as libc::c_int as isize));
     while tbc > (*L).stack.p && (*tbc).tbclist.delta as libc::c_int == 0 as libc::c_int {
@@ -280,7 +272,7 @@ unsafe extern "C" fn poptbclist(mut L: *mut lua_State) {
 }
 
 pub unsafe fn luaF_close(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut level: StkId,
 ) -> Result<StkId, Box<dyn std::error::Error>> {
     let mut levelrel = (level as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
@@ -297,7 +289,7 @@ pub unsafe fn luaF_close(
     return Ok(level);
 }
 
-pub unsafe fn luaF_newproto(mut L: *mut lua_State) -> *mut Proto {
+pub unsafe fn luaF_newproto(mut L: *mut Thread) -> *mut Proto {
     let layout = Layout::new::<Proto>();
     let o = (*(*L).l_G).gc.alloc(9 + 1 | 0 << 4, layout);
     let mut f: *mut Proto = o as *mut Proto;

@@ -20,9 +20,10 @@ pub use self::lauxlib::{
 };
 pub use self::lbaselib::luaopen_base;
 pub use self::lmathlib::luaopen_math;
-pub use self::lstate::{lua_State, lua_closethread};
+pub use self::lstate::lua_closethread;
 pub use self::lstrlib::luaopen_string;
 pub use self::ltablib::luaopen_table;
+pub use self::thread::*;
 
 use self::llex::luaX_init;
 use self::lmem::luaM_free_;
@@ -66,14 +67,15 @@ mod ltm;
 mod lundump;
 mod lvm;
 mod lzio;
+mod thread;
 
 #[inline(always)]
-pub unsafe fn lua_pop(td: *mut lua_State, n: c_int) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn lua_pop(td: *mut Thread, n: c_int) -> Result<(), Box<dyn std::error::Error>> {
     unsafe { lua_settop(td, -(n) - 1) }
 }
 
 #[inline(always)]
-unsafe extern "C" fn api_incr_top(td: *mut lua_State) {
+unsafe extern "C" fn api_incr_top(td: *mut Thread) {
     unsafe { (*td).top.p = ((*td).top.p).offset(1) };
 
     if unsafe { (*td).top.p > (*(*td).ci).top.p } {
@@ -110,7 +112,7 @@ pub struct Lua {
     old1: Cell<*mut GCObject>,
     reallyold: Cell<*mut GCObject>,
     firstold1: Cell<*mut GCObject>,
-    twups: Cell<*mut lua_State>,
+    twups: Cell<*mut Thread>,
     memerrmsg: Cell<*mut TString>,
     tmname: [Cell<*mut TString>; 25],
     mt: [Cell<*mut Table>; 9],
@@ -292,9 +294,9 @@ impl Lua {
         Ok(g)
     }
 
-    pub fn spawn(self: &Pin<Rc<Self>>) -> *mut lua_State {
+    pub fn spawn(self: &Pin<Rc<Self>>) -> *mut Thread {
         // Create new thread.
-        let td = unsafe { self.gc.alloc(8, Layout::new::<lua_State>()) as *mut lua_State };
+        let td = unsafe { self.gc.alloc(8, Layout::new::<Thread>()) as *mut Thread };
 
         unsafe { (*td).l_G = self.deref() };
         unsafe { (*td).stack.p = null_mut() };

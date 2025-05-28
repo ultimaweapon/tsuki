@@ -12,8 +12,7 @@
 use crate::gc::luaC_fix;
 use crate::lmem::{luaM_malloc_, luaM_realloc_, luaM_toobig};
 use crate::lobject::{GCObject, TString, Table, UValue, Udata};
-use crate::lstate::lua_State;
-use crate::{Lua, StringTable};
+use crate::{Lua, StringTable, Thread};
 use libc::{memcmp, memcpy, strcmp, strlen};
 use std::alloc::Layout;
 use std::mem::offset_of;
@@ -83,7 +82,7 @@ unsafe fn tablerehash(mut vect: *mut *mut TString, mut osize: libc::c_int, mut n
     }
 }
 
-pub unsafe fn luaS_resize(mut L: *mut lua_State, mut nsize: libc::c_int) {
+pub unsafe fn luaS_resize(mut L: *mut Thread, mut nsize: libc::c_int) {
     let mut tb = (*(*L).l_G).strt.get();
     let mut osize: libc::c_int = (*tb).size;
     let mut newvect: *mut *mut TString = 0 as *mut *mut TString;
@@ -131,7 +130,7 @@ pub unsafe fn luaS_clearcache(g: *const Lua) {
     }
 }
 
-pub unsafe fn luaS_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaS_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
     let g = (*L).l_G;
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
@@ -169,7 +168,7 @@ pub unsafe fn luaS_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error:
     Ok(())
 }
 
-unsafe fn createstrobj(L: *mut lua_State, l: usize, tag: u8, h: libc::c_uint) -> *mut TString {
+unsafe fn createstrobj(L: *mut Thread, l: usize, tag: u8, h: libc::c_uint) -> *mut TString {
     let size = offset_of!(TString, contents) + l + 1;
     let align = align_of::<TString>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
@@ -183,7 +182,7 @@ unsafe fn createstrobj(L: *mut lua_State, l: usize, tag: u8, h: libc::c_uint) ->
     return ts;
 }
 
-pub unsafe fn luaS_createlngstrobj(mut L: *mut lua_State, mut l: usize) -> *mut TString {
+pub unsafe fn luaS_createlngstrobj(mut L: *mut Thread, mut l: usize) -> *mut TString {
     let ts: *mut TString = createstrobj(L, l, 4 | 1 << 4, (*(*L).l_G).seed);
 
     (*ts).u.lnglen = l;
@@ -205,7 +204,7 @@ pub unsafe fn luaS_remove(g: *const Lua, mut ts: *mut TString) {
     (*tb).nuse;
 }
 
-unsafe fn growstrtab(mut L: *mut lua_State, mut tb: *mut StringTable) {
+unsafe fn growstrtab(mut L: *mut Thread, mut tb: *mut StringTable) {
     if (*tb).size
         <= (if 2147483647 as libc::c_int as usize
             <= (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<*mut TString>())
@@ -222,7 +221,7 @@ unsafe fn growstrtab(mut L: *mut lua_State, mut tb: *mut StringTable) {
 }
 
 unsafe fn internshrstr(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut str: *const libc::c_char,
     mut l: usize,
 ) -> *mut TString {
@@ -279,7 +278,7 @@ unsafe fn internshrstr(
 }
 
 pub unsafe fn luaS_newlstr(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut str: *const libc::c_char,
     mut l: usize,
 ) -> Result<*mut TString, Box<dyn std::error::Error>> {
@@ -312,7 +311,7 @@ pub unsafe fn luaS_newlstr(
 }
 
 pub unsafe fn luaS_new(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut str: *const libc::c_char,
 ) -> Result<*mut TString, Box<dyn std::error::Error>> {
     let mut i = ((str as usize & 0xffffffff) as libc::c_uint).wrapping_rem(53);
@@ -341,7 +340,7 @@ pub unsafe fn luaS_new(
 }
 
 pub unsafe fn luaS_newudata(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut s: usize,
     mut nuvalue: libc::c_int,
 ) -> Result<*mut Udata, Box<dyn std::error::Error>> {

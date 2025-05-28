@@ -11,6 +11,7 @@
 #![allow(unused_variables)]
 #![allow(unused_parens)]
 
+use crate::Thread;
 use crate::gc::{luaC_barrier_, luaC_barrierback_, luaC_step};
 use crate::ldebug::{luaG_forerror, luaG_runerror, luaG_tracecall, luaG_traceexec, luaG_typeerror};
 use crate::ldo::{luaD_call, luaD_hookcall, luaD_poscall, luaD_precall, luaD_pretailcall};
@@ -22,7 +23,7 @@ use crate::lobject::{
     Value, luaO_str2num, luaO_tostring,
 };
 use crate::lopcodes::OpCode;
-use crate::lstate::{CallInfo, lua_State};
+use crate::lstate::CallInfo;
 use crate::lstring::{luaS_createlngstrobj, luaS_eqlngstr, luaS_newlstr};
 use crate::ltable::{
     luaH_finishset, luaH_get, luaH_getint, luaH_getn, luaH_getshortstr, luaH_getstr, luaH_new,
@@ -43,7 +44,7 @@ pub const F2Iceil: F2Imod = 2;
 pub const F2Ifloor: F2Imod = 1;
 pub const F2Ieq: F2Imod = 0;
 
-unsafe extern "C" fn l_strton(mut obj: *const TValue, mut result: *mut TValue) -> libc::c_int {
+unsafe fn l_strton(mut obj: *const TValue, mut result: *mut TValue) -> libc::c_int {
     if !((*obj).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int) {
         return 0 as libc::c_int;
     } else {
@@ -58,8 +59,7 @@ unsafe extern "C" fn l_strton(mut obj: *const TValue, mut result: *mut TValue) -
     };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaV_tonumber_(mut obj: *const TValue, mut n: *mut f64) -> libc::c_int {
+pub unsafe fn luaV_tonumber_(mut obj: *const TValue, mut n: *mut f64) -> libc::c_int {
     let mut v: TValue = TValue {
         value_: Value {
             gc: 0 as *mut GCObject,
@@ -81,12 +81,7 @@ pub unsafe extern "C" fn luaV_tonumber_(mut obj: *const TValue, mut n: *mut f64)
     };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaV_flttointeger(
-    mut n: f64,
-    mut p: *mut i64,
-    mut mode: F2Imod,
-) -> libc::c_int {
+pub unsafe fn luaV_flttointeger(mut n: f64, mut p: *mut i64, mut mode: F2Imod) -> libc::c_int {
     let mut f: f64 = floor(n);
     if n != f {
         if mode as libc::c_uint == F2Ieq as libc::c_int as libc::c_uint {
@@ -106,8 +101,7 @@ pub unsafe extern "C" fn luaV_flttointeger(
         }) as libc::c_int;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaV_tointegerns(
+pub unsafe fn luaV_tointegerns(
     mut obj: *const TValue,
     mut p: *mut i64,
     mut mode: F2Imod,
@@ -123,8 +117,7 @@ pub unsafe extern "C" fn luaV_tointegerns(
     };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaV_tointeger(
+pub unsafe fn luaV_tointeger(
     mut obj: *const TValue,
     mut p: *mut i64,
     mut mode: F2Imod,
@@ -142,7 +135,7 @@ pub unsafe extern "C" fn luaV_tointeger(
 }
 
 unsafe fn forlimit(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut init: i64,
     mut lim: *const TValue,
     mut p: *mut i64,
@@ -188,10 +181,7 @@ unsafe fn forlimit(
     };
 }
 
-unsafe fn forprep(
-    mut L: *mut lua_State,
-    mut ra: StkId,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn forprep(mut L: *mut Thread, mut ra: StkId) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut pinit: *mut TValue = &mut (*ra).val;
     let mut plimit: *mut TValue = &mut (*ra.offset(1 as libc::c_int as isize)).val;
     let mut pstep: *mut TValue = &mut (*ra.offset(2 as libc::c_int as isize)).val;
@@ -320,7 +310,7 @@ unsafe extern "C" fn floatforloop(mut ra: StkId) -> libc::c_int {
 }
 
 pub unsafe fn luaV_finishget(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut t: *const TValue,
     mut key: *mut TValue,
     mut val: StkId,
@@ -387,7 +377,7 @@ pub unsafe fn luaV_finishget(
 }
 
 pub unsafe fn luaV_finishset(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut t: *const TValue,
     mut key: *mut TValue,
     mut val: *mut TValue,
@@ -624,7 +614,7 @@ unsafe extern "C" fn LEnum(mut l: *const TValue, mut r: *const TValue) -> libc::
 }
 
 unsafe fn lessthanothers(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut l: *const TValue,
     mut r: *const TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -641,7 +631,7 @@ unsafe fn lessthanothers(
 }
 
 pub unsafe fn luaV_lessthan(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut l: *const TValue,
     mut r: *const TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -655,7 +645,7 @@ pub unsafe fn luaV_lessthan(
 }
 
 unsafe fn lessequalothers(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut l: *const TValue,
     mut r: *const TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -672,7 +662,7 @@ unsafe fn lessequalothers(
 }
 
 pub unsafe fn luaV_lessequal(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut l: *const TValue,
     mut r: *const TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -686,7 +676,7 @@ pub unsafe fn luaV_lessequal(
 }
 
 pub unsafe fn luaV_equalobj(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut t1: *const TValue,
     mut t2: *const TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -838,7 +828,7 @@ unsafe extern "C" fn copy2buff(mut top: StkId, mut n: libc::c_int, mut buff: *mu
 }
 
 pub unsafe fn luaV_concat(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut total: c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if total == 1 {
@@ -1000,7 +990,7 @@ pub unsafe fn luaV_concat(
 }
 
 pub unsafe fn luaV_objlen(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut ra: StkId,
     mut rb: *const TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -1055,7 +1045,7 @@ pub unsafe fn luaV_objlen(
 }
 
 pub unsafe fn luaV_idiv(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut m: i64,
     mut n: i64,
 ) -> Result<i64, Box<dyn std::error::Error>> {
@@ -1078,7 +1068,7 @@ pub unsafe fn luaV_idiv(
 }
 
 pub unsafe fn luaV_mod(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut m: i64,
     mut n: i64,
 ) -> Result<i64, Box<dyn std::error::Error>> {
@@ -1100,7 +1090,7 @@ pub unsafe fn luaV_mod(
     };
 }
 
-pub unsafe extern "C" fn luaV_modf(mut L: *mut lua_State, mut m: f64, mut n: f64) -> f64 {
+pub unsafe extern "C" fn luaV_modf(mut L: *mut Thread, mut m: f64, mut n: f64) -> f64 {
     let mut r: f64 = 0.;
     r = fmod(m, n);
     if if r > 0 as libc::c_int as f64 {
@@ -1134,7 +1124,7 @@ pub unsafe extern "C" fn luaV_shiftl(mut x: i64, mut y: i64) -> i64 {
     };
 }
 unsafe extern "C" fn pushclosure(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut p: *mut Proto,
     mut encup: *mut *mut UpVal,
     mut base: StkId,
@@ -1179,7 +1169,7 @@ unsafe extern "C" fn pushclosure(
     }
 }
 
-pub unsafe fn luaV_finishOp(mut L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaV_finishOp(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
     let mut ci: *mut CallInfo = (*L).ci;
     let mut base: StkId = ((*ci).func.p).offset(1 as libc::c_int as isize);
     let mut inst: u32 = *((*ci).u.savedpc).offset(-(1 as libc::c_int as isize));
@@ -1267,7 +1257,7 @@ pub unsafe fn luaV_finishOp(mut L: *mut lua_State) -> Result<(), Box<dyn std::er
 }
 
 pub unsafe fn luaV_execute(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut ci: *mut CallInfo,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: u32 = 0;
@@ -4631,7 +4621,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         );
                         let mut cond_2: libc::c_int =
-                            luaV_equalobj(0 as *mut lua_State, &mut (*ra_57).val, rb_17)?;
+                            luaV_equalobj(0 as *mut Thread, &mut (*ra_57).val, rb_17)?;
                         if cond_2
                             != (i >> 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 1 as libc::c_int)

@@ -6,15 +6,14 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::Lua;
 use crate::ldebug::luaG_runerror;
-use crate::lstate::lua_State;
+use crate::{Lua, Thread};
 use libc::{free, realloc};
 use std::ffi::{CStr, c_void};
 use std::ptr::null_mut;
 
 pub unsafe fn luaM_growaux_(
-    L: *mut lua_State,
+    L: *mut Thread,
     block: *mut libc::c_void,
     nelems: libc::c_int,
     psize: *mut libc::c_int,
@@ -57,7 +56,7 @@ pub unsafe fn luaM_growaux_(
 }
 
 pub unsafe fn luaM_shrinkvector_(
-    L: *mut lua_State,
+    L: *mut Thread,
     block: *mut libc::c_void,
     size: *mut libc::c_int,
     final_n: libc::c_int,
@@ -70,7 +69,7 @@ pub unsafe fn luaM_shrinkvector_(
     return newblock;
 }
 
-pub unsafe fn luaM_toobig(L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaM_toobig(L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
     luaG_runerror(L, "memory allocation error: block too big")
 }
 
@@ -80,7 +79,7 @@ pub unsafe fn luaM_free_(g: *const Lua, block: *mut libc::c_void, osize: usize) 
 }
 
 pub unsafe fn luaM_realloc_(
-    L: *mut lua_State,
+    L: *mut Thread,
     block: *mut libc::c_void,
     osize: usize,
     nsize: usize,
@@ -107,7 +106,7 @@ pub unsafe fn luaM_realloc_(
 }
 
 pub unsafe fn luaM_saferealloc_(
-    L: *mut lua_State,
+    L: *mut Thread,
     block: *mut libc::c_void,
     osize: usize,
     nsize: usize,

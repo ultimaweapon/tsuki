@@ -9,17 +9,17 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::Lua;
 use crate::gc::luaC_barrierback_;
 use crate::ldebug::luaG_runerror;
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
 use crate::lobject::{
     GCObject, Node, NodeKey, StkId, TString, TValue, Table, Value, luaO_ceillog2,
 };
-use crate::lstate::{lua_CFunction, lua_State};
+use crate::lstate::lua_CFunction;
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::ltm::TM_EQ;
 use crate::lvm::{F2Ieq, luaV_flttointeger};
+use crate::{Lua, Thread};
 use libm::frexp;
 use std::alloc::Layout;
 use std::ffi::{c_int, c_uint};
@@ -276,7 +276,7 @@ unsafe extern "C" fn arrayindex(mut k: i64) -> libc::c_uint {
 }
 
 unsafe fn findindex(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut t: *mut Table,
     mut key: *mut TValue,
     mut asize: libc::c_uint,
@@ -311,7 +311,7 @@ unsafe fn findindex(
 }
 
 pub unsafe fn luaH_next(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut t: *mut Table,
     mut key: StkId,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -467,7 +467,7 @@ unsafe extern "C" fn numusehash(
 }
 
 unsafe fn setnodevector(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut t: *mut Table,
     mut size: libc::c_uint,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -526,7 +526,7 @@ unsafe fn setnodevector(
 }
 
 unsafe fn reinsert(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut ot: *mut Table,
     mut t: *mut Table,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -568,7 +568,7 @@ unsafe extern "C" fn exchangehashpart(mut t1: *mut Table, mut t2: *mut Table) {
 }
 
 pub unsafe fn luaH_resize(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut t: *mut Table,
     mut newasize: libc::c_uint,
     mut nhsize: libc::c_uint,
@@ -643,7 +643,7 @@ pub unsafe fn luaH_resize(
 }
 
 pub unsafe fn luaH_resizearray(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut t: *mut Table,
     mut nasize: libc::c_uint,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -657,7 +657,7 @@ pub unsafe fn luaH_resizearray(
 }
 
 unsafe fn rehash(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut t: *mut Table,
     mut ek: *const TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -687,7 +687,7 @@ unsafe fn rehash(
     luaH_resize(L, t, asize, (totaluse as libc::c_uint).wrapping_sub(na))
 }
 
-pub unsafe fn luaH_new(mut L: *mut lua_State) -> Result<*mut Table, Box<dyn std::error::Error>> {
+pub unsafe fn luaH_new(mut L: *mut Thread) -> Result<*mut Table, Box<dyn std::error::Error>> {
     let layout = Layout::new::<Table>();
     let o = (*(*L).l_G).gc.alloc(5 | 0 << 4, layout);
     let mut t: *mut Table = o as *mut Table;
@@ -728,7 +728,7 @@ unsafe extern "C" fn getfreepos(mut t: *mut Table) -> *mut Node {
 }
 
 unsafe fn luaH_newkey(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut t: *mut Table,
     mut key: *const TValue,
     mut value: *mut TValue,
@@ -905,7 +905,7 @@ pub unsafe extern "C" fn luaH_get(mut t: *mut Table, mut key: *const TValue) -> 
 }
 
 pub unsafe fn luaH_finishset(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut t: *mut Table,
     mut key: *const TValue,
     mut slot: *const TValue,
@@ -923,7 +923,7 @@ pub unsafe fn luaH_finishset(
 }
 
 pub unsafe fn luaH_set(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut t: *mut Table,
     mut key: *const TValue,
     mut value: *mut TValue,
@@ -934,7 +934,7 @@ pub unsafe fn luaH_set(
 }
 
 pub unsafe fn luaH_setint(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut t: *mut Table,
     mut key: i64,
     mut value: *mut TValue,

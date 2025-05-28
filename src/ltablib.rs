@@ -14,18 +14,18 @@ use crate::lapi::{
 };
 use crate::lauxlib::luaL_len;
 use crate::{
-    C2RustUnnamed, lua_State, lua_createtable, lua_gettop, lua_isstring, lua_pushinteger,
-    lua_pushnil, lua_pushstring, lua_pushvalue, lua_rotate, lua_setfield, lua_settop,
-    lua_toboolean, lua_type, lua_typename, luaL_Buffer, luaL_Reg, luaL_addlstring, luaL_addvalue,
-    luaL_argerror, luaL_buffinit, luaL_checkinteger, luaL_checktype, luaL_error, luaL_optinteger,
-    luaL_optlstring, luaL_pushresult, luaL_setfuncs,
+    C2RustUnnamed, Thread, lua_createtable, lua_gettop, lua_isstring, lua_pushinteger, lua_pushnil,
+    lua_pushstring, lua_pushvalue, lua_rotate, lua_setfield, lua_settop, lua_toboolean, lua_type,
+    lua_typename, luaL_Buffer, luaL_Reg, luaL_addlstring, luaL_addvalue, luaL_argerror,
+    luaL_buffinit, luaL_checkinteger, luaL_checktype, luaL_error, luaL_optinteger, luaL_optlstring,
+    luaL_pushresult, luaL_setfuncs,
 };
 use std::ffi::c_int;
 
 pub type IdxT = libc::c_uint;
 
 unsafe fn checkfield(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut key: *const libc::c_char,
     mut n: libc::c_int,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -34,7 +34,7 @@ unsafe fn checkfield(
 }
 
 unsafe fn checktab(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
     mut what: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -63,7 +63,7 @@ unsafe fn checktab(
     Ok(())
 }
 
-unsafe fn tinsert(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn tinsert(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut pos: i64 = 0;
     checktab(
         L,
@@ -99,7 +99,7 @@ unsafe fn tinsert(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Er
     return Ok(0 as libc::c_int);
 }
 
-unsafe fn tremove(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn tremove(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     checktab(
         L,
         1 as libc::c_int,
@@ -125,7 +125,7 @@ unsafe fn tremove(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Er
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn tmove(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn tmove(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut f: i64 = luaL_checkinteger(L, 2 as libc::c_int)?;
     let mut e: i64 = luaL_checkinteger(L, 3 as libc::c_int)?;
     let mut t: i64 = luaL_checkinteger(L, 4 as libc::c_int)?;
@@ -173,7 +173,7 @@ unsafe fn tmove(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Erro
 }
 
 unsafe fn addfield(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut b: *mut luaL_Buffer,
     mut i: i64,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -194,12 +194,12 @@ unsafe fn addfield(
     luaL_addvalue(b)
 }
 
-unsafe fn tconcat(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn tconcat(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut b: luaL_Buffer = luaL_Buffer {
         b: 0 as *mut libc::c_char,
         size: 0,
         n: 0,
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         init: C2RustUnnamed { n: 0. },
     };
     checktab(L, 1 as libc::c_int, 1 as libc::c_int | 4 as libc::c_int)?;
@@ -226,7 +226,7 @@ unsafe fn tconcat(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Er
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn tpack(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn tpack(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
     let mut n: libc::c_int = lua_gettop(L);
     lua_createtable(L, n, 1 as libc::c_int)?;
@@ -245,7 +245,7 @@ unsafe fn tpack(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Erro
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn tunpack(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn tunpack(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut n: u64 = 0;
     let mut i = luaL_optinteger(L, 2, 1)?;
     let e = if lua_type(L, 3) <= 0 {
@@ -278,7 +278,7 @@ unsafe fn tunpack(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Er
 }
 
 unsafe fn set2(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut i: IdxT,
     mut j: IdxT,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -287,7 +287,7 @@ unsafe fn set2(
 }
 
 unsafe fn sort_comp(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut a: libc::c_int,
     mut b: libc::c_int,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -306,7 +306,7 @@ unsafe fn sort_comp(
 }
 
 unsafe fn partition(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut lo: IdxT,
     mut up: IdxT,
 ) -> Result<IdxT, Box<dyn std::error::Error>> {
@@ -356,7 +356,7 @@ unsafe extern "C" fn choosePivot(mut lo: IdxT, mut up: IdxT, mut rnd: libc::c_ui
 }
 
 unsafe fn auxsort(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut lo: IdxT,
     mut up: IdxT,
     mut rnd: libc::c_uint,
@@ -421,7 +421,7 @@ unsafe fn auxsort(
     Ok(())
 }
 
-unsafe fn sort(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn sort(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     checktab(
         L,
         1 as libc::c_int,
@@ -506,7 +506,7 @@ static mut tab_funcs: [luaL_Reg; 8] = [
     },
 ];
 
-pub unsafe fn luaopen_table(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+pub unsafe fn luaopen_table(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     lua_createtable(
         L,
         0 as libc::c_int,

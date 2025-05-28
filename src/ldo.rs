@@ -8,15 +8,14 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use crate::Thread;
 use crate::gc::luaC_step;
 use crate::ldebug::{luaG_callerror, luaG_runerror};
 use crate::lfunc::{luaF_close, luaF_initupvals};
 use crate::lmem::{luaM_free_, luaM_realloc_, luaM_saferealloc_};
 use crate::lobject::{CClosure, LClosure, Proto, StackValue, StkId, TValue, UpVal};
 use crate::lparser::{C2RustUnnamed_9, Dyndata, Labeldesc, Labellist, Vardesc, luaY_parser};
-use crate::lstate::{
-    CallInfo, lua_CFunction, lua_Debug, lua_Hook, lua_State, luaE_extendCI, luaE_shrinkCI,
-};
+use crate::lstate::{CallInfo, lua_CFunction, lua_Debug, lua_Hook, luaE_extendCI, luaE_shrinkCI};
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lundump::luaU_undump;
 use crate::lvm::luaV_execute;
@@ -39,7 +38,7 @@ pub struct CloseP {
     pub status: Result<(), Box<dyn std::error::Error>>,
 }
 
-unsafe extern "C" fn relstack(L: *mut lua_State) {
+unsafe extern "C" fn relstack(L: *mut Thread) {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     let mut up: *mut UpVal = 0 as *mut UpVal;
     (*L).top.offset =
@@ -62,7 +61,7 @@ unsafe extern "C" fn relstack(L: *mut lua_State) {
     }
 }
 
-unsafe extern "C" fn correctstack(L: *mut lua_State) {
+unsafe extern "C" fn correctstack(L: *mut Thread) {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     let mut up: *mut UpVal = 0 as *mut UpVal;
     (*L).top.p = ((*L).stack.p as *mut libc::c_char).offset((*L).top.offset as isize) as StkId;
@@ -88,7 +87,7 @@ unsafe extern "C" fn correctstack(L: *mut lua_State) {
     }
 }
 
-pub unsafe fn luaD_reallocstack(L: *mut lua_State, newsize: c_int) {
+pub unsafe fn luaD_reallocstack(L: *mut Thread, newsize: c_int) {
     let oldsize: libc::c_int =
         ((*L).stack_last.p).offset_from((*L).stack.p) as libc::c_long as libc::c_int;
     let mut i: libc::c_int = 0;
@@ -121,10 +120,7 @@ pub unsafe fn luaD_reallocstack(L: *mut lua_State, newsize: c_int) {
     }
 }
 
-pub unsafe fn luaD_growstack(
-    L: *mut lua_State,
-    n: c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaD_growstack(L: *mut Thread, n: c_int) -> Result<(), Box<dyn std::error::Error>> {
     let size = ((*L).stack_last.p).offset_from((*L).stack.p) as libc::c_long as libc::c_int;
 
     if size > 1000000 {
@@ -150,7 +146,7 @@ pub unsafe fn luaD_growstack(
     luaG_runerror(L, "stack overflow")
 }
 
-unsafe extern "C" fn stackinuse(L: *mut lua_State) -> libc::c_int {
+unsafe extern "C" fn stackinuse(L: *mut Thread) -> libc::c_int {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     let mut res: libc::c_int = 0;
     let mut lim: StkId = (*L).top.p;
@@ -169,7 +165,7 @@ unsafe extern "C" fn stackinuse(L: *mut lua_State) -> libc::c_int {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaD_shrinkstack(L: *mut lua_State) {
+pub unsafe extern "C" fn luaD_shrinkstack(L: *mut Thread) {
     let inuse: libc::c_int = stackinuse(L);
     let max: libc::c_int = if inuse > 1000000 as libc::c_int / 3 as libc::c_int {
         1000000 as libc::c_int
@@ -189,7 +185,7 @@ pub unsafe extern "C" fn luaD_shrinkstack(L: *mut lua_State) {
     luaE_shrinkCI(L);
 }
 
-pub unsafe fn luaD_inctop(L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaD_inctop(L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
     if ((((*L).stack_last.p).offset_from((*L).top.p) as libc::c_long
         <= 1 as libc::c_int as libc::c_long) as libc::c_int
         != 0 as libc::c_int) as libc::c_int as libc::c_long
@@ -203,7 +199,7 @@ pub unsafe fn luaD_inctop(L: *mut lua_State) -> Result<(), Box<dyn std::error::E
 }
 
 pub unsafe fn luaD_hook(
-    L: *mut lua_State,
+    L: *mut Thread,
     event: libc::c_int,
     line: libc::c_int,
     ftransfer: libc::c_int,
@@ -273,7 +269,7 @@ pub unsafe fn luaD_hook(
 }
 
 pub unsafe fn luaD_hookcall(
-    L: *mut lua_State,
+    L: *mut Thread,
     ci: *mut CallInfo,
 ) -> Result<(), Box<dyn std::error::Error>> {
     (*L).oldpc = 0 as libc::c_int;
@@ -301,7 +297,7 @@ pub unsafe fn luaD_hookcall(
 }
 
 unsafe fn rethook(
-    L: *mut lua_State,
+    L: *mut Thread,
     mut ci: *mut CallInfo,
     nres: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -331,10 +327,7 @@ unsafe fn rethook(
     Ok(())
 }
 
-unsafe fn tryfuncTM(
-    L: *mut lua_State,
-    mut func: StkId,
-) -> Result<StkId, Box<dyn std::error::Error>> {
+unsafe fn tryfuncTM(L: *mut Thread, mut func: StkId) -> Result<StkId, Box<dyn std::error::Error>> {
     let mut tm: *const TValue = 0 as *const TValue;
     let mut p: StkId = 0 as *mut StackValue;
     if ((((*L).stack_last.p).offset_from((*L).top.p) as libc::c_long
@@ -374,7 +367,7 @@ unsafe fn tryfuncTM(
 }
 
 unsafe fn moveresults(
-    L: *mut lua_State,
+    L: *mut Thread,
     mut res: StkId,
     mut nres: libc::c_int,
     mut wanted: libc::c_int,
@@ -446,7 +439,7 @@ unsafe fn moveresults(
 }
 
 pub unsafe fn luaD_poscall(
-    L: *mut lua_State,
+    L: *mut Thread,
     ci: *mut CallInfo,
     nres: c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -464,7 +457,7 @@ pub unsafe fn luaD_poscall(
 
 #[inline]
 unsafe extern "C" fn prepCallInfo(
-    L: *mut lua_State,
+    L: *mut Thread,
     func: StkId,
     nret: libc::c_int,
     mask: libc::c_int,
@@ -484,7 +477,7 @@ unsafe extern "C" fn prepCallInfo(
 }
 
 unsafe fn precallC(
-    L: *mut lua_State,
+    L: *mut Thread,
     mut func: StkId,
     nresults: libc::c_int,
     f: lua_CFunction,
@@ -537,7 +530,7 @@ unsafe fn precallC(
 }
 
 pub unsafe fn luaD_pretailcall(
-    L: *mut lua_State,
+    L: *mut Thread,
     ci: *mut CallInfo,
     mut func: StkId,
     mut narg1: libc::c_int,
@@ -606,7 +599,7 @@ pub unsafe fn luaD_pretailcall(
 }
 
 pub unsafe fn luaD_precall(
-    L: *mut lua_State,
+    L: *mut Thread,
     mut func: StkId,
     nresults: libc::c_int,
 ) -> Result<*mut CallInfo, Box<dyn std::error::Error>> {
@@ -671,7 +664,7 @@ pub unsafe fn luaD_precall(
 }
 
 pub unsafe fn luaD_call(
-    L: *mut lua_State,
+    L: *mut Thread,
     func: StkId,
     nResults: c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -685,10 +678,7 @@ pub unsafe fn luaD_call(
     Ok(())
 }
 
-unsafe fn finishCcall(
-    L: *mut lua_State,
-    ci: *mut CallInfo,
-) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn finishCcall(L: *mut Thread, ci: *mut CallInfo) -> Result<(), Box<dyn std::error::Error>> {
     let mut n: libc::c_int = 0;
 
     if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 9 as libc::c_int != 0 {
@@ -700,7 +690,7 @@ unsafe fn finishCcall(
     luaD_poscall(L, ci, n)
 }
 
-unsafe fn findpcall(L: *mut lua_State) -> *mut CallInfo {
+unsafe fn findpcall(L: *mut Thread) -> *mut CallInfo {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     ci = (*L).ci;
     while !ci.is_null() {
@@ -713,7 +703,7 @@ unsafe fn findpcall(L: *mut lua_State) -> *mut CallInfo {
 }
 
 pub unsafe fn luaD_closeprotected(
-    L: *mut lua_State,
+    L: *mut Thread,
     level: isize,
     mut status: Result<(), Box<dyn std::error::Error>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -738,12 +728,12 @@ pub unsafe fn luaD_closeprotected(
 }
 
 pub unsafe fn luaD_pcall<F>(
-    L: *mut lua_State,
+    L: *mut Thread,
     old_top: isize,
     f: F,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
-    F: FnOnce(*mut lua_State) -> Result<(), Box<dyn std::error::Error>>,
+    F: FnOnce(*mut Thread) -> Result<(), Box<dyn std::error::Error>>,
 {
     let old_ci = (*L).ci;
     let old_allowhooks: u8 = (*L).allowhook;
@@ -777,7 +767,7 @@ unsafe fn checkmode(
 }
 
 pub unsafe fn luaD_protectedparser(
-    L: *mut lua_State,
+    L: *mut Thread,
     z: *mut ZIO,
     name: *const libc::c_char,
     mode: *const libc::c_char,

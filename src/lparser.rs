@@ -11,6 +11,7 @@
 #![allow(unused_variables)]
 #![allow(path_statements)]
 
+use crate::Thread;
 use crate::gc::{luaC_barrier_, luaC_step};
 use crate::lcode::{
     BinOpr, OPR_ADD, OPR_AND, OPR_BAND, OPR_BNOT, OPR_BOR, OPR_BXOR, OPR_CONCAT, OPR_DIV, OPR_EQ,
@@ -38,7 +39,6 @@ use crate::lopcodes::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_FORLOOP, OP_FORPREP, OP_GETUPVAL, OP_MOVE, OP_NEWTABLE,
     OP_TAILCALL, OP_TBC, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_VARARG, OP_VARARGPREP, OpCode,
 };
-use crate::lstate::lua_State;
 use crate::lstring::{luaS_new, luaS_newlstr};
 use crate::ltable::luaH_new;
 use crate::lzio::{Mbuffer, ZIO};
@@ -226,7 +226,7 @@ unsafe fn errorlimit(
     limit: libc::c_int,
     what: impl Display,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut L: *mut lua_State = (*(*fs).ls).L;
+    let mut L: *mut Thread = (*(*fs).ls).L;
     let mut line: libc::c_int = (*(*fs).f).linedefined;
     let where_0: Cow<'static, str> = if line == 0 as libc::c_int {
         "main function".into()
@@ -388,7 +388,7 @@ unsafe fn new_localvar(
     mut ls: *mut LexState,
     mut name: *mut TString,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut L: *mut lua_State = (*ls).L;
+    let mut L: *mut Thread = (*ls).L;
     let mut fs: *mut FuncState = (*ls).fs;
     let mut dyd: *mut Dyndata = (*ls).dyd;
     let mut var: *mut Vardesc = 0 as *mut Vardesc;
@@ -1007,7 +1007,7 @@ unsafe fn leaveblock(mut fs: *mut FuncState) -> Result<(), Box<dyn std::error::E
 
 unsafe fn addprototype(mut ls: *mut LexState) -> Result<*mut Proto, Box<dyn std::error::Error>> {
     let mut clp: *mut Proto = 0 as *mut Proto;
-    let mut L: *mut lua_State = (*ls).L;
+    let mut L: *mut Thread = (*ls).L;
     let mut fs: *mut FuncState = (*ls).fs;
     let mut f: *mut Proto = (*fs).f;
     if (*fs).np >= (*f).sizep {
@@ -1109,7 +1109,7 @@ unsafe extern "C" fn open_func(
 }
 
 unsafe fn close_func(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
-    let mut L: *mut lua_State = (*ls).L;
+    let mut L: *mut Thread = (*ls).L;
     let mut fs: *mut FuncState = (*ls).fs;
     let mut f: *mut Proto = (*fs).f;
     luaK_ret(fs, luaY_nvarstack(fs), 0 as libc::c_int)?;
@@ -2889,7 +2889,7 @@ unsafe fn mainfunc(
 }
 
 pub unsafe fn luaY_parser(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut z: *mut ZIO,
     mut buff: *mut Mbuffer,
     mut dyd: *mut Dyndata,
@@ -2909,7 +2909,7 @@ pub unsafe fn luaY_parser(
             seminfo: SemInfo { r: 0. },
         },
         fs: 0 as *mut FuncState,
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         z: 0 as *mut ZIO,
         buff: 0 as *mut Mbuffer,
         h: 0 as *mut Table,

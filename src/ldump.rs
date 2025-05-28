@@ -10,14 +10,15 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(path_statements)]
 
+use crate::Thread;
 use crate::lobject::{Proto, TString, TValue};
-use crate::lstate::{lua_State, lua_Writer};
+use crate::lstate::lua_Writer;
 use std::ffi::{c_int, c_void};
 use std::ptr::null_mut;
 
 #[repr(C)]
 struct DumpState {
-    L: *mut lua_State,
+    L: *mut Thread,
     writer: lua_Writer,
     data: *mut c_void,
     strip: c_int,
@@ -323,7 +324,7 @@ unsafe fn dumpHeader(mut D: *mut DumpState) -> Result<(), Box<dyn std::error::Er
 }
 
 pub unsafe fn luaU_dump(
-    L: *mut lua_State,
+    L: *mut Thread,
     f: *const Proto,
     writer: lua_Writer,
     data: *mut c_void,

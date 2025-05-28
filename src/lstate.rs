@@ -1,5 +1,4 @@
 #![allow(
-    dead_code,
     mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
@@ -9,72 +8,21 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::Lua;
+use crate::Thread;
 use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
-use crate::lfunc::luaF_closeupval;
 use crate::lmem::{luaM_free_, luaM_malloc_};
-use crate::lobject::{GCObject, StackValue, StkIdRel, UpVal};
-use std::alloc::Layout;
+use crate::lobject::StkIdRel;
 use std::ffi::{c_char, c_int, c_void};
 
-pub type lua_Hook = Option<unsafe extern "C" fn(*mut lua_State, *mut lua_Debug) -> ()>;
+pub type lua_Hook = Option<unsafe extern "C" fn(*mut Thread, *mut lua_Debug) -> ()>;
 pub type lua_Reader =
     unsafe fn(*mut c_void, *mut usize) -> Result<*const c_char, Box<dyn std::error::Error>>;
 pub type lua_Writer = unsafe fn(
-    *mut lua_State,
+    *mut Thread,
     *const c_void,
     usize,
     *mut c_void,
 ) -> Result<c_int, Box<dyn std::error::Error>>;
-
-#[repr(C)]
-pub struct lua_State {
-    pub(crate) next: *mut GCObject,
-    pub(crate) tt: u8,
-    pub(crate) marked: u8,
-    pub(crate) refs: usize,
-    pub(crate) handle: usize,
-    pub(crate) allowhook: u8,
-    pub(crate) nci: libc::c_ushort,
-    pub(crate) top: StkIdRel,
-    pub(crate) l_G: *const Lua,
-    pub(crate) ci: *mut CallInfo,
-    pub(crate) stack_last: StkIdRel,
-    pub(crate) stack: StkIdRel,
-    pub(crate) openupval: *mut UpVal,
-    pub(crate) tbclist: StkIdRel,
-    pub(crate) gclist: *mut GCObject,
-    pub(crate) twups: *mut lua_State,
-    pub(crate) base_ci: CallInfo,
-    pub(crate) hook: lua_Hook,
-    pub(crate) oldpc: libc::c_int,
-    pub(crate) basehookcount: libc::c_int,
-    pub(crate) hookcount: libc::c_int,
-    pub(crate) hookmask: libc::c_int,
-}
-
-impl Drop for lua_State {
-    fn drop(&mut self) {
-        unsafe { luaF_closeupval(self, self.stack.p) };
-
-        if unsafe { self.stack.p.is_null() } {
-            return;
-        }
-
-        self.ci = &raw mut self.base_ci;
-
-        unsafe { freeCI(self) };
-
-        // Free stack.
-        let layout = Layout::array::<StackValue>(unsafe {
-            (self.stack_last.p.offset_from(self.stack.p) + 5) as usize
-        })
-        .unwrap();
-
-        unsafe { std::alloc::dealloc(self.stack.p.cast(), layout) };
-        unsafe { (*self.l_G).gc.decrease_debt(layout.size()) };
-    }
-}
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -134,9 +82,9 @@ pub struct C2RustUnnamed_3 {
     pub nextraargs: libc::c_int,
 }
 
-pub type lua_CFunction = unsafe fn(*mut lua_State) -> Result<c_int, Box<dyn std::error::Error>>;
+pub type lua_CFunction = unsafe fn(*mut Thread) -> Result<c_int, Box<dyn std::error::Error>>;
 
-pub unsafe fn luaE_extendCI(mut L: *mut lua_State) -> *mut CallInfo {
+pub unsafe fn luaE_extendCI(mut L: *mut Thread) -> *mut CallInfo {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     ci = luaM_malloc_((*L).l_G, ::core::mem::size_of::<CallInfo>()) as *mut CallInfo;
     (*(*L).ci).next = ci;
@@ -148,27 +96,7 @@ pub unsafe fn luaE_extendCI(mut L: *mut lua_State) -> *mut CallInfo {
     return ci;
 }
 
-unsafe fn freeCI(mut L: *mut lua_State) {
-    let mut ci: *mut CallInfo = (*L).ci;
-    let mut next: *mut CallInfo = (*ci).next;
-    (*ci).next = 0 as *mut CallInfo;
-    loop {
-        ci = next;
-        if ci.is_null() {
-            break;
-        }
-        next = (*ci).next;
-        luaM_free_(
-            (*L).l_G,
-            ci as *mut libc::c_void,
-            ::core::mem::size_of::<CallInfo>(),
-        );
-        (*L).nci = ((*L).nci).wrapping_sub(1);
-        (*L).nci;
-    }
-}
-
-pub unsafe fn luaE_shrinkCI(mut L: *mut lua_State) {
+pub unsafe fn luaE_shrinkCI(mut L: *mut Thread) {
     let mut ci: *mut CallInfo = (*(*L).ci).next;
     let mut next: *mut CallInfo = 0 as *mut CallInfo;
     if ci.is_null() {
@@ -196,12 +124,7 @@ pub unsafe fn luaE_shrinkCI(mut L: *mut lua_State) {
     }
 }
 
-pub unsafe fn luaE_freethread(g: *const Lua, mut L1: *mut lua_State) {
-    std::ptr::drop_in_place(L1);
-    (*g).gc.dealloc(L1.cast(), Layout::new::<lua_State>());
-}
-
-pub unsafe fn lua_closethread(L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn lua_closethread(L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
     (*L).ci = &mut (*L).base_ci;
     let mut ci: *mut CallInfo = (*L).ci;
     (*(*L).stack.p).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;

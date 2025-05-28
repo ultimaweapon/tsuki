@@ -10,6 +10,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(path_statements)]
 
+use crate::Thread;
 use crate::gc::luaC_barrier_;
 use crate::llex::{LexState, luaX_syntaxerror};
 use crate::lmem::luaM_growaux_;
@@ -29,7 +30,6 @@ use crate::lparser::{
     VKFLT, VKINT, VKSTR, VLOCAL, VNIL, VNONRELOC, VRELOC, VTRUE, VUPVAL, VVARARG, expdesc,
     luaY_nvarstack,
 };
-use crate::lstate::lua_State;
 use crate::ltable::{luaH_finishset, luaH_get};
 use crate::ltm::{TM_ADD, TM_SHL, TM_SHR, TM_SUB, TMS};
 use crate::lvm::{F2Ieq, luaV_equalobj, luaV_flttointeger, luaV_tointegerns};
@@ -741,7 +741,7 @@ unsafe fn addk(
         },
         tt_: 0,
     };
-    let mut L: *mut lua_State = (*(*fs).ls).L;
+    let mut L: *mut Thread = (*(*fs).ls).L;
     let mut f: *mut Proto = (*fs).f;
     let mut idx: *const TValue = luaH_get((*(*fs).ls).h, key);
     let mut k: libc::c_int = 0;
@@ -751,7 +751,7 @@ unsafe fn addk(
         if k < (*fs).nk
             && (*((*f).k).offset(k as isize)).tt_ as libc::c_int & 0x3f as libc::c_int
                 == (*v).tt_ as libc::c_int & 0x3f as libc::c_int
-            && luaV_equalobj(0 as *mut lua_State, &mut *((*f).k).offset(k as isize), v)? != 0
+            && luaV_equalobj(0 as *mut Thread, &mut *((*f).k).offset(k as isize), v)? != 0
         {
             return Ok(k);
         }

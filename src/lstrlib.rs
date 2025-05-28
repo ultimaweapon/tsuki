@@ -13,7 +13,7 @@
 
 use crate::lapi::lua_call;
 use crate::{
-    C2RustUnnamed, lua_State, lua_arith, lua_createtable, lua_dump, lua_gettable, lua_gettop,
+    C2RustUnnamed, Thread, lua_arith, lua_createtable, lua_dump, lua_gettable, lua_gettop,
     lua_isinteger, lua_isstring, lua_newuserdatauv, lua_pushcclosure, lua_pushinteger,
     lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rotate,
     lua_setfield, lua_setmetatable, lua_settop, lua_stringtonumber, lua_toboolean, lua_tointegerx,
@@ -38,7 +38,7 @@ pub const Kzstr: KOption = 7;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Header {
-    pub L: *mut lua_State,
+    pub L: *mut Thread,
     pub islittle: libc::c_int,
     pub maxalign: libc::c_int,
 }
@@ -83,7 +83,7 @@ pub struct MatchState {
     pub src_init: *const libc::c_char,
     pub src_end: *const libc::c_char,
     pub p_end: *const libc::c_char,
-    pub L: *mut lua_State,
+    pub L: *mut Thread,
     pub matchdepth: libc::c_int,
     pub level: libc::c_uchar,
     pub capture: [C2RustUnnamed_2; 32],
@@ -111,7 +111,7 @@ struct str_Writer {
     B: luaL_Buffer,
 }
 
-unsafe fn str_len(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_len(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut l: usize = 0;
     luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
     lua_pushinteger(L, l as i64);
@@ -133,7 +133,7 @@ unsafe extern "C" fn posrelatI(mut pos: i64, mut len: usize) -> usize {
 }
 
 unsafe fn getendpos(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
     mut def: i64,
     mut len: usize,
@@ -152,7 +152,7 @@ unsafe fn getendpos(
     };
 }
 
-unsafe fn str_sub(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_sub(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut l: usize = 0;
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
     let mut start: usize = posrelatI(luaL_checkinteger(L, 2 as libc::c_int)?, l);
@@ -172,14 +172,14 @@ unsafe fn str_sub(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Er
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn str_reverse(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_reverse(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut l: usize = 0;
     let mut i: usize = 0;
     let mut b: luaL_Buffer = luaL_Buffer {
         b: 0 as *mut libc::c_char,
         size: 0,
         n: 0,
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         init: C2RustUnnamed { n: 0. },
     };
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
@@ -195,14 +195,14 @@ unsafe fn str_reverse(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn str_lower(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_lower(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut l: usize = 0;
     let mut i: usize = 0;
     let mut b: luaL_Buffer = luaL_Buffer {
         b: 0 as *mut libc::c_char,
         size: 0,
         n: 0,
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         init: C2RustUnnamed { n: 0. },
     };
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
@@ -218,14 +218,14 @@ unsafe fn str_lower(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn str_upper(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_upper(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut l: usize = 0;
     let mut i: usize = 0;
     let mut b: luaL_Buffer = luaL_Buffer {
         b: 0 as *mut libc::c_char,
         size: 0,
         n: 0,
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         init: C2RustUnnamed { n: 0. },
     };
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
@@ -241,7 +241,7 @@ unsafe fn str_upper(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn str_rep(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_rep(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut l: usize = 0;
     let mut lsep: usize = 0;
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
@@ -275,7 +275,7 @@ unsafe fn str_rep(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Er
             b: 0 as *mut libc::c_char,
             size: 0,
             n: 0,
-            L: 0 as *mut lua_State,
+            L: 0 as *mut Thread,
             init: C2RustUnnamed { n: 0. },
         };
         let mut p: *mut libc::c_char = luaL_buffinitsize(L, &mut b, totallen)?;
@@ -310,7 +310,7 @@ unsafe fn str_rep(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Er
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn str_byte(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_byte(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut l: usize = 0;
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
     let mut pi: i64 = luaL_optinteger(L, 2 as libc::c_int, 1 as libc::c_int as i64)?;
@@ -348,14 +348,14 @@ unsafe fn str_byte(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::E
     return Ok(n);
 }
 
-unsafe fn str_char(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_char(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut n: libc::c_int = lua_gettop(L);
     let mut i: libc::c_int = 0;
     let mut b: luaL_Buffer = luaL_Buffer {
         b: 0 as *mut libc::c_char,
         size: 0,
         n: 0,
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         init: C2RustUnnamed { n: 0. },
     };
     let mut p: *mut libc::c_char = luaL_buffinitsize(L, &mut b, n as usize)?;
@@ -375,7 +375,7 @@ unsafe fn str_char(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::E
 }
 
 unsafe fn writer(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut b: *const libc::c_void,
     mut size: usize,
     mut ud: *mut libc::c_void,
@@ -391,14 +391,14 @@ unsafe fn writer(
     Ok(0)
 }
 
-unsafe fn str_dump(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_dump(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut state: str_Writer = str_Writer {
         init: 0,
         B: luaL_Buffer {
             b: 0 as *mut libc::c_char,
             size: 0,
             n: 0,
-            L: 0 as *mut lua_State,
+            L: 0 as *mut Thread,
             init: C2RustUnnamed { n: 0. },
         },
     };
@@ -424,7 +424,7 @@ unsafe fn str_dump(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::E
 }
 
 unsafe fn tonum(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut arg: libc::c_int,
 ) -> Result<libc::c_int, Box<dyn std::error::Error>> {
     if lua_type(L, arg) == 3 as libc::c_int {
@@ -440,7 +440,7 @@ unsafe fn tonum(
 }
 
 unsafe fn trymt(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut mtname: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
     lua_settop(L, 2 as libc::c_int)?;
@@ -464,7 +464,7 @@ unsafe fn trymt(
 }
 
 unsafe fn arith(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut op: libc::c_int,
     mut mtname: *const libc::c_char,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -476,7 +476,7 @@ unsafe fn arith(
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn arith_add(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn arith_add(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return arith(
         L,
         0 as libc::c_int,
@@ -484,7 +484,7 @@ unsafe fn arith_add(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
     );
 }
 
-unsafe fn arith_sub(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn arith_sub(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return arith(
         L,
         1 as libc::c_int,
@@ -492,7 +492,7 @@ unsafe fn arith_sub(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
     );
 }
 
-unsafe fn arith_mul(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn arith_mul(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return arith(
         L,
         2 as libc::c_int,
@@ -500,7 +500,7 @@ unsafe fn arith_mul(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
     );
 }
 
-unsafe fn arith_mod(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn arith_mod(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return arith(
         L,
         3 as libc::c_int,
@@ -508,7 +508,7 @@ unsafe fn arith_mod(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
     );
 }
 
-unsafe fn arith_pow(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn arith_pow(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return arith(
         L,
         4 as libc::c_int,
@@ -516,7 +516,7 @@ unsafe fn arith_pow(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
     );
 }
 
-unsafe fn arith_div(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn arith_div(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return arith(
         L,
         5 as libc::c_int,
@@ -524,7 +524,7 @@ unsafe fn arith_div(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::
     );
 }
 
-unsafe fn arith_idiv(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn arith_idiv(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return arith(
         L,
         6 as libc::c_int,
@@ -532,7 +532,7 @@ unsafe fn arith_idiv(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
     );
 }
 
-unsafe fn arith_unm(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn arith_unm(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return arith(
         L,
         12 as libc::c_int,
@@ -1384,7 +1384,7 @@ unsafe extern "C" fn nospecials(mut p: *const libc::c_char, mut l: usize) -> lib
 
 unsafe extern "C" fn prepstate(
     mut ms: *mut MatchState,
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut s: *const libc::c_char,
     mut ls: usize,
     mut p: *const libc::c_char,
@@ -1402,7 +1402,7 @@ unsafe extern "C" fn reprepstate(mut ms: *mut MatchState) {
 }
 
 unsafe fn str_find_aux(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut find: libc::c_int,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut ls: usize = 0;
@@ -1437,7 +1437,7 @@ unsafe fn str_find_aux(
             src_init: 0 as *const libc::c_char,
             src_end: 0 as *const libc::c_char,
             p_end: 0 as *const libc::c_char,
-            L: 0 as *mut lua_State,
+            L: 0 as *mut Thread,
             matchdepth: 0,
             level: 0,
             capture: [C2RustUnnamed_2 {
@@ -1487,15 +1487,15 @@ unsafe fn str_find_aux(
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn str_find(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_find(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return str_find_aux(L, 1 as libc::c_int);
 }
 
-unsafe fn str_match(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_match(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return str_find_aux(L, 0 as libc::c_int);
 }
 
-unsafe fn gmatch_aux(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn gmatch_aux(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut gm: *mut GMatchState = lua_touserdata(
         L,
         -(1000000 as libc::c_int) - 1000 as libc::c_int - 3 as libc::c_int,
@@ -1518,7 +1518,7 @@ unsafe fn gmatch_aux(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
     return Ok(0 as libc::c_int);
 }
 
-unsafe fn gmatch(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn gmatch(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut ls: usize = 0;
     let mut lp: usize = 0;
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut ls)?;
@@ -1549,7 +1549,7 @@ unsafe fn add_s(
     mut e: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut l: usize = 0;
-    let mut L: *mut lua_State = (*ms).L;
+    let mut L: *mut Thread = (*ms).L;
     let mut news: *const libc::c_char = lua_tolstring(L, 3 as libc::c_int, &mut l)?;
     let mut p: *const libc::c_char = 0 as *const libc::c_char;
     loop {
@@ -1594,7 +1594,7 @@ unsafe fn add_value(
     mut e: *const libc::c_char,
     mut tr: libc::c_int,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut L: *mut lua_State = (*ms).L;
+    let mut L: *mut Thread = (*ms).L;
     match tr {
         6 => {
             let mut n: libc::c_int = 0;
@@ -1632,7 +1632,7 @@ unsafe fn add_value(
     };
 }
 
-unsafe fn str_gsub(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_gsub(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut srcl: usize = 0;
     let mut lp: usize = 0;
     let mut src: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut srcl)?;
@@ -1651,7 +1651,7 @@ unsafe fn str_gsub(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::E
         src_init: 0 as *const libc::c_char,
         src_end: 0 as *const libc::c_char,
         p_end: 0 as *const libc::c_char,
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         matchdepth: 0,
         level: 0,
         capture: [C2RustUnnamed_2 {
@@ -1663,7 +1663,7 @@ unsafe fn str_gsub(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::E
         b: 0 as *mut libc::c_char,
         size: 0,
         n: 0,
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         init: C2RustUnnamed { n: 0. },
     };
     (((tr == 3 as libc::c_int
@@ -1787,7 +1787,7 @@ unsafe fn addquoted(
 }
 
 unsafe extern "C" fn quotefloat(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut buff: *mut libc::c_char,
     mut n: f64,
 ) -> libc::c_int {
@@ -1808,7 +1808,7 @@ unsafe extern "C" fn quotefloat(
 }
 
 unsafe fn addliteral(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut b: *mut luaL_Buffer,
     mut arg: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -1861,7 +1861,7 @@ unsafe extern "C" fn get2digits(mut s: *const libc::c_char) -> *const libc::c_ch
 }
 
 unsafe fn checkformat(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut form: *const libc::c_char,
     mut flags: *const libc::c_char,
     mut precision: libc::c_int,
@@ -1889,7 +1889,7 @@ unsafe fn checkformat(
 }
 
 unsafe fn getformat(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut strfrmt: *const libc::c_char,
     mut form: *mut libc::c_char,
 ) -> Result<*const libc::c_char, Box<dyn std::error::Error>> {
@@ -1928,7 +1928,7 @@ unsafe extern "C" fn addlenmod(mut form: *mut libc::c_char, mut lenmod: *const l
     *form.offset(l.wrapping_add(lm) as isize) = '\0' as i32 as libc::c_char;
 }
 
-unsafe fn str_format(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_format(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut current_block: u64;
     let mut top: libc::c_int = lua_gettop(L);
     let mut arg: libc::c_int = 1 as libc::c_int;
@@ -1940,7 +1940,7 @@ unsafe fn str_format(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error:
         b: 0 as *mut libc::c_char,
         size: 0,
         n: 0,
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         init: C2RustUnnamed { n: 0. },
     };
     luaL_buffinit(L, &mut b);
@@ -2175,7 +2175,7 @@ unsafe fn getnumlimit(
     return Ok(sz);
 }
 
-unsafe extern "C" fn initheader(mut L: *mut lua_State, mut h: *mut Header) {
+unsafe extern "C" fn initheader(mut L: *mut Thread, mut h: *mut Header) {
     (*h).L = L;
     (*h).islittle = nativeendian.little as libc::c_int;
     (*h).maxalign = 1 as libc::c_int;
@@ -2427,16 +2427,16 @@ unsafe extern "C" fn copywithendian(
     };
 }
 
-unsafe fn str_pack(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_pack(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut b: luaL_Buffer = luaL_Buffer {
         b: 0 as *mut libc::c_char,
         size: 0,
         n: 0,
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         init: C2RustUnnamed { n: 0. },
     };
     let mut h: Header = Header {
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         islittle: 0,
         maxalign: 0,
     };
@@ -2622,9 +2622,9 @@ unsafe fn str_pack(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::E
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn str_packsize(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_packsize(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut h: Header = Header {
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         islittle: 0,
         maxalign: 0,
     };
@@ -2663,7 +2663,7 @@ unsafe fn str_packsize(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::erro
 }
 
 unsafe fn unpackint(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut str: *const libc::c_char,
     mut islittle: libc::c_int,
     mut size: libc::c_int,
@@ -2727,9 +2727,9 @@ unsafe fn unpackint(
     return Ok(res as i64);
 }
 
-unsafe fn str_unpack(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn str_unpack(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut h: Header = Header {
-        L: 0 as *mut lua_State,
+        L: 0 as *mut Thread,
         islittle: 0,
         maxalign: 0,
     };
@@ -2986,7 +2986,7 @@ static mut strlib: [luaL_Reg; 18] = [
     },
 ];
 
-unsafe fn createmetatable(mut L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn createmetatable(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
     lua_createtable(
         L,
         0 as libc::c_int,
@@ -3013,7 +3013,7 @@ unsafe fn createmetatable(mut L: *mut lua_State) -> Result<(), Box<dyn std::erro
     Ok(())
 }
 
-pub unsafe fn luaopen_string(mut L: *mut lua_State) -> Result<c_int, Box<dyn std::error::Error>> {
+pub unsafe fn luaopen_string(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     lua_createtable(
         L,
         0 as libc::c_int,

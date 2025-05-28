@@ -12,6 +12,7 @@
 #![allow(unused_parens)]
 #![allow(path_statements)]
 
+use crate::Thread;
 use crate::gc::{luaC_fix, luaC_step};
 use crate::lctype::luai_ctype_;
 use crate::ldebug::luaG_addinfo;
@@ -20,7 +21,6 @@ use crate::lobject::{
     GCObject, Node, TString, TValue, Table, Value, luaO_hexavalue, luaO_str2num, luaO_utf8esc,
 };
 use crate::lparser::{Dyndata, FuncState};
-use crate::lstate::lua_State;
 use crate::lstring::luaS_newlstr;
 use crate::ltable::{luaH_finishset, luaH_getstr};
 use crate::lzio::{Mbuffer, ZIO, luaZ_fill};
@@ -89,7 +89,7 @@ pub struct LexState {
     pub t: Token,
     pub lookahead: Token,
     pub fs: *mut FuncState,
-    pub L: *mut lua_State,
+    pub L: *mut Thread,
     pub z: *mut ZIO,
     pub buff: *mut Mbuffer,
     pub h: *mut Table,
@@ -171,7 +171,7 @@ unsafe fn save(
     Ok(())
 }
 
-pub unsafe fn luaX_init(mut L: *mut lua_State) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaX_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
     let mut e: *mut TString = luaS_newlstr(
         L,
@@ -259,7 +259,7 @@ pub unsafe fn luaX_newstring(
     mut str: *const libc::c_char,
     mut l: usize,
 ) -> Result<*mut TString, Box<dyn std::error::Error>> {
-    let mut L: *mut lua_State = (*ls).L;
+    let mut L: *mut Thread = (*ls).L;
     let mut ts: *mut TString = luaS_newlstr(L, str, l)?;
     let mut o: *const TValue = luaH_getstr((*ls).h, ts);
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
@@ -312,7 +312,7 @@ unsafe fn inclinenumber(mut ls: *mut LexState) -> Result<(), Box<dyn std::error:
 }
 
 pub unsafe fn luaX_setinput(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut ls: *mut LexState,
     mut z: *mut ZIO,
     mut source: *mut TString,

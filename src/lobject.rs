@@ -9,14 +9,14 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::api_incr_top;
 use crate::lctype::luai_ctype_;
-use crate::lstate::{lua_CFunction, lua_State};
+use crate::lstate::lua_CFunction;
 use crate::lstring::luaS_newlstr;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{
     F2Ieq, luaV_concat, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns,
 };
+use crate::{Thread, api_incr_top};
 use libc::{c_char, c_int, memcpy, sprintf, strchr, strpbrk, strspn, strtod};
 use libm::{floor, pow};
 
@@ -265,7 +265,7 @@ pub struct LClosure {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct BuffFS {
-    pub L: *mut lua_State,
+    pub L: *mut Thread,
     pub pushed: c_int,
     pub blen: c_int,
     pub space: [c_char; 199],
@@ -542,7 +542,7 @@ pub unsafe fn luaO_ceillog2(mut x: libc::c_uint) -> c_int {
 }
 
 unsafe fn intarith(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut op: c_int,
     mut v1: i64,
     mut v2: i64,
@@ -566,12 +566,7 @@ unsafe fn intarith(
     Ok(r)
 }
 
-unsafe extern "C" fn numarith(
-    mut L: *mut lua_State,
-    mut op: c_int,
-    mut v1: f64,
-    mut v2: f64,
-) -> f64 {
+unsafe extern "C" fn numarith(mut L: *mut Thread, mut op: c_int, mut v1: f64, mut v2: f64) -> f64 {
     match op {
         0 => return v1 + v2,
         1 => return v1 - v2,
@@ -592,7 +587,7 @@ unsafe extern "C" fn numarith(
 }
 
 pub unsafe fn luaO_rawarith(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut op: c_int,
     mut p1: *const TValue,
     mut p2: *const TValue,
@@ -708,7 +703,7 @@ pub unsafe fn luaO_rawarith(
 }
 
 pub unsafe fn luaO_arith(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut op: c_int,
     mut p1: *const TValue,
     mut p2: *const TValue,
@@ -918,7 +913,7 @@ unsafe fn tostringbuff(mut obj: *mut TValue, buff: *mut c_char) -> c_int {
 }
 
 pub unsafe fn luaO_tostring(
-    mut L: *mut lua_State,
+    mut L: *mut Thread,
     mut obj: *mut TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut buff: [c_char; 44] = [0; 44];
@@ -935,7 +930,7 @@ unsafe fn pushstr(
     mut str: *const c_char,
     mut lstr: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut L: *mut lua_State = (*buff).L;
+    let mut L: *mut Thread = (*buff).L;
     let mut io: *mut TValue = &mut (*(*L).top.p).val;
     let mut x_: *mut TString = luaS_newlstr(L, str, lstr)?;
     (*io).value_.gc = x_ as *mut GCObject;
