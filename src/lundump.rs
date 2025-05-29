@@ -134,7 +134,7 @@ unsafe fn loadStringN(
             ts = luaS_newlstr(L, buff.as_mut_ptr(), size)?;
         } else {
             ts = luaS_createlngstrobj(L, size);
-            let mut io: *mut TValue = &mut (*(*L).top.p).val;
+            let mut io: *mut TValue = &raw mut (*(*L).top).val;
             let mut x_: *mut TString = ts;
             (*io).value_.gc = x_ as *mut GCObject;
             (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -144,8 +144,7 @@ unsafe fn loadStringN(
                 ((*ts).contents).as_mut_ptr() as *mut libc::c_void,
                 size.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
             )?;
-            (*L).top.p = ((*L).top.p).offset(-1);
-            (*L).top.p;
+            (*L).top = ((*L).top).offset(-1);
         }
     }
     if (*p).marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
@@ -550,7 +549,7 @@ pub unsafe fn luaU_undump(
     S.Z = Z;
     checkHeader(&mut S)?;
     cl = luaF_newLclosure(L, loadByte(&mut S)? as libc::c_int);
-    let mut io: *mut TValue = &mut (*(*L).top.p).val;
+    let mut io: *mut TValue = &raw mut (*(*L).top).val;
     let mut x_: *mut LClosure = cl;
     (*io).value_.gc = x_ as *mut GCObject;
     (*io).tt_ = (6 as libc::c_int

@@ -1,7 +1,7 @@
 use crate::Lua;
 use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
-use crate::lobject::{GCObject, StackValue, StkIdRel, UpVal};
+use crate::lobject::{GCObject, StackValue, StkId, UpVal};
 use crate::lstate::{CallInfo, lua_Hook};
 use std::alloc::Layout;
 use std::cell::{Cell, UnsafeCell};
@@ -17,13 +17,13 @@ pub struct Thread {
     pub(crate) handle: Cell<usize>,
     pub(crate) allowhook: Cell<u8>,
     pub(crate) nci: Cell<libc::c_ushort>,
-    pub(crate) top: StkIdRel,
+    pub(crate) top: StkId,
     pub(crate) l_G: *const Lua,
     pub(crate) ci: *mut CallInfo,
-    pub(crate) stack_last: StkIdRel,
-    pub(crate) stack: StkIdRel,
+    pub(crate) stack_last: StkId,
+    pub(crate) stack: StkId,
     pub(crate) openupval: Cell<*mut UpVal>,
-    pub(crate) tbclist: StkIdRel,
+    pub(crate) tbclist: StkId,
     pub(crate) gclist: Cell<*mut GCObject>,
     pub(crate) twups: Cell<*mut Thread>,
     pub(crate) base_ci: UnsafeCell<CallInfo>,
@@ -37,9 +37,9 @@ pub struct Thread {
 
 impl Drop for Thread {
     fn drop(&mut self) {
-        unsafe { luaF_closeupval(self, self.stack.p) };
+        unsafe { luaF_closeupval(self, self.stack) };
 
-        if unsafe { self.stack.p.is_null() } {
+        if self.stack.is_null() {
             return;
         }
 
@@ -65,10 +65,10 @@ impl Drop for Thread {
 
         // Free stack.
         let layout = Layout::array::<StackValue>(unsafe {
-            self.stack_last.p.offset_from_unsigned(self.stack.p) + 5
+            self.stack_last.offset_from_unsigned(self.stack) + 5
         })
         .unwrap();
 
-        unsafe { std::alloc::dealloc(self.stack.p.cast(), layout) };
+        unsafe { std::alloc::dealloc(self.stack.cast(), layout) };
     }
 }

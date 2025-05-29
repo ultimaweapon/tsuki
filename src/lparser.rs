@@ -2938,7 +2938,7 @@ pub unsafe fn luaY_parser(
         needclose: 0,
     };
     let mut cl: *mut LClosure = luaF_newLclosure(L, 1 as libc::c_int);
-    let mut io: *mut TValue = &mut (*(*L).top.p).val;
+    let mut io: *mut TValue = &raw mut (*(*L).top).val;
     let mut x_: *mut LClosure = cl;
     (*io).value_.gc = x_ as *mut GCObject;
     (*io).tt_ = (6 as libc::c_int
@@ -2946,7 +2946,7 @@ pub unsafe fn luaY_parser(
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     luaD_inctop(L)?;
     lexstate.h = luaH_new(L)?;
-    let mut io_0: *mut TValue = &mut (*(*L).top.p).val;
+    let mut io_0: *mut TValue = &raw mut (*(*L).top).val;
     let mut x__0: *mut Table = lexstate.h;
     (*io_0).value_.gc = x__0 as *mut GCObject;
     (*io_0).tt_ = (5 as libc::c_int
@@ -2983,7 +2983,7 @@ pub unsafe fn luaY_parser(
     (*dyd).actvar.n = (*dyd).gt.n;
     luaX_setinput(L, &mut lexstate, z, (*funcstate.f).source, firstchar)?;
     mainfunc(&mut lexstate, &mut funcstate)?;
-    (*L).top.p = ((*L).top.p).offset(-1);
-    (*L).top.p;
+    (*L).top = ((*L).top).offset(-1);
+
     return Ok(cl);
 }

@@ -20,13 +20,6 @@ use crate::{Thread, api_incr_top};
 use libc::{c_char, c_int, memcpy, sprintf, strchr, strpbrk, strspn, strtod};
 use libm::{floor, pow};
 
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union StkIdRel {
-    pub p: StkId,
-    pub offset: isize,
-}
-
 pub type StkId = *mut StackValue;
 
 #[derive(Copy, Clone)]
@@ -931,7 +924,7 @@ unsafe fn pushstr(
     mut lstr: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut L: *mut Thread = (*buff).L;
-    let mut io: *mut TValue = &mut (*(*L).top.p).val;
+    let mut io: *mut TValue = &raw mut (*(*L).top).val;
     let mut x_: *mut TString = luaS_newlstr(L, str, lstr)?;
     (*io).value_.gc = x_ as *mut GCObject;
     (*io).tt_ = ((*x_).tt as c_int | (1 as c_int) << 6 as c_int) as u8;
@@ -939,8 +932,7 @@ unsafe fn pushstr(
         (*buff).pushed = 1 as c_int;
         api_incr_top(L);
     } else {
-        (*L).top.p = ((*L).top.p).offset(1);
-        (*L).top.p;
+        (*L).top = ((*L).top).offset(1);
         luaV_concat(L, 2 as c_int)?;
     };
     Ok(())

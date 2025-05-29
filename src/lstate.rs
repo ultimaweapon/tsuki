@@ -11,7 +11,7 @@
 use crate::Thread;
 use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
 use crate::lmem::{luaM_free_, luaM_malloc_};
-use crate::lobject::StkIdRel;
+use crate::lobject::StkId;
 use std::ffi::{c_char, c_int, c_void};
 
 pub type lua_Hook = Option<unsafe extern "C" fn(*mut Thread, *mut lua_Debug) -> ()>;
@@ -49,8 +49,8 @@ pub struct lua_Debug {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CallInfo {
-    pub func: StkIdRel,
-    pub top: StkIdRel,
+    pub func: StkId,
+    pub top: StkId,
     pub previous: *mut CallInfo,
     pub next: *mut CallInfo,
     pub u: C2RustUnnamed_3,
@@ -127,16 +127,16 @@ pub unsafe fn luaE_shrinkCI(mut L: *mut Thread) {
 pub unsafe fn lua_closethread(L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
     (*L).ci = (*L).base_ci.get();
     let mut ci: *mut CallInfo = (*L).ci;
-    (*(*L).stack.p).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
-    (*ci).func.p = (*L).stack.p;
+    (*(*L).stack).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+    (*ci).func = (*L).stack;
     (*ci).callstatus = ((1 as libc::c_int) << 1 as libc::c_int) as libc::c_ushort;
 
     let status = luaD_closeprotected(L, 1, Ok(()));
 
-    (*L).top.p = ((*L).stack.p).offset(1 as libc::c_int as isize);
-    (*ci).top.p = ((*L).top.p).offset(20 as libc::c_int as isize);
+    (*L).top = ((*L).stack).offset(1 as libc::c_int as isize);
+    (*ci).top = ((*L).top).offset(20 as libc::c_int as isize);
 
-    luaD_reallocstack(L, ((*ci).top.p).offset_from_unsigned((*L).stack.p));
+    luaD_reallocstack(L, ((*ci).top).offset_from_unsigned((*L).stack));
 
     return status;
 }

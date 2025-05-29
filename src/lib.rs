@@ -76,9 +76,9 @@ pub unsafe fn lua_pop(td: *mut Thread, n: c_int) -> Result<(), Box<dyn std::erro
 
 #[inline(always)]
 unsafe extern "C" fn api_incr_top(td: *mut Thread) {
-    unsafe { (*td).top.p = ((*td).top.p).offset(1) };
+    unsafe { (*td).top = ((*td).top).offset(1) };
 
-    if unsafe { (*td).top.p > (*(*td).ci).top.p } {
+    if unsafe { (*td).top > (*(*td).ci).top } {
         panic!("stack overflow");
     }
 }
@@ -299,7 +299,7 @@ impl Lua {
         let td = unsafe { self.gc.alloc(8, Layout::new::<Thread>()) as *mut Thread };
 
         unsafe { (*td).l_G = self.deref() };
-        unsafe { (*td).stack.p = null_mut() };
+        unsafe { (*td).stack = null_mut() };
         unsafe { (*td).ci = null_mut() };
         unsafe { addr_of_mut!((*td).nci).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*td).gclist).write(Cell::new(null_mut())) };
@@ -324,10 +324,10 @@ impl Lua {
             unsafe { (*stack.offset(i)).val.tt_ = 0 | 0 << 4 };
         }
 
-        unsafe { (*td).stack.p = stack };
-        unsafe { (*td).top.p = (*td).stack.p };
-        unsafe { (*td).stack_last.p = ((*td).stack.p).offset(2 * 20) };
-        unsafe { (*td).tbclist.p = (*td).stack.p };
+        unsafe { (*td).stack = stack };
+        unsafe { (*td).top = (*td).stack };
+        unsafe { (*td).stack_last = ((*td).stack).offset(2 * 20) };
+        unsafe { (*td).tbclist = (*td).stack };
 
         // Setup base CI.
         let ci = unsafe { (*td).base_ci.get() };
@@ -335,12 +335,12 @@ impl Lua {
         unsafe { (*ci).previous = null_mut() };
         unsafe { (*ci).next = (*ci).previous };
         unsafe { (*ci).callstatus = 1 << 1 };
-        unsafe { (*ci).func.p = (*td).top.p };
+        unsafe { (*ci).func = (*td).top };
         unsafe { (*ci).u.savedpc = null() };
         unsafe { (*ci).nresults = 0 };
-        unsafe { (*(*td).top.p).val.tt_ = 0 | 0 << 4 };
-        unsafe { (*td).top.p = ((*td).top.p).offset(1) };
-        unsafe { (*ci).top.p = ((*td).top.p).offset(20) };
+        unsafe { (*(*td).top).val.tt_ = 0 | 0 << 4 };
+        unsafe { (*td).top = ((*td).top).offset(1) };
+        unsafe { (*ci).top = ((*td).top).offset(20) };
         unsafe { (*td).ci = ci };
 
         td

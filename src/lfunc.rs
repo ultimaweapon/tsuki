@@ -126,7 +126,7 @@ unsafe fn callclosemethod(
     mut obj: *mut TValue,
     mut err: *mut TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut top: StkId = (*L).top.p;
+    let mut top: StkId = (*L).top;
     let mut tm: *const TValue = luaT_gettmbyobj(L, obj, TM_CLOSE);
     let mut io1: *mut TValue = &mut (*top).val;
     let mut io2: *const TValue = tm;
@@ -140,7 +140,7 @@ unsafe fn callclosemethod(
     let mut io2_1: *const TValue = err;
     (*io1_1).value_ = (*io2_1).value_;
     (*io1_1).tt_ = (*io2_1).tt_;
-    (*L).top.p = top.offset(3 as libc::c_int as isize);
+    (*L).top = top.offset(3 as libc::c_int as isize);
 
     luaD_call(L, top, 0 as libc::c_int)
 }
@@ -152,7 +152,7 @@ unsafe fn checkclosemth(
     let mut tm: *const TValue = luaT_gettmbyobj(L, &mut (*level).val, TM_CLOSE);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         let mut idx: libc::c_int =
-            level.offset_from((*(*L).ci).func.p) as libc::c_long as libc::c_int;
+            level.offset_from((*(*L).ci).func) as libc::c_long as libc::c_int;
         let mut vname: *const libc::c_char = luaG_findlocal(L, (*L).ci, idx, 0 as *mut StkId);
         if vname.is_null() {
             vname = b"?\0" as *const u8 as *const libc::c_char;
@@ -186,24 +186,24 @@ pub unsafe fn luaF_newtbcupval(
         return Ok(());
     }
     checkclosemth(L, level)?;
-    while level.offset_from((*L).tbclist.p) as libc::c_long as libc::c_uint as libc::c_ulong
+    while level.offset_from((*L).tbclist) as libc::c_long as libc::c_uint as libc::c_ulong
         > ((256 as libc::c_ulong)
             << (::core::mem::size_of::<libc::c_ushort>() as libc::c_ulong)
                 .wrapping_sub(1 as libc::c_int as libc::c_ulong)
                 .wrapping_mul(8 as libc::c_int as libc::c_ulong))
         .wrapping_sub(1 as libc::c_int as libc::c_ulong)
     {
-        (*L).tbclist.p = ((*L).tbclist.p).offset(
+        (*L).tbclist = ((*L).tbclist).offset(
             ((256 as libc::c_ulong)
                 << (::core::mem::size_of::<libc::c_ushort>() as libc::c_ulong)
                     .wrapping_sub(1 as libc::c_int as libc::c_ulong)
                     .wrapping_mul(8 as libc::c_int as libc::c_ulong))
             .wrapping_sub(1 as libc::c_int as libc::c_ulong) as isize,
         );
-        (*(*L).tbclist.p).tbclist.delta = 0 as libc::c_int as libc::c_ushort;
+        (*(*L).tbclist).tbclist.delta = 0 as libc::c_int as libc::c_ushort;
     }
-    (*level).tbclist.delta = level.offset_from((*L).tbclist.p) as libc::c_long as libc::c_ushort;
-    (*L).tbclist.p = level;
+    (*level).tbclist.delta = level.offset_from((*L).tbclist) as libc::c_long as libc::c_ushort;
+    (*L).tbclist = level;
     Ok(())
 }
 
@@ -257,9 +257,9 @@ pub unsafe extern "C" fn luaF_closeupval(mut L: *mut Thread, mut level: StkId) {
 }
 
 unsafe extern "C" fn poptbclist(mut L: *mut Thread) {
-    let mut tbc: StkId = (*L).tbclist.p;
+    let mut tbc: StkId = (*L).tbclist;
     tbc = tbc.offset(-((*tbc).tbclist.delta as libc::c_int as isize));
-    while tbc > (*L).stack.p && (*tbc).tbclist.delta as libc::c_int == 0 as libc::c_int {
+    while tbc > (*L).stack && (*tbc).tbclist.delta as libc::c_int == 0 as libc::c_int {
         tbc = tbc.offset(
             -(((256 as libc::c_ulong)
                 << (::core::mem::size_of::<libc::c_ushort>() as libc::c_ulong)
@@ -268,22 +268,22 @@ unsafe extern "C" fn poptbclist(mut L: *mut Thread) {
             .wrapping_sub(1 as libc::c_int as libc::c_ulong) as isize),
         );
     }
-    (*L).tbclist.p = tbc;
+    (*L).tbclist = tbc;
 }
 
 pub unsafe fn luaF_close(
     mut L: *mut Thread,
     mut level: StkId,
 ) -> Result<StkId, Box<dyn std::error::Error>> {
-    let mut levelrel = (level as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
+    let mut levelrel = (level as *mut libc::c_char).offset_from((*L).stack as *mut libc::c_char);
 
     luaF_closeupval(L, level);
 
-    while (*L).tbclist.p >= level {
-        let mut tbc: StkId = (*L).tbclist.p;
+    while (*L).tbclist >= level {
+        let mut tbc: StkId = (*L).tbclist;
         poptbclist(L);
         prepcallclosemth(L, tbc)?;
-        level = ((*L).stack.p as *mut libc::c_char).offset(levelrel as isize) as StkId;
+        level = ((*L).stack as *mut libc::c_char).offset(levelrel as isize) as StkId;
     }
 
     return Ok(level);

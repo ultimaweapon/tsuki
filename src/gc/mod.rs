@@ -611,7 +611,7 @@ unsafe fn traverseLclosure(g: *const Lua, cl: *mut LClosure) -> libc::c_int {
 
 unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
     let mut uv: *mut UpVal = 0 as *mut UpVal;
-    let mut o: StkId = (*th).stack.p;
+    let mut o: StkId = (*th).stack;
     if (*th).marked.get() & 7 > 1 || (*g).gcstate.get() == 0 {
         linkgclist_(
             th as *mut GCObject,
@@ -622,7 +622,7 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
     if o.is_null() {
         return 1 as libc::c_int;
     }
-    while o < (*th).top.p {
+    while o < (*th).top {
         if (*o).val.tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0
             && (*(*o).val.value_.gc).marked as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
@@ -646,8 +646,8 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
     if (*g).gcstate.get() == 2 {
         luaD_shrinkstack(th);
 
-        o = (*th).top.p;
-        while o < ((*th).stack_last.p).offset(5 as libc::c_int as isize) {
+        o = (*th).top;
+        while o < ((*th).stack_last).offset(5 as libc::c_int as isize) {
             (*o).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
             o = o.offset(1);
         }
@@ -657,7 +657,7 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
         }
     }
     return 1 as libc::c_int
-        + ((*th).stack_last.p).offset_from((*th).stack.p) as libc::c_long as libc::c_int;
+        + ((*th).stack_last).offset_from((*th).stack) as libc::c_long as libc::c_int;
 }
 
 unsafe fn propagatemark(g: &Lua) -> usize {

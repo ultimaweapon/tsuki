@@ -32,7 +32,7 @@ use std::ptr::null_mut;
 
 unsafe extern "C" fn currentpc(mut ci: *mut CallInfo) -> libc::c_int {
     return ((*ci).u.savedpc)
-        .offset_from((*(*((*(*ci).func.p).val.value_.gc as *mut LClosure)).p).code)
+        .offset_from((*(*((*(*ci).func).val.value_.gc as *mut LClosure)).p).code)
         as libc::c_long as libc::c_int
         - 1 as libc::c_int;
 }
@@ -83,7 +83,7 @@ pub unsafe extern "C" fn luaG_getfuncline(mut f: *const Proto, mut pc: libc::c_i
 
 unsafe extern "C" fn getcurrentline(mut ci: *mut CallInfo) -> libc::c_int {
     return luaG_getfuncline(
-        (*((*(*ci).func.p).val.value_.gc as *mut LClosure)).p,
+        (*((*(*ci).func).val.value_.gc as *mut LClosure)).p,
         currentpc(ci),
     );
 }
@@ -157,7 +157,7 @@ pub unsafe fn lua_getstack(
     return status;
 }
 
-unsafe extern "C" fn upvalname(mut p: *const Proto, mut uv: libc::c_int) -> *const libc::c_char {
+unsafe fn upvalname(mut p: *const Proto, mut uv: libc::c_int) -> *const libc::c_char {
     let mut s: *mut TString = (*((*p).upvalues).offset(uv as isize)).name;
     if s.is_null() {
         return b"?\0" as *const u8 as *const libc::c_char;
@@ -166,15 +166,15 @@ unsafe extern "C" fn upvalname(mut p: *const Proto, mut uv: libc::c_int) -> *con
     };
 }
 
-unsafe extern "C" fn findvararg(
+unsafe fn findvararg(
     mut ci: *mut CallInfo,
     mut n: libc::c_int,
     mut pos: *mut StkId,
 ) -> *const libc::c_char {
-    if (*(*((*(*ci).func.p).val.value_.gc as *mut LClosure)).p).is_vararg != 0 {
+    if (*(*((*(*ci).func).val.value_.gc as *mut LClosure)).p).is_vararg != 0 {
         let mut nextra: libc::c_int = (*ci).u.nextraargs;
         if n >= -nextra {
-            *pos = ((*ci).func.p)
+            *pos = ((*ci).func)
                 .offset(-(nextra as isize))
                 .offset(-((n + 1 as libc::c_int) as isize));
             return b"(vararg)\0" as *const u8 as *const libc::c_char;
@@ -183,21 +183,20 @@ unsafe extern "C" fn findvararg(
     return 0 as *const libc::c_char;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaG_findlocal(
+pub unsafe fn luaG_findlocal(
     mut L: *mut Thread,
     mut ci: *mut CallInfo,
     mut n: libc::c_int,
     mut pos: *mut StkId,
 ) -> *const libc::c_char {
-    let mut base: StkId = ((*ci).func.p).offset(1 as libc::c_int as isize);
+    let mut base: StkId = ((*ci).func).offset(1 as libc::c_int as isize);
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
     if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
         if n < 0 as libc::c_int {
             return findvararg(ci, n, pos);
         } else {
             name = luaF_getlocalname(
-                (*((*(*ci).func.p).val.value_.gc as *mut LClosure)).p,
+                (*((*(*ci).func).val.value_.gc as *mut LClosure)).p,
                 n,
                 currentpc(ci),
             );
@@ -205,9 +204,9 @@ pub unsafe extern "C" fn luaG_findlocal(
     }
     if name.is_null() {
         let mut limit: StkId = if ci == (*L).ci {
-            (*L).top.p
+            (*L).top
         } else {
-            (*(*ci).next).func.p
+            (*(*ci).next).func
         };
         if limit.offset_from(base) as libc::c_long >= n as libc::c_long && n > 0 as libc::c_int {
             name = if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0
@@ -226,15 +225,14 @@ pub unsafe extern "C" fn luaG_findlocal(
     return name;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_getlocal(
+pub unsafe fn lua_getlocal(
     mut L: *mut Thread,
     mut ar: *const lua_Debug,
     mut n: libc::c_int,
 ) -> *const libc::c_char {
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
     if ar.is_null() {
-        if !((*((*L).top.p).offset(-(1 as libc::c_int as isize))).val.tt_ as libc::c_int
+        if !((*((*L).top).offset(-(1 as libc::c_int as isize))).val.tt_ as libc::c_int
             == 6 as libc::c_int
                 | (0 as libc::c_int) << 4 as libc::c_int
                 | (1 as libc::c_int) << 6 as libc::c_int)
@@ -242,7 +240,7 @@ pub unsafe extern "C" fn lua_getlocal(
             name = 0 as *const libc::c_char;
         } else {
             name = luaF_getlocalname(
-                (*((*((*L).top.p).offset(-(1 as libc::c_int as isize)))
+                (*((*((*L).top).offset(-(1 as libc::c_int as isize)))
                     .val
                     .value_
                     .gc as *mut LClosure))
@@ -255,8 +253,8 @@ pub unsafe extern "C" fn lua_getlocal(
         let mut pos: StkId = 0 as StkId;
         name = luaG_findlocal(L, (*ar).i_ci, n, &mut pos);
         if !name.is_null() {
-            let mut io1: *mut TValue = &mut (*(*L).top.p).val;
-            let mut io2: *const TValue = &mut (*pos).val;
+            let mut io1: *mut TValue = &raw mut (*(*L).top).val;
+            let mut io2: *const TValue = &raw mut (*pos).val;
             (*io1).value_ = (*io2).value_;
             (*io1).tt_ = (*io2).tt_;
             api_incr_top(L);
@@ -265,8 +263,7 @@ pub unsafe extern "C" fn lua_getlocal(
     return name;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn lua_setlocal(
+pub unsafe fn lua_setlocal(
     mut L: *mut Thread,
     mut ar: *const lua_Debug,
     mut n: libc::c_int,
@@ -275,12 +272,11 @@ pub unsafe extern "C" fn lua_setlocal(
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
     name = luaG_findlocal(L, (*ar).i_ci, n, &mut pos);
     if !name.is_null() {
-        let mut io1: *mut TValue = &mut (*pos).val;
-        let mut io2: *const TValue = &mut (*((*L).top.p).offset(-(1 as libc::c_int as isize))).val;
+        let mut io1: *mut TValue = &raw mut (*pos).val;
+        let mut io2: *const TValue = &raw mut (*((*L).top).offset(-1)).val;
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
-        (*L).top.p = ((*L).top.p).offset(-1);
-        (*L).top.p;
+        (*L).top = ((*L).top).offset(-1);
     }
     return name;
 }
@@ -341,13 +337,13 @@ unsafe fn collectvalidlines(
     if !(!f.is_null()
         && (*f).tt as libc::c_int == 6 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int)
     {
-        (*(*L).top.p).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+        (*(*L).top).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
         api_incr_top(L);
     } else {
         let mut p: *const Proto = (*(f as *mut LClosure)).p;
         let mut currentline: libc::c_int = (*p).linedefined;
         let mut t: *mut Table = luaH_new(L)?;
-        let mut io: *mut TValue = &mut (*(*L).top.p).val;
+        let mut io: *mut TValue = &raw mut (*(*L).top).val;
         let mut x_: *mut Table = t;
         (*io).value_.gc = x_ as *mut GCObject;
         (*io).tt_ = (5 as libc::c_int
@@ -478,13 +474,12 @@ pub unsafe fn lua_getinfo(
     let mut func: *mut TValue = 0 as *mut TValue;
     if *what as libc::c_int == '>' as i32 {
         ci = 0 as *mut CallInfo;
-        func = &mut (*((*L).top.p).offset(-(1 as libc::c_int as isize))).val;
+        func = &raw mut (*((*L).top).offset(-(1 as libc::c_int as isize))).val;
         what = what.offset(1);
-        (*L).top.p = ((*L).top.p).offset(-1);
-        (*L).top.p;
+        (*L).top = ((*L).top).offset(-1);
     } else {
         ci = (*ar).i_ci;
-        func = &mut (*(*ci).func.p).val;
+        func = &raw mut (*(*ci).func).val;
     }
     cl = if (*func).tt_ as libc::c_int
         == 6 as libc::c_int
@@ -501,7 +496,7 @@ pub unsafe fn lua_getinfo(
     };
     status = auxgetinfo(L, what, ar, cl, ci);
     if !(strchr(what, 'f' as i32)).is_null() {
-        let mut io1: *mut TValue = &mut (*(*L).top.p).val;
+        let mut io1: *mut TValue = &raw mut (*(*L).top).val;
         let mut io2: *const TValue = func;
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
@@ -891,7 +886,7 @@ unsafe extern "C" fn funcnamefromcall(
     } else if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
         return funcnamefromcode(
             L,
-            (*((*(*ci).func.p).val.value_.gc as *mut LClosure)).p,
+            (*((*(*ci).func).val.value_.gc as *mut LClosure)).p,
             currentpc(ci),
             name,
         );
@@ -901,9 +896,9 @@ unsafe extern "C" fn funcnamefromcall(
 }
 unsafe extern "C" fn instack(mut ci: *mut CallInfo, mut o: *const TValue) -> libc::c_int {
     let mut pos: libc::c_int = 0;
-    let mut base: StkId = ((*ci).func.p).offset(1 as libc::c_int as isize);
+    let mut base: StkId = ((*ci).func).offset(1 as libc::c_int as isize);
     pos = 0 as libc::c_int;
-    while base.offset(pos as isize) < (*ci).top.p {
+    while base.offset(pos as isize) < (*ci).top {
         if o == &mut (*base.offset(pos as isize)).val as *mut TValue as *const TValue {
             return pos;
         }
@@ -917,7 +912,7 @@ unsafe fn getupvalname(
     mut o: *const TValue,
     mut name: *mut *const libc::c_char,
 ) -> *const libc::c_char {
-    let mut c: *mut LClosure = (*(*ci).func.p).val.value_.gc as *mut LClosure;
+    let mut c: *mut LClosure = (*(*ci).func).val.value_.gc as *mut LClosure;
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < (*c).nupvalues as libc::c_int {
@@ -957,7 +952,7 @@ unsafe fn varinfo(mut L: *mut Thread, mut o: *const TValue) -> Cow<'static, str>
             let mut reg: libc::c_int = instack(ci, o);
             if reg >= 0 as libc::c_int {
                 kind = getobjname(
-                    (*((*(*ci).func.p).val.value_.gc as *mut LClosure)).p,
+                    (*((*(*ci).func).val.value_.gc as *mut LClosure)).p,
                     currentpc(ci),
                     reg,
                     &mut name,
@@ -1118,7 +1113,7 @@ pub unsafe fn luaG_runerror(
         luaG_addinfo(
             L,
             fmt,
-            (*(*((*(*ci).func.p).val.value_.gc as *mut LClosure)).p).source,
+            (*(*((*(*ci).func).val.value_.gc as *mut LClosure)).p).source,
             getcurrentline(ci),
         )
     } else {
@@ -1156,7 +1151,7 @@ unsafe extern "C" fn changedline(
 
 pub unsafe fn luaG_tracecall(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut ci: *mut CallInfo = (*L).ci;
-    let mut p: *mut Proto = (*((*(*ci).func.p).val.value_.gc as *mut LClosure)).p;
+    let mut p: *mut Proto = (*((*(*ci).func).val.value_.gc as *mut LClosure)).p;
     ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 1 as libc::c_int);
     if (*ci).u.savedpc == (*p).code as *const u32 {
         if (*p).is_vararg != 0 {
@@ -1174,7 +1169,7 @@ pub unsafe fn luaG_traceexec(
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut ci: *mut CallInfo = (*L).ci;
     let mut mask: u8 = (*L).hookmask.get() as u8;
-    let mut p: *const Proto = (*((*(*ci).func.p).val.value_.gc as *mut LClosure)).p;
+    let mut p: *const Proto = (*((*(*ci).func).val.value_.gc as *mut LClosure)).p;
     let mut counthook: libc::c_int = 0;
     if mask as libc::c_int
         & ((1 as libc::c_int) << 2 as libc::c_int | (1 as libc::c_int) << 3 as libc::c_int)
@@ -1211,7 +1206,7 @@ pub unsafe fn luaG_traceexec(
             as libc::c_int
             == 0 as libc::c_int)
     {
-        (*L).top.p = (*ci).top.p;
+        (*L).top = (*ci).top;
     }
     if counthook != 0 {
         luaD_hook(
