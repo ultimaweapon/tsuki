@@ -136,10 +136,7 @@ pub unsafe fn lua_closethread(L: *mut Thread) -> Result<(), Box<dyn std::error::
     (*L).top.p = ((*L).stack.p).offset(1 as libc::c_int as isize);
     (*ci).top.p = ((*L).top.p).offset(20 as libc::c_int as isize);
 
-    luaD_reallocstack(
-        L,
-        ((*ci).top.p).offset_from((*L).stack.p) as libc::c_long as libc::c_int,
-    );
+    luaD_reallocstack(L, ((*ci).top.p).offset_from_unsigned((*L).stack.p));
 
     return status;
 }

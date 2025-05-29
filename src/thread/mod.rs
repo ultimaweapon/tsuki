@@ -65,11 +65,10 @@ impl Drop for Thread {
 
         // Free stack.
         let layout = Layout::array::<StackValue>(unsafe {
-            (self.stack_last.p.offset_from(self.stack.p) + 5) as usize
+            self.stack_last.p.offset_from_unsigned(self.stack.p) + 5
         })
         .unwrap();
 
         unsafe { std::alloc::dealloc(self.stack.p.cast(), layout) };
-        unsafe { (*self.l_G).gc.decrease_debt(layout.size()) };
     }
 }

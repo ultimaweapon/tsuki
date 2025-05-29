@@ -117,7 +117,7 @@ unsafe fn pushglobalfuncname(
     )?;
     luaL_checkstack(
         L,
-        6 as libc::c_int,
+        6,
         b"not enough stack\0" as *const u8 as *const libc::c_char,
     )?;
     if findfield(L, top + 1 as libc::c_int, 2 as libc::c_int)? != 0 {
@@ -572,7 +572,7 @@ pub unsafe fn luaL_checkoption<'a>(
 
 pub unsafe fn luaL_checkstack(
     mut L: *mut Thread,
-    mut space: libc::c_int,
+    space: usize,
     mut msg: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if lua_checkstack(L, space).is_err() {
@@ -1105,7 +1105,7 @@ pub unsafe fn luaL_setfuncs(
 ) -> Result<(), Box<dyn std::error::Error>> {
     luaL_checkstack(
         L,
-        nup,
+        nup.try_into().unwrap(),
         b"too many upvalues\0" as *const u8 as *const libc::c_char,
     )?;
 

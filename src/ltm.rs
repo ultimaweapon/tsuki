@@ -409,14 +409,16 @@ pub unsafe fn luaT_adjustvarargs(
         ((*L).top.p).offset_from((*ci).func.p) as libc::c_long as libc::c_int - 1 as libc::c_int;
     let mut nextra: libc::c_int = actual - nfixparams;
     (*ci).u.nextraargs = nextra;
+
     if ((((*L).stack_last.p).offset_from((*L).top.p) as libc::c_long
         <= ((*p).maxstacksize as libc::c_int + 1 as libc::c_int) as libc::c_long)
         as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
+        != 0) as libc::c_int as libc::c_long
         != 0
     {
-        luaD_growstack(L, c_int::from((*p).maxstacksize) + 1)?;
+        luaD_growstack(L, usize::from((*p).maxstacksize) + 1)?;
     }
+
     let fresh0 = (*L).top.p;
     (*L).top.p = ((*L).top.p).offset(1);
     let mut io1: *mut TValue = &mut (*fresh0).val;
@@ -449,6 +451,7 @@ pub unsafe fn luaT_getvarargs(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
     let mut nextra: libc::c_int = (*ci).u.nextraargs;
+
     if wanted < 0 as libc::c_int {
         wanted = nextra;
         if ((((*L).stack_last.p).offset_from((*L).top.p) as libc::c_long <= nextra as libc::c_long)
@@ -463,7 +466,7 @@ pub unsafe fn luaT_getvarargs(
                 luaC_step(L);
             }
 
-            luaD_growstack(L, nextra)?;
+            luaD_growstack(L, nextra.try_into().unwrap())?;
             where_0 = ((*L).stack.p as *mut libc::c_char).offset(t__ as isize) as StkId;
         }
         (*L).top.p = where_0.offset(nextra as isize);

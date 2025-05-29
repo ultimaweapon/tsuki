@@ -330,7 +330,7 @@ unsafe fn str_byte(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Erro
     n = pose.wrapping_sub(posi) as libc::c_int + 1 as libc::c_int;
     luaL_checkstack(
         L,
-        n,
+        n.try_into().unwrap(),
         b"string slice too long\0" as *const u8 as *const libc::c_char,
     )?;
     i = 0 as libc::c_int;
@@ -1342,25 +1342,23 @@ unsafe fn push_captures(
     mut s: *const libc::c_char,
     mut e: *const libc::c_char,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut i: libc::c_int = 0;
-    let mut nlevels: libc::c_int = if (*ms).level as libc::c_int == 0 as libc::c_int && !s.is_null()
-    {
-        1 as libc::c_int
+    let mut nlevels = if (*ms).level as libc::c_int == 0 as libc::c_int && !s.is_null() {
+        1
     } else {
-        (*ms).level as libc::c_int
+        usize::from((*ms).level)
     };
+
     luaL_checkstack(
         (*ms).L,
         nlevels,
         b"too many captures\0" as *const u8 as *const libc::c_char,
     )?;
-    i = 0 as libc::c_int;
-    while i < nlevels {
-        push_onecapture(ms, i, s, e)?;
-        i += 1;
-        i;
+
+    for i in 0..nlevels {
+        push_onecapture(ms, i.try_into().unwrap(), s, e)?;
     }
-    return Ok(nlevels);
+
+    Ok(nlevels.try_into().unwrap())
 }
 
 unsafe extern "C" fn nospecials(mut p: *const libc::c_char, mut l: usize) -> libc::c_int {
@@ -2758,7 +2756,7 @@ unsafe fn str_unpack(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Er
         pos = pos.wrapping_add(ntoalign as usize);
         luaL_checkstack(
             L,
-            2 as libc::c_int,
+            2,
             b"too many results\0" as *const u8 as *const libc::c_char,
         )?;
         n += 1;

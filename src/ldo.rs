@@ -12,7 +12,7 @@ use crate::Thread;
 use crate::gc::luaC_step;
 use crate::ldebug::{luaG_callerror, luaG_runerror};
 use crate::lfunc::{luaF_close, luaF_initupvals};
-use crate::lmem::{luaM_free_, luaM_realloc_, luaM_saferealloc_};
+use crate::lmem::{luaM_free_, luaM_saferealloc_};
 use crate::lobject::{CClosure, LClosure, Proto, StackValue, StkId, TValue, UpVal};
 use crate::lparser::{C2RustUnnamed_9, Dyndata, Labeldesc, Labellist, Vardesc, luaY_parser};
 use crate::lstate::{CallInfo, lua_CFunction, lua_Debug, lua_Hook, luaE_extendCI, luaE_shrinkCI};
@@ -21,6 +21,7 @@ use crate::lundump::luaU_undump;
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, luaZ_fill};
 use libc::strchr;
+use std::alloc::{Layout, handle_alloc_error};
 use std::ffi::{CStr, c_char, c_int};
 
 #[repr(C)]
@@ -87,50 +88,51 @@ unsafe fn correctstack(L: *mut Thread) {
     }
 }
 
-pub unsafe fn luaD_reallocstack(L: *mut Thread, newsize: c_int) {
-    let oldsize: libc::c_int =
-        ((*L).stack_last.p).offset_from((*L).stack.p) as libc::c_long as libc::c_int;
-    let mut i: libc::c_int = 0;
-    let mut newstack: StkId = 0 as *mut StackValue;
-    let oldgcstop: libc::c_int = (*(*L).l_G).gcstopem.get() as libc::c_int;
-    relstack(L);
-    (*(*L).l_G).gcstopem.set(1 as libc::c_int as u8);
-    newstack = luaM_realloc_(
-        L,
-        (*L).stack.p as *mut libc::c_void,
-        ((oldsize + 5 as libc::c_int) as usize).wrapping_mul(::core::mem::size_of::<StackValue>()),
-        ((newsize + 5 as libc::c_int) as usize).wrapping_mul(::core::mem::size_of::<StackValue>()),
+pub unsafe fn luaD_reallocstack(th: *mut Thread, newsize: usize) {
+    let lua = (*th).l_G;
+    let oldsize = ((*th).stack_last.p).offset_from_unsigned((*th).stack.p);
+    let oldgcstop: libc::c_int = (*lua).gcstopem.get() as libc::c_int;
+
+    relstack(th);
+    (*lua).gcstopem.set(1 as libc::c_int as u8);
+
+    // Re-allocate the stack.
+    let newstack = std::alloc::realloc(
+        (*th).stack.p.cast(),
+        Layout::array::<StackValue>(oldsize + 5).unwrap(),
+        (newsize + 5) * size_of::<StackValue>(),
     ) as *mut StackValue;
-    (*(*L).l_G).gcstopem.set(oldgcstop as u8);
-    if ((newstack == 0 as *mut libc::c_void as StkId) as libc::c_int != 0 as libc::c_int)
-        as libc::c_int as libc::c_long
-        != 0
-    {
-        correctstack(L);
-        todo!("use handle_alloc_error");
+
+    if newstack.is_null() {
+        handle_alloc_error(Layout::array::<StackValue>(newsize + 5).unwrap());
     }
-    (*L).stack.p = newstack;
-    correctstack(L);
-    (*L).stack_last.p = ((*L).stack.p).offset(newsize as isize);
-    i = oldsize + 5 as libc::c_int;
-    while i < newsize + 5 as libc::c_int {
-        (*newstack.offset(i as isize)).val.tt_ =
-            (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+
+    (*th).stack.p = newstack;
+    correctstack(th);
+    (*th).stack_last.p = ((*th).stack.p).add(newsize);
+
+    (*lua).gcstopem.set(oldgcstop as u8);
+
+    // Fill the new space with nil.
+    let mut i = oldsize + 5;
+
+    while i < newsize + 5 {
+        (*newstack.add(i)).val.tt_ = 0 | 0 << 4;
         i += 1;
     }
 }
 
-pub unsafe fn luaD_growstack(L: *mut Thread, n: c_int) -> Result<(), Box<dyn std::error::Error>> {
-    let size = ((*L).stack_last.p).offset_from((*L).stack.p) as libc::c_long as libc::c_int;
+pub unsafe fn luaD_growstack(L: *mut Thread, n: usize) -> Result<(), Box<dyn std::error::Error>> {
+    let size = ((*L).stack_last.p).offset_from_unsigned((*L).stack.p);
 
     if size > 1000000 {
         return luaG_runerror(L, "stack overflow");
     } else if n < 1000000 {
-        let mut newsize: libc::c_int = 2 as libc::c_int * size;
-        let needed = ((*L).top.p).offset_from((*L).stack.p) as libc::c_long as libc::c_int + n;
+        let mut newsize = 2 * size;
+        let needed = ((*L).top.p).offset_from_unsigned((*L).stack.p) + n;
 
-        if newsize > 1000000 as libc::c_int {
-            newsize = 1000000 as libc::c_int;
+        if newsize > 1000000 {
+            newsize = 1000000;
         }
 
         if newsize < needed {
@@ -146,42 +148,45 @@ pub unsafe fn luaD_growstack(L: *mut Thread, n: c_int) -> Result<(), Box<dyn std
     luaG_runerror(L, "stack overflow")
 }
 
-unsafe extern "C" fn stackinuse(L: *mut Thread) -> libc::c_int {
-    let mut ci: *mut CallInfo = 0 as *mut CallInfo;
-    let mut res: libc::c_int = 0;
+unsafe fn stackinuse(L: *mut Thread) -> usize {
+    let mut res = 0;
     let mut lim: StkId = (*L).top.p;
-    ci = (*L).ci;
+    let mut ci = (*L).ci;
+
     while !ci.is_null() {
         if lim < (*ci).top.p {
             lim = (*ci).top.p;
         }
         ci = (*ci).previous;
     }
-    res = lim.offset_from((*L).stack.p) as libc::c_long as libc::c_int + 1 as libc::c_int;
-    if res < 20 as libc::c_int {
-        res = 20 as libc::c_int;
+
+    res = lim.offset_from_unsigned((*L).stack.p) + 1;
+
+    if res < 20 {
+        res = 20;
     }
+
     return res;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaD_shrinkstack(L: *mut Thread) {
-    let inuse: libc::c_int = stackinuse(L);
-    let max: libc::c_int = if inuse > 1000000 as libc::c_int / 3 as libc::c_int {
-        1000000 as libc::c_int
+pub unsafe fn luaD_shrinkstack(L: *mut Thread) {
+    let inuse = stackinuse(L);
+    let max = if inuse > 1000000 / 3 {
+        1000000
     } else {
-        inuse * 3 as libc::c_int
+        inuse * 3
     };
-    if inuse <= 1000000 as libc::c_int
-        && ((*L).stack_last.p).offset_from((*L).stack.p) as libc::c_long as libc::c_int > max
-    {
-        let nsize: libc::c_int = if inuse > 1000000 as libc::c_int / 2 as libc::c_int {
-            1000000 as libc::c_int
+
+    if inuse <= 1000000 && ((*L).stack_last.p).offset_from_unsigned((*L).stack.p) > max {
+        let nsize = if inuse > 1000000 / 2 {
+            1000000
         } else {
-            inuse * 2 as libc::c_int
+            inuse * 2
         };
+
         luaD_reallocstack(L, nsize);
     }
+
     luaE_shrinkCI(L);
 }
 
@@ -554,6 +559,7 @@ pub unsafe fn luaD_pretailcall(
                 let fsize: libc::c_int = (*p).maxstacksize as libc::c_int;
                 let nfixparams: libc::c_int = (*p).numparams as libc::c_int;
                 let mut i: libc::c_int = 0;
+
                 if ((((*L).stack_last.p).offset_from((*L).top.p) as libc::c_long
                     <= (fsize - delta) as libc::c_long) as libc::c_int
                     != 0 as libc::c_int) as libc::c_int as libc::c_long
@@ -564,9 +570,10 @@ pub unsafe fn luaD_pretailcall(
                     if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
                         luaC_step(L);
                     }
-                    luaD_growstack(L, fsize - delta)?;
+                    luaD_growstack(L, (fsize - delta).try_into().unwrap())?;
                     func = ((*L).stack.p as *mut libc::c_char).offset(t__ as isize) as StkId;
                 }
+
                 (*ci).func.p = ((*ci).func.p).offset(-(delta as isize));
                 i = 0 as libc::c_int;
                 while i < narg1 {
@@ -627,12 +634,9 @@ pub unsafe fn luaD_precall(
                     as libc::c_int
                     - 1 as libc::c_int;
                 let nfixparams: libc::c_int = (*p).numparams as libc::c_int;
-                let fsize: libc::c_int = (*p).maxstacksize as libc::c_int;
-                if ((((*L).stack_last.p).offset_from((*L).top.p) as libc::c_long
-                    <= fsize as libc::c_long) as libc::c_int
-                    != 0 as libc::c_int) as libc::c_int as libc::c_long
-                    != 0
-                {
+                let fsize = usize::from((*p).maxstacksize);
+
+                if ((*L).stack_last.p).offset_from_unsigned((*L).top.p) <= fsize {
                     let t__: isize =
                         (func as *mut libc::c_char).offset_from((*L).stack.p as *mut libc::c_char);
                     if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
@@ -641,6 +645,7 @@ pub unsafe fn luaD_precall(
                     luaD_growstack(L, fsize)?;
                     func = ((*L).stack.p as *mut libc::c_char).offset(t__ as isize) as StkId;
                 }
+
                 ci = prepCallInfo(
                     L,
                     func,

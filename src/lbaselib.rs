@@ -491,7 +491,7 @@ unsafe fn generic_reader(
 
     luaL_checkstack(
         L,
-        2 as libc::c_int,
+        2,
         b"too many nested functions\0" as *const u8 as *const libc::c_char,
     )?;
     lua_pushvalue(L, 1 as libc::c_int);

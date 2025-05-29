@@ -262,7 +262,7 @@ unsafe fn tunpack(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error
 
     if n >= 2147483647 || {
         n = n.wrapping_add(1);
-        lua_checkstack(L, n as libc::c_int).is_err()
+        lua_checkstack(L, n.try_into().unwrap()).is_err()
     } {
         return luaL_error(L, "too many results to unpack");
     }

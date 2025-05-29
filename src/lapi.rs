@@ -83,20 +83,16 @@ unsafe fn index2stack(mut L: *mut Thread, mut idx: libc::c_int) -> StkId {
     };
 }
 
-pub unsafe fn lua_checkstack(
-    L: *mut Thread,
-    n: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut ci: *mut CallInfo = 0 as *mut CallInfo;
-    ci = (*L).ci;
+pub unsafe fn lua_checkstack(L: *mut Thread, n: usize) -> Result<(), Box<dyn std::error::Error>> {
+    let ci = (*L).ci;
 
-    if ((*L).stack_last.p).offset_from((*L).top.p) as libc::c_long > n as libc::c_long {
+    if ((*L).stack_last.p).offset_from_unsigned((*L).top.p) > n {
     } else {
         luaD_growstack(L, n)?;
     }
 
-    if (*ci).top.p < ((*L).top.p).offset(n as isize) {
-        (*ci).top.p = ((*L).top.p).offset(n as isize);
+    if (*ci).top.p < ((*L).top.p).add(n) {
+        (*ci).top.p = ((*L).top.p).add(n);
     }
 
     Ok(())
