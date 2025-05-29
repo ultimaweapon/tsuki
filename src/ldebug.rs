@@ -9,7 +9,6 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(unused_variables)]
-#![allow(path_statements)]
 
 use crate::ldo::{luaD_hook, luaD_hookcall};
 use crate::lfunc::luaF_getlocalname;
@@ -57,7 +56,6 @@ unsafe extern "C" fn getbaseline(
             && pc >= (*((*f).abslineinfo).offset((i + 1 as libc::c_int) as isize)).pc
         {
             i += 1;
-            i;
         }
         *basepc = (*((*f).abslineinfo).offset(i as isize)).pc;
         return (*((*f).abslineinfo).offset(i as isize)).line;
@@ -143,17 +141,19 @@ pub unsafe fn lua_getstack(
         return 0 as libc::c_int;
     }
     ci = (*L).ci;
-    while level > 0 as libc::c_int && ci != &mut (*L).base_ci as *mut CallInfo {
+
+    while level > 0 && ci != (*L).base_ci.get() {
         level -= 1;
-        level;
         ci = (*ci).previous;
     }
-    if level == 0 as libc::c_int && ci != &mut (*L).base_ci as *mut CallInfo {
+
+    if level == 0 && ci != (*L).base_ci.get() {
         status = 1 as libc::c_int;
         (*ar).i_ci = ci;
     } else {
         status = 0 as libc::c_int;
     }
+
     return status;
 }
 
@@ -373,7 +373,6 @@ unsafe fn collectvalidlines(
                 currentline = nextline(p, currentline, i);
                 luaH_setint(L, t, currentline as i64, &mut v)?;
                 i += 1;
-                i;
             }
         }
     };
@@ -464,7 +463,6 @@ unsafe fn auxgetinfo(
             }
         }
         what = what.offset(1);
-        what;
     }
     return status;
 }
@@ -482,7 +480,6 @@ pub unsafe fn lua_getinfo(
         ci = 0 as *mut CallInfo;
         func = &mut (*((*L).top.p).offset(-(1 as libc::c_int as isize))).val;
         what = what.offset(1);
-        what;
         (*L).top.p = ((*L).top.p).offset(-1);
         (*L).top.p;
     } else {
@@ -538,7 +535,6 @@ unsafe extern "C" fn findsetreg(
         != 0
     {
         lastpc -= 1;
-        lastpc;
     }
     pc = 0 as libc::c_int;
     while pc < lastpc {
@@ -597,7 +593,6 @@ unsafe extern "C" fn findsetreg(
             setreg = filterpc(pc, jmptarget);
         }
         pc += 1;
-        pc;
     }
     return setreg;
 }
@@ -913,7 +908,6 @@ unsafe extern "C" fn instack(mut ci: *mut CallInfo, mut o: *const TValue) -> lib
             return pos;
         }
         pos += 1;
-        pos;
     }
     return -(1 as libc::c_int);
 }
@@ -932,7 +926,6 @@ unsafe fn getupvalname(
             return b"upvalue\0" as *const u8 as *const libc::c_char;
         }
         i += 1;
-        i;
     }
     return 0 as *const libc::c_char;
 }
@@ -1191,7 +1184,6 @@ pub unsafe fn luaG_traceexec(
         return Ok(0 as libc::c_int);
     }
     pc = pc.offset(1);
-    pc;
     (*ci).u.savedpc = pc;
     counthook = (mask as libc::c_int & (1 as libc::c_int) << 3 as libc::c_int != 0 && {
         (*L).hookcount.set((*L).hookcount.get() - 1);

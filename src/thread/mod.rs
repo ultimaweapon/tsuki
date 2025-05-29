@@ -4,7 +4,7 @@ use crate::lmem::luaM_free_;
 use crate::lobject::{GCObject, StackValue, StkIdRel, UpVal};
 use crate::lstate::{CallInfo, lua_Hook};
 use std::alloc::Layout;
-use std::cell::Cell;
+use std::cell::{Cell, UnsafeCell};
 use std::marker::PhantomPinned;
 
 /// Lua thread (AKA coroutine).
@@ -26,7 +26,7 @@ pub struct Thread {
     pub(crate) tbclist: StkIdRel,
     pub(crate) gclist: Cell<*mut GCObject>,
     pub(crate) twups: Cell<*mut Thread>,
-    pub(crate) base_ci: CallInfo,
+    pub(crate) base_ci: UnsafeCell<CallInfo>,
     pub(crate) hook: Cell<lua_Hook>,
     pub(crate) oldpc: Cell<libc::c_int>,
     pub(crate) basehookcount: Cell<libc::c_int>,
@@ -44,7 +44,7 @@ impl Drop for Thread {
         }
 
         // Free CI.
-        self.ci = &raw mut self.base_ci;
+        self.ci = self.base_ci.get();
         let mut ci: *mut CallInfo = self.ci;
         let mut next: *mut CallInfo = unsafe { (*ci).next };
 

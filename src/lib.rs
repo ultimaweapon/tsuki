@@ -330,7 +330,7 @@ impl Lua {
         unsafe { (*td).tbclist.p = (*td).stack.p };
 
         // Setup base CI.
-        let ci = unsafe { addr_of_mut!((*td).base_ci) };
+        let ci = unsafe { (*td).base_ci.get() };
 
         unsafe { (*ci).previous = null_mut() };
         unsafe { (*ci).next = (*ci).previous };

@@ -125,7 +125,7 @@ pub unsafe fn luaE_shrinkCI(mut L: *mut Thread) {
 }
 
 pub unsafe fn lua_closethread(L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
-    (*L).ci = &mut (*L).base_ci;
+    (*L).ci = (*L).base_ci.get();
     let mut ci: *mut CallInfo = (*L).ci;
     (*(*L).stack.p).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     (*ci).func.p = (*L).stack.p;
