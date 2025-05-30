@@ -126,7 +126,7 @@ unsafe fn callclosemethod(
     mut obj: *mut TValue,
     mut err: *mut TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut top: StkId = (*L).top;
+    let mut top: StkId = (*L).top.get();
     let mut tm: *const TValue = luaT_gettmbyobj(L, obj, TM_CLOSE);
     let mut io1: *mut TValue = &mut (*top).val;
     let mut io2: *const TValue = tm;
@@ -140,7 +140,7 @@ unsafe fn callclosemethod(
     let mut io2_1: *const TValue = err;
     (*io1_1).value_ = (*io2_1).value_;
     (*io1_1).tt_ = (*io2_1).tt_;
-    (*L).top = top.offset(3 as libc::c_int as isize);
+    (*L).top.set(top.offset(3 as libc::c_int as isize));
 
     luaD_call(L, top, 0 as libc::c_int)
 }

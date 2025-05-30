@@ -1,5 +1,4 @@
 #![allow(
-    mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -621,7 +620,7 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
     if o.is_null() {
         return 1 as libc::c_int;
     }
-    while o < (*th).top {
+    while o < (*th).top.get() {
         if (*o).val.tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0
             && (*(*o).val.value_.gc).marked as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
@@ -645,7 +644,7 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
     if (*g).gcstate.get() == 2 {
         luaD_shrinkstack(th);
 
-        o = (*th).top;
+        o = (*th).top.get();
         while o < ((*th).stack_last.get()).offset(5 as libc::c_int as isize) {
             (*o).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
             o = o.offset(1);

@@ -265,8 +265,8 @@ pub unsafe fn luaX_newstring(
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
         ts = ((*(o as *mut Node)).u.key_val.gc as *mut TString);
     } else {
-        let fresh1 = (*L).top;
-        (*L).top = ((*L).top).offset(1);
+        let fresh1 = (*L).top.get();
+        (*L).top.add(1);
         let mut stv: *mut TValue = &mut (*fresh1).val;
         let mut io: *mut TValue = stv;
         let mut x_: *mut TString = ts;
@@ -276,7 +276,7 @@ pub unsafe fn luaX_newstring(
         if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
             luaC_step(L);
         }
-        (*L).top = ((*L).top).offset(-1);
+        (*L).top.sub(1);
     }
     return Ok(ts);
 }

@@ -76,9 +76,9 @@ pub unsafe fn lua_pop(td: *mut Thread, n: c_int) -> Result<(), Box<dyn std::erro
 
 #[inline(always)]
 unsafe extern "C" fn api_incr_top(td: *mut Thread) {
-    unsafe { (*td).top = ((*td).top).offset(1) };
+    unsafe { (*td).top.add(1) };
 
-    if unsafe { (*td).top > (*(*td).ci.get()).top } {
+    if unsafe { (*td).top.get() > (*(*td).ci.get()).top } {
         panic!("stack overflow");
     }
 }
@@ -253,7 +253,7 @@ impl Lua {
         }
 
         unsafe { (*td).stack.set(stack) };
-        unsafe { (*td).top = (*td).stack.get() };
+        unsafe { addr_of_mut!((*td).top).write(StackPtr::new((*td).stack.get())) };
         unsafe { addr_of_mut!((*td).stack_last).write(Cell::new((*td).stack.get().add(2 * 20))) };
         unsafe { addr_of_mut!((*td).tbclist).write(Cell::new((*td).stack.get())) };
 
@@ -263,12 +263,12 @@ impl Lua {
         unsafe { (*ci).previous = null_mut() };
         unsafe { (*ci).next = (*ci).previous };
         unsafe { (*ci).callstatus = 1 << 1 };
-        unsafe { (*ci).func = (*td).top };
+        unsafe { (*ci).func = (*td).top.get() };
         unsafe { (*ci).u.savedpc = null() };
         unsafe { (*ci).nresults = 0 };
-        unsafe { (*(*td).top).val.tt_ = 0 | 0 << 4 };
-        unsafe { (*td).top = ((*td).top).offset(1) };
-        unsafe { (*ci).top = ((*td).top).offset(20) };
+        unsafe { (*td).top.write_nil() };
+        unsafe { (*td).top.add(1) };
+        unsafe { (*ci).top = ((*td).top.get()).offset(20) };
         unsafe { (*td).ci.set(ci) };
 
         td

@@ -204,7 +204,7 @@ pub unsafe fn luaG_findlocal(
     }
     if name.is_null() {
         let mut limit: StkId = if ci == (*L).ci.get() {
-            (*L).top
+            (*L).top.get()
         } else {
             (*(*ci).next).func
         };
@@ -232,7 +232,9 @@ pub unsafe fn lua_getlocal(
 ) -> *const libc::c_char {
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
     if ar.is_null() {
-        if !((*((*L).top).offset(-(1 as libc::c_int as isize))).val.tt_ as libc::c_int
+        if !((*((*L).top.get()).offset(-(1 as libc::c_int as isize)))
+            .val
+            .tt_ as libc::c_int
             == 6 as libc::c_int
                 | (0 as libc::c_int) << 4 as libc::c_int
                 | (1 as libc::c_int) << 6 as libc::c_int)
@@ -240,7 +242,7 @@ pub unsafe fn lua_getlocal(
             name = 0 as *const libc::c_char;
         } else {
             name = luaF_getlocalname(
-                (*((*((*L).top).offset(-(1 as libc::c_int as isize)))
+                (*((*((*L).top.get()).offset(-(1 as libc::c_int as isize)))
                     .val
                     .value_
                     .gc as *mut LClosure))
@@ -253,7 +255,7 @@ pub unsafe fn lua_getlocal(
         let mut pos: StkId = 0 as StkId;
         name = luaG_findlocal(L, (*ar).i_ci, n, &mut pos);
         if !name.is_null() {
-            let mut io1: *mut TValue = &raw mut (*(*L).top).val;
+            let mut io1: *mut TValue = &raw mut (*(*L).top.get()).val;
             let mut io2: *const TValue = &raw mut (*pos).val;
             (*io1).value_ = (*io2).value_;
             (*io1).tt_ = (*io2).tt_;
@@ -273,10 +275,10 @@ pub unsafe fn lua_setlocal(
     name = luaG_findlocal(L, (*ar).i_ci, n, &mut pos);
     if !name.is_null() {
         let mut io1: *mut TValue = &raw mut (*pos).val;
-        let mut io2: *const TValue = &raw mut (*((*L).top).offset(-1)).val;
+        let mut io2: *const TValue = &raw mut (*((*L).top.get()).offset(-1)).val;
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
-        (*L).top = ((*L).top).offset(-1);
+        (*L).top.sub(1);
     }
     return name;
 }
@@ -337,13 +339,14 @@ unsafe fn collectvalidlines(
     if !(!f.is_null()
         && (*f).tt as libc::c_int == 6 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int)
     {
-        (*(*L).top).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+        (*(*L).top.get()).val.tt_ =
+            (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
         api_incr_top(L);
     } else {
         let mut p: *const Proto = (*(f as *mut LClosure)).p;
         let mut currentline: libc::c_int = (*p).linedefined;
         let mut t: *mut Table = luaH_new(L)?;
-        let mut io: *mut TValue = &raw mut (*(*L).top).val;
+        let mut io: *mut TValue = &raw mut (*(*L).top.get()).val;
         let mut x_: *mut Table = t;
         (*io).value_.gc = x_ as *mut GCObject;
         (*io).tt_ = (5 as libc::c_int
@@ -474,9 +477,9 @@ pub unsafe fn lua_getinfo(
     let mut func: *mut TValue = 0 as *mut TValue;
     if *what as libc::c_int == '>' as i32 {
         ci = 0 as *mut CallInfo;
-        func = &raw mut (*((*L).top).offset(-(1 as libc::c_int as isize))).val;
+        func = &raw mut (*((*L).top.get()).offset(-(1 as libc::c_int as isize))).val;
         what = what.offset(1);
-        (*L).top = ((*L).top).offset(-1);
+        (*L).top.sub(1);
     } else {
         ci = (*ar).i_ci;
         func = &raw mut (*(*ci).func).val;
@@ -496,7 +499,7 @@ pub unsafe fn lua_getinfo(
     };
     status = auxgetinfo(L, what, ar, cl, ci);
     if !(strchr(what, 'f' as i32)).is_null() {
-        let mut io1: *mut TValue = &raw mut (*(*L).top).val;
+        let mut io1: *mut TValue = &raw mut (*(*L).top.get()).val;
         let mut io2: *const TValue = func;
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
@@ -1207,7 +1210,7 @@ pub unsafe fn luaG_traceexec(
             as libc::c_int
             == 0 as libc::c_int)
     {
-        (*L).top = (*ci).top;
+        (*L).top.set((*ci).top);
     }
     if counthook != 0 {
         luaD_hook(

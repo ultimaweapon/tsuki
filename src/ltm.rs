@@ -188,7 +188,7 @@ pub unsafe fn luaT_callTM(
     mut p2: *const TValue,
     mut p3: *const TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut func: StkId = (*L).top;
+    let mut func: StkId = (*L).top.get();
     let mut io1: *mut TValue = &mut (*func).val;
     let mut io2: *const TValue = f;
     (*io1).value_ = (*io2).value_;
@@ -205,7 +205,7 @@ pub unsafe fn luaT_callTM(
     let mut io2_2: *const TValue = p3;
     (*io1_2).value_ = (*io2_2).value_;
     (*io1_2).tt_ = (*io2_2).tt_;
-    (*L).top = func.offset(4 as libc::c_int as isize);
+    (*L).top.set(func.offset(4 as libc::c_int as isize));
 
     luaD_call(L, func, 0 as libc::c_int)
 }
@@ -219,7 +219,7 @@ pub unsafe fn luaT_callTMres(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut result: isize =
         (res as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
-    let mut func: StkId = (*L).top;
+    let mut func: StkId = (*L).top.get();
     let mut io1: *mut TValue = &raw mut (*func).val;
     let mut io2: *const TValue = f;
     (*io1).value_ = (*io2).value_;
@@ -232,14 +232,14 @@ pub unsafe fn luaT_callTMres(
     let mut io2_1: *const TValue = p2;
     (*io1_1).value_ = (*io2_1).value_;
     (*io1_1).tt_ = (*io2_1).tt_;
-    (*L).top = ((*L).top).offset(3 as libc::c_int as isize);
+    (*L).top.add(3);
 
     luaD_call(L, func, 1 as libc::c_int)?;
 
     res = ((*L).stack.get() as *mut libc::c_char).offset(result as isize) as StkId;
-    let mut io1_2: *mut TValue = &mut (*res).val;
-    (*L).top = ((*L).top).offset(-1);
-    let mut io2_2: *const TValue = &raw mut (*(*L).top).val;
+    let mut io1_2: *mut TValue = &raw mut (*res).val;
+    (*L).top.sub(1);
+    let mut io2_2: *const TValue = &raw mut (*(*L).top.get()).val;
     (*io1_2).value_ = (*io2_2).value_;
     (*io1_2).tt_ = (*io2_2).tt_;
 
@@ -293,7 +293,7 @@ pub unsafe fn luaT_trybinTM(
 }
 
 pub unsafe fn luaT_tryconcatTM(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
-    let mut top: StkId = (*L).top;
+    let mut top: StkId = (*L).top.get();
     if ((callbinTM(
         L,
         &mut (*top.offset(-(2 as libc::c_int as isize))).val,
@@ -355,10 +355,10 @@ pub unsafe fn luaT_callorderTM(
     mut p2: *const TValue,
     mut event: TMS,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
-    if callbinTM(L, p1, p2, (*L).top, event)? != 0 {
-        return Ok(!((*(*L).top).val.tt_ as libc::c_int
+    if callbinTM(L, p1, p2, (*L).top.get(), event)? != 0 {
+        return Ok(!((*(*L).top.get()).val.tt_ as libc::c_int
             == 1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
-            || (*(*L).top).val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int)
+            || (*(*L).top.get()).val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int)
             as libc::c_int);
     }
     luaG_ordererror(L, p1, p2)?;
@@ -406,11 +406,11 @@ pub unsafe fn luaT_adjustvarargs(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
     let mut actual: libc::c_int =
-        ((*L).top).offset_from((*ci).func) as libc::c_long as libc::c_int - 1 as libc::c_int;
+        ((*L).top.get()).offset_from((*ci).func) as libc::c_long as libc::c_int - 1 as libc::c_int;
     let mut nextra: libc::c_int = actual - nfixparams;
     (*ci).u.nextraargs = nextra;
 
-    if ((((*L).stack_last.get()).offset_from((*L).top) as libc::c_long
+    if ((((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
         <= ((*p).maxstacksize as libc::c_int + 1 as libc::c_int) as libc::c_long)
         as libc::c_int
         != 0) as libc::c_int as libc::c_long
@@ -419,16 +419,16 @@ pub unsafe fn luaT_adjustvarargs(
         luaD_growstack(L, usize::from((*p).maxstacksize) + 1)?;
     }
 
-    let fresh0 = (*L).top;
-    (*L).top = ((*L).top).offset(1);
+    let fresh0 = (*L).top.get();
+    (*L).top.add(1);
     let mut io1: *mut TValue = &raw mut (*fresh0).val;
     let mut io2: *const TValue = &raw mut (*(*ci).func).val;
     (*io1).value_ = (*io2).value_;
     (*io1).tt_ = (*io2).tt_;
     i = 1 as libc::c_int;
     while i <= nfixparams {
-        let fresh1 = (*L).top;
-        (*L).top = ((*L).top).offset(1);
+        let fresh1 = (*L).top.get();
+        (*L).top.add(1);
         let mut io1_0: *mut TValue = &raw mut (*fresh1).val;
         let mut io2_0: *const TValue = &raw mut (*((*ci).func).offset(i as isize)).val;
         (*io1_0).value_ = (*io2_0).value_;
@@ -455,7 +455,9 @@ pub unsafe fn luaT_getvarargs(
     if wanted < 0 as libc::c_int {
         wanted = nextra;
 
-        if ((*L).stack_last.get()).offset_from((*L).top) as libc::c_long <= nextra as libc::c_long {
+        if ((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
+            <= nextra as libc::c_long
+        {
             let mut t__: isize =
                 (where_0 as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
 
@@ -466,7 +468,7 @@ pub unsafe fn luaT_getvarargs(
             luaD_growstack(L, nextra.try_into().unwrap())?;
             where_0 = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
         }
-        (*L).top = where_0.offset(nextra as isize);
+        (*L).top.set(where_0.offset(nextra as isize));
     }
     i = 0 as libc::c_int;
     while i < wanted && i < nextra {

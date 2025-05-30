@@ -1,3 +1,5 @@
+pub use self::stack::*;
+
 use crate::Lua;
 use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
@@ -6,6 +8,8 @@ use crate::lstate::{CallInfo, lua_Hook};
 use std::alloc::Layout;
 use std::cell::{Cell, UnsafeCell};
 use std::marker::PhantomPinned;
+
+mod stack;
 
 /// Lua thread (AKA coroutine).
 #[repr(C)]
@@ -17,7 +21,7 @@ pub struct Thread {
     pub(crate) handle: Cell<usize>,
     pub(crate) allowhook: Cell<u8>,
     pub(crate) nci: Cell<libc::c_ushort>,
-    pub(crate) top: StkId,
+    pub(crate) top: StackPtr,
     pub(crate) ci: Cell<*mut CallInfo>,
     pub(crate) stack_last: Cell<StkId>,
     pub(crate) stack: Cell<StkId>,
