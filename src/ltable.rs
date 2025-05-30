@@ -22,6 +22,7 @@ use crate::lvm::{F2Ieq, luaV_flttointeger};
 use crate::{Lua, Thread};
 use libm::frexp;
 use std::alloc::Layout;
+use std::cell::Cell;
 use std::ffi::{c_int, c_uint};
 
 static mut dummynode_: Node = Node {
@@ -575,7 +576,7 @@ pub unsafe fn luaH_resize(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: libc::c_uint = 0;
     let mut newt = Table {
-        next: 0 as *mut GCObject,
+        next: Cell::new(0 as *mut GCObject),
         tt: 0,
         marked: 0,
         refs: 0,

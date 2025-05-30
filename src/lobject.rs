@@ -19,6 +19,7 @@ use crate::lvm::{
 use crate::{Thread, api_incr_top};
 use libc::{c_char, c_int, memcpy, sprintf, strchr, strpbrk, strspn, strtod};
 use libm::{floor, pow};
+use std::cell::Cell;
 
 pub type StkId = *mut StackValue;
 
@@ -49,7 +50,7 @@ pub union Value {
 
 #[repr(C)]
 pub struct GCObject {
-    pub next: *mut GCObject,
+    pub next: Cell<*mut GCObject>,
     pub tt: u8,
     pub marked: u8,
     pub refs: usize,
@@ -65,7 +66,7 @@ pub struct TValue {
 
 #[repr(C)]
 pub struct UpVal {
-    pub next: *mut GCObject,
+    pub next: Cell<*mut GCObject>,
     pub tt: u8,
     pub marked: u8,
     pub refs: usize,
@@ -90,7 +91,7 @@ pub struct C2RustUnnamed_6 {
 
 #[repr(C)]
 pub struct TString {
-    pub next: *mut GCObject,
+    pub next: Cell<*mut GCObject>,
     pub tt: u8,
     pub marked: u8,
     pub refs: usize,
@@ -111,7 +112,7 @@ pub union C2RustUnnamed_8 {
 
 #[repr(C)]
 pub struct Table {
-    pub next: *mut GCObject,
+    pub next: Cell<*mut GCObject>,
     pub tt: u8,
     pub marked: u8,
     pub refs: usize,
@@ -156,7 +157,7 @@ pub union UValue {
 
 #[repr(C)]
 pub struct Udata {
-    pub next: *mut GCObject,
+    pub next: Cell<*mut GCObject>,
     pub tt: u8,
     pub marked: u8,
     pub refs: usize,
@@ -194,7 +195,7 @@ pub struct AbsLineInfo {
 
 #[repr(C)]
 pub struct Proto {
-    pub next: *mut GCObject,
+    pub next: Cell<*mut GCObject>,
     pub tt: u8,
     pub marked: u8,
     pub refs: usize,
@@ -224,7 +225,7 @@ pub struct Proto {
 
 #[repr(C)]
 pub struct CClosure {
-    pub next: *mut GCObject,
+    pub next: Cell<*mut GCObject>,
     pub tt: u8,
     pub marked: u8,
     pub refs: usize,
@@ -237,7 +238,7 @@ pub struct CClosure {
 
 #[repr(C)]
 pub struct LClosure {
-    pub next: *mut GCObject,
+    pub next: Cell<*mut GCObject>,
     pub tt: u8,
     pub marked: u8,
     pub refs: usize,

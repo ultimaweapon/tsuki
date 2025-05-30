@@ -22,7 +22,7 @@ use std::alloc::{Layout, handle_alloc_error};
 use std::cell::Cell;
 use std::mem::offset_of;
 use std::ops::Deref;
-use std::ptr::null_mut;
+use std::ptr::{addr_of_mut, null_mut};
 
 mod handle;
 
@@ -106,8 +106,8 @@ pub(crate) unsafe fn luaC_barrierback_(L: *mut Thread, o: *mut GCObject) {
 pub(crate) unsafe fn luaC_fix(g: &Lua, o: *mut GCObject) {
     (*o).marked = (*o).marked & !(1 << 5 | (1 << 3 | 1 << 4));
     (*o).marked = ((*o).marked as libc::c_int & !(7 as libc::c_int) | 4 as libc::c_int) as u8;
-    (*g).gc.allgc.set((*o).next);
-    (*o).next = (*g).fixedgc.get();
+    (*g).gc.allgc.set((*o).next.get());
+    (*o).next.set((*g).fixedgc.get());
     (*g).fixedgc.set(o);
 }
 
@@ -882,11 +882,11 @@ unsafe fn sweeplist(
         let marked = (*curr).marked;
 
         if marked & ow != 0 {
-            *p = (*curr).next;
+            *p = (*curr).next.get();
             freeobj(g, curr);
         } else {
             (*curr).marked = marked & !(1 << 5 | (1 << 3 | 1 << 4) | 7) | white;
-            p = &raw mut (*curr).next;
+            p = (*curr).next.as_ptr();
         }
 
         i += 1;
@@ -945,7 +945,7 @@ unsafe fn entersweep(L: *mut Thread) {
 
 unsafe fn deletelist(g: &Lua, mut p: *mut GCObject, limit: *mut GCObject) {
     while p != limit {
-        let next: *mut GCObject = (*p).next;
+        let next: *mut GCObject = (*p).next.get();
         freeobj(g, p);
         p = next;
     }
@@ -1173,7 +1173,7 @@ impl Gc {
         unsafe { (*o).tt = tt };
         unsafe { (*o).refs = 0 };
         unsafe { (*o).handle = 0 };
-        unsafe { (*o).next = self.allgc.get() };
+        unsafe { addr_of_mut!((*o).next).write(Cell::new(self.allgc.get())) };
 
         self.allgc.set(o);
         self.debt
