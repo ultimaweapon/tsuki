@@ -14,11 +14,7 @@ mod stack;
 /// Lua thread (AKA coroutine).
 #[repr(C)]
 pub struct Thread {
-    pub(crate) next: Cell<*mut GCObject>,
-    pub(crate) tt: Cell<u8>,
-    pub(crate) marked: Cell<u8>,
-    pub(crate) refs: Cell<usize>,
-    pub(crate) handle: Cell<usize>,
+    pub(crate) hdr: GCObject,
     pub(crate) allowhook: Cell<u8>,
     pub(crate) nci: Cell<libc::c_ushort>,
     pub(crate) top: StackPtr,

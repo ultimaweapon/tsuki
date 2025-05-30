@@ -576,11 +576,13 @@ pub unsafe fn luaH_resize(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: libc::c_uint = 0;
     let mut newt = Table {
-        next: Cell::new(0 as *mut GCObject),
-        tt: 0,
-        marked: 0,
-        refs: 0,
-        handle: 0,
+        hdr: GCObject {
+            next: Cell::new(0 as *mut GCObject),
+            tt: 0,
+            marked: 0,
+            refs: 0,
+            handle: 0,
+        },
         flags: 0,
         lsizenode: 0,
         alimit: 0,
@@ -800,7 +802,7 @@ unsafe fn luaH_newkey(
     (*n_).u.key_val = (*io_).value_;
     (*n_).u.key_tt = (*io_).tt_;
     if (*key).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
-        if (*t).marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        if (*t).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
             && (*(*key).value_.gc).marked as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
@@ -869,9 +871,8 @@ pub unsafe fn luaH_getshortstr(mut t: *mut Table, mut key: *mut TString) -> *con
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaH_getstr(mut t: *mut Table, mut key: *mut TString) -> *const TValue {
-    if (*key).tt as libc::c_int == 4 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
+pub unsafe fn luaH_getstr(mut t: *mut Table, mut key: *mut TString) -> *const TValue {
+    if (*key).hdr.tt as libc::c_int == 4 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
         return luaH_getshortstr(t, key);
     } else {
         let mut ko: TValue = TValue {
@@ -883,13 +884,12 @@ pub unsafe extern "C" fn luaH_getstr(mut t: *mut Table, mut key: *mut TString) -
         let mut io: *mut TValue = &mut ko;
         let mut x_: *mut TString = key;
         (*io).value_.gc = x_ as *mut GCObject;
-        (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+        (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         return getgeneric(t, &mut ko, 0 as libc::c_int);
     };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaH_get(mut t: *mut Table, mut key: *const TValue) -> *const TValue {
+pub unsafe fn luaH_get(mut t: *mut Table, mut key: *const TValue) -> *const TValue {
     match (*key).tt_ as libc::c_int & 0x3f as libc::c_int {
         4 => return luaH_getshortstr(t, (*key).value_.gc as *mut TString),
         3 => return luaH_getint(t, (*key).value_.i),

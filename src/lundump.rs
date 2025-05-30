@@ -137,7 +137,8 @@ unsafe fn loadStringN(
             let mut io: *mut TValue = &raw mut (*(*L).top.get()).val;
             let mut x_: *mut TString = ts;
             (*io).value_.gc = x_ as *mut GCObject;
-            (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+            (*io).tt_ =
+                ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
             luaD_inctop(L)?;
             loadBlock(
                 S,
@@ -147,8 +148,8 @@ unsafe fn loadStringN(
             (*L).top.sub(1);
         }
     }
-    if (*p).marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-        && (*ts).marked as libc::c_int
+    if (*p).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        && (*ts).hdr.marked as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
@@ -249,7 +250,7 @@ unsafe fn loadConstants(
                 let mut x_: *mut TString = loadString(S, f)?;
                 (*io_1).value_.gc = x_ as *mut GCObject;
                 (*io_1).tt_ =
-                    ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+                    ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
             }
             _ => {}
         }
@@ -289,8 +290,8 @@ unsafe fn loadProtos(
     while i < n {
         let ref mut fresh3 = *((*f).p).offset(i as isize);
         *fresh3 = luaF_newproto((*S).L);
-        if (*f).marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-            && (**((*f).p).offset(i as isize)).marked as libc::c_int
+        if (*f).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+            && (**((*f).p).offset(i as isize)).hdr.marked as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
@@ -557,8 +558,8 @@ pub unsafe fn luaU_undump(
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     luaD_inctop(L)?;
     (*cl).p = luaF_newproto(L);
-    if (*cl).marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-        && (*(*cl).p).marked as libc::c_int
+    if (*cl).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        && (*(*cl).p).hdr.marked as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {

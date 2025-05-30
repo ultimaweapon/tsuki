@@ -409,7 +409,7 @@ pub unsafe fn luaV_finishset(
                     & !!(!(0 as libc::c_uint) << TM_EQ as libc::c_int + 1 as libc::c_int))
                     as u8;
                 if (*val).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
-                    if (*h).marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+                    if (*h).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
                         && (*(*val).value_.gc).marked as libc::c_int
                             & ((1 as libc::c_int) << 3 as libc::c_int
                                 | (1 as libc::c_int) << 4 as libc::c_int)
@@ -979,7 +979,8 @@ pub unsafe fn luaV_concat(
             let mut io: *mut TValue = &mut (*top.offset(-(n as isize))).val;
             let mut x_: *mut TString = ts;
             (*io).value_.gc = (x_ as *mut GCObject);
-            (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+            (*io).tt_ =
+                ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         }
         total -= n - 1 as libc::c_int;
         (*L).top.sub((n - 1).try_into().unwrap());
@@ -1153,8 +1154,10 @@ unsafe extern "C" fn pushclosure(
             let ref mut fresh1 = *((*ncl).upvals).as_mut_ptr().offset(i as isize);
             *fresh1 = *encup.offset((*uv.offset(i as isize)).idx as isize);
         }
-        if (*ncl).marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-            && (**((*ncl).upvals).as_mut_ptr().offset(i as isize)).marked as libc::c_int
+        if (*ncl).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+            && (**((*ncl).upvals).as_mut_ptr().offset(i as isize))
+                .hdr
+                .marked as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
@@ -1514,7 +1517,8 @@ pub unsafe fn luaV_execute(
                         if (*ra_9).val.tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int
                             != 0
                         {
-                            if (*uv).marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int
+                            if (*uv).hdr.marked as libc::c_int
+                                & (1 as libc::c_int) << 5 as libc::c_int
                                 != 0
                                 && (*(*ra_9).val.value_.gc).marked as libc::c_int
                                     & ((1 as libc::c_int) << 3 as libc::c_int
@@ -5525,7 +5529,7 @@ pub unsafe fn luaV_execute(
                             if (*val).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int
                                 != 0
                             {
-                                if (*h).marked as libc::c_int
+                                if (*h).hdr.marked as libc::c_int
                                     & (1 as libc::c_int) << 5 as libc::c_int
                                     != 0
                                     && (*(*val).value_.gc).marked as libc::c_int

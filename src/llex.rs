@@ -271,7 +271,7 @@ pub unsafe fn luaX_newstring(
         let mut io: *mut TValue = stv;
         let mut x_: *mut TString = ts;
         (*io).value_.gc = (x_ as *mut GCObject);
-        (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+        (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         luaH_finishset(L, (*ls).h, stv, o, stv)?;
         if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
             luaC_step(L);
@@ -1173,7 +1173,7 @@ unsafe fn llex(
                     }
                     ts = luaX_newstring(ls, (*(*ls).buff).buffer, (*(*ls).buff).n)?;
                     (*seminfo).ts = ts;
-                    if (*ts).tt as libc::c_int
+                    if (*ts).hdr.tt as libc::c_int
                         == 4 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         && (*ts).extra as libc::c_int > 0 as libc::c_int
                     {

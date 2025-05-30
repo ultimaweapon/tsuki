@@ -134,7 +134,8 @@ pub unsafe extern "C" fn luaK_exp2const(
             let mut io: *mut TValue = v;
             let mut x_: *mut TString = (*e).u.strval;
             (*io).value_.gc = x_ as *mut GCObject;
-            (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+            (*io).tt_ =
+                ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
             return 1 as libc::c_int;
         }
         11 => {
@@ -795,7 +796,7 @@ unsafe fn addk(
     (*fs).nk += 1;
     (*fs).nk;
     if (*v).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
-        if (*f).marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        if (*f).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
             && (*(*v).value_.gc).marked as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
@@ -821,7 +822,7 @@ unsafe fn stringK(
     let mut io: *mut TValue = &mut o;
     let mut x_: *mut TString = s;
     (*io).value_.gc = x_ as *mut GCObject;
-    (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+    (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     return addk(fs, &mut o, &mut o);
 }
 

@@ -226,7 +226,9 @@ pub unsafe fn lua_copy(L: *mut Thread, fromidx: libc::c_int, toidx: libc::c_int)
     (*io1).tt_ = (*io2).tt_;
     if toidx < -(1000000 as libc::c_int) - 1000 as libc::c_int {
         if (*fr).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
-            if (*((*(*(*L).ci.get()).func).val.value_.gc as *mut CClosure)).marked as libc::c_int
+            if (*((*(*(*L).ci.get()).func).val.value_.gc as *mut CClosure))
+                .hdr
+                .marked as libc::c_int
                 & (1 as libc::c_int) << 5 as libc::c_int
                 != 0
                 && (*(*fr).value_.gc).marked as libc::c_int
@@ -579,7 +581,7 @@ pub unsafe fn lua_pushlstring(
     let io: *mut TValue = &raw mut (*(*L).top.get()).val;
     let x_: *mut TString = ts;
     (*io).value_.gc = x_ as *mut GCObject;
-    (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+    (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     api_incr_top(L);
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
         luaC_step(L);
@@ -600,7 +602,7 @@ pub unsafe fn lua_pushstring(
         let io: *mut TValue = &raw mut (*(*L).top.get()).val;
         let x_: *mut TString = ts;
         (*io).value_.gc = x_ as *mut GCObject;
-        (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+        (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         s = ((*ts).contents).as_mut_ptr();
     }
     api_incr_top(L);
@@ -702,7 +704,7 @@ unsafe fn auxgetstr(
         let io: *mut TValue = &raw mut (*(*L).top.get()).val;
         let x_: *mut TString = str;
         (*io).value_.gc = x_ as *mut GCObject;
-        (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+        (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         api_incr_top(L);
         luaV_finishget(
             L,
@@ -1012,7 +1014,7 @@ unsafe fn auxsetstr(
         let io: *mut TValue = &raw mut (*(*L).top.get()).val;
         let x_: *mut TString = str;
         (*io).value_.gc = x_ as *mut GCObject;
-        (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+        (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         api_incr_top(L);
         luaV_finishset(
             L,
@@ -1206,7 +1208,7 @@ unsafe fn aux_rawset(
         & (1 as libc::c_int) << 6 as libc::c_int
         != 0
     {
-        if (*t).marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        if (*t).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
             && (*(*((*L).top.get()).offset(-(1 as libc::c_int as isize)))
                 .val
                 .value_
@@ -1272,7 +1274,7 @@ pub unsafe fn lua_rawseti(
         & (1 as libc::c_int) << 6 as libc::c_int
         != 0
     {
-        if (*t).marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        if (*t).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
             && (*(*((*L).top.get()).offset(-(1 as libc::c_int as isize)))
                 .val
                 .value_
@@ -1321,7 +1323,7 @@ pub unsafe fn lua_setmetatable(
                 if (*(*obj).value_.gc).marked as libc::c_int
                     & (1 as libc::c_int) << 5 as libc::c_int
                     != 0
-                    && (*mt).marked as libc::c_int
+                    && (*mt).hdr.marked as libc::c_int
                         & ((1 as libc::c_int) << 3 as libc::c_int
                             | (1 as libc::c_int) << 4 as libc::c_int)
                         != 0
@@ -1334,10 +1336,10 @@ pub unsafe fn lua_setmetatable(
             let ref mut fresh4 = (*((*obj).value_.gc as *mut Udata)).metatable;
             *fresh4 = mt;
             if !mt.is_null() {
-                if (*((*obj).value_.gc as *mut Udata)).marked as libc::c_int
+                if (*((*obj).value_.gc as *mut Udata)).hdr.marked as libc::c_int
                     & (1 as libc::c_int) << 5 as libc::c_int
                     != 0
-                    && (*mt).marked as libc::c_int
+                    && (*mt).hdr.marked as libc::c_int
                         & ((1 as libc::c_int) << 3 as libc::c_int
                             | (1 as libc::c_int) << 4 as libc::c_int)
                         != 0
@@ -1472,8 +1474,9 @@ pub unsafe fn lua_load(
             (*io1).value_ = (*io2).value_;
             (*io1).tt_ = (*io2).tt_;
             if (*gt).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
-                if (**((*f).upvals).as_mut_ptr().offset(0 as libc::c_int as isize)).marked
-                    as libc::c_int
+                if (**((*f).upvals).as_mut_ptr().offset(0 as libc::c_int as isize))
+                    .hdr
+                    .marked as libc::c_int
                     & (1 as libc::c_int) << 5 as libc::c_int
                     != 0
                     && (*(*gt).value_.gc).marked as libc::c_int
@@ -1564,7 +1567,7 @@ pub unsafe fn lua_concat(L: *mut Thread, n: c_int) -> Result<(), Box<dyn std::er
             0 as libc::c_int as usize,
         )?;
         (*io).value_.gc = x_ as *mut GCObject;
-        (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+        (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         api_incr_top(L);
     }
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
@@ -1775,8 +1778,8 @@ pub unsafe fn lua_upvaluejoin(
     let up1: *mut *mut UpVal = getupvalref(L, fidx1, n1, &mut f1);
     let up2: *mut *mut UpVal = getupvalref(L, fidx2, n2, 0 as *mut *mut LClosure);
     *up1 = *up2;
-    if (*f1).marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-        && (**up1).marked as libc::c_int
+    if (*f1).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        && (**up1).hdr.marked as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
