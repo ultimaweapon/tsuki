@@ -43,7 +43,8 @@ unsafe fn relstack(L: *mut Thread) {
     let mut up: *mut UpVal = 0 as *mut UpVal;
 
     (*L).top = ((*L).top).byte_offset_from_unsigned((*L).stack) as _;
-    (*L).tbclist = ((*L).tbclist).byte_offset_from_unsigned((*L).stack) as _;
+    (*L).tbclist
+        .set(((*L).tbclist.get()).byte_offset_from_unsigned((*L).stack) as _);
 
     up = (*L).openupval.get();
 
@@ -66,7 +67,8 @@ unsafe fn correctstack(L: *mut Thread) {
     let mut up: *mut UpVal = 0 as *mut UpVal;
 
     (*L).top = ((*L).stack).byte_add((*L).top as usize) as StkId;
-    (*L).tbclist = ((*L).stack).byte_add((*L).tbclist as usize) as StkId;
+    (*L).tbclist
+        .set(((*L).stack).byte_add((*L).tbclist.get() as usize) as StkId);
 
     up = (*L).openupval.get();
 

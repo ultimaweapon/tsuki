@@ -152,11 +152,15 @@ pub unsafe fn lua_settop(
     } else {
         diff = (idx + 1 as libc::c_int) as isize;
     }
+
     newtop = ((*L).top).offset(diff as isize);
-    if diff < 0 as libc::c_int as isize && (*L).tbclist >= newtop {
+
+    if diff < 0 as libc::c_int as isize && (*L).tbclist.get() >= newtop {
         newtop = luaF_close(L, newtop)?;
     }
+
     (*L).top = newtop;
+
     Ok(())
 }
 

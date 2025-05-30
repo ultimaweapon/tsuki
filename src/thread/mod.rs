@@ -22,7 +22,7 @@ pub struct Thread {
     pub(crate) stack_last: StkId,
     pub(crate) stack: StkId,
     pub(crate) openupval: Cell<*mut UpVal>,
-    pub(crate) tbclist: StkId,
+    pub(crate) tbclist: Cell<StkId>,
     pub(crate) gclist: Cell<*mut GCObject>,
     pub(crate) twups: Cell<*mut Thread>,
     pub(crate) base_ci: UnsafeCell<CallInfo>,
