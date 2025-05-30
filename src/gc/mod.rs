@@ -14,7 +14,7 @@ use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
 use crate::lobject::{
     CClosure, GCObject, LClosure, Node, Proto, StkId, TString, TValue, Table, UValue, Udata, UpVal,
 };
-use crate::lstring::{luaS_clearcache, luaS_remove};
+use crate::lstring::luaS_remove;
 use crate::ltable::{luaH_free, luaH_realasize};
 use crate::ltm::{TM_MODE, luaT_gettm};
 use crate::{Lua, Thread};
@@ -1003,7 +1003,6 @@ unsafe fn atomic(L: *mut Thread) -> usize {
     clearbykeys(g, g.allweak.get());
     clearbyvalues(g, g.weak.get(), origweak);
     clearbyvalues(g, g.allweak.get(), origall);
-    luaS_clearcache(g);
 
     g.gc.currentwhite
         .set(g.gc.currentwhite() ^ (1 << 3 | 1 << 4));

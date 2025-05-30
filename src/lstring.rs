@@ -13,7 +13,7 @@ use crate::gc::luaC_fix;
 use crate::lmem::{luaM_malloc_, luaM_realloc_, luaM_toobig};
 use crate::lobject::{GCObject, TString, Table, UValue, Udata};
 use crate::{Lua, StringTable, Thread};
-use libc::{memcmp, memcpy, strcmp, strlen};
+use libc::{memcmp, memcpy, strlen};
 use std::alloc::Layout;
 use std::mem::offset_of;
 
@@ -111,29 +111,8 @@ pub unsafe fn luaS_resize(mut L: *mut Thread, mut nsize: libc::c_int) {
     };
 }
 
-pub unsafe fn luaS_clearcache(g: *const Lua) {
-    let mut i: libc::c_int = 0;
-    let mut j: libc::c_int = 0;
-    i = 0 as libc::c_int;
-
-    while i < 53 as libc::c_int {
-        j = 0 as libc::c_int;
-
-        while j < 2 as libc::c_int {
-            if (*(*g).strcache[i as usize][j as usize].get()).marked & (1 << 3 | 1 << 4) != 0 {
-                (*g).strcache[i as usize][j as usize].set((*g).memerrmsg.get());
-            }
-            j += 1;
-        }
-
-        i += 1;
-    }
-}
-
 pub unsafe fn luaS_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
     let g = (*L).global;
-    let mut i: libc::c_int = 0;
-    let mut j: libc::c_int = 0;
     let mut tb = (*g).strt.get();
 
     (*tb).hash = luaM_malloc_(
@@ -153,17 +132,6 @@ pub unsafe fn luaS_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Er
     )?);
 
     luaC_fix(&*(*L).global, (*g).memerrmsg.get() as *mut GCObject);
-
-    i = 0 as libc::c_int;
-
-    while i < 53 as libc::c_int {
-        j = 0 as libc::c_int;
-        while j < 2 as libc::c_int {
-            (*g).strcache[i as usize][j as usize].set((*g).memerrmsg.get());
-            j += 1;
-        }
-        i += 1;
-    }
 
     Ok(())
 }
@@ -314,29 +282,7 @@ pub unsafe fn luaS_new(
     mut L: *mut Thread,
     mut str: *const libc::c_char,
 ) -> Result<*mut TString, Box<dyn std::error::Error>> {
-    let mut i = ((str as usize & 0xffffffff) as libc::c_uint).wrapping_rem(53);
-    let mut j: libc::c_int = 0;
-    let p = &((*(*L).global).strcache[i as usize]);
-
-    for v in p {
-        if strcmp(str, ((*v.get()).contents).as_mut_ptr()) == 0 {
-            return Ok(v.get());
-        }
-    }
-
-    j = 2 as libc::c_int - 1 as libc::c_int;
-
-    while j > 0 as libc::c_int {
-        let ref fresh3 = p[j as usize];
-        fresh3.set(p[(j - 1) as usize].get());
-        j -= 1;
-    }
-
-    let ref fresh4 = p[0];
-
-    fresh4.set(luaS_newlstr(L, str, strlen(str) as _)?);
-
-    return Ok(p[0].get());
+    luaS_newlstr(L, str, strlen(str))
 }
 
 pub unsafe fn luaS_newudata(
