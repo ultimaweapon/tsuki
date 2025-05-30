@@ -263,7 +263,7 @@ pub unsafe extern "C" fn luaF_closeupval(mut L: *mut Thread, mut level: StkId) {
 unsafe fn poptbclist(mut L: *mut Thread) {
     let mut tbc: StkId = (*L).tbclist.get();
     tbc = tbc.offset(-((*tbc).tbclist.delta as libc::c_int as isize));
-    while tbc > (*L).stack && (*tbc).tbclist.delta as libc::c_int == 0 as libc::c_int {
+    while tbc > (*L).stack.get() && (*tbc).tbclist.delta as libc::c_int == 0 as libc::c_int {
         tbc = tbc.offset(
             -(((256 as libc::c_ulong)
                 << (::core::mem::size_of::<libc::c_ushort>() as libc::c_ulong)
@@ -279,7 +279,8 @@ pub unsafe fn luaF_close(
     mut L: *mut Thread,
     mut level: StkId,
 ) -> Result<StkId, Box<dyn std::error::Error>> {
-    let mut levelrel = (level as *mut libc::c_char).offset_from((*L).stack as *mut libc::c_char);
+    let mut levelrel =
+        (level as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
 
     luaF_closeupval(L, level);
 
@@ -287,7 +288,7 @@ pub unsafe fn luaF_close(
         let mut tbc: StkId = (*L).tbclist.get();
         poptbclist(L);
         prepcallclosemth(L, tbc)?;
-        level = ((*L).stack as *mut libc::c_char).offset(levelrel as isize) as StkId;
+        level = ((*L).stack.get() as *mut libc::c_char).offset(levelrel as isize) as StkId;
     }
 
     return Ok(level);

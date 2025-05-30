@@ -610,7 +610,7 @@ unsafe fn traverseLclosure(g: *const Lua, cl: *mut LClosure) -> libc::c_int {
 
 unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
     let mut uv: *mut UpVal = 0 as *mut UpVal;
-    let mut o: StkId = (*th).stack;
+    let mut o: StkId = (*th).stack.get();
     if (*th).marked.get() & 7 > 1 || (*g).gcstate.get() == 0 {
         linkgclist_(
             th as *mut GCObject,
@@ -655,8 +655,8 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
             (*g).twups.set(th);
         }
     }
-    return 1 as libc::c_int
-        + ((*th).stack_last).offset_from((*th).stack) as libc::c_long as libc::c_int;
+
+    1 + ((*th).stack_last).offset_from((*th).stack.get()) as libc::c_long as libc::c_int
 }
 
 unsafe fn propagatemark(g: &Lua) -> usize {

@@ -227,7 +227,7 @@ impl Lua {
         let td = unsafe { self.gc.alloc(8, Layout::new::<Thread>()) as *mut Thread };
 
         unsafe { (*td).global = self.deref() };
-        unsafe { (*td).stack = null_mut() };
+        unsafe { addr_of_mut!((*td).stack).write(Cell::new(null_mut())) };
         unsafe { (*td).ci = null_mut() };
         unsafe { addr_of_mut!((*td).nci).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*td).gclist).write(Cell::new(null_mut())) };
@@ -252,10 +252,10 @@ impl Lua {
             unsafe { (*stack.offset(i)).val.tt_ = 0 | 0 << 4 };
         }
 
-        unsafe { (*td).stack = stack };
-        unsafe { (*td).top = (*td).stack };
-        unsafe { (*td).stack_last = ((*td).stack).offset(2 * 20) };
-        unsafe { addr_of_mut!((*td).tbclist).write(Cell::new((*td).stack)) };
+        unsafe { (*td).stack.set(stack) };
+        unsafe { (*td).top = (*td).stack.get() };
+        unsafe { (*td).stack_last = ((*td).stack.get()).offset(2 * 20) };
+        unsafe { addr_of_mut!((*td).tbclist).write(Cell::new((*td).stack.get())) };
 
         // Setup base CI.
         let ci = unsafe { (*td).base_ci.get() };

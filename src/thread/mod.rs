@@ -20,7 +20,7 @@ pub struct Thread {
     pub(crate) top: StkId,
     pub(crate) ci: *mut CallInfo,
     pub(crate) stack_last: StkId,
-    pub(crate) stack: StkId,
+    pub(crate) stack: Cell<StkId>,
     pub(crate) openupval: Cell<*mut UpVal>,
     pub(crate) tbclist: Cell<StkId>,
     pub(crate) gclist: Cell<*mut GCObject>,
@@ -37,9 +37,9 @@ pub struct Thread {
 
 impl Drop for Thread {
     fn drop(&mut self) {
-        unsafe { luaF_closeupval(self, self.stack) };
+        unsafe { luaF_closeupval(self, self.stack.get()) };
 
-        if self.stack.is_null() {
+        if self.stack.get().is_null() {
             return;
         }
 
@@ -65,10 +65,10 @@ impl Drop for Thread {
 
         // Free stack.
         let layout = Layout::array::<StackValue>(unsafe {
-            self.stack_last.offset_from_unsigned(self.stack) + 5
+            self.stack_last.offset_from_unsigned(self.stack.get()) + 5
         })
         .unwrap();
 
-        unsafe { std::alloc::dealloc(self.stack.cast(), layout) };
+        unsafe { std::alloc::dealloc(self.stack.get().cast(), layout) };
     }
 }

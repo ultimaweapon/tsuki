@@ -1402,7 +1402,7 @@ pub unsafe fn lua_pcall(
     let c: CallS = CallS { func, nresults };
     let status = luaD_pcall(
         L,
-        (c.func as *mut libc::c_char).offset_from((*L).stack as *mut libc::c_char),
+        (c.func as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char),
         |L| luaD_call(L, c.func, c.nresults),
     );
 

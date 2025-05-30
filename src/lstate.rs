@@ -127,16 +127,17 @@ pub unsafe fn luaE_shrinkCI(mut L: *mut Thread) {
 pub unsafe fn lua_closethread(L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
     (*L).ci = (*L).base_ci.get();
     let mut ci: *mut CallInfo = (*L).ci;
-    (*(*L).stack).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
-    (*ci).func = (*L).stack;
+
+    (*(*L).stack.get()).val.tt_ = 0 | 0 << 4;
+    (*ci).func = (*L).stack.get();
     (*ci).callstatus = ((1 as libc::c_int) << 1 as libc::c_int) as libc::c_ushort;
 
     let status = luaD_closeprotected(L, 1, Ok(()));
 
-    (*L).top = ((*L).stack).offset(1 as libc::c_int as isize);
+    (*L).top = ((*L).stack.get()).offset(1 as libc::c_int as isize);
     (*ci).top = ((*L).top).offset(20 as libc::c_int as isize);
 
-    luaD_reallocstack(L, ((*ci).top).offset_from_unsigned((*L).stack));
+    luaD_reallocstack(L, ((*ci).top).offset_from_unsigned((*L).stack.get()));
 
     return status;
 }

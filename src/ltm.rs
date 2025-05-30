@@ -217,7 +217,8 @@ pub unsafe fn luaT_callTMres(
     mut p2: *const TValue,
     mut res: StkId,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut result: isize = (res as *mut libc::c_char).offset_from((*L).stack as *mut libc::c_char);
+    let mut result: isize =
+        (res as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
     let mut func: StkId = (*L).top;
     let mut io1: *mut TValue = &raw mut (*func).val;
     let mut io2: *const TValue = f;
@@ -235,7 +236,7 @@ pub unsafe fn luaT_callTMres(
 
     luaD_call(L, func, 1 as libc::c_int)?;
 
-    res = ((*L).stack as *mut libc::c_char).offset(result as isize) as StkId;
+    res = ((*L).stack.get() as *mut libc::c_char).offset(result as isize) as StkId;
     let mut io1_2: *mut TValue = &mut (*res).val;
     (*L).top = ((*L).top).offset(-1);
     let mut io2_2: *const TValue = &raw mut (*(*L).top).val;
@@ -459,14 +460,14 @@ pub unsafe fn luaT_getvarargs(
             != 0
         {
             let mut t__: isize =
-                (where_0 as *mut libc::c_char).offset_from((*L).stack as *mut libc::c_char);
+                (where_0 as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
 
             if (*(*L).global).gc.debt() > 0 {
                 luaC_step(L);
             }
 
             luaD_growstack(L, nextra.try_into().unwrap())?;
-            where_0 = ((*L).stack as *mut libc::c_char).offset(t__ as isize) as StkId;
+            where_0 = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
         }
         (*L).top = where_0.offset(nextra as isize);
     }
