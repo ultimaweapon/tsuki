@@ -22,11 +22,6 @@ fn error() {
 }
 
 #[test]
-fn gc() {
-    run("gc.lua").unwrap();
-}
-
-#[test]
 fn math() {
     run("math.lua").unwrap();
 }
@@ -39,6 +34,11 @@ fn print() {
 #[test]
 fn strings() {
     run("strings.lua").unwrap();
+}
+
+#[test]
+fn vararg() {
+    run("vararg.lua").unwrap();
 }
 
 fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {

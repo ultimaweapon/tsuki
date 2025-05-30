@@ -9,10 +9,12 @@ Tsuki is a port of vanilla Lua 5.4 to Rust. This is porting, not binding; which 
 
 - Any error propagated to the caller via Rust `Result` instead of a long jump.
 - All values owned by Rust will exempt from GC automatically (no need to move it to Lua registry).
+  - Beware that it is possible for memory to leak if a user data or closure that owned by Lua contains this value that and it has a reference to itself (either directly or indirectly).
 
 ## Differences from vanilla Lua
 
 - Panic when memory allocation is failed without retry.
+- GC has only one mode and no `collectgarbage` in basic library.
 - First argument of `error` accept only a string.
 - No `xpcall` in basic library.
 - `warn` is enabled by default without message prefixes and does not support control message.

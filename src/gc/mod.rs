@@ -21,7 +21,6 @@ use crate::{Lua, Thread};
 use libc::strchr;
 use std::alloc::{Layout, handle_alloc_error};
 use std::cell::Cell;
-use std::ffi::c_int;
 use std::mem::offset_of;
 use std::ops::Deref;
 use std::ptr::null_mut;
@@ -79,7 +78,7 @@ pub(crate) unsafe fn luaC_barrier_(L: *mut Thread, o: *mut GCObject, v: *mut GCO
             (*v).marked =
                 ((*v).marked as libc::c_int & !(7 as libc::c_int) | 2 as libc::c_int) as u8;
         }
-    } else if (*g).gckind.get() == 0 {
+    } else {
         (*o).marked = ((*o).marked as libc::c_int
             & !((1 as libc::c_int) << 5 as libc::c_int
                 | ((1 as libc::c_int) << 3 as libc::c_int
@@ -939,319 +938,6 @@ unsafe fn setpause(g: *const Lua) {
     (*g).gc.set_debt(debt);
 }
 
-unsafe fn sweep2old(L: *mut Thread, mut p: *mut *mut GCObject) {
-    let mut curr: *mut GCObject = 0 as *mut GCObject;
-    let g = (*L).l_G;
-    loop {
-        curr = *p;
-        if curr.is_null() {
-            break;
-        }
-        if (*curr).marked & (1 << 3 | 1 << 4) != 0 {
-            *p = (*curr).next;
-            freeobj(g, curr);
-        } else {
-            (*curr).marked =
-                ((*curr).marked as libc::c_int & !(7 as libc::c_int) | 4 as libc::c_int) as u8;
-            if (*curr).tt as libc::c_int
-                == 8 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
-            {
-                let th: *mut Thread = curr as *mut Thread;
-                linkgclist_(
-                    th as *mut GCObject,
-                    (*th).gclist.as_ptr(),
-                    (*g).grayagain.as_ptr(),
-                );
-            } else if (*curr).tt as libc::c_int
-                == 9 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
-                && (*(curr as *mut UpVal)).v.p
-                    != &mut (*(curr as *mut UpVal)).u.value as *mut TValue
-            {
-                (*curr).marked = ((*curr).marked as libc::c_int
-                    & !((1 as libc::c_int) << 5 as libc::c_int
-                        | ((1 as libc::c_int) << 3 as libc::c_int
-                            | (1 as libc::c_int) << 4 as libc::c_int)) as u8
-                        as libc::c_int) as u8;
-            } else {
-                (*curr).marked =
-                    ((*curr).marked as libc::c_int | (1 as libc::c_int) << 5 as libc::c_int) as u8;
-            }
-            p = &mut (*curr).next;
-        }
-    }
-}
-
-unsafe fn sweepgen(
-    g: *const Lua,
-    mut p: *mut *mut GCObject,
-    limit: *mut GCObject,
-    pfirstold1: *mut *mut GCObject,
-) -> *mut *mut GCObject {
-    static mut nextage: [u8; 7] = [
-        1 as libc::c_int as u8,
-        3 as libc::c_int as u8,
-        3 as libc::c_int as u8,
-        4 as libc::c_int as u8,
-        4 as libc::c_int as u8,
-        5 as libc::c_int as u8,
-        6 as libc::c_int as u8,
-    ];
-    let white: libc::c_int = ((*g).gc.currentwhite() as libc::c_int
-        & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int))
-        as u8 as libc::c_int;
-    let mut curr: *mut GCObject = 0 as *mut GCObject;
-    loop {
-        curr = *p;
-        if !(curr != limit) {
-            break;
-        }
-        if (*curr).marked & (1 << 3 | 1 << 4) != 0 {
-            *p = (*curr).next;
-            freeobj(g, curr);
-        } else {
-            if (*curr).marked as libc::c_int & 7 as libc::c_int == 0 as libc::c_int {
-                let marked: libc::c_int = (*curr).marked as libc::c_int
-                    & !((1 as libc::c_int) << 5 as libc::c_int
-                        | ((1 as libc::c_int) << 3 as libc::c_int
-                            | (1 as libc::c_int) << 4 as libc::c_int)
-                        | 7 as libc::c_int);
-                (*curr).marked = (marked | 1 as libc::c_int | white) as u8;
-            } else {
-                (*curr).marked = ((*curr).marked as libc::c_int & !(7 as libc::c_int)
-                    | nextage[((*curr).marked as libc::c_int & 7 as libc::c_int) as usize]
-                        as libc::c_int) as u8;
-                if (*curr).marked as libc::c_int & 7 as libc::c_int == 3 as libc::c_int
-                    && (*pfirstold1).is_null()
-                {
-                    *pfirstold1 = curr;
-                }
-            }
-            p = &mut (*curr).next;
-        }
-    }
-    return p;
-}
-
-unsafe fn whitelist(g: *const Lua, mut p: *mut GCObject) {
-    let white = (*g).gc.currentwhite() & (1 << 3 | 1 << 4);
-
-    while !p.is_null() {
-        (*p).marked = (*p).marked & !(1 << 5 | (1 << 3 | 1 << 4) | 7) | white;
-        p = (*p).next;
-    }
-}
-
-unsafe fn correctgraylist(mut p: *mut *mut GCObject) -> *mut *mut GCObject {
-    let mut current_block: u64;
-    let mut curr: *mut GCObject = 0 as *mut GCObject;
-    loop {
-        curr = *p;
-        if curr.is_null() {
-            break;
-        }
-        let next: *mut *mut GCObject = getgclist(curr);
-        if !((*curr).marked as libc::c_int
-            & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
-            != 0)
-        {
-            if (*curr).marked as libc::c_int & 7 as libc::c_int == 5 as libc::c_int {
-                (*curr).marked =
-                    ((*curr).marked as libc::c_int | (1 as libc::c_int) << 5 as libc::c_int) as u8;
-                (*curr).marked =
-                    ((*curr).marked as libc::c_int ^ (5 as libc::c_int ^ 6 as libc::c_int)) as u8;
-                current_block = 1342372514885429604;
-            } else if (*curr).tt as libc::c_int
-                == 8 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
-            {
-                current_block = 1342372514885429604;
-            } else {
-                if (*curr).marked as libc::c_int & 7 as libc::c_int == 6 as libc::c_int {
-                    (*curr).marked = ((*curr).marked as libc::c_int
-                        ^ (6 as libc::c_int ^ 4 as libc::c_int))
-                        as u8;
-                }
-                (*curr).marked =
-                    ((*curr).marked as libc::c_int | (1 as libc::c_int) << 5 as libc::c_int) as u8;
-                current_block = 10379503568882611001;
-            }
-            match current_block {
-                10379503568882611001 => {}
-                _ => {
-                    p = next;
-                    continue;
-                }
-            }
-        }
-        *p = *next;
-    }
-    return p;
-}
-
-unsafe fn correctgraylists(g: *const Lua) {
-    let mut list: *mut *mut GCObject = correctgraylist((*g).grayagain.as_ptr());
-    *list = (*g).weak.get();
-    (*g).weak.set(0 as *mut GCObject);
-    list = correctgraylist(list);
-    *list = (*g).allweak.get();
-    (*g).allweak.set(0 as *mut GCObject);
-    list = correctgraylist(list);
-    *list = (*g).ephemeron.get();
-    (*g).ephemeron.set(0 as *mut GCObject);
-    correctgraylist(list);
-}
-
-unsafe fn markold(g: *const Lua, from: *mut GCObject, to: *mut GCObject) {
-    let mut p: *mut GCObject = 0 as *mut GCObject;
-    p = from;
-    while p != to {
-        if (*p).marked as libc::c_int & 7 as libc::c_int == 3 as libc::c_int {
-            (*p).marked =
-                ((*p).marked as libc::c_int ^ (3 as libc::c_int ^ 4 as libc::c_int)) as u8;
-            if (*p).marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0 {
-                reallymarkobject(g, p);
-            }
-        }
-        p = (*p).next;
-    }
-}
-
-unsafe fn finishgencycle(g: *const Lua) {
-    correctgraylists(g);
-    (*g).gcstate.set(0);
-}
-
-unsafe fn youngcollection(L: *mut Thread, g: *const Lua) {
-    let mut psurvival: *mut *mut GCObject = 0 as *mut *mut GCObject;
-    if !((*g).firstold1.get()).is_null() {
-        markold(g, (*g).firstold1.get(), (*g).reallyold.get());
-        (*g).firstold1.set(0 as *mut GCObject);
-    }
-
-    atomic(L);
-    (*g).gcstate.set(3);
-    psurvival = sweepgen(
-        g,
-        (*g).gc.allgc.as_ptr(),
-        (*g).survival.get(),
-        (*g).firstold1.as_ptr(),
-    );
-    sweepgen(g, psurvival, (*g).old1.get(), (*g).firstold1.as_ptr());
-    (*g).reallyold.set((*g).old1.get());
-    (*g).old1.set(*psurvival);
-    (*g).survival.set((*g).gc.allgc.get());
-
-    finishgencycle(g);
-}
-
-unsafe fn atomic2gen(L: *mut Thread, g: *const Lua) {
-    cleargraylists(&*g);
-    (*g).gcstate.set(3);
-    sweep2old(L, (*g).gc.allgc.as_ptr());
-    (*g).survival.set((*g).gc.allgc.get());
-    (*g).old1.set((*g).survival.get());
-    (*g).reallyold.set((*g).old1.get());
-    (*g).firstold1.set(0 as *mut GCObject);
-    (*g).gckind.set(1);
-    (*g).lastatomic.set(0);
-    (*g).GCestimate
-        .set(((*g).gc.totalbytes.get() + (*g).gc.debt.get()) as usize);
-    finishgencycle(g);
-}
-
-unsafe fn setminordebt(g: *const Lua) {
-    (*g).gc.set_debt(
-        -((((*g).gc.totalbytes.get() + (*g).gc.debt.get()) as usize / 100) as isize
-            * (*g).genminormul.get() as isize),
-    );
-}
-
-unsafe fn entergen(L: *mut Thread, g: *const Lua) -> usize {
-    let mut numobjs: usize = 0;
-    luaC_runtilstate(L, (1 as libc::c_int) << 8 as libc::c_int);
-    luaC_runtilstate(L, (1 as libc::c_int) << 0 as libc::c_int);
-    numobjs = atomic(L);
-    atomic2gen(L, g);
-    setminordebt(g);
-    return numobjs;
-}
-
-unsafe fn enterinc(g: *const Lua) {
-    whitelist(g, (*g).gc.allgc.get());
-    (*g).survival.set(0 as *mut GCObject);
-    (*g).old1.set((*g).survival.get());
-    (*g).reallyold.set((*g).old1.get());
-    (*g).gcstate.set(8);
-    (*g).gckind.set(0);
-    (*g).lastatomic.set(0);
-}
-
-pub(crate) unsafe fn luaC_changemode(L: *mut Thread, newmode: libc::c_int) {
-    let g = (*L).l_G;
-    if newmode != (*g).gckind.get() as libc::c_int {
-        if newmode == 1 {
-            entergen(L, g);
-        } else {
-            enterinc(g);
-        }
-    }
-    (*g).lastatomic.set(0);
-}
-
-unsafe fn fullgen(L: *mut Thread, g: *const Lua) -> usize {
-    enterinc(g);
-    return entergen(L, g);
-}
-
-unsafe fn stepgenfull(L: *mut Thread, g: *const Lua) {
-    let mut newatomic: usize = 0;
-    let lastatomic: usize = (*g).lastatomic.get();
-
-    if (*g).gckind.get() == 1 {
-        enterinc(g);
-    }
-
-    luaC_runtilstate(L, (1 as libc::c_int) << 0 as libc::c_int);
-    newatomic = atomic(L);
-    if newatomic < lastatomic.wrapping_add(lastatomic >> 3 as libc::c_int) {
-        atomic2gen(L, g);
-        setminordebt(g);
-    } else {
-        (*g).GCestimate
-            .set(((*g).gc.totalbytes.get() + (*g).gc.debt.get()) as usize);
-        entersweep(L);
-        luaC_runtilstate(L, (1 as libc::c_int) << 8 as libc::c_int);
-        setpause(g);
-        (*g).lastatomic.set(newatomic);
-    };
-}
-
-unsafe fn genstep(L: *mut Thread, g: *const Lua) {
-    if (*g).lastatomic.get() != 0 {
-        stepgenfull(L, g);
-    } else {
-        let majorbase: usize = (*g).GCestimate.get();
-        let majorinc: usize =
-            majorbase / 100 as usize * ((*g).genmajormul.get() as libc::c_int * 4) as usize;
-
-        if (*g).gc.debt.get() > 0
-            && ((*g).gc.totalbytes.get() + (*g).gc.debt.get()) as usize
-                > majorbase.wrapping_add(majorinc)
-        {
-            let numobjs: usize = fullgen(L, g);
-            if !((((*g).gc.totalbytes.get() + (*g).gc.debt.get()) as usize)
-                < majorbase.wrapping_add(majorinc / 2 as libc::c_int as usize))
-            {
-                (*g).lastatomic.set(numobjs);
-                setpause(g);
-            }
-        } else {
-            youngcollection(L, g);
-            setminordebt(g);
-            (*g).GCestimate.set(majorbase);
-        }
-    };
-}
-
 unsafe fn entersweep(L: *mut Thread) {
     let g = (*L).l_G;
     (*g).gcstate.set(3);
@@ -1268,12 +954,7 @@ unsafe fn deletelist(g: &Lua, mut p: *mut GCObject, limit: *mut GCObject) {
 
 pub(crate) unsafe fn luaC_freeallobjects(g: &Lua) {
     g.gcstp.set(4);
-
-    if g.gckind.get() != 0 {
-        enterinc(g);
-    }
-
-    (*g).lastatomic.set(0);
+    g.lastatomic.set(0);
 
     deletelist(g, (*g).gc.allgc.get(), null_mut());
     deletelist(g, (*g).fixedgc.get(), null_mut());
@@ -1398,14 +1079,6 @@ unsafe fn singlestep(L: *mut Thread) -> usize {
     work
 }
 
-pub(crate) unsafe fn luaC_runtilstate(L: *mut Thread, statesmask: libc::c_int) {
-    let g = (*L).l_G;
-
-    while statesmask & (1 as libc::c_int) << (*g).gcstate.get() == 0 {
-        singlestep(L);
-    }
-}
-
 unsafe fn incstep(L: *mut Thread, g: *const Lua) {
     let stepmul: libc::c_int =
         (*g).gcstepmul.get() as libc::c_int * 4 as libc::c_int | 1 as libc::c_int;
@@ -1447,34 +1120,9 @@ pub(crate) unsafe fn luaC_step(L: *mut Thread) {
 
     if !((*g).gcstp.get() == 0) {
         (*g).gc.set_debt(-2000);
-    } else if (*g).gckind.get() == 1 || (*g).lastatomic.get() != 0 {
-        genstep(L, g);
     } else {
         incstep(L, g);
     };
-}
-
-unsafe fn fullinc(L: *mut Thread, g: *const Lua) {
-    if (*g).gcstate.get() <= 2 {
-        entersweep(L);
-    }
-
-    luaC_runtilstate(L, (1 as libc::c_int) << 8 as libc::c_int);
-    luaC_runtilstate(L, (1 as libc::c_int) << 0 as libc::c_int);
-    (*g).gcstate.set(1 as libc::c_int as u8);
-    luaC_runtilstate(L, (1 as libc::c_int) << 7 as libc::c_int);
-    luaC_runtilstate(L, (1 as libc::c_int) << 8 as libc::c_int);
-    setpause(g);
-}
-
-pub(crate) unsafe fn luaC_fullgc(L: *mut Thread) {
-    let g = (*L).l_G;
-
-    if (*g).gckind.get() == 0 {
-        fullinc(L, g);
-    } else {
-        fullgen(L, g);
-    }
 }
 
 /// Garbage Collector for Lua objects.
@@ -1498,11 +1146,6 @@ impl Gc {
     #[inline(always)]
     pub(crate) fn currentwhite(&self) -> u8 {
         self.currentwhite.get()
-    }
-
-    #[inline(always)]
-    pub(crate) fn totalbytes(&self) -> isize {
-        self.totalbytes.get()
     }
 
     #[inline(always)]
@@ -1555,19 +1198,4 @@ impl Gc {
         self.debt
             .set(self.debt.get().checked_sub_unsigned(bytes).unwrap());
     }
-}
-
-/// Command to control the garbage collector.
-pub enum GcCommand {
-    Stop,
-    Restart,
-    Collect,
-    Count,
-    CountByte,
-    Step(c_int),
-    SetPause(c_int),
-    SetStepMul(c_int),
-    GetRunning,
-    SetGen(c_int, c_int),
-    SetInc(c_int, c_int, c_int),
 }

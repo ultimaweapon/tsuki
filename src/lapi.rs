@@ -7,7 +7,7 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::gc::{luaC_barrier_, luaC_barrierback_, luaC_changemode, luaC_fullgc, luaC_step};
+use crate::gc::{luaC_barrier_, luaC_barrierback_, luaC_step};
 use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall, luaD_protectedparser};
 use crate::ldump::luaU_dump;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
@@ -27,7 +27,7 @@ use crate::lvm::{
     luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
 };
 use crate::lzio::Zio;
-use crate::{GcCommand, Thread, api_incr_top};
+use crate::{Thread, api_incr_top};
 use std::ffi::{c_int, c_void};
 use std::mem::offset_of;
 
@@ -1488,93 +1488,6 @@ pub unsafe fn lua_dump(
     } else {
         Ok(1)
     }
-}
-
-pub unsafe fn lua_gc(L: *mut Thread, cmd: GcCommand) -> libc::c_int {
-    let mut res: libc::c_int = 0 as libc::c_int;
-    let g = (*L).l_G;
-
-    if (*g).gcstp.get() & 2 != 0 {
-        return -1;
-    }
-
-    match cmd {
-        GcCommand::Stop => (*g).gcstp.set(1),
-        GcCommand::Restart => {
-            (*g).gc.set_debt(0);
-            (*g).gcstp.set(0 as libc::c_int as u8);
-        }
-        GcCommand::Collect => luaC_fullgc(L),
-        GcCommand::Count => {
-            res = (((*g).gc.totalbytes() + (*g).gc.debt()) as usize >> 10) as libc::c_int;
-        }
-        GcCommand::CountByte => {
-            res = (((*g).gc.totalbytes() + (*g).gc.debt()) as usize & 0x3ff) as libc::c_int;
-        }
-        GcCommand::Step(data) => {
-            let mut debt: isize = 1 as libc::c_int as isize;
-            let oldstp: u8 = (*g).gcstp.get();
-            (*g).gcstp.set(0 as libc::c_int as u8);
-            if data == 0 as libc::c_int {
-                (*g).gc.set_debt(0);
-                luaC_step(L);
-            } else {
-                debt = data as isize * 1024 as libc::c_int as isize + (*g).gc.debt();
-                (*g).gc.set_debt(debt);
-                if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
-                    luaC_step(L);
-                }
-            }
-            (*g).gcstp.set(oldstp);
-            if debt > 0 as libc::c_int as isize && (*g).gcstate.get() as libc::c_int == 8 {
-                res = 1 as libc::c_int;
-            }
-        }
-        GcCommand::SetPause(data_0) => {
-            res = (*g).gcpause.get() as libc::c_int * 4 as libc::c_int;
-            (*g).gcpause.set((data_0 / 4 as libc::c_int) as u8);
-        }
-        GcCommand::SetStepMul(data_1) => {
-            res = (*g).gcstepmul.get() as libc::c_int * 4 as libc::c_int;
-            (*g).gcstepmul.set((data_1 / 4 as libc::c_int) as u8);
-        }
-        GcCommand::GetRunning => {
-            res = ((*g).gcstp.get() as libc::c_int == 0 as libc::c_int) as libc::c_int;
-        }
-        GcCommand::SetGen(minormul, majormul) => {
-            res = if (*g).gckind.get() as libc::c_int == 1 || (*g).lastatomic.get() != 0 {
-                10 as libc::c_int
-            } else {
-                11 as libc::c_int
-            };
-            if minormul != 0 as libc::c_int {
-                (*g).genminormul.set(minormul as u8);
-            }
-            if majormul != 0 as libc::c_int {
-                (*g).genmajormul.set((majormul / 4 as libc::c_int) as u8);
-            }
-            luaC_changemode(L, 1 as libc::c_int);
-        }
-        GcCommand::SetInc(pause, stepmul, stepsize) => {
-            res = if (*g).gckind.get() as libc::c_int == 1 || (*g).lastatomic.get() != 0 {
-                10 as libc::c_int
-            } else {
-                11 as libc::c_int
-            };
-            if pause != 0 as libc::c_int {
-                (*g).gcpause.set((pause / 4 as libc::c_int) as u8);
-            }
-            if stepmul != 0 as libc::c_int {
-                (*g).gcstepmul.set((stepmul / 4 as libc::c_int) as u8);
-            }
-            if stepsize != 0 as libc::c_int {
-                (*g).gcstepsize.set(stepsize as u8);
-            }
-            luaC_changemode(L, 0 as libc::c_int);
-        }
-    }
-
-    return res;
 }
 
 pub unsafe fn lua_next(

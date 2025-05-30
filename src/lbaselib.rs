@@ -9,21 +9,20 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(unused_variables)]
-#![allow(path_statements)]
 
 use crate::lapi::{
-    lua_call, lua_copy, lua_gc, lua_geti, lua_getmetatable, lua_gettop, lua_isstring, lua_load,
-    lua_next, lua_pcall, lua_pushboolean, lua_pushcclosure, lua_pushinteger, lua_pushlstring,
-    lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawget,
-    lua_rawgeti, lua_rawlen, lua_rawset, lua_rotate, lua_setfield, lua_setmetatable, lua_settop,
-    lua_setupvalue, lua_stringtonumber, lua_toboolean, lua_tolstring, lua_type, lua_typename,
+    lua_call, lua_copy, lua_geti, lua_getmetatable, lua_gettop, lua_isstring, lua_load, lua_next,
+    lua_pcall, lua_pushboolean, lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil,
+    lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawget, lua_rawgeti, lua_rawlen, lua_rawset,
+    lua_rotate, lua_setfield, lua_setmetatable, lua_settop, lua_setupvalue, lua_stringtonumber,
+    lua_toboolean, lua_tolstring, lua_type, lua_typename,
 };
 use crate::lauxlib::{
-    luaL_Reg, luaL_argerror, luaL_checkany, luaL_checkinteger, luaL_checklstring, luaL_checkoption,
-    luaL_checkstack, luaL_checktype, luaL_error, luaL_getmetafield, luaL_loadbufferx,
-    luaL_optinteger, luaL_optlstring, luaL_setfuncs, luaL_tolstring, luaL_typeerror, luaL_where,
+    luaL_Reg, luaL_argerror, luaL_checkany, luaL_checkinteger, luaL_checklstring, luaL_checkstack,
+    luaL_checktype, luaL_error, luaL_getmetafield, luaL_loadbufferx, luaL_optinteger,
+    luaL_optlstring, luaL_setfuncs, luaL_tolstring, luaL_typeerror, luaL_where,
 };
-use crate::{GcCommand, Thread, luaL_loadfilex};
+use crate::{Thread, luaL_loadfilex};
 use libc::{isalnum, isdigit, strspn, toupper};
 use std::ffi::{c_char, c_int, c_void};
 use std::io::Write;
@@ -46,7 +45,6 @@ unsafe fn luaB_print(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Er
 
         lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
         i += 1;
-        i;
     }
 
     println!();
@@ -62,7 +60,6 @@ unsafe fn luaB_warn(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Err
     while i <= n {
         luaL_checklstring(L, i, 0 as *mut usize)?;
         i += 1;
-        i;
     }
 
     // Print to stderr.
@@ -91,11 +88,9 @@ unsafe extern "C" fn b_str2int(
     s = s.offset(strspn(s, b" \x0C\n\r\t\x0B\0" as *const u8 as *const libc::c_char) as isize);
     if *s as libc::c_int == '-' as i32 {
         s = s.offset(1);
-        s;
         neg = 1 as libc::c_int;
     } else if *s as libc::c_int == '+' as i32 {
         s = s.offset(1);
-        s;
     }
     if isalnum(*s as libc::c_uchar as libc::c_int) == 0 {
         return 0 as *const libc::c_char;
@@ -111,7 +106,6 @@ unsafe extern "C" fn b_str2int(
         }
         n = (n * base as u64).wrapping_add(digit as u64);
         s = s.offset(1);
-        s;
         if !(isalnum(*s as libc::c_uchar as libc::c_int) != 0) {
             break;
         }
@@ -263,118 +257,6 @@ unsafe fn pushmode(
         )?;
     }
     return Ok(1 as libc::c_int);
-}
-
-unsafe fn luaB_collectgarbage(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    static opts: [&str; 10] = [
-        "stop",
-        "restart",
-        "collect",
-        "count",
-        "step",
-        "setpause",
-        "setstepmul",
-        "isrunning",
-        "generational",
-        "incremental",
-    ];
-
-    static mut optsnum: [libc::c_int; 10] = [
-        0 as libc::c_int,
-        1 as libc::c_int,
-        2 as libc::c_int,
-        3 as libc::c_int,
-        5 as libc::c_int,
-        6 as libc::c_int,
-        7 as libc::c_int,
-        9 as libc::c_int,
-        10 as libc::c_int,
-        11 as libc::c_int,
-    ];
-    let mut o: libc::c_int = optsnum[luaL_checkoption(
-        L,
-        1 as libc::c_int,
-        b"collect\0" as *const u8 as *const libc::c_char,
-        opts,
-    )? as usize];
-    match o {
-        0 | 1 | 2 => {
-            let res_1: libc::c_int = lua_gc(
-                L,
-                match o {
-                    0 => GcCommand::Stop,
-                    1 => GcCommand::Restart,
-                    2 => GcCommand::Collect,
-                    _ => unreachable!(),
-                },
-            );
-
-            if !(res_1 == -(1 as libc::c_int)) {
-                lua_pushinteger(L, res_1 as i64);
-                return Ok(1);
-            }
-        }
-        3 => {
-            let mut k: libc::c_int = lua_gc(L, GcCommand::Count);
-            let mut b: libc::c_int = lua_gc(L, GcCommand::CountByte);
-            if !(k == -(1 as libc::c_int)) {
-                lua_pushnumber(L, k as f64 + b as f64 / 1024 as libc::c_int as f64);
-                return Ok(1);
-            }
-        }
-        5 => {
-            let mut step: libc::c_int =
-                luaL_optinteger(L, 2 as libc::c_int, 0 as libc::c_int as i64)? as libc::c_int;
-            let mut res: libc::c_int = lua_gc(L, GcCommand::Step(step));
-            if !(res == -(1 as libc::c_int)) {
-                lua_pushboolean(L, res);
-                return Ok(1);
-            }
-        }
-        6 | 7 => {
-            let mut p: libc::c_int =
-                luaL_optinteger(L, 2 as libc::c_int, 0 as libc::c_int as i64)? as libc::c_int;
-            let mut previous: libc::c_int = lua_gc(
-                L,
-                if o == 6 {
-                    GcCommand::SetPause(p)
-                } else {
-                    GcCommand::SetStepMul(p)
-                },
-            );
-
-            if !(previous == -(1 as libc::c_int)) {
-                lua_pushinteger(L, previous as i64);
-                return Ok(1);
-            }
-        }
-        9 => {
-            let mut res_0: libc::c_int = lua_gc(L, GcCommand::GetRunning);
-            if !(res_0 == -(1 as libc::c_int)) {
-                lua_pushboolean(L, res_0);
-                return Ok(1);
-            }
-        }
-        10 => {
-            let mut minormul: libc::c_int =
-                luaL_optinteger(L, 2 as libc::c_int, 0 as libc::c_int as i64)? as libc::c_int;
-            let mut majormul: libc::c_int =
-                luaL_optinteger(L, 3 as libc::c_int, 0 as libc::c_int as i64)? as libc::c_int;
-            return pushmode(L, lua_gc(L, GcCommand::SetGen(minormul, majormul)));
-        }
-        11 => {
-            let mut pause: libc::c_int =
-                luaL_optinteger(L, 2 as libc::c_int, 0 as libc::c_int as i64)? as libc::c_int;
-            let mut stepmul: libc::c_int =
-                luaL_optinteger(L, 3 as libc::c_int, 0 as libc::c_int as i64)? as libc::c_int;
-            let mut stepsize: libc::c_int =
-                luaL_optinteger(L, 4 as libc::c_int, 0 as libc::c_int as i64)? as libc::c_int;
-            return pushmode(L, lua_gc(L, GcCommand::SetInc(pause, stepmul, stepsize)));
-        }
-        _ => unreachable!(),
-    }
-    lua_pushnil(L);
-    return Ok(1);
 }
 
 unsafe fn luaB_type(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -629,18 +511,11 @@ unsafe fn luaB_tostring(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error:
     return Ok(1 as libc::c_int);
 }
 
-static mut base_funcs: [luaL_Reg; 25] = [
+static mut base_funcs: [luaL_Reg; 24] = [
     {
         let mut init = luaL_Reg {
             name: b"assert\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_assert),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"collectgarbage\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_collectgarbage),
         };
         init
     },

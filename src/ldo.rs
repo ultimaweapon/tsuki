@@ -1,5 +1,4 @@
 #![allow(
-    dead_code,
     mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
@@ -82,7 +81,7 @@ unsafe fn correctstack(L: *mut Thread) {
         (*ci).top = ((*L).stack).byte_add((*ci).top as usize) as StkId;
         (*ci).func = ((*L).stack).byte_add((*ci).func as usize) as StkId;
 
-        if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
+        if (*ci).callstatus & 1 << 1 == 0 {
             (*ci).u.trap = 1;
         }
 
@@ -686,30 +685,6 @@ pub unsafe fn luaD_call(
     }
 
     Ok(())
-}
-
-unsafe fn finishCcall(L: *mut Thread, ci: *mut CallInfo) -> Result<(), Box<dyn std::error::Error>> {
-    let mut n: libc::c_int = 0;
-
-    if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 9 as libc::c_int != 0 {
-        n = (*ci).u2.nres;
-    } else {
-        unreachable!("attempt to run coroutine continuation");
-    }
-
-    luaD_poscall(L, ci, n)
-}
-
-unsafe fn findpcall(L: *mut Thread) -> *mut CallInfo {
-    let mut ci: *mut CallInfo = 0 as *mut CallInfo;
-    ci = (*L).ci;
-    while !ci.is_null() {
-        if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 4 as libc::c_int != 0 {
-            return ci;
-        }
-        ci = (*ci).previous;
-    }
-    return 0 as *mut CallInfo;
 }
 
 pub unsafe fn luaD_closeprotected(
