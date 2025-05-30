@@ -106,7 +106,6 @@ pub struct Lua {
     allweak: Cell<*mut GCObject>,
     fixedgc: Cell<*mut GCObject>,
     twups: Cell<*mut Thread>,
-    memerrmsg: Cell<*mut TString>,
     tmname: [Cell<*mut TString>; 25],
     mt: [Cell<*mut Table>; 9],
     handle_table: RefCell<Vec<*mut GCObject>>,
@@ -148,7 +147,6 @@ impl Lua {
             allweak: Cell::new(null_mut()),
             fixedgc: Cell::new(null_mut()),
             twups: Cell::new(null_mut()),
-            memerrmsg: Cell::new(null_mut()),
             tmname: [
                 Cell::new(null_mut()),
                 Cell::new(null_mut()),
@@ -215,7 +213,7 @@ impl Lua {
         unsafe { (*io_1).tt_ = 5 | 0 << 4 | 1 << 6 };
 
         // Initialize internal module.
-        unsafe { luaS_init(td)? };
+        unsafe { luaS_init(td) };
         unsafe { luaT_init(td)? };
         unsafe { luaX_init(td)? };
 

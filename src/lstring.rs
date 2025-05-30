@@ -9,9 +9,8 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::gc::luaC_fix;
 use crate::lmem::{luaM_malloc_, luaM_realloc_, luaM_toobig};
-use crate::lobject::{GCObject, TString, Table, UValue, Udata};
+use crate::lobject::{TString, Table, UValue, Udata};
 use crate::{Lua, StringTable, Thread};
 use libc::{memcmp, memcpy, strlen};
 use std::alloc::Layout;
@@ -111,7 +110,7 @@ pub unsafe fn luaS_resize(mut L: *mut Thread, mut nsize: libc::c_int) {
     };
 }
 
-pub unsafe fn luaS_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaS_init(mut L: *mut Thread) {
     let g = (*L).global;
     let mut tb = (*g).strt.get();
 
@@ -123,17 +122,6 @@ pub unsafe fn luaS_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Er
     tablerehash((*tb).hash, 0 as libc::c_int, 128 as libc::c_int);
 
     (*tb).size = 128 as libc::c_int;
-    (*g).memerrmsg.set(luaS_newlstr(
-        L,
-        b"not enough memory\0" as *const u8 as *const libc::c_char,
-        ::core::mem::size_of::<[libc::c_char; 18]>()
-            .wrapping_div(::core::mem::size_of::<libc::c_char>())
-            .wrapping_sub(1),
-    )?);
-
-    luaC_fix(&*(*L).global, (*g).memerrmsg.get() as *mut GCObject);
-
-    Ok(())
 }
 
 unsafe fn createstrobj(L: *mut Thread, l: usize, tag: u8, h: libc::c_uint) -> *mut TString {
