@@ -1441,9 +1441,8 @@ pub unsafe fn lua_load(
                 &mut *((*((*(*(*L).global).l_registry.get()).value_.gc as *mut Table)).array)
                     .offset((2 as libc::c_int - 1 as libc::c_int) as isize)
                     as *mut TValue;
-            let io1: *mut TValue = (**((*f).upvals).as_mut_ptr().offset(0 as libc::c_int as isize))
-                .v
-                .p;
+            let io1: *mut TValue =
+                (**((*f).upvals).as_mut_ptr().offset(0 as libc::c_int as isize)).v;
             let io2: *const TValue = gt;
             (*io1).value_ = (*io2).value_;
             (*io1).tt_ = (*io2).tt_;
@@ -1618,8 +1617,7 @@ unsafe fn aux_upvalue(
             *val = (**((*f_0).upvals)
                 .as_mut_ptr()
                 .offset((n - 1 as libc::c_int) as isize))
-            .v
-            .p;
+            .v;
             if !owner.is_null() {
                 *owner = *((*f_0).upvals)
                     .as_mut_ptr()

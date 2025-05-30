@@ -70,7 +70,7 @@ pub struct UpVal {
     pub marked: u8,
     pub refs: usize,
     pub handle: usize,
-    pub v: C2RustUnnamed_7,
+    pub v: *mut TValue,
     pub u: C2RustUnnamed_5,
 }
 
@@ -86,13 +86,6 @@ pub union C2RustUnnamed_5 {
 pub struct C2RustUnnamed_6 {
     pub next: *mut UpVal,
     pub previous: *mut *mut UpVal,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_7 {
-    pub p: *mut TValue,
-    pub offset: isize,
 }
 
 #[repr(C)]

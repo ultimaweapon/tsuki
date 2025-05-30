@@ -65,8 +65,8 @@ pub unsafe fn luaF_initupvals(mut L: *mut Thread, mut cl: *mut LClosure) {
         let o = (*(*L).global).gc.alloc(9 | 0 << 4, layout);
         let mut uv: *mut UpVal = o as *mut UpVal;
 
-        (*uv).v.p = &mut (*uv).u.value;
-        (*(*uv).v.p).tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+        (*uv).v = &raw mut (*uv).u.value;
+        (*(*uv).v).tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
         let ref mut fresh2 = *((*cl).upvals).as_mut_ptr().offset(i as isize);
         *fresh2 = uv;
         if (*cl).marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
@@ -88,7 +88,7 @@ unsafe fn newupval(mut L: *mut Thread, mut level: StkId, mut prev: *mut *mut UpV
     let mut uv: *mut UpVal = o as *mut UpVal;
     let mut next: *mut UpVal = *prev;
 
-    (*uv).v.p = &mut (*level).val;
+    (*uv).v = &raw mut (*level).val;
     (*uv).u.open.next = next;
     (*uv).u.open.previous = prev;
     if !next.is_null() {
@@ -110,10 +110,10 @@ pub unsafe extern "C" fn luaF_findupval(mut L: *mut Thread, mut level: StkId) ->
     let mut p: *mut UpVal = 0 as *mut UpVal;
     loop {
         p = *pp;
-        if !(!p.is_null() && (*p).v.p as StkId >= level) {
+        if !(!p.is_null() && (*p).v as StkId >= level) {
             break;
         }
-        if (*p).v.p as StkId == level {
+        if (*p).v as StkId == level {
             return p;
         }
         pp = &mut (*p).u.open.next;
@@ -226,7 +226,7 @@ pub unsafe extern "C" fn luaF_closeupval(mut L: *mut Thread, mut level: StkId) {
     loop {
         uv = (*L).openupval.get();
         if !(!uv.is_null() && {
-            upl = (*uv).v.p as StkId;
+            upl = (*uv).v as StkId;
             upl >= level
         }) {
             break;
@@ -234,10 +234,10 @@ pub unsafe extern "C" fn luaF_closeupval(mut L: *mut Thread, mut level: StkId) {
         let mut slot: *mut TValue = &mut (*uv).u.value;
         luaF_unlinkupval(uv);
         let mut io1: *mut TValue = slot;
-        let mut io2: *const TValue = (*uv).v.p;
+        let mut io2: *const TValue = (*uv).v;
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
-        (*uv).v.p = slot;
+        (*uv).v = slot;
         if (*uv).marked as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             == 0

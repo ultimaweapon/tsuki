@@ -120,7 +120,7 @@ unsafe fn reallymarkobject(g: *const Lua, o: *mut GCObject) {
         }
         9 => {
             let uv: *mut UpVal = o as *mut UpVal;
-            if (*uv).v.p != &mut (*uv).u.value as *mut TValue {
+            if (*uv).v != &raw mut (*uv).u.value as *mut TValue {
                 (*uv).marked = ((*uv).marked as libc::c_int
                     & !((1 as libc::c_int) << 5 as libc::c_int
                         | ((1 as libc::c_int) << 3 as libc::c_int
@@ -130,10 +130,10 @@ unsafe fn reallymarkobject(g: *const Lua, o: *mut GCObject) {
                 (*uv).marked = (*uv).marked & !(1 << 3 | 1 << 4) | 1 << 5;
             }
 
-            if (*(*uv).v.p).tt_ & 1 << 6 != 0
-                && (*(*(*uv).v.p).value_.gc).marked & (1 << 3 | 1 << 4) != 0
+            if (*(*uv).v).tt_ & 1 << 6 != 0
+                && (*(*(*uv).v).value_.gc).marked & (1 << 3 | 1 << 4) != 0
             {
-                reallymarkobject(g, (*(*uv).v.p).value_.gc);
+                reallymarkobject(g, (*(*uv).v).value_.gc);
             }
 
             return;
@@ -205,13 +205,13 @@ unsafe fn remarkupvals(g: *const Lua) -> libc::c_int {
                         | (1 as libc::c_int) << 4 as libc::c_int)
                     == 0
                 {
-                    if (*(*uv).v.p).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0
-                        && (*(*(*uv).v.p).value_.gc).marked as libc::c_int
+                    if (*(*uv).v).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0
+                        && (*(*(*uv).v).value_.gc).marked as libc::c_int
                             & ((1 as libc::c_int) << 3 as libc::c_int
                                 | (1 as libc::c_int) << 4 as libc::c_int)
                             != 0
                     {
-                        reallymarkobject(g, (*(*uv).v.p).value_.gc);
+                        reallymarkobject(g, (*(*uv).v).value_.gc);
                     }
                 }
                 uv = (*uv).u.open.next;
@@ -792,7 +792,7 @@ unsafe fn clearbyvalues(g: *const Lua, mut l: *mut GCObject, f: *mut GCObject) {
 unsafe fn freeupval(g: *const Lua, uv: *mut UpVal) {
     let layout = Layout::new::<UpVal>();
 
-    if (*uv).v.p != &mut (*uv).u.value as *mut TValue {
+    if (*uv).v != &raw mut (*uv).u.value as *mut TValue {
         luaF_unlinkupval(uv);
     }
 
