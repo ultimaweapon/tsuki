@@ -38,7 +38,7 @@ pub struct CallS {
 }
 
 unsafe fn index2value(L: *mut Thread, mut idx: libc::c_int) -> *mut TValue {
-    let ci: *mut CallInfo = (*L).ci;
+    let ci: *mut CallInfo = (*L).ci.get();
     if idx > 0 as libc::c_int {
         let o: StkId = ((*ci).func).offset(idx as isize);
         if o >= (*L).top {
@@ -72,7 +72,7 @@ unsafe fn index2value(L: *mut Thread, mut idx: libc::c_int) -> *mut TValue {
 }
 
 unsafe fn index2stack(L: *mut Thread, idx: libc::c_int) -> StkId {
-    let ci: *mut CallInfo = (*L).ci;
+    let ci: *mut CallInfo = (*L).ci.get();
     if idx > 0 as libc::c_int {
         let o: StkId = ((*ci).func).offset(idx as isize);
         return o;
@@ -82,7 +82,7 @@ unsafe fn index2stack(L: *mut Thread, idx: libc::c_int) -> StkId {
 }
 
 pub unsafe fn lua_checkstack(L: *mut Thread, n: usize) -> Result<(), Box<dyn std::error::Error>> {
-    let ci = (*L).ci;
+    let ci = (*L).ci.get();
 
     if ((*L).stack_last.get()).offset_from_unsigned((*L).top) > n {
     } else {
@@ -118,12 +118,12 @@ pub unsafe fn lua_absindex(L: *mut Thread, idx: libc::c_int) -> libc::c_int {
     return if idx > 0 as libc::c_int || idx <= -(1000000 as libc::c_int) - 1000 as libc::c_int {
         idx
     } else {
-        ((*L).top).offset_from((*(*L).ci).func) as libc::c_long as libc::c_int + idx
+        ((*L).top).offset_from((*(*L).ci.get()).func) as libc::c_long as libc::c_int + idx
     };
 }
 
 pub unsafe fn lua_gettop(L: *mut Thread) -> libc::c_int {
-    return ((*L).top).offset_from(((*(*L).ci).func).offset(1 as libc::c_int as isize))
+    return ((*L).top).offset_from(((*(*L).ci.get()).func).offset(1 as libc::c_int as isize))
         as libc::c_long as libc::c_int;
 }
 
@@ -135,7 +135,7 @@ pub unsafe fn lua_settop(
     let mut func: StkId = 0 as *mut StackValue;
     let mut newtop: StkId = 0 as *mut StackValue;
     let mut diff: isize = 0;
-    ci = (*L).ci;
+    ci = (*L).ci.get();
     func = (*ci).func;
     if idx >= 0 as libc::c_int {
         diff = func
@@ -226,7 +226,7 @@ pub unsafe fn lua_copy(L: *mut Thread, fromidx: libc::c_int, toidx: libc::c_int)
     (*io1).tt_ = (*io2).tt_;
     if toidx < -(1000000 as libc::c_int) - 1000 as libc::c_int {
         if (*fr).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
-            if (*((*(*(*L).ci).func).val.value_.gc as *mut CClosure)).marked as libc::c_int
+            if (*((*(*(*L).ci.get()).func).val.value_.gc as *mut CClosure)).marked as libc::c_int
                 & (1 as libc::c_int) << 5 as libc::c_int
                 != 0
                 && (*(*fr).value_.gc).marked as libc::c_int
@@ -236,7 +236,7 @@ pub unsafe fn lua_copy(L: *mut Thread, fromidx: libc::c_int, toidx: libc::c_int)
             {
                 luaC_barrier_(
                     L,
-                    ((*(*(*L).ci).func).val.value_.gc as *mut CClosure) as *mut CClosure
+                    ((*(*(*L).ci.get()).func).val.value_.gc as *mut CClosure) as *mut CClosure
                         as *mut GCObject,
                     (*fr).value_.gc as *mut GCObject,
                 );
@@ -1385,8 +1385,8 @@ pub unsafe fn lua_call(
 
     luaD_call(L, func, nresults)?;
 
-    if nresults <= -1 && (*(*L).ci).top < (*L).top {
-        (*(*L).ci).top = (*L).top;
+    if nresults <= -1 && (*(*L).ci.get()).top < (*L).top {
+        (*(*L).ci.get()).top = (*L).top;
     }
 
     Ok(())
@@ -1405,8 +1405,8 @@ pub unsafe fn lua_pcall(
         |L| luaD_call(L, c.func, c.nresults),
     );
 
-    if nresults <= -1 && (*(*L).ci).top < (*L).top {
-        (*(*L).ci).top = (*L).top;
+    if nresults <= -1 && (*(*L).ci.get()).top < (*L).top {
+        (*(*L).ci.get()).top = (*L).top;
     }
 
     status
@@ -1516,10 +1516,10 @@ pub unsafe fn lua_toclose(
     let mut nresults: libc::c_int = 0;
     let mut o: StkId = 0 as *mut StackValue;
     o = index2stack(L, idx);
-    nresults = (*(*L).ci).nresults as libc::c_int;
+    nresults = (*(*L).ci.get()).nresults as libc::c_int;
     luaF_newtbcupval(L, o)?;
     if !(nresults < -(1 as libc::c_int)) {
-        (*(*L).ci).nresults = (-nresults - 3 as libc::c_int) as libc::c_short;
+        (*(*L).ci.get()).nresults = (-nresults - 3 as libc::c_int) as libc::c_short;
     }
     Ok(())
 }

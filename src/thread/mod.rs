@@ -18,7 +18,7 @@ pub struct Thread {
     pub(crate) allowhook: Cell<u8>,
     pub(crate) nci: Cell<libc::c_ushort>,
     pub(crate) top: StkId,
-    pub(crate) ci: *mut CallInfo,
+    pub(crate) ci: Cell<*mut CallInfo>,
     pub(crate) stack_last: Cell<StkId>,
     pub(crate) stack: Cell<StkId>,
     pub(crate) openupval: Cell<*mut UpVal>,
@@ -44,8 +44,8 @@ impl Drop for Thread {
         }
 
         // Free CI.
-        self.ci = self.base_ci.get();
-        let mut ci: *mut CallInfo = self.ci;
+        self.ci.set(self.base_ci.get());
+        let mut ci: *mut CallInfo = self.ci.get();
         let mut next: *mut CallInfo = unsafe { (*ci).next };
 
         unsafe { (*ci).next = 0 as *mut CallInfo };

@@ -78,7 +78,7 @@ pub unsafe fn lua_pop(td: *mut Thread, n: c_int) -> Result<(), Box<dyn std::erro
 unsafe extern "C" fn api_incr_top(td: *mut Thread) {
     unsafe { (*td).top = ((*td).top).offset(1) };
 
-    if unsafe { (*td).top > (*(*td).ci).top } {
+    if unsafe { (*td).top > (*(*td).ci.get()).top } {
         panic!("stack overflow");
     }
 }
@@ -228,7 +228,7 @@ impl Lua {
 
         unsafe { (*td).global = self.deref() };
         unsafe { addr_of_mut!((*td).stack).write(Cell::new(null_mut())) };
-        unsafe { (*td).ci = null_mut() };
+        unsafe { addr_of_mut!((*td).ci).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*td).nci).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*td).gclist).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*td).twups).write(Cell::new(td)) };
@@ -269,7 +269,7 @@ impl Lua {
         unsafe { (*(*td).top).val.tt_ = 0 | 0 << 4 };
         unsafe { (*td).top = ((*td).top).offset(1) };
         unsafe { (*ci).top = ((*td).top).offset(20) };
-        unsafe { (*td).ci = ci };
+        unsafe { (*td).ci.set(ci) };
 
         td
     }

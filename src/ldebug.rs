@@ -114,7 +114,7 @@ pub unsafe fn lua_sethook(
     (*L).hookmask.set(mask);
 
     if mask != 0 {
-        settraps((*L).ci);
+        settraps((*L).ci.get());
     }
 }
 
@@ -140,7 +140,7 @@ pub unsafe fn lua_getstack(
     if level < 0 as libc::c_int {
         return 0 as libc::c_int;
     }
-    ci = (*L).ci;
+    ci = (*L).ci.get();
 
     while level > 0 && ci != (*L).base_ci.get() {
         level -= 1;
@@ -203,7 +203,7 @@ pub unsafe fn luaG_findlocal(
         }
     }
     if name.is_null() {
-        let mut limit: StkId = if ci == (*L).ci {
+        let mut limit: StkId = if ci == (*L).ci.get() {
             (*L).top
         } else {
             (*(*ci).next).func
@@ -943,7 +943,7 @@ unsafe fn formatvarinfo(
 }
 
 unsafe fn varinfo(mut L: *mut Thread, mut o: *const TValue) -> Cow<'static, str> {
-    let mut ci: *mut CallInfo = (*L).ci;
+    let mut ci: *mut CallInfo = (*L).ci.get();
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
     let mut kind: *const libc::c_char = 0 as *const libc::c_char;
     if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
@@ -987,7 +987,7 @@ pub unsafe fn luaG_callerror(
     mut L: *mut Thread,
     mut o: *const TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut ci: *mut CallInfo = (*L).ci;
+    let mut ci: *mut CallInfo = (*L).ci.get();
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
     let mut kind: *const libc::c_char = funcnamefromcall(L, ci, &mut name);
     let extra = if !kind.is_null() {
@@ -1108,7 +1108,7 @@ pub unsafe fn luaG_runerror(
     mut L: *mut Thread,
     fmt: impl Display,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let ci = (*L).ci;
+    let ci = (*L).ci.get();
     let msg = if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
         luaG_addinfo(
             L,
@@ -1150,7 +1150,7 @@ unsafe extern "C" fn changedline(
 }
 
 pub unsafe fn luaG_tracecall(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut ci: *mut CallInfo = (*L).ci;
+    let mut ci: *mut CallInfo = (*L).ci.get();
     let mut p: *mut Proto = (*((*(*ci).func).val.value_.gc as *mut LClosure)).p;
     ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 1 as libc::c_int);
     if (*ci).u.savedpc == (*p).code as *const u32 {
@@ -1167,7 +1167,7 @@ pub unsafe fn luaG_traceexec(
     mut L: *mut Thread,
     mut pc: *const u32,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut ci: *mut CallInfo = (*L).ci;
+    let mut ci: *mut CallInfo = (*L).ci.get();
     let mut mask: u8 = (*L).hookmask.get() as u8;
     let mut p: *const Proto = (*((*(*ci).func).val.value_.gc as *mut LClosure)).p;
     let mut counthook: libc::c_int = 0;

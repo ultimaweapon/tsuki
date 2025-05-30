@@ -152,8 +152,8 @@ unsafe fn checkclosemth(
     let mut tm: *const TValue = luaT_gettmbyobj(L, &mut (*level).val, TM_CLOSE);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         let mut idx: libc::c_int =
-            level.offset_from((*(*L).ci).func) as libc::c_long as libc::c_int;
-        let mut vname: *const libc::c_char = luaG_findlocal(L, (*L).ci, idx, 0 as *mut StkId);
+            level.offset_from((*(*L).ci.get()).func) as libc::c_long as libc::c_int;
+        let mut vname: *const libc::c_char = luaG_findlocal(L, (*L).ci.get(), idx, 0 as *mut StkId);
         if vname.is_null() {
             vname = b"?\0" as *const u8 as *const libc::c_char;
         }

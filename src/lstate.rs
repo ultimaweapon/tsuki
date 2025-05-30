@@ -87,8 +87,8 @@ pub type lua_CFunction = unsafe fn(*mut Thread) -> Result<c_int, Box<dyn std::er
 pub unsafe fn luaE_extendCI(mut L: *mut Thread) -> *mut CallInfo {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     ci = luaM_malloc_((*L).global, ::core::mem::size_of::<CallInfo>()) as *mut CallInfo;
-    (*(*L).ci).next = ci;
-    (*ci).previous = (*L).ci;
+    (*(*L).ci.get()).next = ci;
+    (*ci).previous = (*L).ci.get();
     (*ci).next = 0 as *mut CallInfo;
     ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 0 as libc::c_int);
     (*L).nci.set((*L).nci.get().wrapping_add(1));
@@ -97,7 +97,7 @@ pub unsafe fn luaE_extendCI(mut L: *mut Thread) -> *mut CallInfo {
 }
 
 pub unsafe fn luaE_shrinkCI(mut L: *mut Thread) {
-    let mut ci: *mut CallInfo = (*(*L).ci).next;
+    let mut ci: *mut CallInfo = (*(*L).ci.get()).next;
     let mut next: *mut CallInfo = 0 as *mut CallInfo;
     if ci.is_null() {
         return;
@@ -125,8 +125,8 @@ pub unsafe fn luaE_shrinkCI(mut L: *mut Thread) {
 }
 
 pub unsafe fn lua_closethread(L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
-    (*L).ci = (*L).base_ci.get();
-    let mut ci: *mut CallInfo = (*L).ci;
+    (*L).ci.set((*L).base_ci.get());
+    let mut ci: *mut CallInfo = (*L).ci.get();
 
     (*(*L).stack.get()).val.tt_ = 0 | 0 << 4;
     (*ci).func = (*L).stack.get();

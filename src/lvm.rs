@@ -1170,7 +1170,7 @@ unsafe extern "C" fn pushclosure(
 }
 
 pub unsafe fn luaV_finishOp(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
-    let mut ci: *mut CallInfo = (*L).ci;
+    let mut ci: *mut CallInfo = (*L).ci.get();
     let mut base: StkId = ((*ci).func).offset(1 as libc::c_int as isize);
     let mut inst: u32 = *((*ci).u.savedpc).offset(-(1 as libc::c_int as isize));
     let mut op: OpCode = (inst >> 0 as libc::c_int
@@ -5288,7 +5288,7 @@ pub unsafe fn luaV_execute(
                             trap = 1 as libc::c_int;
                         } else {
                             let mut nres: libc::c_int = 0;
-                            (*L).ci = (*ci).previous;
+                            (*L).ci.set((*ci).previous);
                             (*L).top = base.offset(-(1 as libc::c_int as isize));
                             nres = (*ci).nresults as libc::c_int;
                             while ((nres > 0 as libc::c_int) as libc::c_int != 0 as libc::c_int)
@@ -5319,7 +5319,7 @@ pub unsafe fn luaV_execute(
                             trap = 1 as libc::c_int;
                         } else {
                             let mut nres_0: libc::c_int = (*ci).nresults as libc::c_int;
-                            (*L).ci = (*ci).previous;
+                            (*L).ci.set((*ci).previous);
                             if nres_0 == 0 as libc::c_int {
                                 (*L).top = base.offset(-(1 as libc::c_int as isize));
                             } else {
