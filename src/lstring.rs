@@ -83,7 +83,7 @@ unsafe fn tablerehash(mut vect: *mut *mut TString, mut osize: libc::c_int, mut n
 }
 
 pub unsafe fn luaS_resize(mut L: *mut Thread, mut nsize: libc::c_int) {
-    let mut tb = (*(*L).l_G).strt.get();
+    let mut tb = (*(*L).global).strt.get();
     let mut osize: libc::c_int = (*tb).size;
     let mut newvect: *mut *mut TString = 0 as *mut *mut TString;
     if nsize < osize {
@@ -131,7 +131,7 @@ pub unsafe fn luaS_clearcache(g: *const Lua) {
 }
 
 pub unsafe fn luaS_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
-    let g = (*L).l_G;
+    let g = (*L).global;
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut tb = (*g).strt.get();
@@ -152,7 +152,7 @@ pub unsafe fn luaS_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Er
             .wrapping_sub(1),
     )?);
 
-    luaC_fix(&*(*L).l_G, (*g).memerrmsg.get() as *mut GCObject);
+    luaC_fix(&*(*L).global, (*g).memerrmsg.get() as *mut GCObject);
 
     i = 0 as libc::c_int;
 
@@ -172,7 +172,7 @@ unsafe fn createstrobj(L: *mut Thread, l: usize, tag: u8, h: libc::c_uint) -> *m
     let size = offset_of!(TString, contents) + l + 1;
     let align = align_of::<TString>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = (*(*L).l_G).gc.alloc(tag, layout);
+    let o = (*(*L).global).gc.alloc(tag, layout);
     let ts = o as *mut TString;
 
     (*ts).hash = h;
@@ -183,7 +183,7 @@ unsafe fn createstrobj(L: *mut Thread, l: usize, tag: u8, h: libc::c_uint) -> *m
 }
 
 pub unsafe fn luaS_createlngstrobj(mut L: *mut Thread, mut l: usize) -> *mut TString {
-    let ts: *mut TString = createstrobj(L, l, 4 | 1 << 4, (*(*L).l_G).seed);
+    let ts: *mut TString = createstrobj(L, l, 4 | 1 << 4, (*(*L).global).seed);
 
     (*ts).u.lnglen = l;
     (*ts).shrlen = 0xff as libc::c_int as u8;
@@ -226,7 +226,7 @@ unsafe fn internshrstr(
     mut l: usize,
 ) -> *mut TString {
     let mut ts: *mut TString = 0 as *mut TString;
-    let g = (*L).l_G;
+    let g = (*L).global;
     let mut tb = (*g).strt.get();
     let mut h: libc::c_uint = luaS_hash(str, l, (*g).seed);
     let mut list: *mut *mut TString = &mut *((*tb).hash)
@@ -316,7 +316,7 @@ pub unsafe fn luaS_new(
 ) -> Result<*mut TString, Box<dyn std::error::Error>> {
     let mut i = ((str as usize & 0xffffffff) as libc::c_uint).wrapping_rem(53);
     let mut j: libc::c_int = 0;
-    let p = &((*(*L).l_G).strcache[i as usize]);
+    let p = &((*(*L).global).strcache[i as usize]);
 
     for v in p {
         if strcmp(str, ((*v.get()).contents).as_mut_ptr()) == 0 {
@@ -369,7 +369,7 @@ pub unsafe fn luaS_newudata(
     let size = min + s;
     let align = align_of::<Udata>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = (*(*L).l_G).gc.alloc(7 | 0 << 4, layout);
+    let o = (*(*L).global).gc.alloc(7 | 0 << 4, layout);
     let u = o as *mut Udata;
 
     (*u).len = s;

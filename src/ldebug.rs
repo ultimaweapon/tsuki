@@ -866,7 +866,7 @@ unsafe extern "C" fn funcnamefromcode(
         _ => return 0 as *const libc::c_char,
     }
 
-    *name = ((*(*(*L).l_G).tmname[tm as usize].get()).contents)
+    *name = ((*(*(*L).global).tmname[tm as usize].get()).contents)
         .as_mut_ptr()
         .offset(2 as libc::c_int as isize);
 

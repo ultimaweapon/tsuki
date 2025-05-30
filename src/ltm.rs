@@ -86,10 +86,10 @@ pub unsafe fn luaT_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Er
     i = 0 as libc::c_int;
 
     while i < TM_N as libc::c_int {
-        (*(*L).l_G).tmname[i as usize].set(luaS_new(L, luaT_eventname[i as usize])?);
+        (*(*L).global).tmname[i as usize].set(luaS_new(L, luaT_eventname[i as usize])?);
         luaC_fix(
-            &*(*L).l_G,
-            (*(*L).l_G).tmname[i as usize].get() as *mut GCObject,
+            &*(*L).global,
+            (*(*L).global).tmname[i as usize].get() as *mut GCObject,
         );
         i += 1;
         i;
@@ -129,14 +129,14 @@ pub unsafe fn luaT_gettmbyobj(
             mt = (*((*o).value_.gc as *mut Udata)).metatable;
         }
         _ => {
-            mt = (*(*L).l_G).mt[((*o).tt_ & 0xf) as usize].get();
+            mt = (*(*L).global).mt[((*o).tt_ & 0xf) as usize].get();
         }
     }
 
     return if !mt.is_null() {
-        luaH_getshortstr(mt, (*(*L).l_G).tmname[event as usize].get())
+        luaH_getshortstr(mt, (*(*L).global).tmname[event as usize].get())
     } else {
-        (*(*L).l_G).nilvalue.get()
+        (*(*L).global).nilvalue.get()
     };
 }
 
@@ -461,7 +461,7 @@ pub unsafe fn luaT_getvarargs(
             let mut t__: isize =
                 (where_0 as *mut libc::c_char).offset_from((*L).stack as *mut libc::c_char);
 
-            if (*(*L).l_G).gc.debt() > 0 {
+            if (*(*L).global).gc.debt() > 0 {
                 luaC_step(L);
             }
 

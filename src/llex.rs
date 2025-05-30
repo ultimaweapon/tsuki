@@ -180,7 +180,7 @@ pub unsafe fn luaX_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Er
             .wrapping_div(::core::mem::size_of::<libc::c_char>())
             .wrapping_sub(1),
     )?;
-    luaC_fix(&*(*L).l_G, (e as *mut GCObject));
+    luaC_fix(&*(*L).global, (e as *mut GCObject));
     i = 0 as libc::c_int;
     while i < TK_WHILE as libc::c_int - (255 as libc::c_int + 1 as libc::c_int) + 1 as libc::c_int {
         let mut ts: *mut TString = luaS_newlstr(
@@ -188,7 +188,7 @@ pub unsafe fn luaX_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Er
             luaX_tokens[i as usize].as_ptr().cast(),
             luaX_tokens[i as usize].len(),
         )?;
-        luaC_fix(&*(*L).l_G, (ts as *mut GCObject));
+        luaC_fix(&*(*L).global, (ts as *mut GCObject));
         (*ts).extra = (i + 1 as libc::c_int) as u8;
         i += 1;
         i;
@@ -273,7 +273,7 @@ pub unsafe fn luaX_newstring(
         (*io).value_.gc = (x_ as *mut GCObject);
         (*io).tt_ = ((*x_).tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         luaH_finishset(L, (*ls).h, stv, o, stv)?;
-        if (*(*L).l_G).gc.debt() > 0 as libc::c_int as isize {
+        if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
             luaC_step(L);
         }
         (*L).top = ((*L).top).offset(-1);

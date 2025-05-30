@@ -70,7 +70,7 @@ unsafe fn iscleared(g: *const Lua, o: *const GCObject) -> libc::c_int {
 }
 
 pub(crate) unsafe fn luaC_barrier_(L: *mut Thread, o: *mut GCObject, v: *mut GCObject) {
-    let g = (*L).l_G;
+    let g = (*L).global;
 
     if (*g).gcstate.get() <= 2 {
         reallymarkobject(g, v);
@@ -90,7 +90,7 @@ pub(crate) unsafe fn luaC_barrier_(L: *mut Thread, o: *mut GCObject, v: *mut GCO
 }
 
 pub(crate) unsafe fn luaC_barrierback_(L: *mut Thread, o: *mut GCObject) {
-    let g = (*L).l_G;
+    let g = (*L).global;
     if (*o).marked as libc::c_int & 7 as libc::c_int == 6 as libc::c_int {
         (*o).marked = ((*o).marked as libc::c_int
             & !((1 as libc::c_int) << 5 as libc::c_int
@@ -873,7 +873,7 @@ unsafe fn sweeplist(
     countin: libc::c_int,
     countout: *mut libc::c_int,
 ) -> *mut *mut GCObject {
-    let g = &*(*L).l_G;
+    let g = &*(*L).global;
     let ow = g.gc.currentwhite() ^ (1 << 3 | 1 << 4);
     let mut i = 0;
     let white = g.gc.currentwhite() & (1 << 3 | 1 << 4);
@@ -939,7 +939,7 @@ unsafe fn setpause(g: *const Lua) {
 }
 
 unsafe fn entersweep(L: *mut Thread) {
-    let g = (*L).l_G;
+    let g = (*L).global;
     (*g).gcstate.set(3);
     (*g).sweepgc.set(sweeptolive(L, (*g).gc.allgc.as_ptr()));
 }
@@ -961,7 +961,7 @@ pub(crate) unsafe fn luaC_freeallobjects(g: &Lua) {
 }
 
 unsafe fn atomic(L: *mut Thread) -> usize {
-    let g = &*(*L).l_G;
+    let g = &*(*L).global;
     let mut work: usize = 0 as libc::c_int as usize;
     let mut origweak: *mut GCObject = 0 as *mut GCObject;
     let mut origall: *mut GCObject = 0 as *mut GCObject;
@@ -1037,7 +1037,7 @@ unsafe fn sweepstep(
 }
 
 unsafe fn singlestep(L: *mut Thread) -> usize {
-    let g = &*(*L).l_G;
+    let g = &*(*L).global;
     let mut work: usize = 0;
 
     g.gcstopem.set(1);
@@ -1116,7 +1116,7 @@ unsafe fn incstep(L: *mut Thread, g: *const Lua) {
 }
 
 pub(crate) unsafe fn luaC_step(L: *mut Thread) {
-    let g = (*L).l_G;
+    let g = (*L).global;
 
     if !((*g).gcstp.get() == 0) {
         (*g).gc.set_debt(-2000);

@@ -284,7 +284,7 @@ impl Lua {
         // Create new thread.
         let td = unsafe { self.gc.alloc(8, Layout::new::<Thread>()) as *mut Thread };
 
-        unsafe { (*td).l_G = self.deref() };
+        unsafe { (*td).global = self.deref() };
         unsafe { (*td).stack = null_mut() };
         unsafe { (*td).ci = null_mut() };
         unsafe { addr_of_mut!((*td).nci).write(Cell::new(0)) };

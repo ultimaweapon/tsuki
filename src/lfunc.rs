@@ -29,7 +29,7 @@ pub unsafe fn luaF_newCclosure(mut L: *mut Thread, nupvals: libc::c_int) -> *mut
     let size = offset_of!(CClosure, upvalue) + size_of::<TValue>() * usize::from(nupvals);
     let align = align_of::<CClosure>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = (*(*L).l_G).gc.alloc(6 | 2 << 4, layout);
+    let o = (*(*L).global).gc.alloc(6 | 2 << 4, layout);
     let mut c: *mut CClosure = o as *mut CClosure;
 
     (*c).nupvalues = nupvals;
@@ -42,7 +42,7 @@ pub unsafe fn luaF_newLclosure(mut L: *mut Thread, mut nupvals: libc::c_int) -> 
     let size = offset_of!(LClosure, upvals) + size_of::<*mut TValue>() * usize::from(nupvals);
     let align = align_of::<LClosure>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = (*(*L).l_G).gc.alloc(6 | 0 << 4, layout);
+    let o = (*(*L).global).gc.alloc(6 | 0 << 4, layout);
     let mut c: *mut LClosure = o as *mut LClosure;
 
     (*c).p = 0 as *mut Proto;
@@ -62,7 +62,7 @@ pub unsafe fn luaF_initupvals(mut L: *mut Thread, mut cl: *mut LClosure) {
 
     while i < (*cl).nupvalues as libc::c_int {
         let layout = Layout::new::<UpVal>();
-        let o = (*(*L).l_G).gc.alloc(9 | 0 << 4, layout);
+        let o = (*(*L).global).gc.alloc(9 | 0 << 4, layout);
         let mut uv: *mut UpVal = o as *mut UpVal;
 
         (*uv).v.p = &mut (*uv).u.value;
@@ -84,7 +84,7 @@ pub unsafe fn luaF_initupvals(mut L: *mut Thread, mut cl: *mut LClosure) {
 
 unsafe fn newupval(mut L: *mut Thread, mut level: StkId, mut prev: *mut *mut UpVal) -> *mut UpVal {
     let layout = Layout::new::<UpVal>();
-    let o = (*(*L).l_G).gc.alloc(9 | 0 << 4, layout);
+    let o = (*(*L).global).gc.alloc(9 | 0 << 4, layout);
     let mut uv: *mut UpVal = o as *mut UpVal;
     let mut next: *mut UpVal = *prev;
 
@@ -97,8 +97,8 @@ unsafe fn newupval(mut L: *mut Thread, mut level: StkId, mut prev: *mut *mut UpV
     *prev = uv;
 
     if !((*L).twups.get() != L) {
-        (*L).twups.set((*(*L).l_G).twups.get());
-        (*(*L).l_G).twups.set(L);
+        (*L).twups.set((*(*L).global).twups.get());
+        (*(*L).global).twups.set(L);
     }
 
     return uv;
@@ -171,7 +171,7 @@ unsafe fn checkclosemth(
 
 unsafe fn prepcallclosemth(L: *mut Thread, level: StkId) -> Result<(), Box<dyn std::error::Error>> {
     let mut uv: *mut TValue = &mut (*level).val;
-    let errobj = (*(*L).l_G).nilvalue.get();
+    let errobj = (*(*L).global).nilvalue.get();
 
     callclosemethod(L, uv, errobj)
 }
@@ -291,7 +291,7 @@ pub unsafe fn luaF_close(
 
 pub unsafe fn luaF_newproto(mut L: *mut Thread) -> *mut Proto {
     let layout = Layout::new::<Proto>();
-    let o = (*(*L).l_G).gc.alloc(9 + 1 | 0 << 4, layout);
+    let o = (*(*L).global).gc.alloc(9 + 1 | 0 << 4, layout);
     let mut f: *mut Proto = o as *mut Proto;
 
     (*f).k = 0 as *mut TValue;

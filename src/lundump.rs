@@ -183,7 +183,7 @@ unsafe fn loadCode(
     } else {
     };
     (*f).code = luaM_malloc_(
-        (*(*S).L).l_G,
+        (*(*S).L).global,
         (n as usize).wrapping_mul(::core::mem::size_of::<u32>()),
     ) as *mut u32;
     (*f).sizecode = n;
@@ -209,7 +209,7 @@ unsafe fn loadConstants(
     } else {
     };
     (*f).k = luaM_malloc_(
-        (*(*S).L).l_G,
+        (*(*S).L).global,
         (n as usize).wrapping_mul(::core::mem::size_of::<TValue>()),
     ) as *mut TValue;
     (*f).sizek = n;
@@ -274,7 +274,7 @@ unsafe fn loadProtos(
     } else {
     };
     (*f).p = luaM_malloc_(
-        (*(*S).L).l_G,
+        (*(*S).L).global,
         (n as usize).wrapping_mul(::core::mem::size_of::<*mut Proto>()),
     ) as *mut *mut Proto;
     (*f).sizep = n;
@@ -324,7 +324,7 @@ unsafe fn loadUpvalues(
     } else {
     };
     (*f).upvalues = luaM_malloc_(
-        (*(*S).L).l_G,
+        (*(*S).L).global,
         (n as usize).wrapping_mul(::core::mem::size_of::<Upvaldesc>()),
     ) as *mut Upvaldesc;
     (*f).sizeupvalues = n;
@@ -362,7 +362,7 @@ unsafe fn loadDebug(
     } else {
     };
     (*f).lineinfo = luaM_malloc_(
-        (*(*S).L).l_G,
+        (*(*S).L).global,
         (n as usize).wrapping_mul(::core::mem::size_of::<i8>()),
     ) as *mut i8;
     (*f).sizelineinfo = n;
@@ -381,7 +381,7 @@ unsafe fn loadDebug(
     } else {
     };
     (*f).abslineinfo = luaM_malloc_(
-        (*(*S).L).l_G,
+        (*(*S).L).global,
         (n as usize).wrapping_mul(::core::mem::size_of::<AbsLineInfo>()),
     ) as *mut AbsLineInfo;
     (*f).sizeabslineinfo = n;
@@ -402,7 +402,7 @@ unsafe fn loadDebug(
     } else {
     };
     (*f).locvars = luaM_malloc_(
-        (*(*S).L).l_G,
+        (*(*S).L).global,
         (n as usize).wrapping_mul(::core::mem::size_of::<LocVar>()),
     ) as *mut LocVar;
     (*f).sizelocvars = n;

@@ -507,7 +507,7 @@ unsafe fn setnodevector(
         }
         size = ((1 as libc::c_int) << lsize) as libc::c_uint;
         (*t).node = luaM_malloc_(
-            (*L).l_G,
+            (*L).global,
             (size as usize).wrapping_mul(::core::mem::size_of::<Node>()),
         ) as *mut Node;
         i = 0 as libc::c_int;
@@ -622,7 +622,7 @@ pub unsafe fn luaH_resize(
         != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
     {
-        freehash((*L).l_G, &mut newt);
+        freehash((*L).global, &mut newt);
         todo!("invoke handle_alloc_error");
     }
     exchangehashpart(t, &mut newt);
@@ -637,7 +637,7 @@ pub unsafe fn luaH_resize(
     }
 
     reinsert(L, &mut newt, t)?;
-    freehash((*L).l_G, &mut newt);
+    freehash((*L).global, &mut newt);
 
     Ok(())
 }
@@ -689,7 +689,7 @@ unsafe fn rehash(
 
 pub unsafe fn luaH_new(mut L: *mut Thread) -> Result<*mut Table, Box<dyn std::error::Error>> {
     let layout = Layout::new::<Table>();
-    let o = (*(*L).l_G).gc.alloc(5 | 0 << 4, layout);
+    let o = (*(*L).global).gc.alloc(5 | 0 << 4, layout);
     let mut t: *mut Table = o as *mut Table;
 
     (*t).metatable = 0 as *mut Table;

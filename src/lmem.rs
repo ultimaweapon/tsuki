@@ -84,7 +84,7 @@ pub unsafe fn luaM_realloc_(
     osize: usize,
     nsize: usize,
 ) -> *mut libc::c_void {
-    let g = (*L).l_G;
+    let g = (*L).global;
     let newblock = if nsize == 0 {
         free(block);
         0 as *mut libc::c_void

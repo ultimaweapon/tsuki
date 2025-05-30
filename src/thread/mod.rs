@@ -18,7 +18,6 @@ pub struct Thread {
     pub(crate) allowhook: Cell<u8>,
     pub(crate) nci: Cell<libc::c_ushort>,
     pub(crate) top: StkId,
-    pub(crate) l_G: *const Lua,
     pub(crate) ci: *mut CallInfo,
     pub(crate) stack_last: StkId,
     pub(crate) stack: StkId,
@@ -32,6 +31,7 @@ pub struct Thread {
     pub(crate) basehookcount: Cell<libc::c_int>,
     pub(crate) hookcount: Cell<libc::c_int>,
     pub(crate) hookmask: Cell<libc::c_int>,
+    pub(crate) global: *const Lua,
     phantom: PhantomPinned,
 }
 
@@ -59,7 +59,7 @@ impl Drop for Thread {
 
             next = unsafe { (*ci).next };
 
-            unsafe { luaM_free_(self.l_G, ci as *mut libc::c_void, size_of::<CallInfo>()) };
+            unsafe { luaM_free_(self.global, ci as *mut libc::c_void, size_of::<CallInfo>()) };
             self.nci.set(self.nci.get().wrapping_sub(1));
         }
 
