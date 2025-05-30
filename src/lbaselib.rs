@@ -202,7 +202,7 @@ unsafe fn luaB_setmetatable(mut L: *mut Thread) -> Result<c_int, Box<dyn std::er
         return luaL_error(L, "cannot change a protected metatable");
     }
     lua_settop(L, 2 as libc::c_int)?;
-    lua_setmetatable(L, 1 as libc::c_int);
+    lua_setmetatable(L, 1 as libc::c_int)?;
     return Ok(1 as libc::c_int);
 }
 

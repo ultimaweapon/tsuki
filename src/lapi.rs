@@ -20,7 +20,7 @@ use crate::ltable::{
     luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_new, luaH_next, luaH_resize, luaH_set,
     luaH_setint,
 };
-use crate::ltm::{TM_EQ, luaT_typenames_};
+use crate::ltm::{TM_EQ, TM_GC, luaT_gettm, luaT_typenames_};
 use crate::lvm::{
     F2Ieq, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_lessequal,
     luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
@@ -1270,20 +1270,25 @@ pub unsafe fn lua_rawseti(
     Ok(())
 }
 
-pub unsafe fn lua_setmetatable(L: *mut Thread, objindex: libc::c_int) -> libc::c_int {
-    let mut obj: *mut TValue = 0 as *mut TValue;
-    let mut mt: *mut Table = 0 as *mut Table;
-    obj = index2value(L, objindex);
-    if (*((*L).top).offset(-(1 as libc::c_int as isize))).val.tt_ as libc::c_int
-        & 0xf as libc::c_int
-        == 0 as libc::c_int
-    {
-        mt = 0 as *mut Table;
+pub unsafe fn lua_setmetatable(
+    L: *mut Thread,
+    objindex: libc::c_int,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let obj = index2value(L, objindex);
+    let mt = if (*((*L).top).offset(-1)).val.tt_ & 0xf == 0 {
+        0 as *mut Table
     } else {
-        mt = (*((*L).top).offset(-(1 as libc::c_int as isize)))
-            .val
-            .value_
-            .gc as *mut Table;
+        (*((*L).top).offset(-1)).val.value_.gc as *mut Table
+    };
+
+    // Prevent __gc metamethod.
+    let g = (*L).global;
+
+    if !mt.is_null()
+        && (*mt).flags & 1 << TM_GC == 0
+        && !luaT_gettm(mt, TM_GC, (*g).tmname[TM_GC as usize].get()).is_null()
+    {
+        return Err("__gc metamethod is not supported".into());
     }
 
     match (*obj).tt_ & 0xf {
@@ -1330,7 +1335,7 @@ pub unsafe fn lua_setmetatable(L: *mut Thread, objindex: libc::c_int) -> libc::c
 
     (*L).top = ((*L).top).offset(-1);
 
-    return 1 as libc::c_int;
+    Ok(())
 }
 
 pub unsafe fn lua_setiuservalue(L: *mut Thread, idx: libc::c_int, n: libc::c_int) -> libc::c_int {

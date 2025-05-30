@@ -9,7 +9,6 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::Thread;
 use crate::lapi::{
     lua_absindex, lua_call, lua_checkstack, lua_closeslot, lua_concat, lua_copy, lua_createtable,
     lua_getfield, lua_getmetatable, lua_gettop, lua_isinteger, lua_isnumber, lua_isstring, lua_len,
@@ -21,6 +20,7 @@ use crate::lapi::{
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::{CallInfo, lua_CFunction, lua_Debug};
+use crate::{Thread, lua_pop};
 use libc::{FILE, free, memcpy, realloc, strcmp, strlen, strncmp, strstr};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -506,7 +506,12 @@ pub unsafe fn luaL_setmetatable(
         -(1000000 as libc::c_int) - 1000 as libc::c_int,
         CStr::from_ptr(tname).to_bytes(),
     )?;
-    lua_setmetatable(L, -(2 as libc::c_int));
+
+    if let Err(e) = lua_setmetatable(L, -2) {
+        lua_pop(L, 1)?;
+        return Err(e);
+    }
+
     Ok(())
 }
 
@@ -732,14 +737,7 @@ unsafe fn boxgc(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>>
     Ok(0)
 }
 
-static mut boxmt: [luaL_Reg; 3] = [
-    {
-        let mut init = luaL_Reg {
-            name: b"__gc\0" as *const u8 as *const libc::c_char,
-            func: Some(boxgc),
-        };
-        init
-    },
+static mut boxmt: [luaL_Reg; 2] = [
     {
         let mut init = luaL_Reg {
             name: b"__close\0" as *const u8 as *const libc::c_char,
@@ -763,7 +761,7 @@ unsafe fn newbox(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
     if luaL_newmetatable(L, b"_UBOX*\0" as *const u8 as *const libc::c_char)? != 0 {
         luaL_setfuncs(L, &raw const boxmt as *const luaL_Reg, 0)?;
     }
-    lua_setmetatable(L, -(2 as libc::c_int));
+    lua_setmetatable(L, -(2 as libc::c_int)).unwrap();
     Ok(())
 }
 

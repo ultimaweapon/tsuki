@@ -2999,7 +2999,7 @@ unsafe fn createmetatable(mut L: *mut Thread) -> Result<(), Box<dyn std::error::
     )?;
     lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char)?;
     lua_pushvalue(L, -(2 as libc::c_int));
-    lua_setmetatable(L, -(2 as libc::c_int));
+    lua_setmetatable(L, -(2 as libc::c_int))?;
     lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
     lua_pushvalue(L, -(2 as libc::c_int));
     lua_setfield(
