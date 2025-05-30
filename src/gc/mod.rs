@@ -646,7 +646,7 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
         luaD_shrinkstack(th);
 
         o = (*th).top;
-        while o < ((*th).stack_last).offset(5 as libc::c_int as isize) {
+        while o < ((*th).stack_last.get()).offset(5 as libc::c_int as isize) {
             (*o).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
             o = o.offset(1);
         }
@@ -656,7 +656,7 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
         }
     }
 
-    1 + ((*th).stack_last).offset_from((*th).stack.get()) as libc::c_long as libc::c_int
+    1 + ((*th).stack_last.get()).offset_from((*th).stack.get()) as libc::c_long as libc::c_int
 }
 
 unsafe fn propagatemark(g: &Lua) -> usize {

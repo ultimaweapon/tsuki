@@ -1,5 +1,4 @@
 #![allow(
-    mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -85,7 +84,7 @@ unsafe fn index2stack(L: *mut Thread, idx: libc::c_int) -> StkId {
 pub unsafe fn lua_checkstack(L: *mut Thread, n: usize) -> Result<(), Box<dyn std::error::Error>> {
     let ci = (*L).ci;
 
-    if ((*L).stack_last).offset_from_unsigned((*L).top) > n {
+    if ((*L).stack_last.get()).offset_from_unsigned((*L).top) > n {
     } else {
         luaD_growstack(L, n)?;
     }

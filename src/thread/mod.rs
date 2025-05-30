@@ -19,7 +19,7 @@ pub struct Thread {
     pub(crate) nci: Cell<libc::c_ushort>,
     pub(crate) top: StkId,
     pub(crate) ci: *mut CallInfo,
-    pub(crate) stack_last: StkId,
+    pub(crate) stack_last: Cell<StkId>,
     pub(crate) stack: Cell<StkId>,
     pub(crate) openupval: Cell<*mut UpVal>,
     pub(crate) tbclist: Cell<StkId>,
@@ -65,7 +65,7 @@ impl Drop for Thread {
 
         // Free stack.
         let layout = Layout::array::<StackValue>(unsafe {
-            self.stack_last.offset_from_unsigned(self.stack.get()) + 5
+            self.stack_last.get().offset_from_unsigned(self.stack.get()) + 5
         })
         .unwrap();
 

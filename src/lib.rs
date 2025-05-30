@@ -254,7 +254,7 @@ impl Lua {
 
         unsafe { (*td).stack.set(stack) };
         unsafe { (*td).top = (*td).stack.get() };
-        unsafe { (*td).stack_last = ((*td).stack.get()).offset(2 * 20) };
+        unsafe { addr_of_mut!((*td).stack_last).write(Cell::new((*td).stack.get().add(2 * 20))) };
         unsafe { addr_of_mut!((*td).tbclist).write(Cell::new((*td).stack.get())) };
 
         // Setup base CI.
