@@ -14,7 +14,9 @@ use crate::lobject::{TString, Table, UValue, Udata};
 use crate::{Lua, StringTable, Thread};
 use libc::{memcmp, memcpy, strlen};
 use std::alloc::Layout;
+use std::cell::Cell;
 use std::mem::offset_of;
+use std::ptr::addr_of_mut;
 
 pub unsafe fn luaS_eqlngstr(mut a: *mut TString, mut b: *mut TString) -> libc::c_int {
     let mut len: usize = (*(*a).u.get()).lnglen;
@@ -45,14 +47,17 @@ pub unsafe fn luaS_hash(
     return h;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaS_hashlongstr(mut ts: *mut TString) -> libc::c_uint {
+pub unsafe fn luaS_hashlongstr(mut ts: *mut TString) -> libc::c_uint {
     if (*ts).extra as libc::c_int == 0 as libc::c_int {
         let mut len: usize = (*(*ts).u.get()).lnglen;
-        (*ts).hash = luaS_hash(((*ts).contents).as_mut_ptr(), len, (*ts).hash);
+        (*ts).hash.set(luaS_hash(
+            ((*ts).contents).as_mut_ptr(),
+            len,
+            (*ts).hash.get(),
+        ));
         (*ts).extra = 1 as libc::c_int as u8;
     }
-    return (*ts).hash;
+    return (*ts).hash.get();
 }
 
 unsafe fn tablerehash(mut vect: *mut *mut TString, mut osize: libc::c_int, mut nsize: libc::c_int) {
@@ -70,7 +75,7 @@ unsafe fn tablerehash(mut vect: *mut *mut TString, mut osize: libc::c_int, mut n
         *fresh1 = 0 as *mut TString;
         while !p.is_null() {
             let mut hnext: *mut TString = (*(*p).u.get()).hnext;
-            let mut h: libc::c_uint = ((*p).hash & (nsize - 1 as libc::c_int) as libc::c_uint)
+            let mut h: libc::c_uint = ((*p).hash.get() & (nsize - 1 as libc::c_int) as libc::c_uint)
                 as libc::c_int as libc::c_uint;
             (*(*p).u.get()).hnext = *vect.offset(h as isize);
             let ref mut fresh2 = *vect.offset(h as isize);
@@ -131,7 +136,7 @@ unsafe fn createstrobj(L: *mut Thread, l: usize, tag: u8, h: libc::c_uint) -> *m
     let o = (*(*L).global).gc.alloc(tag, layout);
     let ts = o as *mut TString;
 
-    (*ts).hash = h;
+    addr_of_mut!((*ts).hash).write(Cell::new(h));
     (*ts).extra = 0 as libc::c_int as u8;
     *((*ts).contents).as_mut_ptr().offset(l as isize) = '\0' as i32 as libc::c_char;
 
@@ -150,7 +155,8 @@ pub unsafe fn luaS_createlngstrobj(mut L: *mut Thread, mut l: usize) -> *mut TSt
 pub unsafe fn luaS_remove(g: *const Lua, mut ts: *mut TString) {
     let mut tb = (*g).strt.get();
     let mut p: *mut *mut TString = &mut *((*tb).hash).offset(
-        ((*ts).hash & ((*tb).size - 1 as libc::c_int) as libc::c_uint) as libc::c_int as isize,
+        ((*ts).hash.get() & ((*tb).size - 1 as libc::c_int) as libc::c_uint) as libc::c_int
+            as isize,
     ) as *mut *mut TString;
     while *p != ts {
         p = &raw mut (*(**p).u.get()).hnext;

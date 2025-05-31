@@ -107,7 +107,7 @@ unsafe extern "C" fn mainpositionTV(mut t: *const Table, mut key: *const TValue)
         4 => {
             let mut ts: *mut TString = (*key).value_.gc as *mut TString;
             return &mut *((*t).node).offset(
-                ((*ts).hash
+                ((*ts).hash.get()
                     & (((1 as libc::c_int) << (*t).lsizenode as libc::c_int) - 1 as libc::c_int)
                         as libc::c_uint) as libc::c_int as isize,
             ) as *mut Node;
@@ -849,7 +849,7 @@ pub unsafe fn luaH_getint(mut t: *mut Table, mut key: i64) -> *const TValue {
 }
 
 pub unsafe fn luaH_getshortstr(mut t: *mut Table, mut key: *mut TString) -> *const TValue {
-    let mut n = ((*t).node).offset(((*key).hash & ((1 << (*t).lsizenode) - 1)) as isize);
+    let mut n = ((*t).node).offset(((*key).hash.get() & ((1 << (*t).lsizenode) - 1)) as isize);
 
     loop {
         if (*n).u.key_tt as libc::c_int

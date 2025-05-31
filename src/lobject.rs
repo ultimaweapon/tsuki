@@ -78,7 +78,7 @@ pub struct TString {
     pub hdr: Object,
     pub extra: u8,
     pub shrlen: u8,
-    pub hash: u32,
+    pub hash: Cell<u32>,
     pub u: UnsafeCell<C2RustUnnamed_8>,
     pub contents: [c_char; 1],
 }
