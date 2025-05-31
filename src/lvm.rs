@@ -53,7 +53,7 @@ unsafe fn l_strton(mut obj: *const TValue, mut result: *mut TValue) -> libc::c_i
             == (if (*st).shrlen as libc::c_int != 0xff as libc::c_int {
                 (*st).shrlen as usize
             } else {
-                (*st).u.lnglen
+                (*(*st).u.get()).lnglen
             })
             .wrapping_add(1 as libc::c_int as usize)) as libc::c_int;
     };
@@ -479,13 +479,13 @@ unsafe extern "C" fn l_strcmp(mut ts1: *const TString, mut ts2: *const TString) 
     let mut rl1: usize = if (*ts1).shrlen as libc::c_int != 0xff as libc::c_int {
         (*ts1).shrlen as usize
     } else {
-        (*ts1).u.lnglen
+        (*(*ts1).u.get()).lnglen
     };
     let mut s2: *const libc::c_char = ((*ts2).contents).as_ptr();
     let mut rl2: usize = if (*ts2).shrlen as libc::c_int != 0xff as libc::c_int {
         (*ts2).shrlen as usize
     } else {
-        (*ts2).u.lnglen
+        (*(*ts2).u.get()).lnglen
     };
     loop {
         let mut temp: libc::c_int = strcoll(s1, s2);
@@ -814,7 +814,7 @@ unsafe extern "C" fn copy2buff(mut top: StkId, mut n: libc::c_int, mut buff: *mu
         let mut l: usize = if (*st).shrlen as libc::c_int != 0xff as libc::c_int {
             (*st).shrlen as usize
         } else {
-            (*st).u.lnglen
+            (*(*st).u.get()).lnglen
         };
         memcpy(
             buff.offset(tl as isize) as *mut libc::c_void,
@@ -893,9 +893,10 @@ pub unsafe fn luaV_concat(
                 (*((*top.offset(-(1 as libc::c_int as isize))).val.value_.gc as *mut TString))
                     .shrlen as usize
             } else {
-                (*((*top.offset(-(1 as libc::c_int as isize))).val.value_.gc as *mut TString))
+                (*(*((*top.offset(-(1 as libc::c_int as isize))).val.value_.gc as *mut TString))
                     .u
-                    .lnglen
+                    .get())
+                .lnglen
             };
             let mut ts: *mut TString = 0 as *mut TString;
             n = 1 as libc::c_int;
@@ -942,14 +943,15 @@ pub unsafe fn luaV_concat(
                     .gc as *mut TString))
                         .shrlen as usize
                 } else {
-                    (*((*top
+                    (*(*((*top
                         .offset(-(n as isize))
                         .offset(-(1 as libc::c_int as isize)))
                     .val
                     .value_
                     .gc as *mut TString))
                         .u
-                        .lnglen
+                        .get())
+                    .lnglen
                 };
                 if ((l
                     >= (if (::core::mem::size_of::<usize>() as libc::c_ulong)
@@ -1030,7 +1032,7 @@ pub unsafe fn luaV_objlen(
         }
         20 => {
             let mut io_1: *mut TValue = &mut (*ra).val;
-            (*io_1).value_.i = (*((*rb).value_.gc as *mut TString)).u.lnglen as i64;
+            (*io_1).value_.i = (*(*((*rb).value_.gc as *mut TString)).u.get()).lnglen as i64;
             (*io_1).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
             return Ok(());
         }

@@ -867,7 +867,7 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
         }
         20 => {
             let ts_0: *mut TString = o as *mut TString;
-            let size = offset_of!(TString, contents) + (*ts_0).u.lnglen + 1;
+            let size = offset_of!(TString, contents) + (*(*ts_0).u.get()).lnglen + 1;
             let align = align_of::<TString>();
             let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 

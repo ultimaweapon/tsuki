@@ -121,7 +121,7 @@ unsafe fn dumpString(
         let mut size: usize = if (*s).shrlen as libc::c_int != 0xff as libc::c_int {
             (*s).shrlen as usize
         } else {
-            (*s).u.lnglen
+            (*(*s).u.get()).lnglen
         };
         let mut str: *const libc::c_char = ((*s).contents).as_ptr();
         dumpSize(D, size.wrapping_add(1 as libc::c_int as usize))?;

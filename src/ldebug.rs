@@ -301,7 +301,7 @@ unsafe fn funcinfo(mut ar: *mut lua_Debug, mut cl: *mut Object) {
             (*ar).srclen = if (*(*p).source).shrlen as libc::c_int != 0xff as libc::c_int {
                 (*(*p).source).shrlen as usize
             } else {
-                (*(*p).source).u.lnglen
+                (*(*(*p).source).u.get()).lnglen
             };
         } else {
             (*ar).source = b"=?\0" as *const u8 as *const libc::c_char;
@@ -1092,7 +1092,7 @@ pub unsafe fn luaG_addinfo(
             if (*src).shrlen as libc::c_int != 0xff as libc::c_int {
                 (*src).shrlen as usize
             } else {
-                (*src).u.lnglen
+                (*(*src).u.get()).lnglen
             },
         );
     } else {

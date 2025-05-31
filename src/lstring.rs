@@ -17,9 +17,9 @@ use std::alloc::Layout;
 use std::mem::offset_of;
 
 pub unsafe fn luaS_eqlngstr(mut a: *mut TString, mut b: *mut TString) -> libc::c_int {
-    let mut len: usize = (*a).u.lnglen;
+    let mut len: usize = (*(*a).u.get()).lnglen;
     return (a == b
-        || len == (*b).u.lnglen
+        || len == (*(*b).u.get()).lnglen
             && memcmp(
                 ((*a).contents).as_mut_ptr() as *const libc::c_void,
                 ((*b).contents).as_mut_ptr() as *const libc::c_void,
@@ -48,7 +48,7 @@ pub unsafe fn luaS_hash(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaS_hashlongstr(mut ts: *mut TString) -> libc::c_uint {
     if (*ts).extra as libc::c_int == 0 as libc::c_int {
-        let mut len: usize = (*ts).u.lnglen;
+        let mut len: usize = (*(*ts).u.get()).lnglen;
         (*ts).hash = luaS_hash(((*ts).contents).as_mut_ptr(), len, (*ts).hash);
         (*ts).extra = 1 as libc::c_int as u8;
     }
@@ -69,10 +69,10 @@ unsafe fn tablerehash(mut vect: *mut *mut TString, mut osize: libc::c_int, mut n
         let ref mut fresh1 = *vect.offset(i as isize);
         *fresh1 = 0 as *mut TString;
         while !p.is_null() {
-            let mut hnext: *mut TString = (*p).u.hnext;
+            let mut hnext: *mut TString = (*(*p).u.get()).hnext;
             let mut h: libc::c_uint = ((*p).hash & (nsize - 1 as libc::c_int) as libc::c_uint)
                 as libc::c_int as libc::c_uint;
-            (*p).u.hnext = *vect.offset(h as isize);
+            (*(*p).u.get()).hnext = *vect.offset(h as isize);
             let ref mut fresh2 = *vect.offset(h as isize);
             *fresh2 = p;
             p = hnext;
@@ -141,7 +141,7 @@ unsafe fn createstrobj(L: *mut Thread, l: usize, tag: u8, h: libc::c_uint) -> *m
 pub unsafe fn luaS_createlngstrobj(mut L: *mut Thread, mut l: usize) -> *mut TString {
     let ts: *mut TString = createstrobj(L, l, 4 | 1 << 4, (*(*L).global).seed);
 
-    (*ts).u.lnglen = l;
+    (*(*ts).u.get()).lnglen = l;
     (*ts).shrlen = 0xff as libc::c_int as u8;
 
     return ts;
@@ -153,9 +153,9 @@ pub unsafe fn luaS_remove(g: *const Lua, mut ts: *mut TString) {
         ((*ts).hash & ((*tb).size - 1 as libc::c_int) as libc::c_uint) as libc::c_int as isize,
     ) as *mut *mut TString;
     while *p != ts {
-        p = &mut (**p).u.hnext;
+        p = &raw mut (*(**p).u.get()).hnext;
     }
-    *p = (**p).u.hnext;
+    *p = (*(**p).u.get()).hnext;
     (*tb).nuse -= 1;
     (*tb).nuse;
 }
@@ -207,7 +207,7 @@ unsafe fn internshrstr(
 
             return ts;
         }
-        ts = (*ts).u.hnext;
+        ts = (*(*ts).u.get()).hnext;
     }
 
     if (*tb).nuse >= (*tb).size {
@@ -225,7 +225,7 @@ unsafe fn internshrstr(
         str as *const libc::c_void,
         l,
     );
-    (*ts).u.hnext = *list;
+    (*(*ts).u.get()).hnext = *list;
     *list = ts;
     (*tb).nuse += 1;
     (*tb).nuse;
