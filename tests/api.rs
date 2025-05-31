@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::ptr::null;
-use tsuki::{Lua, lua_closethread, luaL_loadbufferx};
+use tsuki::{Lua, lua_closethread, lua_load};
 
 #[test]
 fn dump() {
@@ -10,6 +10,6 @@ fn dump() {
     let lua = Lua::new().unwrap();
     let td = lua.spawn();
 
-    unsafe { luaL_loadbufferx(td, chunk, c"".as_ptr(), null()).unwrap() };
+    unsafe { lua_load(td, null(), null(), chunk).unwrap() };
     unsafe { lua_closethread(td).unwrap() };
 }

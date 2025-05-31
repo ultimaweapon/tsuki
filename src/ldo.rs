@@ -18,7 +18,7 @@ use crate::lstate::{CallInfo, lua_CFunction, lua_Debug, lua_Hook, luaE_extendCI,
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lundump::luaU_undump;
 use crate::lvm::luaV_execute;
-use crate::lzio::{Mbuffer, ZIO, luaZ_fill};
+use crate::lzio::{Mbuffer, ZIO, Zio};
 use libc::strchr;
 use std::alloc::{Layout, handle_alloc_error};
 use std::ffi::{CStr, c_char, c_int};
@@ -767,7 +767,7 @@ unsafe fn checkmode(
 
 pub unsafe fn luaD_protectedparser(
     L: *mut Thread,
-    z: *mut ZIO,
+    mut z: Zio,
     name: *const libc::c_char,
     mode: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -799,7 +799,7 @@ pub unsafe fn luaD_protectedparser(
         name: 0 as *const libc::c_char,
     };
 
-    p.z = z;
+    p.z = &mut z;
     p.name = name;
     p.mode = mode;
     p.dyd.actvar.arr = 0 as *mut Vardesc;
@@ -824,7 +824,7 @@ pub unsafe fn luaD_protectedparser(
                 (*p.z).p = ((*p.z).p).offset(1);
                 *fresh4 as libc::c_uchar as libc::c_int
             } else {
-                luaZ_fill(p.z)?
+                -1
             };
 
             if c == (*::core::mem::transmute::<&[u8; 5], &[libc::c_char; 5]>(b"\x1BLua\0"))[0]

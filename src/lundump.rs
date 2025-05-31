@@ -16,7 +16,7 @@ use crate::lfunc::{luaF_newLclosure, luaF_newproto};
 use crate::lmem::{luaM_malloc_, luaM_toobig};
 use crate::lobject::{AbsLineInfo, LClosure, LocVar, Proto, TString, TValue, Upvaldesc};
 use crate::lstring::{luaS_createlngstrobj, luaS_newlstr};
-use crate::lzio::{ZIO, luaZ_fill, luaZ_read};
+use crate::lzio::{ZIO, luaZ_read};
 use crate::{Object, Thread};
 use libc::{memcmp, strlen};
 use std::ffi::CStr;
@@ -57,11 +57,10 @@ unsafe fn loadByte(mut S: *mut LoadState) -> Result<u8, Box<dyn std::error::Erro
         (*(*S).Z).p = ((*(*S).Z).p).offset(1);
         *fresh1 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*S).Z)?
-    };
-    if b == -(1 as libc::c_int) {
         error(S, "truncated chunk")?;
-    }
+        unreachable!();
+    };
+
     return Ok(b as u8);
 }
 

@@ -12,7 +12,7 @@
 use crate::lapi::{
     lua_absindex, lua_call, lua_checkstack, lua_closeslot, lua_concat, lua_copy, lua_createtable,
     lua_getfield, lua_getmetatable, lua_gettop, lua_isinteger, lua_isnumber, lua_isstring, lua_len,
-    lua_load, lua_newuserdatauv, lua_next, lua_pushboolean, lua_pushcclosure, lua_pushinteger,
+    lua_newuserdatauv, lua_next, lua_pushboolean, lua_pushcclosure, lua_pushinteger,
     lua_pushlightuserdata, lua_pushlstring, lua_pushnil, lua_pushstring, lua_pushvalue,
     lua_rawequal, lua_rawget, lua_rawgeti, lua_rawlen, lua_rawseti, lua_rotate, lua_setfield,
     lua_setglobal, lua_setmetatable, lua_settop, lua_toboolean, lua_toclose, lua_tointegerx,
@@ -25,7 +25,7 @@ use libc::{FILE, free, memcpy, realloc, strcmp, strlen, strncmp, strstr};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::fmt::Display;
-use std::ptr::{null, null_mut};
+use std::ptr::null_mut;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -936,14 +936,6 @@ pub unsafe fn luaL_unref(
     Ok(())
 }
 
-pub unsafe fn luaL_loadfilex(
-    L: *mut Thread,
-    filename: *const c_char,
-    mode: *const c_char,
-) -> Result<(), Box<dyn std::error::Error>> {
-    todo!()
-}
-
 unsafe fn getS(
     ud: *mut c_void,
     mut size: *mut usize,
@@ -955,28 +947,6 @@ unsafe fn getS(
     *size = (*ls).size;
     (*ls).size = 0 as libc::c_int as usize;
     return Ok((*ls).s);
-}
-
-pub unsafe fn luaL_loadbufferx(
-    L: *mut Thread,
-    chunk: impl AsRef<[u8]>,
-    name: *const c_char,
-    mode: *const c_char,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let chunk = chunk.as_ref();
-    let mut ls = LoadS {
-        s: chunk.as_ptr().cast(),
-        size: chunk.len(),
-    };
-
-    lua_load(L, getS, &mut ls as *mut LoadS as *mut c_void, name, mode)
-}
-
-pub unsafe fn luaL_loadstring(
-    L: *mut Thread,
-    s: *const c_char,
-) -> Result<(), Box<dyn std::error::Error>> {
-    luaL_loadbufferx(L, CStr::from_ptr(s).to_bytes(), s, null())
 }
 
 pub unsafe fn luaL_getmetafield(

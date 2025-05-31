@@ -12,11 +12,9 @@ use crate::Thread;
 use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
 use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::lobject::StkId;
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_int, c_void};
 
 pub type lua_Hook = Option<unsafe extern "C" fn(*mut Thread, *mut lua_Debug) -> ()>;
-pub type lua_Reader =
-    unsafe fn(*mut c_void, *mut usize) -> Result<*const c_char, Box<dyn std::error::Error>>;
 pub type lua_Writer = unsafe fn(
     *mut Thread,
     *const c_void,

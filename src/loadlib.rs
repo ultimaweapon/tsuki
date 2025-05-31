@@ -9,15 +9,15 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::lapi::{lua_copy, lua_getfield, lua_pushboolean, lua_rawgeti, lua_rawseti};
+use crate::lapi::{lua_copy, lua_getfield, lua_load, lua_pushboolean, lua_rawgeti, lua_rawseti};
 use crate::lauxlib::{luaL_addgsub, luaL_getsubtable, luaL_gsub};
 use crate::lstate::lua_CFunction;
 use crate::{
     C2RustUnnamed, Thread, lua_call, lua_createtable, lua_isstring, lua_pushcclosure,
     lua_pushlstring, lua_pushnil, lua_pushstring, lua_pushvalue, lua_rotate, lua_setfield,
     lua_settop, lua_toboolean, lua_tolstring, lua_type, luaL_Buffer, luaL_Reg, luaL_addstring,
-    luaL_buffinit, luaL_checklstring, luaL_error, luaL_loadfilex, luaL_optlstring,
-    luaL_prepbuffsize, luaL_pushresult, luaL_setfuncs,
+    luaL_buffinit, luaL_checklstring, luaL_error, luaL_optlstring, luaL_prepbuffsize,
+    luaL_pushresult, luaL_setfuncs,
 };
 use libc::{fclose, fopen, strchr};
 use std::ffi::{CStr, c_int};
@@ -212,7 +212,7 @@ unsafe fn searcher_Lua(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::
         return Ok(1 as libc::c_int);
     }
 
-    match luaL_loadfilex(L, filename, 0 as *const libc::c_char) {
+    match lua_load(L, null_mut(), null_mut(), "error('not implemented yet')") {
         Ok(_) => {
             lua_pushstring(L, filename)?;
             return Ok(2 as libc::c_int);

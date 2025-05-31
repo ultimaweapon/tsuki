@@ -10,6 +10,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(unused_variables)]
 
+use crate::Thread;
 use crate::lapi::{
     lua_call, lua_copy, lua_geti, lua_getmetatable, lua_gettop, lua_isstring, lua_load, lua_next,
     lua_pcall, lua_pushboolean, lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil,
@@ -19,10 +20,9 @@ use crate::lapi::{
 };
 use crate::lauxlib::{
     luaL_Reg, luaL_argerror, luaL_checkany, luaL_checkinteger, luaL_checklstring, luaL_checkstack,
-    luaL_checktype, luaL_error, luaL_getmetafield, luaL_loadbufferx, luaL_optinteger,
-    luaL_optlstring, luaL_setfuncs, luaL_tolstring, luaL_typeerror, luaL_where,
+    luaL_checktype, luaL_error, luaL_getmetafield, luaL_optinteger, luaL_optlstring, luaL_setfuncs,
+    luaL_tolstring, luaL_typeerror, luaL_where,
 };
-use crate::{Thread, luaL_loadfilex};
 use libc::{isalnum, isdigit, strspn, toupper};
 use std::ffi::{c_char, c_int, c_void};
 use std::io::Write;
@@ -343,28 +343,6 @@ unsafe fn load_aux(
     }
 }
 
-unsafe fn luaB_loadfile(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut fname: *const libc::c_char = luaL_optlstring(
-        L,
-        1 as libc::c_int,
-        0 as *const libc::c_char,
-        0 as *mut usize,
-    )?;
-    let mut mode: *const libc::c_char = luaL_optlstring(
-        L,
-        2 as libc::c_int,
-        0 as *const libc::c_char,
-        0 as *mut usize,
-    )?;
-    let mut env: libc::c_int = if !(lua_type(L, 3 as libc::c_int) == -(1 as libc::c_int)) {
-        3 as libc::c_int
-    } else {
-        0 as libc::c_int
-    };
-
-    load_aux(L, luaL_loadfilex(L, fname, mode), env)
-}
-
 unsafe fn generic_reader(
     ud: *mut c_void,
     mut size: *mut usize,
@@ -396,7 +374,7 @@ unsafe fn generic_reader(
 
 unsafe fn luaB_load(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut l: usize = 0;
-    let mut s: *const libc::c_char = lua_tolstring(L, 1 as libc::c_int, &mut l)?;
+    let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
     let mut mode: *const libc::c_char = luaL_optlstring(
         L,
         3 as libc::c_int,
@@ -409,45 +387,15 @@ unsafe fn luaB_load(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Err
         0 as libc::c_int
     };
 
-    let status = if !s.is_null() {
-        let name = luaL_optlstring(L, 2, s, null_mut())?;
-        let s = std::slice::from_raw_parts(s.cast(), l);
-
-        luaL_loadbufferx(L, s, name, mode)
-    } else {
-        let mut chunkname_0: *const libc::c_char = luaL_optlstring(
-            L,
-            2 as libc::c_int,
-            b"=(load)\0" as *const u8 as *const libc::c_char,
-            0 as *mut usize,
-        )?;
-
-        luaL_checktype(L, 1 as libc::c_int, 6 as libc::c_int)?;
-        lua_settop(L, 5 as libc::c_int)?;
-
-        lua_load(L, generic_reader, L.cast(), chunkname_0, mode)
-    };
+    let name = luaL_optlstring(L, 2, s, null_mut())?;
+    let s = std::slice::from_raw_parts(s.cast(), l);
+    let status = lua_load(L, name, mode, s);
 
     load_aux(L, status, env)
 }
 
 unsafe extern "C" fn dofilecont(mut L: *mut Thread, mut d1: libc::c_int) -> libc::c_int {
     return lua_gettop(L) - 1 as libc::c_int;
-}
-
-unsafe fn luaB_dofile(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut fname: *const libc::c_char = luaL_optlstring(
-        L,
-        1 as libc::c_int,
-        0 as *const libc::c_char,
-        0 as *mut usize,
-    )?;
-
-    lua_settop(L, 1 as libc::c_int)?;
-    luaL_loadfilex(L, fname, 0 as *const libc::c_char)?;
-    lua_call(L, 0 as libc::c_int, -(1 as libc::c_int))?;
-
-    return Ok(dofilecont(L, 0 as libc::c_int));
 }
 
 unsafe fn luaB_assert(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -511,18 +459,11 @@ unsafe fn luaB_tostring(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error:
     return Ok(1 as libc::c_int);
 }
 
-static mut base_funcs: [luaL_Reg; 24] = [
+static mut base_funcs: [luaL_Reg; 22] = [
     {
         let mut init = luaL_Reg {
             name: b"assert\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_assert),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"dofile\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_dofile),
         };
         init
     },
@@ -544,13 +485,6 @@ static mut base_funcs: [luaL_Reg; 24] = [
         let mut init = luaL_Reg {
             name: b"ipairs\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_ipairs),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"loadfile\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_loadfile),
         };
         init
     },
@@ -699,11 +633,6 @@ pub unsafe fn luaopen_base(mut L: *mut Thread) -> Result<c_int, Box<dyn std::err
         -(2 as libc::c_int),
         b"_G\0" as *const u8 as *const libc::c_char,
     )?;
-    lua_pushstring(L, b"Lua 5.4\0" as *const u8 as *const libc::c_char)?;
-    lua_setfield(
-        L,
-        -(2 as libc::c_int),
-        b"_VERSION\0" as *const u8 as *const libc::c_char,
-    )?;
+
     return Ok(1 as libc::c_int);
 }

@@ -14,7 +14,7 @@ use crate::lobject::{
     CClosure, LClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata, UpVal,
     Value, luaO_arith, luaO_str2num, luaO_tostring,
 };
-use crate::lstate::{CallInfo, lua_CFunction, lua_Reader, lua_Writer};
+use crate::lstate::{CallInfo, lua_CFunction, lua_Writer};
 use crate::lstring::{luaS_new, luaS_newlstr, luaS_newudata};
 use crate::ltable::{
     luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_new, luaH_next, luaH_resize, luaH_set,
@@ -1460,58 +1460,60 @@ pub unsafe fn lua_pcall(
 
 pub unsafe fn lua_load(
     L: *mut Thread,
-    reader: lua_Reader,
-    data: *mut libc::c_void,
-    mut chunkname: *const libc::c_char,
+    mut name: *const libc::c_char,
     mode: *const libc::c_char,
+    chunk: impl AsRef<[u8]>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if chunkname.is_null() {
-        chunkname = b"?\0" as *const u8 as *const libc::c_char;
+    // Load.
+    let chunk = chunk.as_ref();
+    let z = Zio {
+        n: chunk.len(),
+        p: chunk.as_ptr().cast(),
+    };
+
+    if name.is_null() {
+        name = b"?\0" as *const u8 as *const libc::c_char;
     }
 
-    let mut z = Zio::new(reader, data);
-    let status = luaD_protectedparser(L, &mut z, chunkname, mode);
+    luaD_protectedparser(L, z, name, mode)?;
 
-    if status.is_ok() {
-        let f: *mut LClosure = (*((*L).top.get()).offset(-(1 as libc::c_int as isize)))
-            .val
-            .value_
-            .gc as *mut LClosure;
-        if (*f).nupvalues as libc::c_int >= 1 as libc::c_int {
-            let gt: *const TValue =
-                &mut *((*((*(*(*L).global).l_registry.get()).value_.gc as *mut Table)).array)
-                    .offset((2 as libc::c_int - 1 as libc::c_int) as isize)
-                    as *mut TValue;
-            let io1: *mut TValue = (**((*f).upvals).as_mut_ptr().offset(0)).v.get();
-            let io2: *const TValue = gt;
-            (*io1).value_ = (*io2).value_;
-            (*io1).tt_ = (*io2).tt_;
-            if (*gt).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
-                if (**((*f).upvals).as_mut_ptr().offset(0 as libc::c_int as isize))
-                    .hdr
-                    .marked
-                    .get() as libc::c_int
-                    & (1 as libc::c_int) << 5 as libc::c_int
+    let f: *mut LClosure = (*((*L).top.get()).offset(-(1 as libc::c_int as isize)))
+        .val
+        .value_
+        .gc as *mut LClosure;
+
+    if (*f).nupvalues as libc::c_int >= 1 as libc::c_int {
+        let gt: *const TValue =
+            &mut *((*((*(*(*L).global).l_registry.get()).value_.gc as *mut Table)).array)
+                .offset((2 as libc::c_int - 1 as libc::c_int) as isize) as *mut TValue;
+        let io1: *mut TValue = (**((*f).upvals).as_mut_ptr().offset(0)).v.get();
+        let io2: *const TValue = gt;
+        (*io1).value_ = (*io2).value_;
+        (*io1).tt_ = (*io2).tt_;
+        if (*gt).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
+            if (**((*f).upvals).as_mut_ptr().offset(0 as libc::c_int as isize))
+                .hdr
+                .marked
+                .get() as libc::c_int
+                & (1 as libc::c_int) << 5 as libc::c_int
+                != 0
+                && (*(*gt).value_.gc).marked.get() as libc::c_int
+                    & ((1 as libc::c_int) << 3 as libc::c_int
+                        | (1 as libc::c_int) << 4 as libc::c_int)
                     != 0
-                    && (*(*gt).value_.gc).marked.get() as libc::c_int
-                        & ((1 as libc::c_int) << 3 as libc::c_int
-                            | (1 as libc::c_int) << 4 as libc::c_int)
-                        != 0
-                {
-                    luaC_barrier_(
-                        L,
-                        *((*f).upvals).as_mut_ptr().offset(0 as libc::c_int as isize)
-                            as *mut Object,
-                        (*gt).value_.gc as *mut Object,
-                    );
-                } else {
-                };
+            {
+                luaC_barrier_(
+                    L,
+                    *((*f).upvals).as_mut_ptr().offset(0 as libc::c_int as isize) as *mut Object,
+                    (*gt).value_.gc as *mut Object,
+                );
             } else {
             };
-        }
+        } else {
+        };
     }
 
-    status
+    Ok(())
 }
 
 pub unsafe fn lua_dump(

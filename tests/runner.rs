@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::ptr::null;
 use std::sync::LazyLock;
 use tsuki::{
-    Lua, lua_closethread, lua_pcall, lua_pop, luaL_loadbufferx, luaL_requiref, luaopen_base,
-    luaopen_math, luaopen_string, luaopen_table,
+    Lua, lua_closethread, lua_load, lua_pcall, lua_pop, luaL_requiref, luaopen_base, luaopen_math,
+    luaopen_string, luaopen_table,
 };
 
 #[test]
@@ -70,7 +70,7 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     name.push('\0');
 
     // Run.
-    let mut r = unsafe { luaL_loadbufferx(lua, content, name.as_ptr().cast(), null()) };
+    let mut r = unsafe { lua_load(lua, name.as_ptr().cast(), null(), content) };
 
     if r.is_ok() {
         r = unsafe { lua_pcall(lua, 0, 0) };

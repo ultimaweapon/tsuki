@@ -22,7 +22,7 @@ use crate::lobject::{
 use crate::lparser::{Dyndata, FuncState};
 use crate::lstring::luaS_newlstr;
 use crate::ltable::{luaH_finishset, luaH_getstr};
-use crate::lzio::{Mbuffer, ZIO, luaZ_fill};
+use crate::lzio::{Mbuffer, ZIO};
 use crate::{Object, Thread};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
@@ -290,7 +290,7 @@ unsafe fn inclinenumber(mut ls: *mut LexState) -> Result<(), Box<dyn std::error:
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh3 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)?
+        -1
     };
     if ((*ls).current == '\n' as i32 || (*ls).current == '\r' as i32) && (*ls).current != old {
         let fresh4 = (*(*ls).z).n;
@@ -300,7 +300,7 @@ unsafe fn inclinenumber(mut ls: *mut LexState) -> Result<(), Box<dyn std::error:
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh5 as libc::c_uchar as libc::c_int
         } else {
-            luaZ_fill((*ls).z)?
+            -1
         };
     }
     (*ls).linenumber += 1;
@@ -355,7 +355,7 @@ unsafe fn check_next1(
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh7 as libc::c_uchar as libc::c_int
         } else {
-            luaZ_fill((*ls).z)?
+            -1
         };
         return Ok(1 as libc::c_int);
     } else {
@@ -378,7 +378,7 @@ unsafe fn check_next2(
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh9 as libc::c_uchar as libc::c_int
         } else {
-            luaZ_fill((*ls).z)?
+            -1
         });
         return Ok(1 as libc::c_int);
     } else {
@@ -406,7 +406,7 @@ unsafe fn read_numeral(
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh11 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)?
+        -1
     });
     if first == '0' as i32 && check_next2(ls, b"xX\0" as *const u8 as *const libc::c_char)? != 0 {
         expo = b"Pp\0" as *const u8 as *const libc::c_char;
@@ -430,7 +430,7 @@ unsafe fn read_numeral(
                 (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                 *fresh13 as libc::c_uchar as libc::c_int
             } else {
-                luaZ_fill((*ls).z)?
+                -1
             });
         }
     }
@@ -446,7 +446,7 @@ unsafe fn read_numeral(
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh15 as libc::c_uchar as libc::c_int
         } else {
-            luaZ_fill((*ls).z)?
+            -1
         });
     }
     save(ls, '\0' as i32)?;
@@ -473,7 +473,7 @@ unsafe fn skip_sep(mut ls: *mut LexState) -> Result<usize, Box<dyn std::error::E
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh17 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)?
+        -1
     });
     while (*ls).current == '=' as i32 {
         save(ls, (*ls).current)?;
@@ -484,7 +484,7 @@ unsafe fn skip_sep(mut ls: *mut LexState) -> Result<usize, Box<dyn std::error::E
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh19 as libc::c_uchar as libc::c_int
         } else {
-            luaZ_fill((*ls).z)?
+            -1
         });
         count = count.wrapping_add(1);
         count;
@@ -514,7 +514,7 @@ unsafe fn read_long_string(
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh21 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)?
+        -1
     });
     if (*ls).current == '\n' as i32 || (*ls).current == '\r' as i32 {
         inclinenumber(ls)?;
@@ -546,7 +546,7 @@ unsafe fn read_long_string(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh23 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)?
+                    -1
                 });
                 break;
             }
@@ -567,7 +567,7 @@ unsafe fn read_long_string(
                         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                         *fresh25 as libc::c_uchar as libc::c_int
                     } else {
-                        luaZ_fill((*ls).z)?
+                        -1
                     });
                 } else {
                     let fresh26 = (*(*ls).z).n;
@@ -577,7 +577,7 @@ unsafe fn read_long_string(
                         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                         *fresh27 as libc::c_uchar as libc::c_int
                     } else {
-                        luaZ_fill((*ls).z)?
+                        -1
                     };
                 }
             }
@@ -609,7 +609,7 @@ unsafe fn esccheck(
                 (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                 *fresh29 as libc::c_uchar as libc::c_int
             } else {
-                luaZ_fill((*ls).z)?
+                -1
             });
         }
         lexerror(ls, msg, TK_STRING as libc::c_int)?;
@@ -626,7 +626,7 @@ unsafe fn gethexa(mut ls: *mut LexState) -> Result<c_int, Box<dyn std::error::Er
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh31 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)?
+        -1
     });
     esccheck(
         ls,
@@ -655,7 +655,7 @@ unsafe fn readutf8esc(mut ls: *mut LexState) -> Result<libc::c_ulong, Box<dyn st
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh33 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)?
+        -1
     });
     esccheck(
         ls,
@@ -672,7 +672,7 @@ unsafe fn readutf8esc(mut ls: *mut LexState) -> Result<libc::c_ulong, Box<dyn st
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh35 as libc::c_uchar as libc::c_int
         } else {
-            luaZ_fill((*ls).z)?
+            -1
         });
         if !(luai_ctype_[((*ls).current + 1 as libc::c_int) as usize] as libc::c_int
             & (1 as libc::c_int) << 4 as libc::c_int
@@ -701,7 +701,7 @@ unsafe fn readutf8esc(mut ls: *mut LexState) -> Result<libc::c_ulong, Box<dyn st
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh37 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)?
+        -1
     };
     (*(*ls).buff).n = ((*(*ls).buff).n).wrapping_sub(i as usize);
     return Ok(r);
@@ -736,7 +736,7 @@ unsafe fn readdecesc(mut ls: *mut LexState) -> Result<c_int, Box<dyn std::error:
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh39 as libc::c_uchar as libc::c_int
         } else {
-            luaZ_fill((*ls).z)?
+            -1
         });
         i += 1;
         i;
@@ -764,7 +764,7 @@ unsafe fn read_string(
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh41 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)?
+        -1
     });
     while (*ls).current != del {
         match (*ls).current {
@@ -780,7 +780,7 @@ unsafe fn read_string(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh43 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)?
+                    -1
                 });
                 match (*ls).current {
                     97 => {
@@ -840,7 +840,7 @@ unsafe fn read_string(
                             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                             *fresh45 as libc::c_uchar as libc::c_int
                         } else {
-                            luaZ_fill((*ls).z)?
+                            -1
                         };
                         while luai_ctype_[((*ls).current + 1 as libc::c_int) as usize]
                             as libc::c_int
@@ -857,7 +857,7 @@ unsafe fn read_string(
                                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                                     *fresh47 as libc::c_uchar as libc::c_int
                                 } else {
-                                    luaZ_fill((*ls).z)?
+                                    -1
                                 };
                             }
                         }
@@ -883,7 +883,7 @@ unsafe fn read_string(
                             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                             *fresh49 as libc::c_uchar as libc::c_int
                         } else {
-                            luaZ_fill((*ls).z)?
+                            -1
                         };
                     }
                     _ => {}
@@ -900,7 +900,7 @@ unsafe fn read_string(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh51 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)?
+                    -1
                 });
             }
         }
@@ -913,7 +913,7 @@ unsafe fn read_string(
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh53 as libc::c_uchar as libc::c_int
     } else {
-        luaZ_fill((*ls).z)?
+        -1
     });
     (*seminfo).ts = luaX_newstring(
         ls,
@@ -940,7 +940,7 @@ unsafe fn llex(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh55 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)?
+                    -1
                 };
             }
             45 => {
@@ -951,7 +951,7 @@ unsafe fn llex(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh57 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)?
+                    -1
                 };
                 if (*ls).current != '-' as i32 {
                     return Ok('-' as i32);
@@ -963,7 +963,7 @@ unsafe fn llex(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh59 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)?
+                    -1
                 };
                 if (*ls).current == '[' as i32 {
                     let mut sep: usize = skip_sep(ls)?;
@@ -991,7 +991,7 @@ unsafe fn llex(
                                 (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                                 *fresh61 as libc::c_uchar as libc::c_int
                             } else {
-                                luaZ_fill((*ls).z)?
+                                -1
                             };
                         }
                     }
@@ -1019,7 +1019,7 @@ unsafe fn llex(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh63 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)?
+                    -1
                 };
                 if check_next1(ls, '=' as i32)? != 0 {
                     return Ok(TK_EQ as libc::c_int);
@@ -1035,7 +1035,7 @@ unsafe fn llex(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh65 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)?
+                    -1
                 };
                 if check_next1(ls, '=' as i32)? != 0 {
                     return Ok(TK_LE as libc::c_int);
@@ -1053,7 +1053,7 @@ unsafe fn llex(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh67 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)?
+                    -1
                 };
                 if check_next1(ls, '=' as i32)? != 0 {
                     return Ok(TK_GE as libc::c_int);
@@ -1071,7 +1071,7 @@ unsafe fn llex(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh69 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)?
+                    -1
                 };
                 if check_next1(ls, '/' as i32)? != 0 {
                     return Ok(TK_IDIV as libc::c_int);
@@ -1087,7 +1087,7 @@ unsafe fn llex(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh71 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)?
+                    -1
                 };
                 if check_next1(ls, '=' as i32)? != 0 {
                     return Ok(TK_NE as libc::c_int);
@@ -1103,7 +1103,7 @@ unsafe fn llex(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh73 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)?
+                    -1
                 };
                 if check_next1(ls, ':' as i32)? != 0 {
                     return Ok(TK_DBCOLON as libc::c_int);
@@ -1124,7 +1124,7 @@ unsafe fn llex(
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh75 as libc::c_uchar as libc::c_int
                 } else {
-                    luaZ_fill((*ls).z)?
+                    -1
                 });
                 if check_next1(ls, '.' as i32)? != 0 {
                     if check_next1(ls, '.' as i32)? != 0 {
@@ -1160,7 +1160,7 @@ unsafe fn llex(
                             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                             *fresh77 as libc::c_uchar as libc::c_int
                         } else {
-                            luaZ_fill((*ls).z)?
+                            -1
                         });
                         if !(luai_ctype_[((*ls).current + 1 as libc::c_int) as usize]
                             as libc::c_int
@@ -1191,7 +1191,7 @@ unsafe fn llex(
                         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                         *fresh79 as libc::c_uchar as libc::c_int
                     } else {
-                        luaZ_fill((*ls).z)?
+                        -1
                     };
                     return Ok(c);
                 }
