@@ -31,14 +31,14 @@ mod mark;
 mod object;
 
 #[inline(always)]
-unsafe fn getgclist(o: *mut Object) -> *mut *mut Object {
+unsafe fn getgclist(o: *const Object) -> *mut *const Object {
     match (*o).tt {
         5 | 6 | 7 | 8 | 10 | 38 => (*o).gclist.as_ptr(),
         _ => null_mut(),
     }
 }
 
-unsafe fn linkgclist_(o: *mut Object, pnext: *mut *mut Object, list: *mut *mut Object) {
+unsafe fn linkgclist_(o: *const Object, pnext: *mut *const Object, list: *mut *const Object) {
     *pnext = *list;
     *list = o;
 
@@ -109,7 +109,7 @@ pub(crate) unsafe fn luaC_fix(g: &Lua, o: *mut Object) {
     (*g).fixedgc.set(o);
 }
 
-unsafe fn reallymarkobject(g: *const Lua, o: *mut Object) {
+unsafe fn reallymarkobject(g: *const Lua, o: *const Object) {
     match (*o).tt {
         4 | 20 => {
             (*o).marked
@@ -117,7 +117,8 @@ unsafe fn reallymarkobject(g: *const Lua, o: *mut Object) {
             return;
         }
         9 => {
-            let uv: *mut UpVal = o as *mut UpVal;
+            let uv = o as *const UpVal;
+
             if (*uv).v.get() != &raw mut (*(*uv).u.get()).value as *mut TValue {
                 (*uv)
                     .hdr
@@ -139,7 +140,7 @@ unsafe fn reallymarkobject(g: *const Lua, o: *mut Object) {
             return;
         }
         7 => {
-            let u: *mut Udata = o as *mut Udata;
+            let u = o as *const Udata;
 
             if (*u).nuvalue == 0 {
                 if !((*u).metatable).is_null() {
@@ -181,15 +182,18 @@ unsafe fn markmt(g: *const Lua) {
 }
 
 unsafe fn remarkupvals(g: *const Lua) -> libc::c_int {
-    let mut thread: *mut Thread = 0 as *mut Thread;
-    let mut p: *mut *mut Thread = (*g).twups.as_ptr();
+    let mut p = (*g).twups.as_ptr();
     let mut work: libc::c_int = 0 as libc::c_int;
+
     loop {
-        thread = *p;
+        let thread = *p;
+
         if thread.is_null() {
             break;
         }
+
         work += 1;
+
         if (*thread).hdr.marked.get() & (1 << 3 | 1 << 4) == 0
             && !(*thread).openupval.get().is_null()
         {
@@ -220,25 +224,26 @@ unsafe fn remarkupvals(g: *const Lua) -> libc::c_int {
             }
         }
     }
+
     return work;
 }
 
-unsafe fn genlink(g: *const Lua, o: *mut Object) {
+unsafe fn genlink(g: *const Lua, o: *const Object) {
     if (*o).marked.get() as libc::c_int & 7 as libc::c_int == 5 as libc::c_int {
-        linkgclist_(o as *mut Object, getgclist(o), (*g).grayagain.as_ptr());
+        linkgclist_(o, getgclist(o), (*g).grayagain.as_ptr());
     } else if (*o).marked.get() as libc::c_int & 7 as libc::c_int == 6 as libc::c_int {
         (*o).marked.set((*o).marked.get() ^ (6 ^ 4));
     }
 }
 
-unsafe fn traverseweakvalue(g: *const Lua, h: *mut Table) {
+unsafe fn traverseweakvalue(g: *const Lua, h: *const Table) {
     let mut n: *mut Node = 0 as *mut Node;
-    let limit: *mut Node = &mut *((*h).node)
+    let limit: *mut Node = ((*h).node)
         .offset(((1 as libc::c_int) << (*h).lsizenode as libc::c_int) as usize as isize)
         as *mut Node;
     let mut hasclears: libc::c_int =
         ((*h).alimit > 0 as libc::c_int as libc::c_uint) as libc::c_int;
-    n = &mut *((*h).node).offset(0 as libc::c_int as isize) as *mut Node;
+    n = ((*h).node).offset(0 as libc::c_int as isize) as *mut Node;
     while n < limit {
         if (*n).i_val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
             clearkey(n);
@@ -268,20 +273,20 @@ unsafe fn traverseweakvalue(g: *const Lua, h: *mut Table) {
     }
     if (*g).gcstate.get() == 2 && hasclears != 0 {
         linkgclist_(
-            h as *mut Object,
+            h as *const Object,
             (*h).hdr.gclist.as_ptr(),
             (*g).weak.as_ptr(),
         );
     } else {
         linkgclist_(
-            h as *mut Object,
+            h as *const Object,
             (*h).hdr.gclist.as_ptr(),
             (*g).grayagain.as_ptr(),
         );
     };
 }
 
-unsafe fn traverseephemeron(g: *const Lua, h: *mut Table, inv: libc::c_int) -> libc::c_int {
+unsafe fn traverseephemeron(g: *const Lua, h: *const Table, inv: libc::c_int) -> libc::c_int {
     let mut marked: libc::c_int = 0 as libc::c_int;
     let mut hasclears: libc::c_int = 0 as libc::c_int;
     let mut hasww: libc::c_int = 0 as libc::c_int;
@@ -305,13 +310,13 @@ unsafe fn traverseephemeron(g: *const Lua, h: *mut Table, inv: libc::c_int) -> l
     i = 0 as libc::c_int as libc::c_uint;
     while i < nsize {
         let n: *mut Node = if inv != 0 {
-            &mut *((*h).node).offset(
+            ((*h).node).offset(
                 nsize
                     .wrapping_sub(1 as libc::c_int as libc::c_uint)
                     .wrapping_sub(i) as isize,
             ) as *mut Node
         } else {
-            &mut *((*h).node).offset(i as isize) as *mut Node
+            ((*h).node).offset(i as isize) as *mut Node
         };
         if (*n).i_val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
             clearkey(n);
@@ -345,31 +350,31 @@ unsafe fn traverseephemeron(g: *const Lua, h: *mut Table, inv: libc::c_int) -> l
     }
     if (*g).gcstate.get() == 0 {
         linkgclist_(
-            h as *mut Object,
+            h as *const Object,
             (*h).hdr.gclist.as_ptr(),
             (*g).grayagain.as_ptr(),
         );
     } else if hasww != 0 {
         linkgclist_(
-            h as *mut Object,
+            h as *const Object,
             (*h).hdr.gclist.as_ptr(),
             (*g).ephemeron.as_ptr(),
         );
     } else if hasclears != 0 {
         linkgclist_(
-            h as *mut Object,
+            h as *const Object,
             (*h).hdr.gclist.as_ptr(),
             (*g).allweak.as_ptr(),
         );
     } else {
-        genlink(g, h as *mut Object);
+        genlink(g, h as *const Object);
     }
     return marked;
 }
 
-unsafe fn traversestrongtable(g: *const Lua, h: *mut Table) {
+unsafe fn traversestrongtable(g: *const Lua, h: *const Table) {
     let mut n: *mut Node = 0 as *mut Node;
-    let limit: *mut Node = &mut *((*h).node)
+    let limit: *mut Node = ((*h).node)
         .offset(((1 as libc::c_int) << (*h).lsizenode as libc::c_int) as usize as isize)
         as *mut Node;
     let mut i: libc::c_uint = 0;
@@ -387,7 +392,7 @@ unsafe fn traversestrongtable(g: *const Lua, h: *mut Table) {
         }
         i = i.wrapping_add(1);
     }
-    n = &mut *((*h).node).offset(0 as libc::c_int as isize) as *mut Node;
+    n = ((*h).node).offset(0 as libc::c_int as isize) as *mut Node;
     while n < limit {
         if (*n).i_val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
             clearkey(n);
@@ -411,10 +416,10 @@ unsafe fn traversestrongtable(g: *const Lua, h: *mut Table) {
         }
         n = n.offset(1);
     }
-    genlink(g, h as *mut Object);
+    genlink(g, h as *const Object);
 }
 
-unsafe fn traversetable(g: *const Lua, h: *mut Table) -> usize {
+unsafe fn traversetable(g: *const Lua, h: *const Table) -> usize {
     let mut weakkey: *const libc::c_char = 0 as *const libc::c_char;
     let mut weakvalue: *const libc::c_char = 0 as *const libc::c_char;
     let mode: *const TValue = if ((*h).metatable).is_null() {
@@ -473,43 +478,43 @@ unsafe fn traversetable(g: *const Lua, h: *mut Table) -> usize {
         ) as usize;
 }
 
-unsafe fn traverseudata(g: *const Lua, u: *mut Udata) -> libc::c_int {
+unsafe fn traverseudata(g: *const Lua, u: *const Udata) -> libc::c_int {
     let mut i: libc::c_int = 0;
     if !((*u).metatable).is_null() {
         if (*(*u).metatable).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
         {
-            reallymarkobject(g, (*u).metatable as *mut Object);
+            reallymarkobject(g, (*u).metatable as *const Object);
         }
     }
     i = 0 as libc::c_int;
     while i < (*u).nuvalue as libc::c_int {
-        if (*((*u).uv).as_mut_ptr().offset(i as isize)).uv.tt_ as libc::c_int
+        if (*((*u).uv).as_ptr().offset(i as isize)).uv.tt_ as libc::c_int
             & (1 as libc::c_int) << 6 as libc::c_int
             != 0
-            && (*(*((*u).uv).as_mut_ptr().offset(i as isize)).uv.value_.gc)
+            && (*(*((*u).uv).as_ptr().offset(i as isize)).uv.value_.gc)
                 .marked
                 .get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            reallymarkobject(g, (*((*u).uv).as_mut_ptr().offset(i as isize)).uv.value_.gc);
+            reallymarkobject(g, (*((*u).uv).as_ptr().offset(i as isize)).uv.value_.gc);
         }
         i += 1;
     }
-    genlink(g, u as *mut Object);
+    genlink(g, u as *const Object);
     return 1 as libc::c_int + (*u).nuvalue as libc::c_int;
 }
 
-unsafe fn traverseproto(g: *const Lua, f: *mut Proto) -> libc::c_int {
+unsafe fn traverseproto(g: *const Lua, f: *const Proto) -> libc::c_int {
     let mut i: libc::c_int = 0;
     if !((*f).source).is_null() {
         if (*(*f).source).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
         {
-            reallymarkobject(g, (*f).source as *mut Object);
+            reallymarkobject(g, (*f).source as *const Object);
         }
     }
     i = 0 as libc::c_int;
@@ -535,7 +540,10 @@ unsafe fn traverseproto(g: *const Lua, f: *mut Proto) -> libc::c_int {
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
             {
-                reallymarkobject(g, (*((*f).upvalues).offset(i as isize)).name as *mut Object);
+                reallymarkobject(
+                    g,
+                    (*((*f).upvalues).offset(i as isize)).name as *const Object,
+                );
             }
         }
         i += 1;
@@ -547,7 +555,7 @@ unsafe fn traverseproto(g: *const Lua, f: *mut Proto) -> libc::c_int {
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
             {
-                reallymarkobject(g, *((*f).p).offset(i as isize) as *mut Object);
+                reallymarkobject(g, *((*f).p).offset(i as isize) as *const Object);
             }
         }
         i += 1;
@@ -564,7 +572,7 @@ unsafe fn traverseproto(g: *const Lua, f: *mut Proto) -> libc::c_int {
             {
                 reallymarkobject(
                     g,
-                    (*((*f).locvars).offset(i as isize)).varname as *mut Object,
+                    (*((*f).locvars).offset(i as isize)).varname as *const Object,
                 );
             }
         }
@@ -573,42 +581,39 @@ unsafe fn traverseproto(g: *const Lua, f: *mut Proto) -> libc::c_int {
     return 1 as libc::c_int + (*f).sizek + (*f).sizeupvalues + (*f).sizep + (*f).sizelocvars;
 }
 
-unsafe fn traverseCclosure(g: *const Lua, cl: *mut CClosure) -> libc::c_int {
+unsafe fn traverseCclosure(g: *const Lua, cl: *const CClosure) -> libc::c_int {
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < (*cl).nupvalues as libc::c_int {
-        if (*((*cl).upvalue).as_mut_ptr().offset(i as isize)).tt_ as libc::c_int
+        if (*((*cl).upvalue).as_ptr().offset(i as isize)).tt_ as libc::c_int
             & (1 as libc::c_int) << 6 as libc::c_int
             != 0
-            && (*(*((*cl).upvalue).as_mut_ptr().offset(i as isize)).value_.gc)
+            && (*(*((*cl).upvalue).as_ptr().offset(i as isize)).value_.gc)
                 .marked
                 .get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            reallymarkobject(
-                g,
-                (*((*cl).upvalue).as_mut_ptr().offset(i as isize)).value_.gc,
-            );
+            reallymarkobject(g, (*((*cl).upvalue).as_ptr().offset(i as isize)).value_.gc);
         }
         i += 1;
     }
     return 1 as libc::c_int + (*cl).nupvalues as libc::c_int;
 }
 
-unsafe fn traverseLclosure(g: *const Lua, cl: *mut LClosure) -> libc::c_int {
+unsafe fn traverseLclosure(g: *const Lua, cl: *const LClosure) -> libc::c_int {
     let mut i: libc::c_int = 0;
     if !((*cl).p).is_null() {
         if (*(*cl).p).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
         {
-            reallymarkobject(g, (*cl).p as *mut Object);
+            reallymarkobject(g, (*cl).p as *const Object);
         }
     }
     i = 0 as libc::c_int;
     while i < (*cl).nupvalues as libc::c_int {
-        let uv: *mut UpVal = *((*cl).upvals).as_mut_ptr().offset(i as isize);
+        let uv: *mut UpVal = *((*cl).upvals).as_ptr().offset(i as isize);
         if !uv.is_null() {
             if (*uv).hdr.marked.get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
@@ -622,12 +627,12 @@ unsafe fn traverseLclosure(g: *const Lua, cl: *mut LClosure) -> libc::c_int {
     return 1 as libc::c_int + (*cl).nupvalues as libc::c_int;
 }
 
-unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
+unsafe fn traversethread(g: *const Lua, th: *const Thread) -> libc::c_int {
     let mut uv: *mut UpVal = 0 as *mut UpVal;
     let mut o: StkId = (*th).stack.get();
     if (*th).hdr.marked.get() & 7 > 1 || (*g).gcstate.get() == 0 {
         linkgclist_(
-            th as *mut Object,
+            th as *const Object,
             (*th).hdr.gclist.as_ptr(),
             (*g).grayagain.as_ptr(),
         );
@@ -674,18 +679,18 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
 }
 
 unsafe fn propagatemark(g: &Lua) -> usize {
-    let o: *mut Object = g.gray.get();
+    let o = g.gray.get();
 
     (*o).marked.set((*o).marked.get() | 1 << 5);
     (*g).gray.set(*getgclist(o));
 
     match (*o).tt {
-        5 => traversetable(g, o as *mut Table),
-        7 => traverseudata(g, o as *mut Udata) as usize,
-        6 => traverseLclosure(g, o as *mut LClosure) as usize,
-        38 => traverseCclosure(g, o as *mut CClosure) as usize,
-        10 => traverseproto(g, o as *mut Proto) as usize,
-        8 => traversethread(g, o as *mut Thread) as usize,
+        5 => traversetable(g, o as *const Table),
+        7 => traverseudata(g, o as *const Udata) as usize,
+        6 => traverseLclosure(g, o as *const LClosure) as usize,
+        38 => traverseCclosure(g, o as *const CClosure) as usize,
+        10 => traverseproto(g, o as *const Proto) as usize,
+        8 => traversethread(g, o as *const Thread) as usize,
         _ => 0,
     }
 }
@@ -702,12 +707,13 @@ unsafe fn convergeephemerons(g: *const Lua) {
     let mut changed: libc::c_int = 0;
     let mut dir: libc::c_int = 0 as libc::c_int;
     loop {
-        let mut w: *mut Object = 0 as *mut Object;
-        let mut next: *mut Object = (*g).ephemeron.get();
+        let mut next = (*g).ephemeron.get();
+
         (*g).ephemeron.set(0 as *mut Object);
         changed = 0 as libc::c_int;
+
         loop {
-            w = next;
+            let w = next;
             if w.is_null() {
                 break;
             }
@@ -727,7 +733,7 @@ unsafe fn convergeephemerons(g: *const Lua) {
     }
 }
 
-unsafe fn clearbykeys(g: *const Lua, mut l: *mut Object) {
+unsafe fn clearbykeys(g: *const Lua, mut l: *const Object) {
     while !l.is_null() {
         let h: *mut Table = l as *mut Table;
         let limit: *mut Node = &mut *((*h).node)
@@ -756,7 +762,7 @@ unsafe fn clearbykeys(g: *const Lua, mut l: *mut Object) {
     }
 }
 
-unsafe fn clearbyvalues(g: *const Lua, mut l: *mut Object, f: *mut Object) {
+unsafe fn clearbyvalues(g: *const Lua, mut l: *const Object, f: *const Object) {
     while l != f {
         let h: *mut Table = l as *mut Table;
         let mut n: *mut Node = 0 as *mut Node;
@@ -881,22 +887,22 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
 
 unsafe fn sweeplist(
     L: *mut Thread,
-    mut p: *mut *mut Object,
+    mut p: *mut *const Object,
     countin: libc::c_int,
     countout: *mut libc::c_int,
-) -> *mut *mut Object {
+) -> *mut *const Object {
     let g = &*(*L).global;
     let ow = g.gc.currentwhite() ^ (1 << 3 | 1 << 4);
     let mut i = 0;
     let white = g.gc.currentwhite() & (1 << 3 | 1 << 4);
 
     while !(*p).is_null() && i < countin {
-        let curr: *mut Object = *p;
+        let curr = *p;
         let marked = (*curr).marked.get();
 
         if marked & ow != 0 {
             *p = (*curr).next.get();
-            freeobj(g, curr);
+            freeobj(g, curr.cast_mut());
         } else {
             (*curr)
                 .marked
@@ -915,8 +921,8 @@ unsafe fn sweeplist(
 }
 
 /// Sweep a list until a live object (or end of list).
-unsafe fn sweeptolive(L: *mut Thread, mut p: *mut *mut Object) -> *mut *mut Object {
-    let old: *mut *mut Object = p;
+unsafe fn sweeptolive(L: *mut Thread, mut p: *mut *const Object) -> *mut *const Object {
+    let old = p;
 
     loop {
         p = sweeplist(L, p, 1, 0 as *mut libc::c_int);
@@ -958,10 +964,10 @@ unsafe fn entersweep(L: *mut Thread) {
     (*g).sweepgc.set(sweeptolive(L, (*g).gc.allgc.as_ptr()));
 }
 
-unsafe fn deletelist(g: &Lua, mut p: *mut Object, limit: *mut Object) {
+unsafe fn deletelist(g: &Lua, mut p: *const Object, limit: *mut Object) {
     while p != limit {
-        let next: *mut Object = (*p).next.get();
-        freeobj(g, p);
+        let next = (*p).next.get();
+        freeobj(g, p.cast_mut());
         p = next;
     }
 }
@@ -977,9 +983,7 @@ pub(crate) unsafe fn luaC_freeallobjects(g: &Lua) {
 unsafe fn atomic(L: *mut Thread) -> usize {
     let g = &*(*L).global;
     let mut work: usize = 0 as libc::c_int as usize;
-    let mut origweak: *mut Object = 0 as *mut Object;
-    let mut origall: *mut Object = 0 as *mut Object;
-    let grayagain: *mut Object = g.grayagain.get();
+    let grayagain = g.grayagain.get();
 
     g.grayagain.set(null_mut());
     g.gcstate.set(2);
@@ -1009,8 +1013,9 @@ unsafe fn atomic(L: *mut Thread) -> usize {
     convergeephemerons(g);
     clearbyvalues(g, g.weak.get(), 0 as *mut Object);
     clearbyvalues(g, g.allweak.get(), 0 as *mut Object);
-    origweak = g.weak.get();
-    origall = g.allweak.get();
+
+    let origweak = g.weak.get();
+    let origall = g.allweak.get();
     work = work.wrapping_add(propagateall(g));
     convergeephemerons(g);
     clearbykeys(g, g.ephemeron.get());
@@ -1028,7 +1033,7 @@ unsafe fn sweepstep(
     L: *mut Thread,
     g: *const Lua,
     nextstate: libc::c_int,
-    nextlist: *mut *mut Object,
+    nextlist: *mut *const Object,
 ) -> libc::c_int {
     if !((*g).sweepgc.get()).is_null() {
         let olddebt: isize = (*g).gc.debt.get();
@@ -1143,7 +1148,7 @@ pub struct Gc {
     currentwhite: Cell<u8>,
     totalbytes: Cell<isize>,
     debt: Cell<isize>,
-    allgc: Cell<*mut Object>,
+    allgc: Cell<*const Object>,
 }
 
 impl Gc {

@@ -5,10 +5,10 @@ use std::cell::Cell;
 ///
 /// All object must have this struct at the beginning of its memory block.
 pub(crate) struct Object {
-    pub next: Cell<*mut Object>,
+    pub next: Cell<*const Object>,
     pub tt: u8,
     pub marked: Mark,
     pub refs: Cell<usize>,
     pub handle: Cell<usize>,
-    pub gclist: Cell<*mut Object>,
+    pub gclist: Cell<*const Object>,
 }

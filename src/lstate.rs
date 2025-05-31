@@ -96,7 +96,7 @@ pub unsafe fn luaE_extendCI(mut L: *mut Thread) -> *mut CallInfo {
     return ci;
 }
 
-pub unsafe fn luaE_shrinkCI(mut L: *mut Thread) {
+pub unsafe fn luaE_shrinkCI(mut L: *const Thread) {
     let mut ci: *mut CallInfo = (*(*L).ci.get()).next;
     let mut next: *mut CallInfo = 0 as *mut CallInfo;
     if ci.is_null() {

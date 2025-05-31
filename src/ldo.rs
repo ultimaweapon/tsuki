@@ -38,7 +38,7 @@ pub struct CloseP {
     pub status: Result<(), Box<dyn std::error::Error>>,
 }
 
-unsafe fn relstack(L: *mut Thread) {
+unsafe fn relstack(L: *const Thread) {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     let mut up: *mut UpVal = 0 as *mut UpVal;
 
@@ -65,7 +65,7 @@ unsafe fn relstack(L: *mut Thread) {
     }
 }
 
-unsafe fn correctstack(L: *mut Thread) {
+unsafe fn correctstack(L: *const Thread) {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     let mut up: *mut UpVal = 0 as *mut UpVal;
 
@@ -97,7 +97,7 @@ unsafe fn correctstack(L: *mut Thread) {
     }
 }
 
-pub unsafe fn luaD_reallocstack(th: *mut Thread, newsize: usize) {
+pub unsafe fn luaD_reallocstack(th: *const Thread, newsize: usize) {
     let lua = (*th).global;
     let oldsize = ((*th).stack_last.get()).offset_from_unsigned((*th).stack.get());
     let oldgcstop: libc::c_int = (*lua).gcstopem.get() as libc::c_int;
@@ -157,7 +157,7 @@ pub unsafe fn luaD_growstack(L: *mut Thread, n: usize) -> Result<(), Box<dyn std
     luaG_runerror(L, "stack overflow")
 }
 
-unsafe fn stackinuse(L: *mut Thread) -> usize {
+unsafe fn stackinuse(L: *const Thread) -> usize {
     let mut res = 0;
     let mut lim: StkId = (*L).top.get();
     let mut ci = (*L).ci.get();
@@ -178,7 +178,7 @@ unsafe fn stackinuse(L: *mut Thread) -> usize {
     return res;
 }
 
-pub unsafe fn luaD_shrinkstack(L: *mut Thread) {
+pub unsafe fn luaD_shrinkstack(L: *const Thread) {
     let inuse = stackinuse(L);
     let max = if inuse > 1000000 / 3 {
         1000000

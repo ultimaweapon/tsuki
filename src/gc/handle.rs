@@ -12,38 +12,37 @@ use std::rc::Rc;
 /// collect the parent, which also prevent the reference to [`Lua`] from reduce to zero since
 /// [`Handle`] also have a strong reference to [`Lua`].
 pub struct Handle<T> {
-    lua: Pin<Rc<Lua>>,
-    obj: *mut T,
+    g: Pin<Rc<Lua>>,
+    o: *const T,
 }
 
 impl<T> Handle<T> {
     #[inline(always)]
-    pub(crate) unsafe fn new(lua: Pin<Rc<Lua>>, obj: *mut T) -> Self {
-        // Allocate a handle.
-        let b = obj as *mut Object;
+    pub(crate) unsafe fn new(g: Pin<Rc<Lua>>, o: *const T) -> Self {
+        let b = o as *const Object;
 
         if (*b).refs.get() == 0 {
-            (*b).handle.set(Self::alloc_handle(&lua, b));
+            (*b).handle.set(Self::alloc_handle(&g, b));
+            (*b).refs.set(1);
+        } else {
+            (*b).refs.set((*b).refs.get().checked_add(1).unwrap());
         }
 
-        // Increase references.
-        (*b).refs.set((*b).refs.get().checked_add(1).unwrap());
-
-        Self { lua, obj }
+        Self { g, o }
     }
 
     #[inline(never)]
-    fn alloc_handle(lua: &Lua, obj: *mut Object) -> usize {
-        let mut t = lua.handle_table.borrow_mut();
+    fn alloc_handle(g: &Lua, o: *const Object) -> usize {
+        let mut t = g.handle_table.borrow_mut();
 
-        match lua.handle_free.borrow_mut().pop() {
+        match g.handle_free.borrow_mut().pop() {
             Some(h) => {
-                debug_assert!(std::mem::replace(&mut t[h], obj).is_null());
+                debug_assert!(std::mem::replace(&mut t[h], o).is_null());
                 h
             }
             None => {
                 let h = t.len();
-                t.push(obj);
+                t.push(o);
                 h
             }
         }
@@ -51,15 +50,15 @@ impl<T> Handle<T> {
 
     #[inline(never)]
     unsafe fn free_handle(&mut self) {
-        let mut t = self.lua.handle_table.borrow_mut();
-        let b = self.obj as *mut Object;
-        let h = (*b).handle.get();
+        let mut t = self.g.handle_table.borrow_mut();
+        let o = self.o as *const Object;
+        let h = (*o).handle.get();
 
         if h == t.len() - 1 {
             t.pop();
         } else {
-            debug_assert_eq!(std::mem::replace(&mut t[h], null_mut()), b);
-            self.lua.handle_free.borrow_mut().push(h);
+            debug_assert_eq!(std::mem::replace(&mut t[h], null_mut()), o);
+            self.g.handle_free.borrow_mut().push(h);
         }
     }
 }
@@ -67,11 +66,11 @@ impl<T> Handle<T> {
 impl<T> Drop for Handle<T> {
     #[inline(always)]
     fn drop(&mut self) {
-        let b = self.obj as *mut Object;
+        let o = self.o as *const Object;
 
-        unsafe { (*b).refs.set((*b).refs.get() - 1) };
+        unsafe { (*o).refs.set((*o).refs.get() - 1) };
 
-        if unsafe { (*b).refs.get() == 0 } {
+        if unsafe { (*o).refs.get() == 0 } {
             unsafe { self.free_handle() };
         }
     }
@@ -80,13 +79,13 @@ impl<T> Drop for Handle<T> {
 impl<T> Clone for Handle<T> {
     #[inline(always)]
     fn clone(&self) -> Self {
-        let b = self.obj as *mut Object;
+        let b = self.o as *const Object;
 
         unsafe { (*b).refs.set((*b).refs.get().checked_add(1).unwrap()) };
 
         Self {
-            lua: self.lua.clone(),
-            obj: self.obj,
+            g: self.g.clone(),
+            o: self.o,
         }
     }
 }
@@ -96,6 +95,6 @@ impl<T> Deref for Handle<T> {
 
     #[inline(always)]
     fn deref(&self) -> &Self::Target {
-        unsafe { &*self.obj }
+        unsafe { &*self.o }
     }
 }

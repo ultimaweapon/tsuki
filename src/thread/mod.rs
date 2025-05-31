@@ -23,7 +23,7 @@ pub struct Thread {
     pub(crate) stack: Cell<StkId>,
     pub(crate) openupval: Cell<*mut UpVal>,
     pub(crate) tbclist: Cell<StkId>,
-    pub(crate) twups: Cell<*mut Thread>,
+    pub(crate) twups: Cell<*const Thread>,
     pub(crate) base_ci: UnsafeCell<CallInfo>,
     pub(crate) hook: Cell<lua_Hook>,
     pub(crate) oldpc: Cell<libc::c_int>,
