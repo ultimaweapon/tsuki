@@ -118,7 +118,7 @@ unsafe fn reallymarkobject(g: *const Lua, o: *mut Object) {
         }
         9 => {
             let uv: *mut UpVal = o as *mut UpVal;
-            if (*uv).v != &raw mut (*uv).u.value as *mut TValue {
+            if (*uv).v != &raw mut (*(*uv).u.get()).value as *mut TValue {
                 (*uv)
                     .hdr
                     .marked
@@ -215,7 +215,7 @@ unsafe fn remarkupvals(g: *const Lua) -> libc::c_int {
                         reallymarkobject(g, (*(*uv).v).value_.gc);
                     }
                 }
-                uv = (*uv).u.open.next;
+                uv = (*(*uv).u.get()).open.next;
             }
         }
     }
@@ -652,7 +652,7 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
         {
             reallymarkobject(g, uv as *mut Object);
         }
-        uv = (*uv).u.open.next;
+        uv = (*(*uv).u.get()).open.next;
     }
 
     if (*g).gcstate.get() == 2 {
@@ -805,7 +805,7 @@ unsafe fn clearbyvalues(g: *const Lua, mut l: *mut Object, f: *mut Object) {
 unsafe fn freeupval(g: *const Lua, uv: *mut UpVal) {
     let layout = Layout::new::<UpVal>();
 
-    if (*uv).v != &raw mut (*uv).u.value as *mut TValue {
+    if (*uv).v != &raw mut (*(*uv).u.get()).value as *mut TValue {
         luaF_unlinkupval(uv);
     }
 

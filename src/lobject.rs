@@ -1,5 +1,4 @@
 #![allow(
-    dead_code,
     mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
@@ -9,17 +8,16 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use crate::Thread;
 use crate::gc::Object;
 use crate::lctype::luai_ctype_;
 use crate::lstate::lua_CFunction;
 use crate::lstring::luaS_newlstr;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
-use crate::lvm::{
-    F2Ieq, luaV_concat, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns,
-};
-use crate::{Thread, api_incr_top};
+use crate::lvm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
 use libc::{c_char, c_int, memcpy, sprintf, strchr, strpbrk, strspn, strtod};
 use libm::{floor, pow};
+use std::cell::UnsafeCell;
 
 pub type StkId = *mut StackValue;
 
@@ -59,7 +57,7 @@ pub struct TValue {
 pub struct UpVal {
     pub hdr: Object,
     pub v: *mut TValue,
-    pub u: C2RustUnnamed_5,
+    pub u: UnsafeCell<C2RustUnnamed_5>,
 }
 
 #[derive(Copy, Clone)]
@@ -205,15 +203,6 @@ pub struct LClosure {
     pub nupvalues: u8,
     pub p: *mut Proto,
     pub upvals: [*mut UpVal; 1],
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct BuffFS {
-    pub L: *mut Thread,
-    pub pushed: c_int,
-    pub blen: c_int,
-    pub space: [c_char; 199],
 }
 
 pub unsafe fn luaO_ceillog2(mut x: libc::c_uint) -> c_int {
@@ -870,74 +859,7 @@ pub unsafe fn luaO_tostring(
     Ok(())
 }
 
-unsafe fn pushstr(
-    mut buff: *mut BuffFS,
-    mut str: *const c_char,
-    mut lstr: usize,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut L: *mut Thread = (*buff).L;
-    let mut io: *mut TValue = &raw mut (*(*L).top.get()).val;
-    let mut x_: *mut TString = luaS_newlstr(L, str, lstr)?;
-    (*io).value_.gc = x_ as *mut Object;
-    (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
-    if (*buff).pushed == 0 {
-        (*buff).pushed = 1 as c_int;
-        api_incr_top(L);
-    } else {
-        (*L).top.add(1);
-        luaV_concat(L, 2 as c_int)?;
-    };
-    Ok(())
-}
-
-unsafe fn clearbuff(mut buff: *mut BuffFS) -> Result<(), Box<dyn std::error::Error>> {
-    pushstr(buff, ((*buff).space).as_mut_ptr(), (*buff).blen as usize)?;
-    (*buff).blen = 0 as c_int;
-    Ok(())
-}
-
-unsafe fn getbuff(
-    mut buff: *mut BuffFS,
-    mut sz: c_int,
-) -> Result<*mut c_char, Box<dyn std::error::Error>> {
-    if sz > 60 as c_int + 44 as c_int + 95 as c_int - (*buff).blen {
-        clearbuff(buff)?;
-    }
-    return Ok(((*buff).space).as_mut_ptr().offset((*buff).blen as isize));
-}
-
-unsafe fn addstr2buff(
-    mut buff: *mut BuffFS,
-    mut str: *const c_char,
-    mut slen: usize,
-) -> Result<(), Box<dyn std::error::Error>> {
-    if slen <= (60 as c_int + 44 as c_int + 95 as c_int) as usize {
-        let mut bf: *mut c_char = getbuff(buff, slen as c_int)?;
-        memcpy(bf as *mut libc::c_void, str as *const libc::c_void, slen);
-        (*buff).blen += slen as c_int;
-    } else {
-        clearbuff(buff)?;
-        pushstr(buff, str, slen)?;
-    };
-    Ok(())
-}
-
-unsafe fn addnum2buff(
-    mut buff: *mut BuffFS,
-    mut num: *mut TValue,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut numbuff: *mut c_char = getbuff(buff, 44 as c_int)?;
-    let mut len: c_int = tostringbuff(num, numbuff);
-    (*buff).blen += len;
-    Ok(())
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaO_chunkid(
-    mut out: *mut c_char,
-    mut source: *const c_char,
-    mut srclen: usize,
-) {
+pub unsafe fn luaO_chunkid(mut out: *mut c_char, mut source: *const c_char, mut srclen: usize) {
     let mut bufflen: usize = 60 as c_int as usize;
     if *source as c_int == '=' as i32 {
         if srclen <= bufflen {

@@ -51,7 +51,7 @@ unsafe fn relstack(L: *mut Thread) {
 
     while !up.is_null() {
         (*up).v = ((*up).v).byte_offset_from_unsigned((*L).stack.get()) as _;
-        up = (*up).u.open.next;
+        up = (*(*up).u.get()).open.next;
     }
 
     ci = (*L).ci.get();
@@ -76,7 +76,7 @@ unsafe fn correctstack(L: *mut Thread) {
 
     while !up.is_null() {
         (*up).v = &raw mut (*(((*L).stack.get()).byte_add((*up).v as usize) as StkId)).val;
-        up = (*up).u.open.next;
+        up = (*(*up).u.get()).open.next;
     }
 
     ci = (*L).ci.get();
