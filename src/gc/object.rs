@@ -8,6 +8,6 @@ pub(crate) struct Object {
     pub next: Cell<*mut Object>,
     pub tt: u8,
     pub marked: Mark,
-    pub refs: usize,
-    pub handle: usize,
+    pub refs: Cell<usize>,
+    pub handle: Cell<usize>,
 }

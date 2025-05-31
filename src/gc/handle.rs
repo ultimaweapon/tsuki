@@ -22,12 +22,12 @@ impl<T> Handle<T> {
         // Allocate a handle.
         let b = obj as *mut Object;
 
-        if (*b).refs == 0 {
-            (*b).handle = Self::alloc_handle(&lua, b);
+        if (*b).refs.get() == 0 {
+            (*b).handle.set(Self::alloc_handle(&lua, b));
         }
 
         // Increase references.
-        (*b).refs = (*b).refs.checked_add(1).unwrap();
+        (*b).refs.set((*b).refs.get().checked_add(1).unwrap());
 
         Self { lua, obj }
     }
@@ -53,11 +53,14 @@ impl<T> Handle<T> {
     unsafe fn free_handle(&mut self) {
         let mut t = self.lua.handle_table.borrow_mut();
         let b = self.obj as *mut Object;
-        let h = (*b).handle;
+        let h = (*b).handle.get();
 
-        debug_assert_eq!(std::mem::replace(&mut t[h], null_mut()), b);
-
-        self.lua.handle_free.borrow_mut().push(h);
+        if h == t.len() - 1 {
+            t.pop();
+        } else {
+            debug_assert_eq!(std::mem::replace(&mut t[h], null_mut()), b);
+            self.lua.handle_free.borrow_mut().push(h);
+        }
     }
 }
 
@@ -66,9 +69,9 @@ impl<T> Drop for Handle<T> {
     fn drop(&mut self) {
         let b = self.obj as *mut Object;
 
-        unsafe { (*b).refs -= 1 };
+        unsafe { (*b).refs.set((*b).refs.get() - 1) };
 
-        if unsafe { (*b).refs == 0 } {
+        if unsafe { (*b).refs.get() == 0 } {
             unsafe { self.free_handle() };
         }
     }
@@ -79,7 +82,7 @@ impl<T> Clone for Handle<T> {
     fn clone(&self) -> Self {
         let b = self.obj as *mut Object;
 
-        unsafe { (*b).refs = (*b).refs.checked_add(1).unwrap() };
+        unsafe { (*b).refs.set((*b).refs.get().checked_add(1).unwrap()) };
 
         Self {
             lua: self.lua.clone(),

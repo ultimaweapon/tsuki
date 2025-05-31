@@ -1174,8 +1174,8 @@ impl Gc {
             addr_of_mut!((*o).marked).write(Mark::new(self.currentwhite.get() & (1 << 3 | 1 << 4)))
         };
         unsafe { (*o).tt = tt };
-        unsafe { (*o).refs = 0 };
-        unsafe { (*o).handle = 0 };
+        unsafe { addr_of_mut!((*o).refs).write(Cell::new(0)) };
+        unsafe { addr_of_mut!((*o).handle).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*o).next).write(Cell::new(self.allgc.get())) };
 
         self.allgc.set(o);
