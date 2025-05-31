@@ -1,21 +1,19 @@
 pub use self::error::*;
 pub use self::gc::*;
 pub use self::lapi::{
-    lua_arith, lua_call, lua_createtable, lua_dump, lua_getglobal, lua_getiuservalue, lua_gettable,
-    lua_gettop, lua_getupvalue, lua_iscfunction, lua_isinteger, lua_isstring, lua_isuserdata,
-    lua_load, lua_newuserdatauv, lua_pcall, lua_pushcclosure, lua_pushinteger, lua_pushlstring,
-    lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushthread, lua_pushvalue, lua_rawgetp,
-    lua_rawsetp, lua_rotate, lua_setfield, lua_setiuservalue, lua_setmetatable, lua_settable,
-    lua_settop, lua_stringtonumber, lua_toboolean, lua_tocfunction, lua_tointegerx, lua_tolstring,
-    lua_tonumberx, lua_topointer, lua_tothread, lua_touserdata, lua_type, lua_typename,
-    lua_upvalueid, lua_upvaluejoin, lua_xmove,
+    lua_arith, lua_call, lua_closeslot, lua_createtable, lua_dump, lua_getglobal,
+    lua_getiuservalue, lua_gettable, lua_gettop, lua_getupvalue, lua_iscfunction, lua_isinteger,
+    lua_isstring, lua_isuserdata, lua_load, lua_newuserdatauv, lua_pcall, lua_pushcclosure,
+    lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushthread,
+    lua_pushvalue, lua_rawgetp, lua_rawsetp, lua_rotate, lua_setfield, lua_setiuservalue,
+    lua_setmetatable, lua_settable, lua_settop, lua_stringtonumber, lua_toboolean, lua_tocfunction,
+    lua_tointegerx, lua_tolstring, lua_tonumberx, lua_topointer, lua_tothread, lua_touserdata,
+    lua_type, lua_typename, lua_upvalueid, lua_upvaluejoin, lua_xmove,
 };
 pub use self::lauxlib::{
-    C2RustUnnamed, luaL_Buffer, luaL_Reg, luaL_addlstring, luaL_addstring, luaL_addvalue,
-    luaL_argerror, luaL_buffinit, luaL_buffinitsize, luaL_checkinteger, luaL_checklstring,
-    luaL_checknumber, luaL_checkstack, luaL_checktype, luaL_error, luaL_getmetafield,
-    luaL_optinteger, luaL_optlstring, luaL_prepbuffsize, luaL_pushresult, luaL_pushresultsize,
-    luaL_requiref, luaL_setfuncs, luaL_tolstring, luaL_typeerror,
+    luaL_Reg, luaL_argerror, luaL_checkinteger, luaL_checklstring, luaL_checknumber,
+    luaL_checkstack, luaL_checktype, luaL_error, luaL_getmetafield, luaL_optinteger,
+    luaL_optlstring, luaL_requiref, luaL_setfuncs, luaL_tolstring, luaL_typeerror,
 };
 pub use self::lbaselib::luaopen_base;
 pub use self::lmathlib::luaopen_math;
@@ -53,7 +51,6 @@ mod lfunc;
 mod llex;
 mod lmathlib;
 mod lmem;
-mod loadlib;
 mod lobject;
 mod lopcodes;
 mod lparser;

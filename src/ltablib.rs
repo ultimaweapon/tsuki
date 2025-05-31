@@ -14,11 +14,10 @@ use crate::lapi::{
 };
 use crate::lauxlib::luaL_len;
 use crate::{
-    C2RustUnnamed, Thread, lua_createtable, lua_gettop, lua_isstring, lua_pushinteger, lua_pushnil,
-    lua_pushstring, lua_pushvalue, lua_rotate, lua_setfield, lua_settop, lua_toboolean, lua_type,
-    lua_typename, luaL_Buffer, luaL_Reg, luaL_addlstring, luaL_addvalue, luaL_argerror,
-    luaL_buffinit, luaL_checkinteger, luaL_checktype, luaL_error, luaL_optinteger, luaL_optlstring,
-    luaL_pushresult, luaL_setfuncs,
+    Thread, lua_createtable, lua_gettop, lua_isstring, lua_pop, lua_pushinteger, lua_pushlstring,
+    lua_pushnil, lua_pushstring, lua_pushvalue, lua_rotate, lua_setfield, lua_settop,
+    lua_toboolean, lua_tolstring, lua_type, lua_typename, luaL_Reg, luaL_argerror,
+    luaL_checkinteger, luaL_checktype, luaL_error, luaL_optinteger, luaL_optlstring, luaL_setfuncs,
 };
 use std::ffi::c_int;
 
@@ -174,7 +173,7 @@ unsafe fn tmove(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>>
 
 unsafe fn addfield(
     mut L: *mut Thread,
-    mut b: *mut luaL_Buffer,
+    mut b: &mut Vec<u8>,
     mut i: i64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     lua_geti(L, 1 as libc::c_int, i)?;
@@ -191,17 +190,15 @@ unsafe fn addfield(
             ),
         )?;
     }
-    luaL_addvalue(b)
+
+    let mut l = 0;
+    let s = lua_tolstring(L, -1, &mut l)?;
+    b.extend_from_slice(std::slice::from_raw_parts(s.cast(), l));
+    lua_pop(L, 1)?;
+    Ok(())
 }
 
 unsafe fn tconcat(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut b: luaL_Buffer = luaL_Buffer {
-        b: 0 as *mut libc::c_char,
-        size: 0,
-        n: 0,
-        L: 0 as *mut Thread,
-        init: C2RustUnnamed { n: 0. },
-    };
     checktab(L, 1 as libc::c_int, 1 as libc::c_int | 4 as libc::c_int)?;
     let mut last: i64 = luaL_len(L, 1 as libc::c_int)?;
     let mut lsep: usize = 0;
@@ -211,18 +208,23 @@ unsafe fn tconcat(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error
         b"\0" as *const u8 as *const libc::c_char,
         &mut lsep,
     )?;
+    let sep = std::slice::from_raw_parts(sep.cast(), lsep);
     let mut i: i64 = luaL_optinteger(L, 3 as libc::c_int, 1 as libc::c_int as i64)?;
+    let mut b = Vec::new();
     last = luaL_optinteger(L, 4 as libc::c_int, last)?;
-    luaL_buffinit(L, &mut b);
+
     while i < last {
         addfield(L, &mut b, i)?;
-        luaL_addlstring(&mut b, sep, lsep)?;
+        b.extend_from_slice(sep);
         i += 1;
     }
+
     if i == last {
         addfield(L, &mut b, i)?;
     }
-    luaL_pushresult(&mut b)?;
+
+    lua_pushlstring(L, b)?;
+
     return Ok(1 as libc::c_int);
 }
 

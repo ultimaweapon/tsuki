@@ -32,6 +32,11 @@ fn print() {
 }
 
 #[test]
+fn tpack() {
+    run("tpack.lua").unwrap();
+}
+
+#[test]
 fn strings() {
     run("strings.lua").unwrap();
 }
