@@ -1,3 +1,4 @@
+use super::Mark;
 use std::cell::Cell;
 
 /// Header of all object managed by Garbage Collector.
@@ -6,7 +7,7 @@ use std::cell::Cell;
 pub(crate) struct Object {
     pub next: Cell<*mut Object>,
     pub tt: u8,
-    pub marked: u8,
+    pub marked: Mark,
     pub refs: usize,
     pub handle: usize,
 }

@@ -7,6 +7,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 pub use self::handle::*;
+pub(crate) use self::mark::*;
 pub(crate) use self::object::*;
 
 use crate::ldo::luaD_shrinkstack;
@@ -26,6 +27,7 @@ use std::ops::Deref;
 use std::ptr::{addr_of_mut, null_mut};
 
 mod handle;
+mod mark;
 mod object;
 
 unsafe fn getgclist(o: *mut Object) -> *mut *mut Object {
@@ -44,7 +46,8 @@ unsafe fn linkgclist_(o: *mut Object, pnext: *mut *mut Object, list: *mut *mut O
     *pnext = *list;
     *list = o;
 
-    (*o).marked = (*o).marked & !(1 << 5 | (1 << 3 | 1 << 4));
+    (*o).marked
+        .set((*o).marked.get() & !(1 << 5 | (1 << 3 | 1 << 4)));
 }
 
 unsafe fn clearkey(n: *mut Node) {
@@ -57,7 +60,7 @@ unsafe fn iscleared(g: *const Lua, o: *const Object) -> libc::c_int {
     if o.is_null() {
         return 0 as libc::c_int;
     } else if (*o).tt as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int {
-        if (*o).marked as libc::c_int
+        if (*o).marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
         {
@@ -65,7 +68,7 @@ unsafe fn iscleared(g: *const Lua, o: *const Object) -> libc::c_int {
         }
         return 0 as libc::c_int;
     } else {
-        return (*o).marked as libc::c_int
+        return (*o).marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int);
     };
 }
@@ -75,39 +78,37 @@ pub(crate) unsafe fn luaC_barrier_(L: *mut Thread, o: *mut Object, v: *mut Objec
 
     if (*g).gcstate.get() <= 2 {
         reallymarkobject(g, v);
-        if (*o).marked as libc::c_int & 7 as libc::c_int > 1 as libc::c_int {
-            (*v).marked =
-                ((*v).marked as libc::c_int & !(7 as libc::c_int) | 2 as libc::c_int) as u8;
+        if (*o).marked.get() as libc::c_int & 7 as libc::c_int > 1 as libc::c_int {
+            (*v).marked
+                .set(((*v).marked.get() as libc::c_int & !(7 as libc::c_int) | 2) as u8);
         }
     } else {
-        (*o).marked = ((*o).marked as libc::c_int
-            & !((1 as libc::c_int) << 5 as libc::c_int
-                | ((1 as libc::c_int) << 3 as libc::c_int
-                    | (1 as libc::c_int) << 4 as libc::c_int))
-            | ((*g).gc.currentwhite() as libc::c_int
-                & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int))
-                as u8 as libc::c_int) as u8;
+        (*o).marked.set(
+            (*o).marked.get() & !(1 << 5 | (1 << 3 | 1 << 4))
+                | ((*g).gc.currentwhite() & (1 << 3 | 1 << 4)),
+        );
     }
 }
 
 pub(crate) unsafe fn luaC_barrierback_(L: *mut Thread, o: *mut Object) {
     let g = (*L).global;
-    if (*o).marked as libc::c_int & 7 as libc::c_int == 6 as libc::c_int {
-        (*o).marked = ((*o).marked as libc::c_int
-            & !((1 as libc::c_int) << 5 as libc::c_int
-                | ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int))
-                as u8 as libc::c_int) as u8;
+    if (*o).marked.get() as libc::c_int & 7 as libc::c_int == 6 as libc::c_int {
+        (*o).marked
+            .set((*o).marked.get() & !(1 << 5 | (1 << 3 | 1 << 4)));
     } else {
         linkgclist_(o as *mut Object, getgclist(o), (*g).grayagain.as_ptr());
     }
-    if (*o).marked as libc::c_int & 7 as libc::c_int > 1 as libc::c_int {
-        (*o).marked = ((*o).marked as libc::c_int & !(7 as libc::c_int) | 5 as libc::c_int) as u8;
+    if (*o).marked.get() as libc::c_int & 7 as libc::c_int > 1 as libc::c_int {
+        (*o).marked
+            .set(((*o).marked.get() as libc::c_int & !(7 as libc::c_int) | 5 as libc::c_int) as u8);
     }
 }
 
 pub(crate) unsafe fn luaC_fix(g: &Lua, o: *mut Object) {
-    (*o).marked = (*o).marked & !(1 << 5 | (1 << 3 | 1 << 4));
-    (*o).marked = ((*o).marked as libc::c_int & !(7 as libc::c_int) | 4 as libc::c_int) as u8;
+    (*o).marked
+        .set((*o).marked.get() & !(1 << 5 | (1 << 3 | 1 << 4)));
+    (*o).marked
+        .set(((*o).marked.get() as libc::c_int & !(7 as libc::c_int) | 4 as libc::c_int) as u8);
     (*g).gc.allgc.set((*o).next.get());
     (*o).next.set((*g).fixedgc.get());
     (*g).fixedgc.set(o);
@@ -116,23 +117,26 @@ pub(crate) unsafe fn luaC_fix(g: &Lua, o: *mut Object) {
 unsafe fn reallymarkobject(g: *const Lua, o: *mut Object) {
     match (*o).tt {
         4 | 20 => {
-            (*o).marked = (*o).marked & !(1 << 3 | 1 << 4) | 1 << 5;
+            (*o).marked
+                .set((*o).marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
             return;
         }
         9 => {
             let uv: *mut UpVal = o as *mut UpVal;
             if (*uv).v != &raw mut (*uv).u.value as *mut TValue {
-                (*uv).hdr.marked = ((*uv).hdr.marked as libc::c_int
-                    & !((1 as libc::c_int) << 5 as libc::c_int
-                        | ((1 as libc::c_int) << 3 as libc::c_int
-                            | (1 as libc::c_int) << 4 as libc::c_int)) as u8
-                        as libc::c_int) as u8;
+                (*uv)
+                    .hdr
+                    .marked
+                    .set((*uv).hdr.marked.get() & !(1 << 5 | (1 << 3 | 1 << 4)));
             } else {
-                (*uv).hdr.marked = (*uv).hdr.marked & !(1 << 3 | 1 << 4) | 1 << 5;
+                (*uv)
+                    .hdr
+                    .marked
+                    .set((*uv).hdr.marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
             }
 
             if (*(*uv).v).tt_ & 1 << 6 != 0
-                && (*(*(*uv).v).value_.gc).marked & (1 << 3 | 1 << 4) != 0
+                && (*(*(*uv).v).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
             {
                 reallymarkobject(g, (*(*uv).v).value_.gc);
             }
@@ -144,7 +148,7 @@ unsafe fn reallymarkobject(g: *const Lua, o: *mut Object) {
 
             if (*u).nuvalue == 0 {
                 if !((*u).metatable).is_null() {
-                    if (*(*u).metatable).hdr.marked as libc::c_int
+                    if (*(*u).metatable).hdr.marked.get() as libc::c_int
                         & ((1 as libc::c_int) << 3 as libc::c_int
                             | (1 as libc::c_int) << 4 as libc::c_int)
                         != 0
@@ -152,11 +156,9 @@ unsafe fn reallymarkobject(g: *const Lua, o: *mut Object) {
                         reallymarkobject(g, (*u).metatable as *mut Object);
                     }
                 }
-                (*u).hdr.marked = ((*u).hdr.marked as libc::c_int
-                    & !((1 as libc::c_int) << 3 as libc::c_int
-                        | (1 as libc::c_int) << 4 as libc::c_int)
-                    | (1 as libc::c_int) << 5 as libc::c_int)
-                    as u8;
+                (*u).hdr
+                    .marked
+                    .set((*u).hdr.marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
                 return;
             }
         }
@@ -172,7 +174,7 @@ unsafe fn markmt(g: *const Lua) {
     i = 0 as libc::c_int;
     while i < 9 as libc::c_int {
         if !((*g).mt[i as usize].get()).is_null() {
-            if (*(*g).mt[i as usize].get()).hdr.marked as libc::c_int
+            if (*(*g).mt[i as usize].get()).hdr.marked.get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
             {
@@ -193,7 +195,9 @@ unsafe fn remarkupvals(g: *const Lua) -> libc::c_int {
             break;
         }
         work += 1;
-        if (*thread).hdr.marked & (1 << 3 | 1 << 4) == 0 && !(*thread).openupval.get().is_null() {
+        if (*thread).hdr.marked.get() & (1 << 3 | 1 << 4) == 0
+            && !(*thread).openupval.get().is_null()
+        {
             p = (*thread).twups.as_ptr();
         } else {
             let mut uv: *mut UpVal = 0 as *mut UpVal;
@@ -202,13 +206,13 @@ unsafe fn remarkupvals(g: *const Lua) -> libc::c_int {
             uv = (*thread).openupval.get();
             while !uv.is_null() {
                 work += 1;
-                if (*uv).hdr.marked as libc::c_int
+                if (*uv).hdr.marked.get() as libc::c_int
                     & ((1 as libc::c_int) << 3 as libc::c_int
                         | (1 as libc::c_int) << 4 as libc::c_int)
                     == 0
                 {
                     if (*(*uv).v).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0
-                        && (*(*(*uv).v).value_.gc).marked as libc::c_int
+                        && (*(*(*uv).v).value_.gc).marked.get() as libc::c_int
                             & ((1 as libc::c_int) << 3 as libc::c_int
                                 | (1 as libc::c_int) << 4 as libc::c_int)
                             != 0
@@ -224,10 +228,10 @@ unsafe fn remarkupvals(g: *const Lua) -> libc::c_int {
 }
 
 unsafe fn genlink(g: *const Lua, o: *mut Object) {
-    if (*o).marked as libc::c_int & 7 as libc::c_int == 5 as libc::c_int {
+    if (*o).marked.get() as libc::c_int & 7 as libc::c_int == 5 as libc::c_int {
         linkgclist_(o as *mut Object, getgclist(o), (*g).grayagain.as_ptr());
-    } else if (*o).marked as libc::c_int & 7 as libc::c_int == 6 as libc::c_int {
-        (*o).marked = ((*o).marked as libc::c_int ^ (6 as libc::c_int ^ 4 as libc::c_int)) as u8;
+    } else if (*o).marked.get() as libc::c_int & 7 as libc::c_int == 6 as libc::c_int {
+        (*o).marked.set((*o).marked.get() ^ (6 ^ 4));
     }
 }
 
@@ -244,7 +248,7 @@ unsafe fn traverseweakvalue(g: *const Lua, h: *mut Table) {
             clearkey(n);
         } else {
             if (*n).u.key_tt as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0
-                && (*(*n).u.key_val.gc).marked as libc::c_int
+                && (*(*n).u.key_val.gc).marked.get() as libc::c_int
                     & ((1 as libc::c_int) << 3 as libc::c_int
                         | (1 as libc::c_int) << 4 as libc::c_int)
                     != 0
@@ -285,7 +289,7 @@ unsafe fn traverseephemeron(g: *const Lua, h: *mut Table, inv: libc::c_int) -> l
         if (*((*h).array).offset(i as isize)).tt_ as libc::c_int
             & (1 as libc::c_int) << 6 as libc::c_int
             != 0
-            && (*(*((*h).array).offset(i as isize)).value_.gc).marked as libc::c_int
+            && (*(*((*h).array).offset(i as isize)).value_.gc).marked.get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
@@ -318,7 +322,7 @@ unsafe fn traverseephemeron(g: *const Lua, h: *mut Table, inv: libc::c_int) -> l
         {
             hasclears = 1 as libc::c_int;
             if (*n).i_val.tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0
-                && (*(*n).i_val.value_.gc).marked as libc::c_int
+                && (*(*n).i_val.value_.gc).marked.get() as libc::c_int
                     & ((1 as libc::c_int) << 3 as libc::c_int
                         | (1 as libc::c_int) << 4 as libc::c_int)
                     != 0
@@ -326,7 +330,7 @@ unsafe fn traverseephemeron(g: *const Lua, h: *mut Table, inv: libc::c_int) -> l
                 hasww = 1 as libc::c_int;
             }
         } else if (*n).i_val.tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0
-            && (*(*n).i_val.value_.gc).marked as libc::c_int
+            && (*(*n).i_val.value_.gc).marked.get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
@@ -359,7 +363,7 @@ unsafe fn traversestrongtable(g: *const Lua, h: *mut Table) {
         if (*((*h).array).offset(i as isize)).tt_ as libc::c_int
             & (1 as libc::c_int) << 6 as libc::c_int
             != 0
-            && (*(*((*h).array).offset(i as isize)).value_.gc).marked as libc::c_int
+            && (*(*((*h).array).offset(i as isize)).value_.gc).marked.get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
@@ -373,7 +377,7 @@ unsafe fn traversestrongtable(g: *const Lua, h: *mut Table) {
             clearkey(n);
         } else {
             if (*n).u.key_tt as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0
-                && (*(*n).u.key_val.gc).marked as libc::c_int
+                && (*(*n).u.key_val.gc).marked.get() as libc::c_int
                     & ((1 as libc::c_int) << 3 as libc::c_int
                         | (1 as libc::c_int) << 4 as libc::c_int)
                     != 0
@@ -381,7 +385,7 @@ unsafe fn traversestrongtable(g: *const Lua, h: *mut Table) {
                 reallymarkobject(g, (*n).u.key_val.gc);
             }
             if (*n).i_val.tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0
-                && (*(*n).i_val.value_.gc).marked as libc::c_int
+                && (*(*n).i_val.value_.gc).marked.get() as libc::c_int
                     & ((1 as libc::c_int) << 3 as libc::c_int
                         | (1 as libc::c_int) << 4 as libc::c_int)
                     != 0
@@ -407,7 +411,7 @@ unsafe fn traversetable(g: *const Lua, h: *mut Table) -> usize {
 
     let mut smode: *mut TString = 0 as *mut TString;
     if !((*h).metatable).is_null() {
-        if (*(*h).metatable).hdr.marked as libc::c_int
+        if (*(*h).metatable).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
         {
@@ -456,7 +460,7 @@ unsafe fn traversetable(g: *const Lua, h: *mut Table) -> usize {
 unsafe fn traverseudata(g: *const Lua, u: *mut Udata) -> libc::c_int {
     let mut i: libc::c_int = 0;
     if !((*u).metatable).is_null() {
-        if (*(*u).metatable).hdr.marked as libc::c_int
+        if (*(*u).metatable).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
         {
@@ -468,7 +472,9 @@ unsafe fn traverseudata(g: *const Lua, u: *mut Udata) -> libc::c_int {
         if (*((*u).uv).as_mut_ptr().offset(i as isize)).uv.tt_ as libc::c_int
             & (1 as libc::c_int) << 6 as libc::c_int
             != 0
-            && (*(*((*u).uv).as_mut_ptr().offset(i as isize)).uv.value_.gc).marked as libc::c_int
+            && (*(*((*u).uv).as_mut_ptr().offset(i as isize)).uv.value_.gc)
+                .marked
+                .get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
@@ -483,7 +489,7 @@ unsafe fn traverseudata(g: *const Lua, u: *mut Udata) -> libc::c_int {
 unsafe fn traverseproto(g: *const Lua, f: *mut Proto) -> libc::c_int {
     let mut i: libc::c_int = 0;
     if !((*f).source).is_null() {
-        if (*(*f).source).hdr.marked as libc::c_int
+        if (*(*f).source).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
         {
@@ -495,7 +501,7 @@ unsafe fn traverseproto(g: *const Lua, f: *mut Proto) -> libc::c_int {
         if (*((*f).k).offset(i as isize)).tt_ as libc::c_int
             & (1 as libc::c_int) << 6 as libc::c_int
             != 0
-            && (*(*((*f).k).offset(i as isize)).value_.gc).marked as libc::c_int
+            && (*(*((*f).k).offset(i as isize)).value_.gc).marked.get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
@@ -506,7 +512,10 @@ unsafe fn traverseproto(g: *const Lua, f: *mut Proto) -> libc::c_int {
     i = 0 as libc::c_int;
     while i < (*f).sizeupvalues {
         if !((*((*f).upvalues).offset(i as isize)).name).is_null() {
-            if (*(*((*f).upvalues).offset(i as isize)).name).hdr.marked as libc::c_int
+            if (*(*((*f).upvalues).offset(i as isize)).name)
+                .hdr
+                .marked
+                .get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
             {
@@ -518,7 +527,7 @@ unsafe fn traverseproto(g: *const Lua, f: *mut Proto) -> libc::c_int {
     i = 0 as libc::c_int;
     while i < (*f).sizep {
         if !(*((*f).p).offset(i as isize)).is_null() {
-            if (**((*f).p).offset(i as isize)).hdr.marked as libc::c_int
+            if (**((*f).p).offset(i as isize)).hdr.marked.get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
             {
@@ -530,7 +539,10 @@ unsafe fn traverseproto(g: *const Lua, f: *mut Proto) -> libc::c_int {
     i = 0 as libc::c_int;
     while i < (*f).sizelocvars {
         if !((*((*f).locvars).offset(i as isize)).varname).is_null() {
-            if (*(*((*f).locvars).offset(i as isize)).varname).hdr.marked as libc::c_int
+            if (*(*((*f).locvars).offset(i as isize)).varname)
+                .hdr
+                .marked
+                .get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
             {
@@ -552,7 +564,9 @@ unsafe fn traverseCclosure(g: *const Lua, cl: *mut CClosure) -> libc::c_int {
         if (*((*cl).upvalue).as_mut_ptr().offset(i as isize)).tt_ as libc::c_int
             & (1 as libc::c_int) << 6 as libc::c_int
             != 0
-            && (*(*((*cl).upvalue).as_mut_ptr().offset(i as isize)).value_.gc).marked as libc::c_int
+            && (*(*((*cl).upvalue).as_mut_ptr().offset(i as isize)).value_.gc)
+                .marked
+                .get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
@@ -569,7 +583,7 @@ unsafe fn traverseCclosure(g: *const Lua, cl: *mut CClosure) -> libc::c_int {
 unsafe fn traverseLclosure(g: *const Lua, cl: *mut LClosure) -> libc::c_int {
     let mut i: libc::c_int = 0;
     if !((*cl).p).is_null() {
-        if (*(*cl).p).hdr.marked as libc::c_int
+        if (*(*cl).p).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
         {
@@ -580,7 +594,7 @@ unsafe fn traverseLclosure(g: *const Lua, cl: *mut LClosure) -> libc::c_int {
     while i < (*cl).nupvalues as libc::c_int {
         let uv: *mut UpVal = *((*cl).upvals).as_mut_ptr().offset(i as isize);
         if !uv.is_null() {
-            if (*uv).hdr.marked as libc::c_int
+            if (*uv).hdr.marked.get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
             {
@@ -595,7 +609,7 @@ unsafe fn traverseLclosure(g: *const Lua, cl: *mut LClosure) -> libc::c_int {
 unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
     let mut uv: *mut UpVal = 0 as *mut UpVal;
     let mut o: StkId = (*th).stack.get();
-    if (*th).hdr.marked & 7 > 1 || (*g).gcstate.get() == 0 {
+    if (*th).hdr.marked.get() & 7 > 1 || (*g).gcstate.get() == 0 {
         linkgclist_(
             th as *mut Object,
             (*th).gclist.as_ptr(),
@@ -607,7 +621,7 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
     }
     while o < (*th).top.get() {
         if (*o).val.tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0
-            && (*(*o).val.value_.gc).marked as libc::c_int
+            && (*(*o).val.value_.gc).marked.get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
@@ -617,7 +631,7 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
     }
     uv = (*th).openupval.get();
     while !uv.is_null() {
-        if (*uv).hdr.marked as libc::c_int
+        if (*uv).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
         {
@@ -646,7 +660,7 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
 unsafe fn propagatemark(g: &Lua) -> usize {
     let o: *mut Object = g.gray.get();
 
-    (*o).marked |= 1 << 5;
+    (*o).marked.set((*o).marked.get() | 1 << 5);
     (*g).gray.set(*getgclist(o));
 
     match (*o).tt {
@@ -683,8 +697,8 @@ unsafe fn convergeephemerons(g: *const Lua) {
             }
             let h: *mut Table = w as *mut Table;
             next = (*h).gclist;
-            (*h).hdr.marked =
-                ((*h).hdr.marked as libc::c_int | (1 as libc::c_int) << 5 as libc::c_int) as u8;
+            (*h).hdr.marked.set((*h).hdr.marked.get() | 1 << 5);
+
             if traverseephemeron(g, h, dir) != 0 {
                 propagateall(g);
                 changed = 1 as libc::c_int;
@@ -864,13 +878,15 @@ unsafe fn sweeplist(
 
     while !(*p).is_null() && i < countin {
         let curr: *mut Object = *p;
-        let marked = (*curr).marked;
+        let marked = (*curr).marked.get();
 
         if marked & ow != 0 {
             *p = (*curr).next.get();
             freeobj(g, curr);
         } else {
-            (*curr).marked = marked & !(1 << 5 | (1 << 3 | 1 << 4) | 7) | white;
+            (*curr)
+                .marked
+                .set(marked & !(1 << 5 | (1 << 3 | 1 << 4) | 7) | white);
             p = (*curr).next.as_ptr();
         }
 
@@ -954,18 +970,18 @@ unsafe fn atomic(L: *mut Thread) -> usize {
     g.grayagain.set(null_mut());
     g.gcstate.set(2);
 
-    if (*L).hdr.marked & (1 << 3 | 1 << 4) != 0 {
+    if (*L).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
         reallymarkobject(g, L as *mut Object);
     }
 
     if (*g.l_registry.get()).tt_ & 1 << 6 != 0
-        && (*(*g.l_registry.get()).value_.gc).marked & (1 << 3 | 1 << 4) != 0
+        && (*(*g.l_registry.get()).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
     {
         reallymarkobject(g, (*g.l_registry.get()).value_.gc);
     }
 
     for &o in g.handle_table.borrow().deref() {
-        if !o.is_null() && ((*o).marked & (1 << 3 | 1 << 4)) != 0 {
+        if !o.is_null() && ((*o).marked.get() & (1 << 3 | 1 << 4)) != 0 {
             reallymarkobject(g, o);
         }
     }
@@ -1154,7 +1170,9 @@ impl Gc {
             handle_alloc_error(layout);
         }
 
-        unsafe { (*o).marked = self.currentwhite.get() & (1 << 3 | 1 << 4) };
+        unsafe {
+            addr_of_mut!((*o).marked).write(Mark::new(self.currentwhite.get() & (1 << 3 | 1 << 4)))
+        };
         unsafe { (*o).tt = tt };
         unsafe { (*o).refs = 0 };
         unsafe { (*o).handle = 0 };

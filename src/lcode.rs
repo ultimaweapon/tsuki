@@ -796,8 +796,8 @@ unsafe fn addk(
     (*fs).nk += 1;
     (*fs).nk;
     if (*v).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
-        if (*f).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-            && (*(*v).value_.gc).marked as libc::c_int
+        if (*f).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+            && (*(*v).value_.gc).marked.get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {

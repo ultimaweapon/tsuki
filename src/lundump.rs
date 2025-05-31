@@ -148,8 +148,8 @@ unsafe fn loadStringN(
             (*L).top.sub(1);
         }
     }
-    if (*p).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-        && (*ts).hdr.marked as libc::c_int
+    if (*p).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        && (*ts).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
@@ -290,8 +290,8 @@ unsafe fn loadProtos(
     while i < n {
         let ref mut fresh3 = *((*f).p).offset(i as isize);
         *fresh3 = luaF_newproto((*S).L);
-        if (*f).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-            && (**((*f).p).offset(i as isize)).hdr.marked as libc::c_int
+        if (*f).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+            && (**((*f).p).offset(i as isize)).hdr.marked.get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
@@ -558,8 +558,8 @@ pub unsafe fn luaU_undump(
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     luaD_inctop(L)?;
     (*cl).p = luaF_newproto(L);
-    if (*cl).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-        && (*(*cl).p).hdr.marked as libc::c_int
+    if (*cl).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        && (*(*cl).p).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {

@@ -198,11 +198,11 @@ unsafe fn internshrstr(
                 l.wrapping_mul(::core::mem::size_of::<libc::c_char>()) as _,
             ) == 0 as libc::c_int
         {
-            if (*ts).hdr.marked & ((*g).gc.currentwhite() ^ (1 << 3 | 1 << 4)) != 0 {
-                (*ts).hdr.marked = ((*ts).hdr.marked as libc::c_int
-                    ^ ((1 as libc::c_int) << 3 as libc::c_int
-                        | (1 as libc::c_int) << 4 as libc::c_int))
-                    as u8;
+            if (*ts).hdr.marked.is_dead((*g).gc.currentwhite()) {
+                (*ts)
+                    .hdr
+                    .marked
+                    .set((*ts).hdr.marked.get() ^ (1 << 3 | 1 << 4));
             }
 
             return ts;

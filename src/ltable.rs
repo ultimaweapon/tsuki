@@ -17,7 +17,7 @@ use crate::lstate::lua_CFunction;
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::ltm::TM_EQ;
 use crate::lvm::{F2Ieq, luaV_flttointeger};
-use crate::{Lua, Thread};
+use crate::{Lua, Mark, Thread};
 use libm::frexp;
 use std::alloc::Layout;
 use std::cell::Cell;
@@ -577,7 +577,7 @@ pub unsafe fn luaH_resize(
         hdr: Object {
             next: Cell::new(0 as *mut Object),
             tt: 0,
-            marked: 0,
+            marked: Mark::new(0),
             refs: 0,
             handle: 0,
         },
@@ -800,8 +800,8 @@ unsafe fn luaH_newkey(
     (*n_).u.key_val = (*io_).value_;
     (*n_).u.key_tt = (*io_).tt_;
     if (*key).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
-        if (*t).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-            && (*(*key).value_.gc).marked as libc::c_int
+        if (*t).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+            && (*(*key).value_.gc).marked.get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {

@@ -371,8 +371,8 @@ unsafe fn registerlocalvar(
     let ref mut fresh2 = (*((*f).locvars).offset((*fs).ndebugvars as isize)).varname;
     *fresh2 = varname;
     (*((*f).locvars).offset((*fs).ndebugvars as isize)).startpc = (*fs).pc;
-    if (*f).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-        && (*varname).hdr.marked as libc::c_int
+    if (*f).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        && (*varname).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
@@ -614,8 +614,8 @@ unsafe fn newupvalue(
         (*up).kind = (*((*(*prev).f).upvalues).offset((*v).u.info as isize)).kind;
     }
     (*up).name = name;
-    if (*(*fs).f).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-        && (*name).hdr.marked as libc::c_int
+    if (*(*fs).f).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        && (*name).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
@@ -1038,8 +1038,8 @@ unsafe fn addprototype(mut ls: *mut LexState) -> Result<*mut Proto, Box<dyn std:
     (*fs).np = (*fs).np + 1;
     let ref mut fresh15 = *((*f).p).offset(fresh14 as isize);
     *fresh15 = clp;
-    if (*f).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-        && (*clp).hdr.marked as libc::c_int
+    if (*f).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        && (*clp).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
@@ -1092,8 +1092,8 @@ unsafe extern "C" fn open_func(
     (*fs).firstlabel = (*(*ls).dyd).label.n;
     (*fs).bl = 0 as *mut BlockCnt;
     (*f).source = (*ls).source;
-    if (*f).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-        && (*(*f).source).hdr.marked as libc::c_int
+    if (*f).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        && (*(*f).source).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
@@ -2865,8 +2865,8 @@ unsafe fn mainfunc(
     (*env).idx = 0 as libc::c_int as u8;
     (*env).kind = 0 as libc::c_int as u8;
     (*env).name = (*ls).envn;
-    if (*(*fs).f).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-        && (*(*env).name).hdr.marked as libc::c_int
+    if (*(*fs).f).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        && (*(*env).name).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
@@ -2947,8 +2947,8 @@ pub unsafe fn luaY_parser(
     luaD_inctop(L)?;
     (*cl).p = luaF_newproto(L);
     funcstate.f = (*cl).p;
-    if (*cl).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-        && (*(*cl).p).hdr.marked as libc::c_int
+    if (*cl).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        && (*(*cl).p).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
@@ -2956,8 +2956,8 @@ pub unsafe fn luaY_parser(
     } else {
     };
     (*funcstate.f).source = luaS_new(L, name)?;
-    if (*funcstate.f).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-        && (*(*funcstate.f).source).hdr.marked as libc::c_int
+    if (*funcstate.f).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+        && (*(*funcstate.f).source).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {

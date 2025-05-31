@@ -69,8 +69,8 @@ pub unsafe fn luaF_initupvals(mut L: *mut Thread, mut cl: *mut LClosure) {
         (*(*uv).v).tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
         let ref mut fresh2 = *((*cl).upvals).as_mut_ptr().offset(i as isize);
         *fresh2 = uv;
-        if (*cl).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-            && (*uv).hdr.marked as libc::c_int
+        if (*cl).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
+            && (*uv).hdr.marked.get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
@@ -238,15 +238,17 @@ pub unsafe extern "C" fn luaF_closeupval(mut L: *mut Thread, mut level: StkId) {
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
         (*uv).v = slot;
-        if (*uv).hdr.marked as libc::c_int
+
+        if (*uv).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             == 0
         {
-            (*uv).hdr.marked =
-                ((*uv).hdr.marked as libc::c_int | (1 as libc::c_int) << 5 as libc::c_int) as u8;
+            (*uv).hdr.marked.set((*uv).hdr.marked.get() | 1 << 5);
+
             if (*slot).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
-                if (*uv).hdr.marked as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-                    && (*(*slot).value_.gc).marked as libc::c_int
+                if (*uv).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int
+                    != 0
+                    && (*(*slot).value_.gc).marked.get() as libc::c_int
                         & ((1 as libc::c_int) << 3 as libc::c_int
                             | (1 as libc::c_int) << 4 as libc::c_int)
                         != 0
