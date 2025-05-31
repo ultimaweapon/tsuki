@@ -23,7 +23,6 @@ pub struct Thread {
     pub(crate) stack: Cell<StkId>,
     pub(crate) openupval: Cell<*mut UpVal>,
     pub(crate) tbclist: Cell<StkId>,
-    pub(crate) gclist: Cell<*mut Object>,
     pub(crate) twups: Cell<*mut Thread>,
     pub(crate) base_ci: UnsafeCell<CallInfo>,
     pub(crate) hook: Cell<lua_Hook>,

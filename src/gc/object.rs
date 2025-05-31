@@ -10,4 +10,5 @@ pub(crate) struct Object {
     pub marked: Mark,
     pub refs: Cell<usize>,
     pub handle: Cell<usize>,
+    pub gclist: Cell<*mut Object>,
 }

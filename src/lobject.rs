@@ -103,7 +103,6 @@ pub struct Table {
     pub node: *mut Node,
     pub lastfree: *mut Node,
     pub metatable: *mut Table,
-    pub gclist: *mut Object,
 }
 
 #[derive(Copy, Clone)]
@@ -140,7 +139,6 @@ pub struct Udata {
     pub nuvalue: libc::c_ushort,
     pub len: usize,
     pub metatable: *mut Table,
-    pub gclist: *mut Object,
     pub uv: [UValue; 1],
 }
 
@@ -191,14 +189,12 @@ pub struct Proto {
     pub abslineinfo: *mut AbsLineInfo,
     pub locvars: *mut LocVar,
     pub source: *mut TString,
-    pub gclist: *mut Object,
 }
 
 #[repr(C)]
 pub struct CClosure {
     pub hdr: Object,
     pub nupvalues: u8,
-    pub gclist: *mut Object,
     pub f: lua_CFunction,
     pub upvalue: [TValue; 1],
 }
@@ -207,7 +203,6 @@ pub struct CClosure {
 pub struct LClosure {
     pub hdr: Object,
     pub nupvalues: u8,
-    pub gclist: *mut Object,
     pub p: *mut Proto,
     pub upvals: [*mut UpVal; 1],
 }

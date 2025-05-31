@@ -279,11 +279,7 @@ pub unsafe fn luaS_newudata(
     mut nuvalue: libc::c_int,
 ) -> Result<*mut Udata, Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
-    let min = if nuvalue == 0 {
-        offset_of!(Udata, gclist)
-    } else {
-        offset_of!(Udata, uv) + size_of::<UValue>().wrapping_mul(nuvalue as usize)
-    };
+    let min = offset_of!(Udata, uv) + size_of::<UValue>().wrapping_mul(nuvalue as usize);
 
     if ((s
         > (if (::core::mem::size_of::<usize>() as libc::c_ulong)

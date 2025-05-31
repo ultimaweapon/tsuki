@@ -23,4 +23,9 @@ impl Mark {
     pub unsafe fn set(&self, v: u8) {
         self.0.set(v);
     }
+
+    #[inline(always)]
+    pub unsafe fn set_gray(&self) {
+        self.0.set(self.0.get() & !(1 << 5 | (1 << 3 | 1 << 4)));
+    }
 }

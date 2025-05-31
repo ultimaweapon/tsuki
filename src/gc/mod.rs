@@ -30,14 +30,10 @@ mod handle;
 mod mark;
 mod object;
 
+#[inline(always)]
 unsafe fn getgclist(o: *mut Object) -> *mut *mut Object {
     match (*o).tt {
-        5 => &raw mut (*(o as *mut Table)).gclist,
-        6 => &raw mut (*(o as *mut LClosure)).gclist,
-        38 => &raw mut (*(o as *mut CClosure)).gclist,
-        8 => (*(o as *mut Thread)).gclist.as_ptr(),
-        10 => &raw mut (*(o as *mut Proto)).gclist,
-        7 => &raw mut (*(o as *mut Udata)).gclist,
+        5 | 6 | 7 | 8 | 10 | 38 => (*o).gclist.as_ptr(),
         _ => null_mut(),
     }
 }
@@ -46,8 +42,7 @@ unsafe fn linkgclist_(o: *mut Object, pnext: *mut *mut Object, list: *mut *mut O
     *pnext = *list;
     *list = o;
 
-    (*o).marked
-        .set((*o).marked.get() & !(1 << 5 | (1 << 3 | 1 << 4)));
+    (*o).marked.set_gray();
 }
 
 unsafe fn clearkey(n: *mut Node) {
@@ -271,9 +266,17 @@ unsafe fn traverseweakvalue(g: *const Lua, h: *mut Table) {
         n = n.offset(1);
     }
     if (*g).gcstate.get() == 2 && hasclears != 0 {
-        linkgclist_(h as *mut Object, &mut (*h).gclist, (*g).weak.as_ptr());
+        linkgclist_(
+            h as *mut Object,
+            (*h).hdr.gclist.as_ptr(),
+            (*g).weak.as_ptr(),
+        );
     } else {
-        linkgclist_(h as *mut Object, &mut (*h).gclist, (*g).grayagain.as_ptr());
+        linkgclist_(
+            h as *mut Object,
+            (*h).hdr.gclist.as_ptr(),
+            (*g).grayagain.as_ptr(),
+        );
     };
 }
 
@@ -340,11 +343,23 @@ unsafe fn traverseephemeron(g: *const Lua, h: *mut Table, inv: libc::c_int) -> l
         i = i.wrapping_add(1);
     }
     if (*g).gcstate.get() == 0 {
-        linkgclist_(h as *mut Object, &mut (*h).gclist, (*g).grayagain.as_ptr());
+        linkgclist_(
+            h as *mut Object,
+            (*h).hdr.gclist.as_ptr(),
+            (*g).grayagain.as_ptr(),
+        );
     } else if hasww != 0 {
-        linkgclist_(h as *mut Object, &mut (*h).gclist, (*g).ephemeron.as_ptr());
+        linkgclist_(
+            h as *mut Object,
+            (*h).hdr.gclist.as_ptr(),
+            (*g).ephemeron.as_ptr(),
+        );
     } else if hasclears != 0 {
-        linkgclist_(h as *mut Object, &mut (*h).gclist, (*g).allweak.as_ptr());
+        linkgclist_(
+            h as *mut Object,
+            (*h).hdr.gclist.as_ptr(),
+            (*g).allweak.as_ptr(),
+        );
     } else {
         genlink(g, h as *mut Object);
     }
@@ -437,7 +452,7 @@ unsafe fn traversetable(g: *const Lua, h: *mut Table) -> usize {
         } else {
             linkgclist_(
                 h as *mut Object,
-                &raw mut (*h).gclist,
+                (*h).hdr.gclist.as_ptr(),
                 (*g).allweak.as_ptr(),
             );
         }
@@ -612,7 +627,7 @@ unsafe fn traversethread(g: *const Lua, th: *mut Thread) -> libc::c_int {
     if (*th).hdr.marked.get() & 7 > 1 || (*g).gcstate.get() == 0 {
         linkgclist_(
             th as *mut Object,
-            (*th).gclist.as_ptr(),
+            (*th).hdr.gclist.as_ptr(),
             (*g).grayagain.as_ptr(),
         );
     }
@@ -696,7 +711,7 @@ unsafe fn convergeephemerons(g: *const Lua) {
                 break;
             }
             let h: *mut Table = w as *mut Table;
-            next = (*h).gclist;
+            next = (*h).hdr.gclist.get();
             (*h).hdr.marked.set((*h).hdr.marked.get() | 1 << 5);
 
             if traverseephemeron(g, h, dir) != 0 {
@@ -736,7 +751,7 @@ unsafe fn clearbykeys(g: *const Lua, mut l: *mut Object) {
             }
             n = n.offset(1);
         }
-        l = (*(l as *mut Table)).gclist;
+        l = (*(l as *mut Table)).hdr.gclist.get();
     }
 }
 
@@ -783,7 +798,7 @@ unsafe fn clearbyvalues(g: *const Lua, mut l: *mut Object, f: *mut Object) {
             }
             n = n.offset(1);
         }
-        l = (*(l as *mut Table)).gclist;
+        l = (*(l as *mut Table)).hdr.gclist.get();
     }
 }
 
@@ -829,12 +844,10 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
         7 => {
             let u: *mut Udata = o as *mut Udata;
             let layout = Layout::from_size_align(
-                (if (*u).nuvalue == 0 {
-                    offset_of!(Udata, gclist)
-                } else {
-                    offset_of!(Udata, uv) + size_of::<UValue>().wrapping_mul((*u).nuvalue.into())
-                })
-                .wrapping_add((*u).len),
+                offset_of!(Udata, uv)
+                    + size_of::<UValue>()
+                        .wrapping_mul((*u).nuvalue.into())
+                        .wrapping_add((*u).len),
                 align_of::<Udata>(),
             )
             .unwrap()
@@ -1176,6 +1189,7 @@ impl Gc {
         unsafe { (*o).tt = tt };
         unsafe { addr_of_mut!((*o).refs).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*o).handle).write(Cell::new(0)) };
+        unsafe { addr_of_mut!((*o).gclist).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*o).next).write(Cell::new(self.allgc.get())) };
 
         self.allgc.set(o);

@@ -29,6 +29,7 @@ use crate::lzio::Zio;
 use crate::{Object, Thread, api_incr_top};
 use std::ffi::{c_int, c_void};
 use std::mem::offset_of;
+use std::ptr::null_mut;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -497,20 +498,17 @@ pub unsafe fn lua_tocfunction(L: *mut Thread, idx: c_int) -> Option<lua_CFunctio
 
 unsafe fn touserdata(o: *const TValue) -> *mut libc::c_void {
     match (*o).tt_ as libc::c_int & 0xf as libc::c_int {
-        7 => {
-            return ((*o).value_.gc as *mut libc::c_char).offset(
-                (if (*((*o).value_.gc as *mut Udata)).nuvalue == 0 {
-                    offset_of!(Udata, gclist)
-                } else {
-                    offset_of!(UValue, uv)
-                        + size_of::<UValue>()
-                            .wrapping_mul((*((*o).value_.gc as *mut Udata)).nuvalue.into())
-                }) as isize,
-            ) as *mut libc::c_void;
-        }
-        2 => return (*o).value_.p,
-        _ => return 0 as *mut libc::c_void,
-    };
+        7 => (*o)
+            .value_
+            .gc
+            .byte_add(
+                offset_of!(Udata, uv)
+                    + size_of::<UValue>() * usize::from((*((*o).value_.gc as *mut Udata)).nuvalue),
+            )
+            .cast(),
+        2 => (*o).value_.p,
+        _ => null_mut(),
+    }
 }
 
 pub unsafe fn lua_touserdata(L: *mut Thread, idx: libc::c_int) -> *mut libc::c_void {
@@ -1618,13 +1616,10 @@ pub unsafe fn lua_newuserdatauv(
         luaC_step(L);
     }
 
-    return Ok((u as *mut libc::c_char).offset(
-        (if (*u).nuvalue == 0 {
-            offset_of!(Udata, gclist)
-        } else {
-            offset_of!(Udata, uv) + size_of::<UValue>().wrapping_mul((*u).nuvalue.into())
-        }) as isize,
-    ) as *mut libc::c_void);
+    Ok(
+        u.byte_add(offset_of!(Udata, uv) + size_of::<UValue>() * usize::from((*u).nuvalue))
+            .cast(),
+    )
 }
 
 unsafe fn aux_upvalue(

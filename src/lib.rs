@@ -230,7 +230,6 @@ impl Lua {
         unsafe { addr_of_mut!((*td).stack).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*td).ci).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*td).nci).write(Cell::new(0)) };
-        unsafe { addr_of_mut!((*td).gclist).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*td).twups).write(Cell::new(td)) };
         unsafe { addr_of_mut!((*td).hook).write(Cell::new(None)) };
         unsafe { addr_of_mut!((*td).hookmask).write(Cell::new(0)) };

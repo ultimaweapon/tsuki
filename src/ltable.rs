@@ -580,6 +580,7 @@ pub unsafe fn luaH_resize(
             marked: Mark::new(0),
             refs: Cell::new(0),
             handle: Cell::new(0),
+            gclist: Cell::new(0 as *mut Object),
         },
         flags: 0,
         lsizenode: 0,
@@ -588,7 +589,6 @@ pub unsafe fn luaH_resize(
         node: 0 as *mut Node,
         lastfree: 0 as *mut Node,
         metatable: 0 as *mut Table,
-        gclist: 0 as *mut Object,
     };
     let mut oldasize: libc::c_uint = setlimittosize(t);
     let mut newarray: *mut TValue = 0 as *mut TValue;
