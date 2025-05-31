@@ -419,7 +419,7 @@ unsafe fn traversetable(g: *const Lua, h: *mut Table) -> usize {
     let mut weakvalue: *const libc::c_char = 0 as *const libc::c_char;
     let mode: *const TValue = if ((*h).metatable).is_null() {
         0 as *const TValue
-    } else if (*(*h).metatable).flags as libc::c_uint & 1 << TM_MODE != 0 {
+    } else if (*(*h).metatable).flags.get() & 1 << TM_MODE != 0 {
         0 as *const TValue
     } else {
         luaT_gettm((*h).metatable, TM_MODE, (*g).tmname[TM_MODE as usize].get())

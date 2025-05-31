@@ -106,9 +106,9 @@ pub unsafe extern "C" fn luaT_gettm(
 ) -> *const TValue {
     let mut tm: *const TValue = luaH_getshortstr(events, ename);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
-        (*events).flags = ((*events).flags as libc::c_int
-            | ((1 as libc::c_uint) << event as libc::c_uint) as u8 as libc::c_int)
-            as u8;
+        (*events)
+            .flags
+            .set(((*events).flags.get() as libc::c_int | (1 << event) as u8 as libc::c_int) as u8);
         return 0 as *const TValue;
     } else {
         return tm;

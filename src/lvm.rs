@@ -330,7 +330,7 @@ pub unsafe fn luaV_finishget(
         } else {
             tm = if ((*((*t).value_.gc as *mut Table)).metatable).is_null() {
                 0 as *const TValue
-            } else if (*(*((*t).value_.gc as *mut Table)).metatable).flags as libc::c_uint
+            } else if (*(*((*t).value_.gc as *mut Table)).metatable).flags.get() as libc::c_uint
                 & (1 as libc::c_uint) << TM_INDEX as libc::c_int
                 != 0
             {
@@ -390,7 +390,7 @@ pub unsafe fn luaV_finishset(
             let mut h: *mut Table = (*t).value_.gc as *mut Table;
             tm = if ((*h).metatable).is_null() {
                 0 as *const TValue
-            } else if (*(*h).metatable).flags as libc::c_uint
+            } else if (*(*h).metatable).flags.get() as libc::c_uint
                 & (1 as libc::c_uint) << TM_NEWINDEX as libc::c_int
                 != 0
             {
@@ -402,11 +402,13 @@ pub unsafe fn luaV_finishset(
                     (*(*L).global).tmname[TM_NEWINDEX as usize].get(),
                 )
             };
+
             if tm.is_null() {
                 luaH_finishset(L, h, key, slot, val)?;
-                (*h).flags = ((*h).flags as libc::c_uint
-                    & !!(!(0 as libc::c_uint) << TM_EQ as libc::c_int + 1 as libc::c_int))
-                    as u8;
+
+                (*h).flags
+                    .set(((*h).flags.get() as libc::c_uint & !!(!0 << TM_EQ + 1)) as u8);
+
                 if (*val).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
                     if (*h).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int
                         != 0
@@ -420,6 +422,7 @@ pub unsafe fn luaV_finishset(
                     };
                 } else {
                 };
+
                 return Ok(());
             }
         } else {
@@ -725,7 +728,7 @@ pub unsafe fn luaV_equalobj(
             }
             tm = if ((*((*t1).value_.gc as *mut Udata)).metatable).is_null() {
                 0 as *const TValue
-            } else if (*(*((*t1).value_.gc as *mut Udata)).metatable).flags as libc::c_uint
+            } else if (*(*((*t1).value_.gc as *mut Udata)).metatable).flags.get() as libc::c_uint
                 & (1 as libc::c_uint) << TM_EQ as libc::c_int
                 != 0
             {
@@ -740,7 +743,8 @@ pub unsafe fn luaV_equalobj(
             if tm.is_null() {
                 tm = if ((*((*t2).value_.gc as *mut Udata)).metatable).is_null() {
                     0 as *const TValue
-                } else if (*(*((*t2).value_.gc as *mut Udata)).metatable).flags as libc::c_uint
+                } else if (*(*((*t2).value_.gc as *mut Udata)).metatable).flags.get()
+                    as libc::c_uint
                     & (1 as libc::c_uint) << TM_EQ as libc::c_int
                     != 0
                 {
@@ -764,7 +768,7 @@ pub unsafe fn luaV_equalobj(
             }
             tm = if ((*((*t1).value_.gc as *mut Table)).metatable).is_null() {
                 0 as *const TValue
-            } else if (*(*((*t1).value_.gc as *mut Table)).metatable).flags as libc::c_uint
+            } else if (*(*((*t1).value_.gc as *mut Table)).metatable).flags.get() as libc::c_uint
                 & (1 as libc::c_uint) << TM_EQ as libc::c_int
                 != 0
             {
@@ -779,7 +783,8 @@ pub unsafe fn luaV_equalobj(
             if tm.is_null() {
                 tm = if ((*((*t2).value_.gc as *mut Table)).metatable).is_null() {
                     0 as *const TValue
-                } else if (*(*((*t2).value_.gc as *mut Table)).metatable).flags as libc::c_uint
+                } else if (*(*((*t2).value_.gc as *mut Table)).metatable).flags.get()
+                    as libc::c_uint
                     & (1 as libc::c_uint) << TM_EQ as libc::c_int
                     != 0
                 {
@@ -1010,7 +1015,7 @@ pub unsafe fn luaV_objlen(
             let mut h: *mut Table = (*rb).value_.gc as *mut Table;
             tm = if ((*h).metatable).is_null() {
                 0 as *const TValue
-            } else if (*(*h).metatable).flags as libc::c_uint
+            } else if (*(*h).metatable).flags.get() as libc::c_uint
                 & (1 as libc::c_uint) << TM_LEN as libc::c_int
                 != 0
             {

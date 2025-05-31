@@ -1207,9 +1207,10 @@ unsafe fn aux_rawset(
         key,
         &raw mut (*((*L).top.get()).offset(-(1 as libc::c_int as isize))).val,
     )?;
-    (*t).flags = ((*t).flags as libc::c_uint
-        & !!(!(0 as libc::c_uint) << TM_EQ as libc::c_int + 1 as libc::c_int))
-        as u8;
+
+    (*t).flags
+        .set(((*t).flags.get() as libc::c_uint & !!(!(0 as libc::c_uint) << TM_EQ + 1)) as u8);
+
     if (*((*L).top.get()).offset(-(1 as libc::c_int as isize)))
         .val
         .tt_ as libc::c_int
@@ -1319,7 +1320,7 @@ pub unsafe fn lua_setmetatable(
     let g = (*L).global;
 
     if !mt.is_null()
-        && (*mt).flags & 1 << TM_GC == 0
+        && (*mt).flags.get() & 1 << TM_GC == 0
         && !luaT_gettm(mt, TM_GC, (*g).tmname[TM_GC as usize].get()).is_null()
     {
         return Err("__gc metamethod is not supported".into());
