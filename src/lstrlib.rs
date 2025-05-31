@@ -1,5 +1,4 @@
 #![allow(
-    dead_code,
     mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
@@ -10,13 +9,13 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(unused_variables)]
 
-use crate::lapi::lua_call;
+use crate::lapi::{lua_call, lua_topointer};
 use crate::{
     Thread, lua_arith, lua_createtable, lua_dump, lua_gettable, lua_gettop, lua_isinteger,
     lua_isstring, lua_newuserdatauv, lua_pop, lua_pushcclosure, lua_pushinteger, lua_pushlstring,
     lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rotate, lua_setfield,
     lua_setmetatable, lua_settop, lua_stringtonumber, lua_toboolean, lua_tointegerx, lua_tolstring,
-    lua_tonumberx, lua_topointer, lua_touserdata, lua_type, lua_typename, luaL_Reg, luaL_argerror,
+    lua_tonumberx, lua_touserdata, lua_type, lua_typename, luaL_Reg, luaL_argerror,
     luaL_checkinteger, luaL_checklstring, luaL_checknumber, luaL_checkstack, luaL_checktype,
     luaL_error, luaL_getmetafield, luaL_optinteger, luaL_optlstring, luaL_setfuncs, luaL_tolstring,
     luaL_typeerror,
@@ -56,23 +55,6 @@ pub const Kfloat: KOption = 2;
 pub const Kint: KOption = 0;
 pub type KOption = libc::c_uint;
 pub const Kuint: KOption = 1;
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct cD {
-    pub c: libc::c_char,
-    pub u: C2RustUnnamed_1,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_1 {
-    pub n: f64,
-    pub u: libc::c_double,
-    pub s: *mut libc::c_void,
-    pub i: i64,
-    pub l: libc::c_long,
-}
 
 #[derive(Copy, Clone)]
 #[repr(C)]

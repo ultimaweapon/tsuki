@@ -28,7 +28,7 @@ use libc::{strchr, strcmp};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
 use std::fmt::Display;
-use std::ptr::null_mut;
+use std::ptr::null;
 
 unsafe extern "C" fn currentpc(mut ci: *mut CallInfo) -> libc::c_int {
     return ((*ci).u.savedpc)
@@ -283,7 +283,7 @@ pub unsafe fn lua_setlocal(
     return name;
 }
 
-unsafe fn funcinfo(mut ar: *mut lua_Debug, mut cl: *mut Object) {
+unsafe fn funcinfo(mut ar: *mut lua_Debug, mut cl: *const Object) {
     if !(!cl.is_null()
         && (*cl).tt as libc::c_int == 6 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int)
     {
@@ -334,7 +334,7 @@ unsafe extern "C" fn nextline(
 
 unsafe fn collectvalidlines(
     mut L: *mut Thread,
-    mut f: *mut Object,
+    mut f: *const Object,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !(!f.is_null()
         && (*f).tt as libc::c_int == 6 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int)
@@ -396,7 +396,7 @@ unsafe fn auxgetinfo(
     mut L: *mut Thread,
     mut what: *const libc::c_char,
     mut ar: *mut lua_Debug,
-    mut f: *mut Object,
+    mut f: *const Object,
     mut ci: *mut CallInfo,
 ) -> libc::c_int {
     let mut status: libc::c_int = 1 as libc::c_int;
@@ -472,9 +472,9 @@ pub unsafe fn lua_getinfo(
     mut ar: *mut lua_Debug,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut status: libc::c_int = 0;
-    let mut cl: *mut Object;
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     let mut func: *mut TValue = 0 as *mut TValue;
+
     if *what as libc::c_int == '>' as i32 {
         ci = 0 as *mut CallInfo;
         func = &raw mut (*((*L).top.get()).offset(-(1 as libc::c_int as isize))).val;
@@ -484,7 +484,8 @@ pub unsafe fn lua_getinfo(
         ci = (*ar).i_ci;
         func = &raw mut (*(*ci).func).val;
     }
-    cl = if (*func).tt_ as libc::c_int
+
+    let cl = if (*func).tt_ as libc::c_int
         == 6 as libc::c_int
             | (0 as libc::c_int) << 4 as libc::c_int
             | (1 as libc::c_int) << 6 as libc::c_int
@@ -495,7 +496,7 @@ pub unsafe fn lua_getinfo(
     {
         (*func).value_.gc
     } else {
-        null_mut()
+        null()
     };
     status = auxgetinfo(L, what, ar, cl, ci);
     if !(strchr(what, 'f' as i32)).is_null() {

@@ -85,13 +85,13 @@ pub(crate) unsafe fn luaC_barrier_(L: *mut Thread, o: *mut Object, v: *mut Objec
     }
 }
 
-pub(crate) unsafe fn luaC_barrierback_(L: *mut Thread, o: *mut Object) {
+pub(crate) unsafe fn luaC_barrierback_(L: *mut Thread, o: *const Object) {
     let g = (*L).global;
     if (*o).marked.get() as libc::c_int & 7 as libc::c_int == 6 as libc::c_int {
         (*o).marked
             .set((*o).marked.get() & !(1 << 5 | (1 << 3 | 1 << 4)));
     } else {
-        linkgclist_(o as *mut Object, getgclist(o), (*g).grayagain.as_ptr());
+        linkgclist_(o, getgclist(o), (*g).grayagain.as_ptr());
     }
     if (*o).marked.get() as libc::c_int & 7 as libc::c_int > 1 as libc::c_int {
         (*o).marked

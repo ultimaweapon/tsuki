@@ -38,7 +38,7 @@ pub struct TbcList {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union Value {
-    pub gc: *mut Object,
+    pub gc: *const Object,
     pub f: lua_CFunction,
     pub i: i64,
     pub n: f64,

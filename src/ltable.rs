@@ -149,8 +149,8 @@ unsafe fn mainpositionTV(mut t: *const Table, mut key: *const TValue) -> *mut No
             ) as *mut Node;
         }
         _ => {
-            let mut o: *mut Object = (*key).value_.gc;
-            return &mut *((*t).node).offset(
+            let mut o = (*key).value_.gc;
+            return ((*t).node).offset(
                 ((o as usize & 0xffffffff as libc::c_uint as usize) as libc::c_uint).wrapping_rem(
                     (((1 as libc::c_int) << (*t).lsizenode as libc::c_int) - 1 as libc::c_int
                         | 1 as libc::c_int) as libc::c_uint,

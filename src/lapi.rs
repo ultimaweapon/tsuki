@@ -505,6 +505,7 @@ unsafe fn touserdata(o: *const TValue) -> *mut libc::c_void {
                 offset_of!(Udata, uv)
                     + size_of::<UValue>() * usize::from((*((*o).value_.gc as *mut Udata)).nuvalue),
             )
+            .cast_mut()
             .cast(),
         _ => null_mut(),
     }

@@ -817,8 +817,7 @@ pub unsafe fn luaL_tolstring(
                 lua_pushstring(L, b"nil\0" as *const u8 as *const libc::c_char)?;
             }
             _ => {
-                let mut tt: libc::c_int =
-                    luaL_getmetafield(L, idx, b"__name\0" as *const u8 as *const libc::c_char)?;
+                let mut tt = luaL_getmetafield(L, idx, c"__name".as_ptr())?;
                 let kind = if tt == 4 {
                     CStr::from_ptr(lua_tolstring(L, -1, 0 as *mut usize)?).to_string_lossy()
                 } else {
