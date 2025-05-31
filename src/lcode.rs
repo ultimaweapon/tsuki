@@ -32,7 +32,7 @@ use crate::lparser::{
 use crate::ltable::{luaH_finishset, luaH_get};
 use crate::ltm::{TM_ADD, TM_SHL, TM_SHR, TM_SUB, TMS};
 use crate::lvm::{F2Ieq, luaV_equalobj, luaV_flttointeger, luaV_tointegerns};
-use crate::{GCObject, Thread};
+use crate::{Object, Thread};
 use libc::abs;
 use libm::ldexp;
 use std::ffi::c_int;
@@ -133,7 +133,7 @@ pub unsafe extern "C" fn luaK_exp2const(
         7 => {
             let mut io: *mut TValue = v;
             let mut x_: *mut TString = (*e).u.strval;
-            (*io).value_.gc = x_ as *mut GCObject;
+            (*io).value_.gc = x_ as *mut Object;
             (*io).tt_ =
                 ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
             return 1 as libc::c_int;
@@ -738,7 +738,7 @@ unsafe fn addk(
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut val: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };
@@ -801,7 +801,7 @@ unsafe fn addk(
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            luaC_barrier_(L, f as *mut GCObject, (*v).value_.gc as *mut GCObject);
+            luaC_barrier_(L, f as *mut Object, (*v).value_.gc as *mut Object);
         } else {
         };
     } else {
@@ -815,13 +815,13 @@ unsafe fn stringK(
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut o: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };
     let mut io: *mut TValue = &mut o;
     let mut x_: *mut TString = s;
-    (*io).value_.gc = x_ as *mut GCObject;
+    (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     return addk(fs, &mut o, &mut o);
 }
@@ -832,7 +832,7 @@ unsafe fn luaK_intK(
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut o: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };
@@ -848,7 +848,7 @@ unsafe fn luaK_numberK(
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut o: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };
@@ -868,7 +868,7 @@ unsafe fn luaK_numberK(
         };
         let mut kv: TValue = TValue {
             value_: Value {
-                gc: 0 as *mut GCObject,
+                gc: 0 as *mut Object,
             },
             tt_: 0,
         };
@@ -882,7 +882,7 @@ unsafe fn luaK_numberK(
 unsafe fn boolF(mut fs: *mut FuncState) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut o: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };
@@ -893,7 +893,7 @@ unsafe fn boolF(mut fs: *mut FuncState) -> Result<c_int, Box<dyn std::error::Err
 unsafe fn boolT(mut fs: *mut FuncState) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut o: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };
@@ -904,20 +904,20 @@ unsafe fn boolT(mut fs: *mut FuncState) -> Result<c_int, Box<dyn std::error::Err
 unsafe fn nilK(mut fs: *mut FuncState) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut k: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };
     let mut v: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };
     v.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     let mut io: *mut TValue = &mut k;
     let mut x_: *mut Table = (*(*fs).ls).h;
-    (*io).value_.gc = x_ as *mut GCObject;
+    (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = (5 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -1781,19 +1781,19 @@ unsafe fn constfolding(
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut v1: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };
     let mut v2: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };
     let mut res: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };

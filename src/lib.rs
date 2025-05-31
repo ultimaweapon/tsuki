@@ -98,17 +98,17 @@ pub struct Lua {
     gcpause: Cell<u8>,
     gcstepmul: Cell<u8>,
     gcstepsize: Cell<u8>,
-    sweepgc: Cell<*mut *mut GCObject>,
-    gray: Cell<*mut GCObject>,
-    grayagain: Cell<*mut GCObject>,
-    weak: Cell<*mut GCObject>,
-    ephemeron: Cell<*mut GCObject>,
-    allweak: Cell<*mut GCObject>,
-    fixedgc: Cell<*mut GCObject>,
+    sweepgc: Cell<*mut *mut Object>,
+    gray: Cell<*mut Object>,
+    grayagain: Cell<*mut Object>,
+    weak: Cell<*mut Object>,
+    ephemeron: Cell<*mut Object>,
+    allweak: Cell<*mut Object>,
+    fixedgc: Cell<*mut Object>,
     twups: Cell<*mut Thread>,
     tmname: [Cell<*mut TString>; 25],
     mt: [Cell<*mut Table>; 9],
-    handle_table: RefCell<Vec<*mut GCObject>>,
+    handle_table: RefCell<Vec<*mut Object>>,
     handle_free: RefCell<Vec<usize>>,
     _phantom: PhantomPinned,
 }
@@ -139,7 +139,7 @@ impl Lua {
             gcpause: Cell::new((200 as libc::c_int / 4 as libc::c_int) as u8),
             gcstepmul: Cell::new((100 as libc::c_int / 4 as libc::c_int) as u8),
             gcstepsize: Cell::new(13 as libc::c_int as u8),
-            sweepgc: Cell::new(0 as *mut *mut GCObject),
+            sweepgc: Cell::new(0 as *mut *mut Object),
             gray: Cell::new(null_mut()),
             grayagain: Cell::new(null_mut()),
             weak: Cell::new(null_mut()),
@@ -195,7 +195,7 @@ impl Lua {
         let registry: *mut Table = unsafe { luaH_new(td)? };
         let io: *mut TValue = g.l_registry.get();
 
-        unsafe { (*io).value_.gc = registry as *mut GCObject };
+        unsafe { (*io).value_.gc = registry as *mut Object };
         unsafe { (*io).tt_ = 5 | 0 << 4 | 1 << 6 };
 
         unsafe { luaH_resize(td, registry, 2, 0) }?;
@@ -203,13 +203,13 @@ impl Lua {
         // Create dummy object for LUA_RIDX_MAINTHREAD.
         let io_0 = unsafe { ((*registry).array).offset(1 - 1) as *mut TValue };
 
-        unsafe { (*io_0).value_.gc = luaH_new(td)? as *mut GCObject };
+        unsafe { (*io_0).value_.gc = luaH_new(td)? as *mut Object };
         unsafe { (*io_0).tt_ = 5 | 0 << 4 | 1 << 6 };
 
         // Create LUA_RIDX_GLOBALS.
         let io_1 = unsafe { ((*registry).array).offset(2 - 1) as *mut TValue };
 
-        unsafe { (*io_1).value_.gc = luaH_new(td)? as *mut GCObject };
+        unsafe { (*io_1).value_.gc = luaH_new(td)? as *mut Object };
         unsafe { (*io_1).tt_ = 5 | 0 << 4 | 1 << 6 };
 
         // Initialize internal module.

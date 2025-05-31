@@ -11,7 +11,7 @@
 #![allow(path_statements)]
 
 use crate::Thread;
-use crate::gc::{GCObject, luaC_fix, luaC_step};
+use crate::gc::{Object, luaC_fix, luaC_step};
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
 use crate::ldo::{luaD_call, luaD_growstack};
 use crate::lobject::{Proto, StkId, TString, TValue, Table, Udata, Value};
@@ -89,7 +89,7 @@ pub unsafe fn luaT_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Er
         (*(*L).global).tmname[i as usize].set(luaS_new(L, luaT_eventname[i as usize])?);
         luaC_fix(
             &*(*L).global,
-            (*(*L).global).tmname[i as usize].get() as *mut GCObject,
+            (*(*L).global).tmname[i as usize].get() as *mut Object,
         );
         i += 1;
         i;
@@ -339,7 +339,7 @@ pub unsafe fn luaT_trybiniTM(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut aux: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };
@@ -375,7 +375,7 @@ pub unsafe fn luaT_callorderiTM(
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut aux: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };

@@ -23,7 +23,7 @@ use crate::lparser::{Dyndata, FuncState};
 use crate::lstring::luaS_newlstr;
 use crate::ltable::{luaH_finishset, luaH_getstr};
 use crate::lzio::{Mbuffer, ZIO, luaZ_fill};
-use crate::{GCObject, Thread};
+use crate::{Object, Thread};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
 use std::fmt::Display;
@@ -180,7 +180,7 @@ pub unsafe fn luaX_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Er
             .wrapping_div(::core::mem::size_of::<libc::c_char>())
             .wrapping_sub(1),
     )?;
-    luaC_fix(&*(*L).global, (e as *mut GCObject));
+    luaC_fix(&*(*L).global, (e as *mut Object));
     i = 0 as libc::c_int;
     while i < TK_WHILE as libc::c_int - (255 as libc::c_int + 1 as libc::c_int) + 1 as libc::c_int {
         let mut ts: *mut TString = luaS_newlstr(
@@ -188,7 +188,7 @@ pub unsafe fn luaX_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Er
             luaX_tokens[i as usize].as_ptr().cast(),
             luaX_tokens[i as usize].len(),
         )?;
-        luaC_fix(&*(*L).global, (ts as *mut GCObject));
+        luaC_fix(&*(*L).global, (ts as *mut Object));
         (*ts).extra = (i + 1 as libc::c_int) as u8;
         i += 1;
         i;
@@ -270,7 +270,7 @@ pub unsafe fn luaX_newstring(
         let mut stv: *mut TValue = &mut (*fresh1).val;
         let mut io: *mut TValue = stv;
         let mut x_: *mut TString = ts;
-        (*io).value_.gc = (x_ as *mut GCObject);
+        (*io).value_.gc = (x_ as *mut Object);
         (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         luaH_finishset(L, (*ls).h, stv, o, stv)?;
         if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
@@ -392,7 +392,7 @@ unsafe fn read_numeral(
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut obj: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };

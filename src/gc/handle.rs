@@ -1,4 +1,4 @@
-use super::GCObject;
+use super::Object;
 use crate::Lua;
 use std::ops::Deref;
 use std::pin::Pin;
@@ -6,6 +6,11 @@ use std::ptr::null_mut;
 use std::rc::Rc;
 
 /// RAII struct to prevent the value from GC.
+///
+/// Beware for memory leak if the value of this type owned by Lua (e.g. put it in a table). If this
+/// value has a reference to its parent (either directly or indirectly) it will prevent GC from
+/// collect the parent, which also prevent the reference to [`Lua`] from reduce to zero since
+/// [`Handle`] also have a strong reference to [`Lua`].
 pub struct Handle<T> {
     lua: Pin<Rc<Lua>>,
     obj: *mut T,
@@ -15,7 +20,7 @@ impl<T> Handle<T> {
     #[inline(always)]
     pub(crate) unsafe fn new(lua: Pin<Rc<Lua>>, obj: *mut T) -> Self {
         // Allocate a handle.
-        let b = obj as *mut GCObject;
+        let b = obj as *mut Object;
 
         if (*b).refs == 0 {
             (*b).handle = Self::alloc_handle(&lua, b);
@@ -28,7 +33,7 @@ impl<T> Handle<T> {
     }
 
     #[inline(never)]
-    fn alloc_handle(lua: &Lua, obj: *mut GCObject) -> usize {
+    fn alloc_handle(lua: &Lua, obj: *mut Object) -> usize {
         let mut t = lua.handle_table.borrow_mut();
 
         match lua.handle_free.borrow_mut().pop() {
@@ -47,7 +52,7 @@ impl<T> Handle<T> {
     #[inline(never)]
     unsafe fn free_handle(&mut self) {
         let mut t = self.lua.handle_table.borrow_mut();
-        let b = self.obj as *mut GCObject;
+        let b = self.obj as *mut Object;
         let h = (*b).handle;
 
         debug_assert_eq!(std::mem::replace(&mut t[h], null_mut()), b);
@@ -59,7 +64,7 @@ impl<T> Handle<T> {
 impl<T> Drop for Handle<T> {
     #[inline(always)]
     fn drop(&mut self) {
-        let b = self.obj as *mut GCObject;
+        let b = self.obj as *mut Object;
 
         unsafe { (*b).refs -= 1 };
 
@@ -72,7 +77,7 @@ impl<T> Drop for Handle<T> {
 impl<T> Clone for Handle<T> {
     #[inline(always)]
     fn clone(&self) -> Self {
-        let b = self.obj as *mut GCObject;
+        let b = self.obj as *mut Object;
 
         unsafe { (*b).refs = (*b).refs.checked_add(1).unwrap() };
 

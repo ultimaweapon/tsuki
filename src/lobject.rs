@@ -9,7 +9,7 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::gc::GCObject;
+use crate::gc::Object;
 use crate::lctype::luai_ctype_;
 use crate::lstate::lua_CFunction;
 use crate::lstring::luaS_newlstr;
@@ -41,7 +41,7 @@ pub struct TbcList {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union Value {
-    pub gc: *mut GCObject,
+    pub gc: *mut Object,
     pub p: *mut libc::c_void,
     pub f: lua_CFunction,
     pub i: i64,
@@ -57,7 +57,7 @@ pub struct TValue {
 
 #[repr(C)]
 pub struct UpVal {
-    pub hdr: GCObject,
+    pub hdr: Object,
     pub v: *mut TValue,
     pub u: C2RustUnnamed_5,
 }
@@ -78,7 +78,7 @@ pub struct C2RustUnnamed_6 {
 
 #[repr(C)]
 pub struct TString {
-    pub hdr: GCObject,
+    pub hdr: Object,
     pub extra: u8,
     pub shrlen: u8,
     pub hash: libc::c_uint,
@@ -95,7 +95,7 @@ pub union C2RustUnnamed_8 {
 
 #[repr(C)]
 pub struct Table {
-    pub hdr: GCObject,
+    pub hdr: Object,
     pub flags: u8,
     pub lsizenode: u8,
     pub alimit: libc::c_uint,
@@ -103,7 +103,7 @@ pub struct Table {
     pub node: *mut Node,
     pub lastfree: *mut Node,
     pub metatable: *mut Table,
-    pub gclist: *mut GCObject,
+    pub gclist: *mut Object,
 }
 
 #[derive(Copy, Clone)]
@@ -136,11 +136,11 @@ pub union UValue {
 
 #[repr(C)]
 pub struct Udata {
-    pub hdr: GCObject,
+    pub hdr: Object,
     pub nuvalue: libc::c_ushort,
     pub len: usize,
     pub metatable: *mut Table,
-    pub gclist: *mut GCObject,
+    pub gclist: *mut Object,
     pub uv: [UValue; 1],
 }
 
@@ -170,7 +170,7 @@ pub struct AbsLineInfo {
 
 #[repr(C)]
 pub struct Proto {
-    pub hdr: GCObject,
+    pub hdr: Object,
     pub numparams: u8,
     pub is_vararg: u8,
     pub maxstacksize: u8,
@@ -191,23 +191,23 @@ pub struct Proto {
     pub abslineinfo: *mut AbsLineInfo,
     pub locvars: *mut LocVar,
     pub source: *mut TString,
-    pub gclist: *mut GCObject,
+    pub gclist: *mut Object,
 }
 
 #[repr(C)]
 pub struct CClosure {
-    pub hdr: GCObject,
+    pub hdr: Object,
     pub nupvalues: u8,
-    pub gclist: *mut GCObject,
+    pub gclist: *mut Object,
     pub f: lua_CFunction,
     pub upvalue: [TValue; 1],
 }
 
 #[repr(C)]
 pub struct LClosure {
-    pub hdr: GCObject,
+    pub hdr: Object,
     pub nupvalues: u8,
-    pub gclist: *mut GCObject,
+    pub gclist: *mut Object,
     pub p: *mut Proto,
     pub upvals: [*mut UpVal; 1],
 }
@@ -870,7 +870,7 @@ pub unsafe fn luaO_tostring(
     let mut len: c_int = tostringbuff(obj, buff.as_mut_ptr());
     let mut io: *mut TValue = obj;
     let mut x_: *mut TString = luaS_newlstr(L, buff.as_mut_ptr(), len as usize)?;
-    (*io).value_.gc = x_ as *mut GCObject;
+    (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
     Ok(())
 }
@@ -883,7 +883,7 @@ unsafe fn pushstr(
     let mut L: *mut Thread = (*buff).L;
     let mut io: *mut TValue = &raw mut (*(*L).top.get()).val;
     let mut x_: *mut TString = luaS_newlstr(L, str, lstr)?;
-    (*io).value_.gc = x_ as *mut GCObject;
+    (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
     if (*buff).pushed == 0 {
         (*buff).pushed = 1 as c_int;

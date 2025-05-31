@@ -41,7 +41,7 @@ use crate::lopcodes::{
 use crate::lstring::{luaS_new, luaS_newlstr};
 use crate::ltable::luaH_new;
 use crate::lzio::{Mbuffer, ZIO};
-use crate::{GCObject, Thread};
+use crate::{Object, Thread};
 use libc::strcmp;
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
@@ -376,7 +376,7 @@ unsafe fn registerlocalvar(
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
-        luaC_barrier_((*ls).L, f as *mut GCObject, varname as *mut GCObject);
+        luaC_barrier_((*ls).L, f as *mut Object, varname as *mut Object);
     } else {
     };
     let fresh3 = (*fs).ndebugvars;
@@ -619,11 +619,7 @@ unsafe fn newupvalue(
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
-        luaC_barrier_(
-            (*(*fs).ls).L,
-            (*fs).f as *mut GCObject,
-            name as *mut GCObject,
-        );
+        luaC_barrier_((*(*fs).ls).L, (*fs).f as *mut Object, name as *mut Object);
     } else {
     };
     return Ok((*fs).nups as libc::c_int - 1 as libc::c_int);
@@ -1047,7 +1043,7 @@ unsafe fn addprototype(mut ls: *mut LexState) -> Result<*mut Proto, Box<dyn std:
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
-        luaC_barrier_(L, f as *mut GCObject, clp as *mut GCObject);
+        luaC_barrier_(L, f as *mut Object, clp as *mut Object);
     } else {
     };
     return Ok(clp);
@@ -1101,7 +1097,7 @@ unsafe extern "C" fn open_func(
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
-        luaC_barrier_((*ls).L, f as *mut GCObject, (*f).source as *mut GCObject);
+        luaC_barrier_((*ls).L, f as *mut Object, (*f).source as *mut Object);
     } else {
     };
     (*f).maxstacksize = 2 as libc::c_int as u8;
@@ -2874,11 +2870,7 @@ unsafe fn mainfunc(
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
-        luaC_barrier_(
-            (*ls).L,
-            (*fs).f as *mut GCObject,
-            (*env).name as *mut GCObject,
-        );
+        luaC_barrier_((*ls).L, (*fs).f as *mut Object, (*env).name as *mut Object);
     } else {
     };
     luaX_next(ls)?;
@@ -2940,7 +2932,7 @@ pub unsafe fn luaY_parser(
     let mut cl: *mut LClosure = luaF_newLclosure(L, 1 as libc::c_int);
     let mut io: *mut TValue = &raw mut (*(*L).top.get()).val;
     let mut x_: *mut LClosure = cl;
-    (*io).value_.gc = x_ as *mut GCObject;
+    (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = (6 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -2948,7 +2940,7 @@ pub unsafe fn luaY_parser(
     lexstate.h = luaH_new(L)?;
     let mut io_0: *mut TValue = &raw mut (*(*L).top.get()).val;
     let mut x__0: *mut Table = lexstate.h;
-    (*io_0).value_.gc = x__0 as *mut GCObject;
+    (*io_0).value_.gc = x__0 as *mut Object;
     (*io_0).tt_ = (5 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -2960,7 +2952,7 @@ pub unsafe fn luaY_parser(
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
-        luaC_barrier_(L, cl as *mut GCObject, (*cl).p as *mut GCObject);
+        luaC_barrier_(L, cl as *mut Object, (*cl).p as *mut Object);
     } else {
     };
     (*funcstate.f).source = luaS_new(L, name)?;
@@ -2971,8 +2963,8 @@ pub unsafe fn luaY_parser(
     {
         luaC_barrier_(
             L,
-            funcstate.f as *mut GCObject,
-            (*funcstate.f).source as *mut GCObject,
+            funcstate.f as *mut Object,
+            (*funcstate.f).source as *mut Object,
         );
     } else {
     };

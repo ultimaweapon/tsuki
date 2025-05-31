@@ -12,7 +12,7 @@
 #![allow(unused_parens)]
 
 use crate::Thread;
-use crate::gc::{GCObject, luaC_barrier_, luaC_barrierback_, luaC_step};
+use crate::gc::{Object, luaC_barrier_, luaC_barrierback_, luaC_step};
 use crate::ldebug::{luaG_forerror, luaG_runerror, luaG_tracecall, luaG_traceexec, luaG_typeerror};
 use crate::ldo::{luaD_call, luaD_hookcall, luaD_poscall, luaD_precall, luaD_pretailcall};
 use crate::lfunc::{
@@ -62,7 +62,7 @@ unsafe fn l_strton(mut obj: *const TValue, mut result: *mut TValue) -> libc::c_i
 pub unsafe fn luaV_tonumber_(mut obj: *const TValue, mut n: *mut f64) -> libc::c_int {
     let mut v: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };
@@ -124,7 +124,7 @@ pub unsafe fn luaV_tointeger(
 ) -> libc::c_int {
     let mut v: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };
@@ -415,7 +415,7 @@ pub unsafe fn luaV_finishset(
                                 | (1 as libc::c_int) << 4 as libc::c_int)
                             != 0
                     {
-                        luaC_barrierback_(L, (h as *mut GCObject));
+                        luaC_barrierback_(L, (h as *mut Object));
                     } else {
                     };
                 } else {
@@ -978,7 +978,7 @@ pub unsafe fn luaV_concat(
             }
             let mut io: *mut TValue = &mut (*top.offset(-(n as isize))).val;
             let mut x_: *mut TString = ts;
-            (*io).value_.gc = (x_ as *mut GCObject);
+            (*io).value_.gc = (x_ as *mut Object);
             (*io).tt_ =
                 ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         }
@@ -1138,7 +1138,7 @@ unsafe extern "C" fn pushclosure(
     (*ncl).p = p;
     let mut io: *mut TValue = &mut (*ra).val;
     let mut x_: *mut LClosure = ncl;
-    (*io).value_.gc = (x_ as *mut GCObject);
+    (*io).value_.gc = (x_ as *mut Object);
     (*io).tt_ = (6 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -1163,8 +1163,8 @@ unsafe extern "C" fn pushclosure(
         {
             luaC_barrier_(
                 L,
-                (ncl as *mut GCObject),
-                (*((*ncl).upvals).as_mut_ptr().offset(i as isize) as *mut GCObject),
+                (ncl as *mut Object),
+                (*((*ncl).upvals).as_mut_ptr().offset(i as isize) as *mut Object),
             );
         } else {
         };
@@ -1527,8 +1527,8 @@ pub unsafe fn luaV_execute(
                             {
                                 luaC_barrier_(
                                     L,
-                                    (uv as *mut GCObject),
-                                    ((*ra_9).val.value_.gc as *mut GCObject),
+                                    (uv as *mut Object),
+                                    ((*ra_9).val.value_.gc as *mut Object),
                                 );
                             } else {
                             };
@@ -1725,7 +1725,7 @@ pub unsafe fn luaV_execute(
                         } else {
                             let mut key_0: TValue = TValue {
                                 value_: Value {
-                                    gc: 0 as *mut GCObject,
+                                    gc: 0 as *mut Object,
                                 },
                                 tt_: 0,
                             };
@@ -2086,7 +2086,7 @@ pub unsafe fn luaV_execute(
                         } else {
                             let mut key_3: TValue = TValue {
                                 value_: Value {
-                                    gc: 0 as *mut GCObject,
+                                    gc: 0 as *mut Object,
                                 },
                                 tt_: 0,
                             };
@@ -2238,7 +2238,7 @@ pub unsafe fn luaV_execute(
                         t = luaH_new(L)?;
                         let mut io_3: *mut TValue = &mut (*ra_17).val;
                         let mut x_: *mut Table = t;
-                        (*io_3).value_.gc = (x_ as *mut GCObject);
+                        (*io_3).value_.gc = (x_ as *mut Object);
                         (*io_3).tt_ = (5 as libc::c_int
                             | (0 as libc::c_int) << 4 as libc::c_int
                             | (1 as libc::c_int) << 6 as libc::c_int)
@@ -5537,7 +5537,7 @@ pub unsafe fn luaV_execute(
                                             | (1 as libc::c_int) << 4 as libc::c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_(L, h as *mut GCObject);
+                                    luaC_barrierback_(L, h as *mut Object);
                                 } else {
                                 };
                             } else {

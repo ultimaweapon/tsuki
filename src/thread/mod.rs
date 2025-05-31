@@ -4,7 +4,7 @@ use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
 use crate::lobject::{StackValue, StkId, UpVal};
 use crate::lstate::{CallInfo, lua_Hook};
-use crate::{GCObject, Lua};
+use crate::{Lua, Object};
 use std::alloc::Layout;
 use std::cell::{Cell, UnsafeCell};
 use std::marker::PhantomPinned;
@@ -14,7 +14,7 @@ mod stack;
 /// Lua thread (AKA coroutine).
 #[repr(C)]
 pub struct Thread {
-    pub(crate) hdr: GCObject,
+    pub(crate) hdr: Object,
     pub(crate) allowhook: Cell<u8>,
     pub(crate) nci: Cell<libc::c_ushort>,
     pub(crate) top: StackPtr,
@@ -23,7 +23,7 @@ pub struct Thread {
     pub(crate) stack: Cell<StkId>,
     pub(crate) openupval: Cell<*mut UpVal>,
     pub(crate) tbclist: Cell<StkId>,
-    pub(crate) gclist: Cell<*mut GCObject>,
+    pub(crate) gclist: Cell<*mut Object>,
     pub(crate) twups: Cell<*mut Thread>,
     pub(crate) base_ci: UnsafeCell<CallInfo>,
     pub(crate) hook: Cell<lua_Hook>,

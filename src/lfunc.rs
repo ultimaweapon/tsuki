@@ -19,7 +19,7 @@ use crate::lobject::{
     Upvaldesc,
 };
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
-use crate::{GCObject, Lua, Thread};
+use crate::{Lua, Object, Thread};
 use std::alloc::Layout;
 use std::ffi::CStr;
 use std::mem::offset_of;
@@ -74,7 +74,7 @@ pub unsafe fn luaF_initupvals(mut L: *mut Thread, mut cl: *mut LClosure) {
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            luaC_barrier_(L, cl as *mut GCObject, uv as *mut GCObject);
+            luaC_barrier_(L, cl as *mut Object, uv as *mut Object);
         } else {
         };
         i += 1;
@@ -251,7 +251,7 @@ pub unsafe extern "C" fn luaF_closeupval(mut L: *mut Thread, mut level: StkId) {
                             | (1 as libc::c_int) << 4 as libc::c_int)
                         != 0
                 {
-                    luaC_barrier_(L, uv as *mut GCObject, (*slot).value_.gc as *mut GCObject);
+                    luaC_barrier_(L, uv as *mut Object, (*slot).value_.gc as *mut Object);
                 } else {
                 };
             } else {

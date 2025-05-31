@@ -23,7 +23,7 @@ use crate::ltm::{
     luaT_objtypename,
 };
 use crate::lvm::{F2Ieq, luaV_tointegerns};
-use crate::{GCObject, Thread, api_incr_top};
+use crate::{Object, Thread, api_incr_top};
 use libc::{strchr, strcmp};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
@@ -283,7 +283,7 @@ pub unsafe fn lua_setlocal(
     return name;
 }
 
-unsafe fn funcinfo(mut ar: *mut lua_Debug, mut cl: *mut GCObject) {
+unsafe fn funcinfo(mut ar: *mut lua_Debug, mut cl: *mut Object) {
     if !(!cl.is_null()
         && (*cl).tt as libc::c_int == 6 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int)
     {
@@ -334,7 +334,7 @@ unsafe extern "C" fn nextline(
 
 unsafe fn collectvalidlines(
     mut L: *mut Thread,
-    mut f: *mut GCObject,
+    mut f: *mut Object,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !(!f.is_null()
         && (*f).tt as libc::c_int == 6 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int)
@@ -348,7 +348,7 @@ unsafe fn collectvalidlines(
         let mut t: *mut Table = luaH_new(L)?;
         let mut io: *mut TValue = &raw mut (*(*L).top.get()).val;
         let mut x_: *mut Table = t;
-        (*io).value_.gc = x_ as *mut GCObject;
+        (*io).value_.gc = x_ as *mut Object;
         (*io).tt_ = (5 as libc::c_int
             | (0 as libc::c_int) << 4 as libc::c_int
             | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -357,7 +357,7 @@ unsafe fn collectvalidlines(
             let mut i: libc::c_int = 0;
             let mut v: TValue = TValue {
                 value_: Value {
-                    gc: 0 as *mut GCObject,
+                    gc: 0 as *mut Object,
                 },
                 tt_: 0,
             };
@@ -396,7 +396,7 @@ unsafe fn auxgetinfo(
     mut L: *mut Thread,
     mut what: *const libc::c_char,
     mut ar: *mut lua_Debug,
-    mut f: *mut GCObject,
+    mut f: *mut Object,
     mut ci: *mut CallInfo,
 ) -> libc::c_int {
     let mut status: libc::c_int = 1 as libc::c_int;
@@ -472,7 +472,7 @@ pub unsafe fn lua_getinfo(
     mut ar: *mut lua_Debug,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut status: libc::c_int = 0;
-    let mut cl: *mut GCObject;
+    let mut cl: *mut Object;
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     let mut func: *mut TValue = 0 as *mut TValue;
     if *what as libc::c_int == '>' as i32 {

@@ -9,7 +9,7 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::gc::{GCObject, luaC_barrierback_};
+use crate::gc::{Object, luaC_barrierback_};
 use crate::ldebug::luaG_runerror;
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
 use crate::lobject::{Node, NodeKey, StkId, TString, TValue, Table, Value, luaO_ceillog2};
@@ -27,13 +27,13 @@ static mut dummynode_: Node = Node {
     u: {
         let mut init = NodeKey {
             value_: Value {
-                gc: 0 as *const GCObject as *mut GCObject,
+                gc: 0 as *const Object as *mut Object,
             },
             tt_: (0 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8,
             key_tt: (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8,
             next: 0 as libc::c_int,
             key_val: Value {
-                gc: 0 as *const GCObject as *mut GCObject,
+                gc: 0 as *const Object as *mut Object,
             },
         };
         init
@@ -43,7 +43,7 @@ static mut dummynode_: Node = Node {
 static mut absentkey: TValue = {
     let mut init = TValue {
         value_: Value {
-            gc: 0 as *const GCObject as *mut GCObject,
+            gc: 0 as *const Object as *mut Object,
         },
         tt_: (0 as libc::c_int | (2 as libc::c_int) << 4 as libc::c_int) as u8,
     };
@@ -155,7 +155,7 @@ unsafe extern "C" fn mainpositionTV(mut t: *const Table, mut key: *const TValue)
             ) as *mut Node;
         }
         _ => {
-            let mut o: *mut GCObject = (*key).value_.gc;
+            let mut o: *mut Object = (*key).value_.gc;
             return &mut *((*t).node).offset(
                 ((o as usize & 0xffffffff as libc::c_uint as usize) as libc::c_uint).wrapping_rem(
                     (((1 as libc::c_int) << (*t).lsizenode as libc::c_int) - 1 as libc::c_int
@@ -169,7 +169,7 @@ unsafe extern "C" fn mainpositionTV(mut t: *const Table, mut key: *const TValue)
 unsafe extern "C" fn mainpositionfromnode(mut t: *const Table, mut nd: *mut Node) -> *mut Node {
     let mut key: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };
@@ -538,7 +538,7 @@ unsafe fn reinsert(
         if !((*old).i_val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
             let mut k: TValue = TValue {
                 value_: Value {
-                    gc: 0 as *mut GCObject,
+                    gc: 0 as *mut Object,
                 },
                 tt_: 0,
             };
@@ -574,8 +574,8 @@ pub unsafe fn luaH_resize(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: libc::c_uint = 0;
     let mut newt = Table {
-        hdr: GCObject {
-            next: Cell::new(0 as *mut GCObject),
+        hdr: Object {
+            next: Cell::new(0 as *mut Object),
             tt: 0,
             marked: 0,
             refs: 0,
@@ -588,7 +588,7 @@ pub unsafe fn luaH_resize(
         node: 0 as *mut Node,
         lastfree: 0 as *mut Node,
         metatable: 0 as *mut Table,
-        gclist: 0 as *mut GCObject,
+        gclist: 0 as *mut Object,
     };
     let mut oldasize: libc::c_uint = setlimittosize(t);
     let mut newarray: *mut TValue = 0 as *mut TValue;
@@ -737,7 +737,7 @@ unsafe fn luaH_newkey(
     let mut mp: *mut Node = 0 as *mut Node;
     let mut aux: TValue = TValue {
         value_: Value {
-            gc: 0 as *mut GCObject,
+            gc: 0 as *mut Object,
         },
         tt_: 0,
     };
@@ -805,7 +805,7 @@ unsafe fn luaH_newkey(
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            luaC_barrierback_(L, t as *mut GCObject);
+            luaC_barrierback_(L, t as *mut Object);
         } else {
         };
     } else {
@@ -875,13 +875,13 @@ pub unsafe fn luaH_getstr(mut t: *mut Table, mut key: *mut TString) -> *const TV
     } else {
         let mut ko: TValue = TValue {
             value_: Value {
-                gc: 0 as *mut GCObject,
+                gc: 0 as *mut Object,
             },
             tt_: 0,
         };
         let mut io: *mut TValue = &mut ko;
         let mut x_: *mut TString = key;
-        (*io).value_.gc = x_ as *mut GCObject;
+        (*io).value_.gc = x_ as *mut Object;
         (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         return getgeneric(t, &mut ko, 0 as libc::c_int);
     };
@@ -942,7 +942,7 @@ pub unsafe fn luaH_setint(
     if (*p).tt_ as libc::c_int == 0 as libc::c_int | (2 as libc::c_int) << 4 as libc::c_int {
         let mut k: TValue = TValue {
             value_: Value {
-                gc: 0 as *mut GCObject,
+                gc: 0 as *mut Object,
             },
             tt_: 0,
         };
