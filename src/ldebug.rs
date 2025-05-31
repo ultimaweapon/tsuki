@@ -920,7 +920,7 @@ unsafe fn getupvalname(
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < (*c).nupvalues as libc::c_int {
-        if (**((*c).upvals).as_mut_ptr().offset(i as isize)).v == o as *mut TValue {
+        if (**((*c).upvals).as_mut_ptr().offset(i as isize)).v.get() == o as *mut TValue {
             *name = upvalname((*c).p, i);
             return b"upvalue\0" as *const u8 as *const libc::c_char;
         }

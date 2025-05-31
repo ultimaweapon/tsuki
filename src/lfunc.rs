@@ -65,8 +65,8 @@ pub unsafe fn luaF_initupvals(mut L: *mut Thread, mut cl: *mut LClosure) {
         let o = (*(*L).global).gc.alloc(9 | 0 << 4, layout);
         let mut uv: *mut UpVal = o as *mut UpVal;
 
-        (*uv).v = &raw mut (*(*uv).u.get()).value;
-        (*(*uv).v).tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+        (*uv).v.set(&raw mut (*(*uv).u.get()).value);
+        (*(*uv).v.get()).tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
         let ref mut fresh2 = *((*cl).upvals).as_mut_ptr().offset(i as isize);
         *fresh2 = uv;
         if (*cl).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
@@ -88,7 +88,7 @@ unsafe fn newupval(mut L: *mut Thread, mut level: StkId, mut prev: *mut *mut UpV
     let mut uv: *mut UpVal = o as *mut UpVal;
     let mut next: *mut UpVal = *prev;
 
-    (*uv).v = &raw mut (*level).val;
+    (*uv).v.set(&raw mut (*level).val);
     (*(*uv).u.get()).open.next = next;
     (*(*uv).u.get()).open.previous = prev;
     if !next.is_null() {
@@ -110,10 +110,10 @@ pub unsafe extern "C" fn luaF_findupval(mut L: *mut Thread, mut level: StkId) ->
     let mut p: *mut UpVal = 0 as *mut UpVal;
     loop {
         p = *pp;
-        if !(!p.is_null() && (*p).v as StkId >= level) {
+        if !(!p.is_null() && (*p).v.get() as StkId >= level) {
             break;
         }
-        if (*p).v as StkId == level {
+        if (*p).v.get() as StkId == level {
             return p;
         }
         pp = &raw mut (*(*p).u.get()).open.next;
@@ -226,7 +226,7 @@ pub unsafe extern "C" fn luaF_closeupval(mut L: *mut Thread, mut level: StkId) {
     loop {
         uv = (*L).openupval.get();
         if !(!uv.is_null() && {
-            upl = (*uv).v as StkId;
+            upl = (*uv).v.get() as StkId;
             upl >= level
         }) {
             break;
@@ -234,10 +234,10 @@ pub unsafe extern "C" fn luaF_closeupval(mut L: *mut Thread, mut level: StkId) {
         let mut slot: *mut TValue = &raw mut (*(*uv).u.get()).value;
         luaF_unlinkupval(uv);
         let mut io1: *mut TValue = slot;
-        let mut io2: *const TValue = (*uv).v;
+        let mut io2: *const TValue = (*uv).v.get();
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
-        (*uv).v = slot;
+        (*uv).v.set(slot);
 
         if (*uv).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)

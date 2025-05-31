@@ -1492,7 +1492,7 @@ pub unsafe fn luaV_execute(
                             as libc::c_int;
                         let mut io1_2: *mut TValue = &mut (*ra_8).val;
                         let mut io2_2: *const TValue =
-                            (**((*cl).upvals).as_mut_ptr().offset(b_2 as isize)).v;
+                            (**((*cl).upvals).as_mut_ptr().offset(b_2 as isize)).v.get();
                         (*io1_2).value_ = (*io2_2).value_;
                         (*io1_2).tt_ = (*io2_2).tt_;
                         continue;
@@ -1513,7 +1513,7 @@ pub unsafe fn luaV_execute(
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut io1_3: *mut TValue = (*uv).v;
+                        let mut io1_3: *mut TValue = (*uv).v.get();
                         let mut io2_3: *const TValue = &mut (*ra_9).val;
                         (*io1_3).value_ = (*io2_3).value_;
                         (*io1_3).tt_ = (*io2_3).tt_;
@@ -1552,11 +1552,11 @@ pub unsafe fn luaV_execute(
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
                                 + 1 as libc::c_int
-                                & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
-                                    << 0 as libc::c_int) as libc::c_int
-                                as isize,
+                                & !(!(0 as libc::c_int as u32) << 8) << 0)
+                                as libc::c_int as isize,
                         ))
-                        .v;
+                        .v
+                        .get();
                         let mut rc: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
@@ -1801,11 +1801,11 @@ pub unsafe fn luaV_execute(
                         let mut slot_3: *const TValue = 0 as *const TValue;
                         let mut upval_0: *mut TValue = (**((*cl).upvals).as_mut_ptr().offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
-                                & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
-                                    << 0 as libc::c_int) as libc::c_int
-                                as isize,
+                                & !(!(0 as libc::c_int as u32) << 8) << 0)
+                                as libc::c_int as isize,
                         ))
-                        .v;
+                        .v
+                        .get();
                         let mut rb_4: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int

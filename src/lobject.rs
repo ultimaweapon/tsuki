@@ -3,8 +3,7 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
-    unused_mut
+    unused_assignments
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
@@ -17,7 +16,7 @@ use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
 use libc::{c_char, c_int, memcpy, sprintf, strchr, strpbrk, strspn, strtod};
 use libm::{floor, pow};
-use std::cell::UnsafeCell;
+use std::cell::{Cell, UnsafeCell};
 
 pub type StkId = *mut StackValue;
 
@@ -56,7 +55,7 @@ pub struct TValue {
 #[repr(C)]
 pub struct UpVal {
     pub hdr: Object,
-    pub v: *mut TValue,
+    pub v: Cell<*mut TValue>,
     pub u: UnsafeCell<C2RustUnnamed_5>,
 }
 
@@ -476,10 +475,10 @@ pub unsafe fn luaO_ceillog2(mut x: libc::c_uint) -> c_int {
 }
 
 unsafe fn intarith(
-    mut L: *mut Thread,
-    mut op: c_int,
-    mut v1: i64,
-    mut v2: i64,
+    L: *mut Thread,
+    op: c_int,
+    v1: i64,
+    v2: i64,
 ) -> Result<i64, Box<dyn std::error::Error>> {
     let r = match op {
         0 => (v1 as u64).wrapping_add(v2 as u64) as i64,
@@ -500,7 +499,7 @@ unsafe fn intarith(
     Ok(r)
 }
 
-unsafe extern "C" fn numarith(mut L: *mut Thread, mut op: c_int, mut v1: f64, mut v2: f64) -> f64 {
+unsafe fn numarith(L: *mut Thread, op: c_int, v1: f64, v2: f64) -> f64 {
     match op {
         0 => return v1 + v2,
         1 => return v1 - v2,
@@ -521,11 +520,11 @@ unsafe extern "C" fn numarith(mut L: *mut Thread, mut op: c_int, mut v1: f64, mu
 }
 
 pub unsafe fn luaO_rawarith(
-    mut L: *mut Thread,
-    mut op: c_int,
-    mut p1: *const TValue,
-    mut p2: *const TValue,
-    mut res: *mut TValue,
+    L: *mut Thread,
+    op: c_int,
+    p1: *const TValue,
+    p2: *const TValue,
+    res: *mut TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     match op {
         7 | 8 | 9 | 10 | 11 | 13 => {
@@ -550,7 +549,7 @@ pub unsafe fn luaO_rawarith(
                     luaV_tointegerns(p2, &mut i2, F2Ieq)
                 }) != 0
             {
-                let mut io: *mut TValue = res;
+                let io: *mut TValue = res;
                 (*io).value_.i = intarith(L, op, i1, i2)?;
                 (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                 return Ok(1 as c_int);
@@ -584,7 +583,7 @@ pub unsafe fn luaO_rawarith(
                     }
                 }) != 0
             {
-                let mut io_0: *mut TValue = res;
+                let io_0: *mut TValue = res;
                 (*io_0).value_.n = numarith(L, op, n1, n2);
                 (*io_0).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                 return Ok(1 as c_int);
@@ -598,7 +597,7 @@ pub unsafe fn luaO_rawarith(
             if (*p1).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int
                 && (*p2).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int
             {
-                let mut io_1: *mut TValue = res;
+                let io_1: *mut TValue = res;
                 (*io_1).value_.i = intarith(L, op, (*p1).value_.i, (*p2).value_.i)?;
                 (*io_1).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                 return Ok(1 as c_int);
@@ -625,7 +624,7 @@ pub unsafe fn luaO_rawarith(
                     }
                 }) != 0
             {
-                let mut io_2: *mut TValue = res;
+                let io_2: *mut TValue = res;
                 (*io_2).value_.n = numarith(L, op, n1_0, n2_0);
                 (*io_2).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                 return Ok(1 as c_int);
@@ -637,11 +636,11 @@ pub unsafe fn luaO_rawarith(
 }
 
 pub unsafe fn luaO_arith(
-    mut L: *mut Thread,
-    mut op: c_int,
-    mut p1: *const TValue,
-    mut p2: *const TValue,
-    mut res: StkId,
+    L: *mut Thread,
+    op: c_int,
+    p1: *const TValue,
+    p2: *const TValue,
+    res: StkId,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if luaO_rawarith(L, op, p1, p2, &mut (*res).val)? == 0 {
         luaT_trybinTM(L, p1, p2, res, (op - 0 as c_int + TM_ADD as c_int) as TMS)?;
@@ -649,8 +648,7 @@ pub unsafe fn luaO_arith(
     Ok(())
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaO_hexavalue(mut c: c_int) -> c_int {
+pub unsafe fn luaO_hexavalue(c: c_int) -> c_int {
     if luai_ctype_[(c + 1 as c_int) as usize] as c_int & (1 as c_int) << 1 as c_int != 0 {
         return c - '0' as i32;
     } else {
@@ -658,7 +656,7 @@ pub unsafe extern "C" fn luaO_hexavalue(mut c: c_int) -> c_int {
     };
 }
 
-unsafe extern "C" fn isneg(mut s: *mut *const c_char) -> c_int {
+unsafe fn isneg(s: *mut *const c_char) -> c_int {
     if **s as c_int == '-' as i32 {
         *s = (*s).offset(1);
         return 1 as c_int;
@@ -668,7 +666,7 @@ unsafe extern "C" fn isneg(mut s: *mut *const c_char) -> c_int {
     return 0 as c_int;
 }
 
-unsafe fn l_str2dloc(mut s: *const c_char, mut result: *mut f64, mut mode: c_int) -> *const c_char {
+unsafe fn l_str2dloc(s: *const c_char, result: *mut f64, mode: c_int) -> *const c_char {
     let mut endptr: *mut c_char = 0 as *mut c_char;
     *result = if mode == 'x' as i32 {
         strtod(s, &mut endptr)
@@ -691,9 +689,9 @@ unsafe fn l_str2dloc(mut s: *const c_char, mut result: *mut f64, mut mode: c_int
     };
 }
 
-unsafe extern "C" fn l_str2d(mut s: *const c_char, mut result: *mut f64) -> *const c_char {
-    let mut pmode: *const c_char = strpbrk(s, b".xXnN\0" as *const u8 as *const c_char);
-    let mut mode: c_int = if !pmode.is_null() {
+unsafe fn l_str2d(s: *const c_char, result: *mut f64) -> *const c_char {
+    let pmode: *const c_char = strpbrk(s, b".xXnN\0" as *const u8 as *const c_char);
+    let mode: c_int = if !pmode.is_null() {
         *pmode as libc::c_uchar as c_int | 'A' as i32 ^ 'a' as i32
     } else {
         0 as c_int
@@ -706,7 +704,7 @@ unsafe extern "C" fn l_str2d(mut s: *const c_char, mut result: *mut f64) -> *con
     l_str2dloc(s, result, mode)
 }
 
-unsafe extern "C" fn l_str2int(mut s: *const c_char, mut result: *mut i64) -> *const c_char {
+unsafe fn l_str2int(mut s: *const c_char, result: *mut i64) -> *const c_char {
     let mut a: u64 = 0 as c_int as u64;
     let mut empty: c_int = 1 as c_int;
     let mut neg: c_int = 0;
@@ -737,7 +735,7 @@ unsafe extern "C" fn l_str2int(mut s: *const c_char, mut result: *mut i64) -> *c
             & (1 as c_int) << 1 as c_int
             != 0
         {
-            let mut d: c_int = *s as c_int - '0' as i32;
+            let d: c_int = *s as c_int - '0' as i32;
             if a >= (0x7fffffffffffffff as libc::c_longlong / 10 as c_int as libc::c_longlong)
                 as u64
                 && (a
@@ -772,20 +770,19 @@ unsafe extern "C" fn l_str2int(mut s: *const c_char, mut result: *mut i64) -> *c
     };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaO_str2num(mut s: *const c_char, mut o: *mut TValue) -> usize {
+pub unsafe fn luaO_str2num(s: *const c_char, o: *mut TValue) -> usize {
     let mut i: i64 = 0;
     let mut n: f64 = 0.;
     let mut e: *const c_char = 0 as *const c_char;
     e = l_str2int(s, &mut i);
     if !e.is_null() {
-        let mut io: *mut TValue = o;
+        let io: *mut TValue = o;
         (*io).value_.i = i;
         (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
     } else {
         e = l_str2d(s, &mut n);
         if !e.is_null() {
-            let mut io_0: *mut TValue = o;
+            let io_0: *mut TValue = o;
             (*io_0).value_.n = n;
             (*io_0).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
         } else {
@@ -795,8 +792,7 @@ pub unsafe extern "C" fn luaO_str2num(mut s: *const c_char, mut o: *mut TValue) 
     return (e.offset_from(s) as libc::c_long + 1 as c_int as libc::c_long) as usize;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaO_utf8esc(mut buff: *mut c_char, mut x: libc::c_ulong) -> c_int {
+pub unsafe fn luaO_utf8esc(buff: *mut c_char, mut x: libc::c_ulong) -> c_int {
     let mut n: c_int = 1 as c_int;
     if x < 0x80 as c_int as libc::c_ulong {
         *buff.offset((8 as c_int - 1 as c_int) as isize) = x as c_char;
@@ -819,7 +815,7 @@ pub unsafe extern "C" fn luaO_utf8esc(mut buff: *mut c_char, mut x: libc::c_ulon
     return n;
 }
 
-unsafe fn tostringbuff(mut obj: *mut TValue, buff: *mut c_char) -> c_int {
+unsafe fn tostringbuff(obj: *mut TValue, buff: *mut c_char) -> c_int {
     if (*obj).tt_ == 3 | 0 << 4 {
         sprintf(
             buff,
@@ -847,19 +843,19 @@ unsafe fn tostringbuff(mut obj: *mut TValue, buff: *mut c_char) -> c_int {
 }
 
 pub unsafe fn luaO_tostring(
-    mut L: *mut Thread,
-    mut obj: *mut TValue,
+    L: *mut Thread,
+    obj: *mut TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut buff: [c_char; 44] = [0; 44];
-    let mut len: c_int = tostringbuff(obj, buff.as_mut_ptr());
-    let mut io: *mut TValue = obj;
-    let mut x_: *mut TString = luaS_newlstr(L, buff.as_mut_ptr(), len as usize)?;
+    let len: c_int = tostringbuff(obj, buff.as_mut_ptr());
+    let io: *mut TValue = obj;
+    let x_: *mut TString = luaS_newlstr(L, buff.as_mut_ptr(), len as usize)?;
     (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
     Ok(())
 }
 
-pub unsafe fn luaO_chunkid(mut out: *mut c_char, mut source: *const c_char, mut srclen: usize) {
+pub unsafe fn luaO_chunkid(mut out: *mut c_char, source: *const c_char, mut srclen: usize) {
     let mut bufflen: usize = 60 as c_int as usize;
     if *source as c_int == '=' as i32 {
         if srclen <= bufflen {
@@ -915,7 +911,7 @@ pub unsafe fn luaO_chunkid(mut out: *mut c_char, mut source: *const c_char, mut 
             );
         }
     } else {
-        let mut nl: *const c_char = strchr(source, '\n' as i32);
+        let nl: *const c_char = strchr(source, '\n' as i32);
         memcpy(
             out as *mut libc::c_void,
             b"[string \"\0" as *const u8 as *const c_char as *const libc::c_void,

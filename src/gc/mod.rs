@@ -118,7 +118,7 @@ unsafe fn reallymarkobject(g: *const Lua, o: *mut Object) {
         }
         9 => {
             let uv: *mut UpVal = o as *mut UpVal;
-            if (*uv).v != &raw mut (*(*uv).u.get()).value as *mut TValue {
+            if (*uv).v.get() != &raw mut (*(*uv).u.get()).value as *mut TValue {
                 (*uv)
                     .hdr
                     .marked
@@ -130,10 +130,10 @@ unsafe fn reallymarkobject(g: *const Lua, o: *mut Object) {
                     .set((*uv).hdr.marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
             }
 
-            if (*(*uv).v).tt_ & 1 << 6 != 0
-                && (*(*(*uv).v).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
+            if (*(*uv).v.get()).tt_ & 1 << 6 != 0
+                && (*(*(*uv).v.get()).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
             {
-                reallymarkobject(g, (*(*uv).v).value_.gc);
+                reallymarkobject(g, (*(*uv).v.get()).value_.gc);
             }
 
             return;
@@ -206,13 +206,14 @@ unsafe fn remarkupvals(g: *const Lua) -> libc::c_int {
                         | (1 as libc::c_int) << 4 as libc::c_int)
                     == 0
                 {
-                    if (*(*uv).v).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0
-                        && (*(*(*uv).v).value_.gc).marked.get() as libc::c_int
+                    if (*(*uv).v.get()).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int
+                        != 0
+                        && (*(*(*uv).v.get()).value_.gc).marked.get() as libc::c_int
                             & ((1 as libc::c_int) << 3 as libc::c_int
                                 | (1 as libc::c_int) << 4 as libc::c_int)
                             != 0
                     {
-                        reallymarkobject(g, (*(*uv).v).value_.gc);
+                        reallymarkobject(g, (*(*uv).v.get()).value_.gc);
                     }
                 }
                 uv = (*(*uv).u.get()).open.next;
@@ -805,7 +806,7 @@ unsafe fn clearbyvalues(g: *const Lua, mut l: *mut Object, f: *mut Object) {
 unsafe fn freeupval(g: *const Lua, uv: *mut UpVal) {
     let layout = Layout::new::<UpVal>();
 
-    if (*uv).v != &raw mut (*(*uv).u.get()).value as *mut TValue {
+    if (*uv).v.get() != &raw mut (*(*uv).u.get()).value as *mut TValue {
         luaF_unlinkupval(uv);
     }
 
