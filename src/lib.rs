@@ -5,10 +5,10 @@ pub use self::lapi::{
     lua_getiuservalue, lua_gettable, lua_gettop, lua_getupvalue, lua_iscfunction, lua_isinteger,
     lua_isstring, lua_isuserdata, lua_load, lua_newuserdatauv, lua_pcall, lua_pushcclosure,
     lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushthread,
-    lua_pushvalue, lua_rawgetp, lua_rawsetp, lua_rotate, lua_setfield, lua_setiuservalue,
-    lua_setmetatable, lua_settable, lua_settop, lua_stringtonumber, lua_toboolean, lua_tocfunction,
-    lua_tointegerx, lua_tolstring, lua_tonumberx, lua_topointer, lua_tothread, lua_touserdata,
-    lua_type, lua_typename, lua_upvalueid, lua_upvaluejoin, lua_xmove,
+    lua_pushvalue, lua_rotate, lua_setfield, lua_setiuservalue, lua_setmetatable, lua_settable,
+    lua_settop, lua_stringtonumber, lua_toboolean, lua_tocfunction, lua_tointegerx, lua_tolstring,
+    lua_tonumberx, lua_topointer, lua_tothread, lua_touserdata, lua_type, lua_typename,
+    lua_upvalueid, lua_upvaluejoin, lua_xmove,
 };
 pub use self::lauxlib::{
     luaL_Reg, luaL_argerror, luaL_checkinteger, luaL_checklstring, luaL_checknumber,

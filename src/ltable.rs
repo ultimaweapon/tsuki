@@ -51,7 +51,7 @@ static mut absentkey: TValue = {
     init
 };
 
-unsafe extern "C" fn hashint(mut t: *const Table, mut i: i64) -> *mut Node {
+unsafe fn hashint(mut t: *const Table, mut i: i64) -> *mut Node {
     let mut ui: u64 = i as u64;
     if ui <= 2147483647 as libc::c_int as libc::c_uint as u64 {
         return &mut *((*t).node).offset(
@@ -66,7 +66,8 @@ unsafe extern "C" fn hashint(mut t: *const Table, mut i: i64) -> *mut Node {
         ) as *mut Node;
     };
 }
-unsafe extern "C" fn l_hashfloat(mut n: f64) -> libc::c_int {
+
+unsafe fn l_hashfloat(mut n: f64) -> libc::c_int {
     let mut i: libc::c_int = 0;
     let mut ni: i64 = 0;
     (n, i) = frexp(n);
@@ -91,7 +92,8 @@ unsafe extern "C" fn l_hashfloat(mut n: f64) -> libc::c_int {
         }) as libc::c_int;
     };
 }
-unsafe extern "C" fn mainpositionTV(mut t: *const Table, mut key: *const TValue) -> *mut Node {
+
+unsafe fn mainpositionTV(mut t: *const Table, mut key: *const TValue) -> *mut Node {
     match (*key).tt_ as libc::c_int & 0x3f as libc::c_int {
         3 => {
             let mut i: i64 = (*key).value_.i;
@@ -100,7 +102,7 @@ unsafe extern "C" fn mainpositionTV(mut t: *const Table, mut key: *const TValue)
         19 => {
             let mut n: f64 = (*key).value_.n;
             return &mut *((*t).node).offset(
-                ((l_hashfloat as unsafe extern "C" fn(f64) -> libc::c_int)(n)
+                (l_hashfloat(n)
                     % (((1 as libc::c_int) << (*t).lsizenode as libc::c_int) - 1 as libc::c_int
                         | 1 as libc::c_int)) as isize,
             ) as *mut Node;
@@ -135,15 +137,6 @@ unsafe extern "C" fn mainpositionTV(mut t: *const Table, mut key: *const TValue)
                     as isize,
             ) as *mut Node;
         }
-        2 => {
-            let mut p: *mut libc::c_void = (*key).value_.p;
-            return &mut *((*t).node).offset(
-                ((p as usize & 0xffffffff as libc::c_uint as usize) as libc::c_uint).wrapping_rem(
-                    (((1 as libc::c_int) << (*t).lsizenode as libc::c_int) - 1 as libc::c_int
-                        | 1 as libc::c_int) as libc::c_uint,
-                ) as isize,
-            ) as *mut Node;
-        }
         22 => {
             let mut f: lua_CFunction = (*key).value_.f;
             return &mut *((*t).node).offset(
@@ -166,8 +159,8 @@ unsafe extern "C" fn mainpositionTV(mut t: *const Table, mut key: *const TValue)
         }
     };
 }
-#[inline]
-unsafe extern "C" fn mainpositionfromnode(mut t: *const Table, mut nd: *mut Node) -> *mut Node {
+
+unsafe fn mainpositionfromnode(mut t: *const Table, mut nd: *mut Node) -> *mut Node {
     let mut key: TValue = TValue {
         value_: Value {
             gc: 0 as *mut Object,
@@ -194,7 +187,6 @@ unsafe fn equalkey(mut k1: *const TValue, mut n2: *const Node, mut deadok: libc:
         0 | 1 | 17 => 1,
         3 => ((*k1).value_.i == (*n2).u.key_val.i) as libc::c_int,
         19 => ((*k1).value_.n == (*n2).u.key_val.n) as libc::c_int,
-        2 => ((*k1).value_.p == (*n2).u.key_val.p) as libc::c_int,
         22 => ((*k1).value_.f == (*n2).u.key_val.f) as libc::c_int,
         84 => luaS_eqlngstr(
             (*k1).value_.gc as *mut TString,

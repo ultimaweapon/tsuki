@@ -506,7 +506,6 @@ unsafe fn touserdata(o: *const TValue) -> *mut libc::c_void {
                     + size_of::<UValue>() * usize::from((*((*o).value_.gc as *mut Udata)).nuvalue),
             )
             .cast(),
-        2 => (*o).value_.p,
         _ => null_mut(),
     }
 }
@@ -655,13 +654,6 @@ pub unsafe fn lua_pushboolean(L: *mut Thread, b: libc::c_int) {
         (*(*L).top.get()).val.tt_ =
             (1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     }
-    api_incr_top(L);
-}
-
-pub unsafe fn lua_pushlightuserdata(L: *mut Thread, p: *mut libc::c_void) {
-    let io: *mut TValue = &raw mut (*(*L).top.get()).val;
-    (*io).value_.p = p;
-    (*io).tt_ = (2 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     api_incr_top(L);
 }
 
@@ -871,21 +863,6 @@ pub unsafe fn lua_rawgeti(L: *mut Thread, idx: libc::c_int, n: i64) -> libc::c_i
     let mut t: *mut Table = 0 as *mut Table;
     t = gettable(L, idx);
     return finishrawget(L, luaH_getint(t, n));
-}
-
-pub unsafe fn lua_rawgetp(L: *mut Thread, idx: libc::c_int, p: *const libc::c_void) -> libc::c_int {
-    let mut t: *mut Table = 0 as *mut Table;
-    let mut k: TValue = TValue {
-        value_: Value {
-            gc: 0 as *mut Object,
-        },
-        tt_: 0,
-    };
-    t = gettable(L, idx);
-    let io: *mut TValue = &mut k;
-    (*io).value_.p = p as *mut libc::c_void;
-    (*io).tt_ = (2 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
-    return finishrawget(L, luaH_get(t, &mut k));
 }
 
 pub unsafe fn lua_createtable(
@@ -1246,23 +1223,6 @@ pub unsafe fn lua_rawset(
         &raw mut (*((*L).top.get()).offset(-(2 as libc::c_int as isize))).val,
         2 as libc::c_int,
     )
-}
-
-pub unsafe fn lua_rawsetp(
-    L: *mut Thread,
-    idx: libc::c_int,
-    p: *const libc::c_void,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut k: TValue = TValue {
-        value_: Value {
-            gc: 0 as *mut Object,
-        },
-        tt_: 0,
-    };
-    let io: *mut TValue = &mut k;
-    (*io).value_.p = p as *mut libc::c_void;
-    (*io).tt_ = (2 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
-    aux_rawset(L, idx, &mut k, 1 as libc::c_int)
 }
 
 pub unsafe fn lua_rawseti(
