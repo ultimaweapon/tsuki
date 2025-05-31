@@ -76,7 +76,7 @@ pub struct C2RustUnnamed_6 {
 #[repr(C)]
 pub struct TString {
     pub hdr: Object,
-    pub extra: u8,
+    pub extra: Cell<u8>,
     pub shrlen: Cell<u8>,
     pub hash: Cell<u32>,
     pub u: UnsafeCell<C2RustUnnamed_8>,

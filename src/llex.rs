@@ -189,7 +189,7 @@ pub unsafe fn luaX_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Er
             luaX_tokens[i as usize].len(),
         )?;
         luaC_fix(&*(*L).global, (ts as *mut Object));
-        (*ts).extra = (i + 1 as libc::c_int) as u8;
+        (*ts).extra.set((i + 1 as libc::c_int) as u8);
         i += 1;
         i;
     }
@@ -1175,9 +1175,9 @@ unsafe fn llex(
                     (*seminfo).ts = ts;
                     if (*ts).hdr.tt as libc::c_int
                         == 4 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
-                        && (*ts).extra as libc::c_int > 0 as libc::c_int
+                        && (*ts).extra.get() as libc::c_int > 0 as libc::c_int
                     {
-                        return Ok((*ts).extra as libc::c_int - 1 as libc::c_int
+                        return Ok((*ts).extra.get() as libc::c_int - 1 as libc::c_int
                             + (255 as libc::c_int + 1 as libc::c_int));
                     } else {
                         return Ok(TK_NAME as libc::c_int);

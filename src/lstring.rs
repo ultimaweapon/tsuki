@@ -48,14 +48,14 @@ pub unsafe fn luaS_hash(
 }
 
 pub unsafe fn luaS_hashlongstr(mut ts: *mut TString) -> libc::c_uint {
-    if (*ts).extra as libc::c_int == 0 as libc::c_int {
+    if (*ts).extra.get() as libc::c_int == 0 as libc::c_int {
         let mut len: usize = (*(*ts).u.get()).lnglen;
         (*ts).hash.set(luaS_hash(
             ((*ts).contents).as_mut_ptr(),
             len,
             (*ts).hash.get(),
         ));
-        (*ts).extra = 1 as libc::c_int as u8;
+        (*ts).extra.set(1 as libc::c_int as u8);
     }
     return (*ts).hash.get();
 }
@@ -137,7 +137,7 @@ unsafe fn createstrobj(L: *mut Thread, l: usize, tag: u8, h: libc::c_uint) -> *m
     let ts = o as *mut TString;
 
     addr_of_mut!((*ts).hash).write(Cell::new(h));
-    (*ts).extra = 0 as libc::c_int as u8;
+    addr_of_mut!((*ts).extra).write(Cell::new(0));
     *((*ts).contents).as_mut_ptr().offset(l as isize) = '\0' as i32 as libc::c_char;
 
     return ts;
