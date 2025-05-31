@@ -118,8 +118,8 @@ unsafe fn dumpString(
     if s.is_null() {
         dumpSize(D, 0 as libc::c_int as usize)?;
     } else {
-        let mut size: usize = if (*s).shrlen as libc::c_int != 0xff as libc::c_int {
-            (*s).shrlen as usize
+        let mut size: usize = if (*s).shrlen.get() as libc::c_int != 0xff as libc::c_int {
+            (*s).shrlen.get() as usize
         } else {
             (*(*s).u.get()).lnglen
         };

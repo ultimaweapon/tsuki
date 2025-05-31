@@ -461,8 +461,8 @@ pub unsafe fn lua_tolstring(
         o = index2value(L, idx);
     }
     if !len.is_null() {
-        *len = if (*((*o).value_.gc as *mut TString)).shrlen as libc::c_int != 0xff as libc::c_int {
-            (*((*o).value_.gc as *mut TString)).shrlen as usize
+        *len = if (*((*o).value_.gc as *mut TString)).shrlen.get() as libc::c_int != 0xff {
+            (*((*o).value_.gc as *mut TString)).shrlen.get() as usize
         } else {
             (*(*((*o).value_.gc as *mut TString)).u.get()).lnglen
         };
@@ -473,7 +473,7 @@ pub unsafe fn lua_tolstring(
 pub unsafe fn lua_rawlen(L: *mut Thread, idx: libc::c_int) -> u64 {
     let o: *const TValue = index2value(L, idx);
     match (*o).tt_ as libc::c_int & 0x3f as libc::c_int {
-        4 => return (*((*o).value_.gc as *mut TString)).shrlen as u64,
+        4 => return (*((*o).value_.gc as *mut TString)).shrlen.get() as u64,
         20 => return (*(*((*o).value_.gc as *mut TString)).u.get()).lnglen as u64,
         7 => return (*((*o).value_.gc as *mut Udata)).len as u64,
         5 => return luaH_getn((*o).value_.gc as *mut Table),

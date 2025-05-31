@@ -298,8 +298,8 @@ unsafe fn funcinfo(mut ar: *mut lua_Debug, mut cl: *mut Object) {
         let mut p: *const Proto = (*(cl as *mut LClosure)).p;
         if !((*p).source).is_null() {
             (*ar).source = ((*(*p).source).contents).as_mut_ptr();
-            (*ar).srclen = if (*(*p).source).shrlen as libc::c_int != 0xff as libc::c_int {
-                (*(*p).source).shrlen as usize
+            (*ar).srclen = if (*(*p).source).shrlen.get() as libc::c_int != 0xff as libc::c_int {
+                (*(*p).source).shrlen.get() as usize
             } else {
                 (*(*(*p).source).u.get()).lnglen
             };
@@ -1089,8 +1089,8 @@ pub unsafe fn luaG_addinfo(
         luaO_chunkid(
             buff.as_mut_ptr(),
             ((*src).contents).as_mut_ptr(),
-            if (*src).shrlen as libc::c_int != 0xff as libc::c_int {
-                (*src).shrlen as usize
+            if (*src).shrlen.get() as libc::c_int != 0xff as libc::c_int {
+                (*src).shrlen.get() as usize
             } else {
                 (*(*src).u.get()).lnglen
             },

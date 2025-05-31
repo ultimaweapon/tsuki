@@ -147,7 +147,7 @@ pub unsafe fn luaS_createlngstrobj(mut L: *mut Thread, mut l: usize) -> *mut TSt
     let ts: *mut TString = createstrobj(L, l, 4 | 1 << 4, (*(*L).global).seed);
 
     (*(*ts).u.get()).lnglen = l;
-    (*ts).shrlen = 0xff as libc::c_int as u8;
+    addr_of_mut!((*ts).shrlen).write(Cell::new(0xff));
 
     return ts;
 }
@@ -197,7 +197,7 @@ unsafe fn internshrstr(
     ts = *list;
 
     while !ts.is_null() {
-        if l == (*ts).shrlen as usize
+        if l == (*ts).shrlen.get() as usize
             && memcmp(
                 str as *const libc::c_void,
                 ((*ts).contents).as_mut_ptr() as *const libc::c_void,
@@ -219,13 +219,13 @@ unsafe fn internshrstr(
     if (*tb).nuse >= (*tb).size {
         growstrtab(L, tb);
         list = &mut *((*tb).hash)
-            .offset((h & ((*tb).size - 1 as libc::c_int) as libc::c_uint) as libc::c_int as isize)
+            .offset((h & ((*tb).size - 1) as libc::c_uint) as libc::c_int as isize)
             as *mut *mut TString;
     }
 
     ts = createstrobj(L, l, 4 | 0 << 4, h);
 
-    (*ts).shrlen = l as u8;
+    addr_of_mut!((*ts).shrlen).write(Cell::new(l.try_into().unwrap()));
     memcpy(
         ((*ts).contents).as_mut_ptr() as *mut libc::c_void,
         str as *const libc::c_void,
