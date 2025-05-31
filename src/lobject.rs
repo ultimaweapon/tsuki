@@ -9,6 +9,7 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use crate::gc::GCObject;
 use crate::lctype::luai_ctype_;
 use crate::lstate::lua_CFunction;
 use crate::lstring::luaS_newlstr;
@@ -19,7 +20,6 @@ use crate::lvm::{
 use crate::{Thread, api_incr_top};
 use libc::{c_char, c_int, memcpy, sprintf, strchr, strpbrk, strspn, strtod};
 use libm::{floor, pow};
-use std::cell::Cell;
 
 pub type StkId = *mut StackValue;
 
@@ -27,12 +27,12 @@ pub type StkId = *mut StackValue;
 #[repr(C)]
 pub union StackValue {
     pub val: TValue,
-    pub tbclist: C2RustUnnamed_4,
+    pub tbclist: TbcList,
 }
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_4 {
+pub struct TbcList {
     pub value_: Value,
     pub tt_: u8,
     pub delta: libc::c_ushort,
@@ -46,15 +46,6 @@ pub union Value {
     pub f: lua_CFunction,
     pub i: i64,
     pub n: f64,
-}
-
-#[repr(C)]
-pub struct GCObject {
-    pub next: Cell<*mut GCObject>,
-    pub tt: u8,
-    pub marked: u8,
-    pub refs: usize,
-    pub handle: usize,
 }
 
 #[derive(Copy, Clone)]

@@ -1,10 +1,10 @@
-pub use self::stack::*;
+pub(crate) use self::stack::*;
 
-use crate::Lua;
 use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
-use crate::lobject::{GCObject, StackValue, StkId, UpVal};
+use crate::lobject::{StackValue, StkId, UpVal};
 use crate::lstate::{CallInfo, lua_Hook};
+use crate::{GCObject, Lua};
 use std::alloc::Layout;
 use std::cell::{Cell, UnsafeCell};
 use std::marker::PhantomPinned;

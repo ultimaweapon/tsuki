@@ -10,14 +10,14 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(path_statements)]
 
-use crate::Thread;
 use crate::gc::luaC_barrier_;
 use crate::ldo::luaD_inctop;
 use crate::lfunc::{luaF_newLclosure, luaF_newproto};
 use crate::lmem::{luaM_malloc_, luaM_toobig};
-use crate::lobject::{AbsLineInfo, GCObject, LClosure, LocVar, Proto, TString, TValue, Upvaldesc};
+use crate::lobject::{AbsLineInfo, LClosure, LocVar, Proto, TString, TValue, Upvaldesc};
 use crate::lstring::{luaS_createlngstrobj, luaS_newlstr};
 use crate::lzio::{ZIO, luaZ_fill, luaZ_read};
+use crate::{GCObject, Thread};
 use libc::{memcmp, strlen};
 use std::ffi::CStr;
 use std::fmt::Display;

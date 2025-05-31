@@ -1,5 +1,5 @@
+use super::GCObject;
 use crate::Lua;
-use crate::lobject::GCObject;
 use std::ops::Deref;
 use std::pin::Pin;
 use std::ptr::null_mut;

@@ -13,7 +13,7 @@
 use crate::ldo::{luaD_hook, luaD_hookcall};
 use crate::lfunc::luaF_getlocalname;
 use crate::lobject::{
-    CClosure, GCObject, LClosure, Proto, StkId, TString, TValue, Table, Value, luaO_chunkid,
+    CClosure, LClosure, Proto, StkId, TString, TValue, Table, Value, luaO_chunkid,
 };
 use crate::lopcodes::{OpCode, luaP_opmodes};
 use crate::lstate::{CallInfo, lua_Debug, lua_Hook};
@@ -23,7 +23,7 @@ use crate::ltm::{
     luaT_objtypename,
 };
 use crate::lvm::{F2Ieq, luaV_tointegerns};
-use crate::{Thread, api_incr_top};
+use crate::{GCObject, Thread, api_incr_top};
 use libc::{strchr, strcmp};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};

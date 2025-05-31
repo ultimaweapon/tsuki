@@ -12,18 +12,18 @@
 #![allow(unused_parens)]
 #![allow(path_statements)]
 
-use crate::Thread;
 use crate::gc::{luaC_fix, luaC_step};
 use crate::lctype::luai_ctype_;
 use crate::ldebug::luaG_addinfo;
 use crate::lmem::luaM_saferealloc_;
 use crate::lobject::{
-    GCObject, Node, TString, TValue, Table, Value, luaO_hexavalue, luaO_str2num, luaO_utf8esc,
+    Node, TString, TValue, Table, Value, luaO_hexavalue, luaO_str2num, luaO_utf8esc,
 };
 use crate::lparser::{Dyndata, FuncState};
 use crate::lstring::luaS_newlstr;
 use crate::ltable::{luaH_finishset, luaH_getstr};
 use crate::lzio::{Mbuffer, ZIO, luaZ_fill};
+use crate::{GCObject, Thread};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
 use std::fmt::Display;

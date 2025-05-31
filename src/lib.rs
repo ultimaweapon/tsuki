@@ -27,7 +27,7 @@ pub use self::thread::*;
 
 use self::llex::luaX_init;
 use self::lmem::luaM_free_;
-use self::lobject::{GCObject, StackValue, TString, TValue, Table, Value};
+use self::lobject::{StackValue, TString, TValue, Table, Value};
 use self::lstring::luaS_init;
 use self::ltable::{luaH_new, luaH_resize};
 use self::ltm::luaT_init;
@@ -272,6 +272,14 @@ impl Lua {
         unsafe { (*td).ci.set(ci) };
 
         td
+    }
+
+    fn reset_gray(&self) {
+        self.grayagain.set(null_mut());
+        self.gray.set(null_mut());
+        self.ephemeron.set(null_mut());
+        self.allweak.set(null_mut());
+        self.weak.set(null_mut());
     }
 }
 

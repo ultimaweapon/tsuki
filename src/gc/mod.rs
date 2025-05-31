@@ -7,11 +7,12 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 pub use self::handle::*;
+pub(crate) use self::object::*;
 
 use crate::ldo::luaD_shrinkstack;
 use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
 use crate::lobject::{
-    CClosure, GCObject, LClosure, Node, Proto, StkId, TString, TValue, Table, UValue, Udata, UpVal,
+    CClosure, LClosure, Node, Proto, StkId, TString, TValue, Table, UValue, Udata, UpVal,
 };
 use crate::lstring::luaS_remove;
 use crate::ltable::{luaH_free, luaH_realasize};
@@ -25,6 +26,7 @@ use std::ops::Deref;
 use std::ptr::{addr_of_mut, null_mut};
 
 mod handle;
+mod object;
 
 unsafe fn getgclist(o: *mut GCObject) -> *mut *mut GCObject {
     match (*o).tt {
@@ -219,14 +221,6 @@ unsafe fn remarkupvals(g: *const Lua) -> libc::c_int {
         }
     }
     return work;
-}
-
-unsafe fn cleargraylists(g: &Lua) {
-    g.grayagain.set(null_mut());
-    g.gray.set(null_mut());
-    g.ephemeron.set(null_mut());
-    g.allweak.set(null_mut());
-    g.weak.set(null_mut());
 }
 
 unsafe fn genlink(g: *const Lua, o: *mut GCObject) {
@@ -447,13 +441,18 @@ unsafe fn traversetable(g: *const Lua, h: *mut Table) -> usize {
         if weakkey.is_null() {
             traverseweakvalue(g, h);
         } else if weakvalue.is_null() {
-            traverseephemeron(g, h, 0 as libc::c_int);
+            traverseephemeron(g, h, 0);
         } else {
-            linkgclist_(h as *mut GCObject, &mut (*h).gclist, (*g).allweak.as_ptr());
+            linkgclist_(
+                h as *mut GCObject,
+                &raw mut (*h).gclist,
+                (*g).allweak.as_ptr(),
+            );
         }
     } else {
         traversestrongtable(g, h);
     }
+
     return (1 as libc::c_int as libc::c_uint)
         .wrapping_add((*h).alimit)
         .wrapping_add(
@@ -1043,7 +1042,7 @@ unsafe fn singlestep(L: *mut Thread) -> usize {
 
     match g.gcstate.get() {
         8 => {
-            cleargraylists(g);
+            g.reset_gray();
             g.gcstate.set(0);
             work = 1;
         }

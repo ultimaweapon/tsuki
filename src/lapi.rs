@@ -11,8 +11,8 @@ use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall, luaD_protectedparser};
 use crate::ldump::luaU_dump;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::{
-    CClosure, GCObject, LClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata,
-    UpVal, Value, luaO_arith, luaO_str2num, luaO_tostring,
+    CClosure, LClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata, UpVal,
+    Value, luaO_arith, luaO_str2num, luaO_tostring,
 };
 use crate::lstate::{CallInfo, lua_CFunction, lua_Reader, lua_Writer};
 use crate::lstring::{luaS_new, luaS_newlstr, luaS_newudata};
@@ -26,7 +26,7 @@ use crate::lvm::{
     luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
 };
 use crate::lzio::Zio;
-use crate::{Thread, api_incr_top};
+use crate::{GCObject, Thread, api_incr_top};
 use std::ffi::{c_int, c_void};
 use std::mem::offset_of;
 

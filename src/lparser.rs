@@ -11,7 +11,6 @@
 #![allow(unused_variables)]
 #![allow(path_statements)]
 
-use crate::Thread;
 use crate::gc::{luaC_barrier_, luaC_step};
 use crate::lcode::{
     BinOpr, OPR_ADD, OPR_AND, OPR_BAND, OPR_BNOT, OPR_BOR, OPR_BXOR, OPR_CONCAT, OPR_DIV, OPR_EQ,
@@ -33,7 +32,7 @@ use crate::llex::{
 };
 use crate::lmem::{luaM_growaux_, luaM_shrinkvector_};
 use crate::lobject::{
-    AbsLineInfo, GCObject, LClosure, LocVar, Proto, TString, TValue, Table, Upvaldesc, Value,
+    AbsLineInfo, LClosure, LocVar, Proto, TString, TValue, Table, Upvaldesc, Value,
 };
 use crate::lopcodes::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_FORLOOP, OP_FORPREP, OP_GETUPVAL, OP_MOVE, OP_NEWTABLE,
@@ -42,6 +41,7 @@ use crate::lopcodes::{
 use crate::lstring::{luaS_new, luaS_newlstr};
 use crate::ltable::luaH_new;
 use crate::lzio::{Mbuffer, ZIO};
+use crate::{GCObject, Thread};
 use libc::strcmp;
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};

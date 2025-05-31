@@ -9,12 +9,10 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::gc::luaC_barrierback_;
+use crate::gc::{GCObject, luaC_barrierback_};
 use crate::ldebug::luaG_runerror;
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
-use crate::lobject::{
-    GCObject, Node, NodeKey, StkId, TString, TValue, Table, Value, luaO_ceillog2,
-};
+use crate::lobject::{Node, NodeKey, StkId, TString, TValue, Table, Value, luaO_ceillog2};
 use crate::lstate::lua_CFunction;
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::ltm::TM_EQ;

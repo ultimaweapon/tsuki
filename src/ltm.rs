@@ -11,10 +11,10 @@
 #![allow(path_statements)]
 
 use crate::Thread;
-use crate::gc::{luaC_fix, luaC_step};
+use crate::gc::{GCObject, luaC_fix, luaC_step};
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
 use crate::ldo::{luaD_call, luaD_growstack};
-use crate::lobject::{GCObject, Proto, StkId, TString, TValue, Table, Udata, Value};
+use crate::lobject::{Proto, StkId, TString, TValue, Table, Udata, Value};
 use crate::lstate::CallInfo;
 use crate::lstring::luaS_new;
 use crate::ltable::luaH_getshortstr;

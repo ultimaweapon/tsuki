@@ -15,11 +15,11 @@ use crate::ldebug::{luaG_findlocal, luaG_runerror};
 use crate::ldo::luaD_call;
 use crate::lmem::luaM_free_;
 use crate::lobject::{
-    AbsLineInfo, CClosure, GCObject, LClosure, LocVar, Proto, StackValue, StkId, TString, TValue,
-    UpVal, Upvaldesc,
+    AbsLineInfo, CClosure, LClosure, LocVar, Proto, StackValue, StkId, TString, TValue, UpVal,
+    Upvaldesc,
 };
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
-use crate::{Lua, Thread};
+use crate::{GCObject, Lua, Thread};
 use std::alloc::Layout;
 use std::ffi::CStr;
 use std::mem::offset_of;

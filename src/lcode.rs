@@ -10,12 +10,11 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(path_statements)]
 
-use crate::Thread;
 use crate::gc::luaC_barrier_;
 use crate::llex::{LexState, luaX_syntaxerror};
 use crate::lmem::luaM_growaux_;
 use crate::lobject::{
-    AbsLineInfo, GCObject, Proto, TString, TValue, Table, Value, luaO_ceillog2, luaO_rawarith,
+    AbsLineInfo, Proto, TString, TValue, Table, Value, luaO_ceillog2, luaO_rawarith,
 };
 use crate::lopcodes::{
     OP_ADD, OP_ADDI, OP_ADDK, OP_CONCAT, OP_EQ, OP_EQI, OP_EQK, OP_EXTRAARG, OP_GETFIELD, OP_GETI,
@@ -33,6 +32,7 @@ use crate::lparser::{
 use crate::ltable::{luaH_finishset, luaH_get};
 use crate::ltm::{TM_ADD, TM_SHL, TM_SHR, TM_SUB, TMS};
 use crate::lvm::{F2Ieq, luaV_equalobj, luaV_flttointeger, luaV_tointegerns};
+use crate::{GCObject, Thread};
 use libc::abs;
 use libm::ldexp;
 use std::ffi::c_int;
