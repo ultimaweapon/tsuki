@@ -1443,7 +1443,7 @@ pub unsafe fn lua_load(
         .value_
         .gc as *mut LuaClosure;
 
-    if (*f).nupvalues as libc::c_int >= 1 as libc::c_int {
+    if (*f).nupvalues.get() >= 1 {
         let gt: *const TValue =
             &mut *((*((*(*(*L).global).l_registry.get()).value_.gc as *mut Table)).array)
                 .offset((2 as libc::c_int - 1 as libc::c_int) as isize) as *mut TValue;

@@ -600,7 +600,7 @@ unsafe fn traverseCclosure(g: *const Lua, cl: *const CClosure) -> libc::c_int {
     return 1 as libc::c_int + (*cl).nupvalues as libc::c_int;
 }
 
-unsafe fn traverseLclosure(g: *const Lua, cl: *const LuaClosure) -> libc::c_int {
+unsafe fn traverseLclosure(g: &Lua, cl: *const LuaClosure) -> usize {
     let mut i: libc::c_int = 0;
     if !((*cl).p).is_null() {
         if (*(*cl).p).hdr.marked.get() as libc::c_int
@@ -611,7 +611,8 @@ unsafe fn traverseLclosure(g: *const Lua, cl: *const LuaClosure) -> libc::c_int 
         }
     }
     i = 0 as libc::c_int;
-    while i < (*cl).nupvalues as libc::c_int {
+
+    while i < (*cl).nupvalues.get() as libc::c_int {
         let uv: *mut UpVal = *((*cl).upvals).as_ptr().offset(i as isize);
         if !uv.is_null() {
             if (*uv).hdr.marked.get() as libc::c_int
@@ -623,7 +624,8 @@ unsafe fn traverseLclosure(g: *const Lua, cl: *const LuaClosure) -> libc::c_int 
         }
         i += 1;
     }
-    return 1 as libc::c_int + (*cl).nupvalues as libc::c_int;
+
+    1 + usize::from((*cl).nupvalues.get())
 }
 
 unsafe fn traversethread(g: *const Lua, th: *const Thread) -> libc::c_int {
@@ -686,7 +688,7 @@ unsafe fn propagatemark(g: &Lua) -> usize {
     match (*o).tt {
         5 => traversetable(g, o as *const Table),
         7 => traverseudata(g, o as *const Udata) as usize,
-        6 => traverseLclosure(g, o as *const LuaClosure) as usize,
+        6 => traverseLclosure(g, o as *const LuaClosure),
         38 => traverseCclosure(g, o as *const CClosure) as usize,
         10 => traverseproto(g, o as *const Proto) as usize,
         8 => traversethread(g, o as *const Thread) as usize,
@@ -826,7 +828,7 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
         9 => freeupval(g, o as *mut UpVal),
         6 => {
             let cl = o.cast::<LuaClosure>();
-            let nupvalues = usize::from((*cl).nupvalues);
+            let nupvalues = usize::from((*cl).nupvalues.get());
             let size = offset_of!(LuaClosure, upvals) + size_of::<*mut TValue>() * nupvalues;
             let align = align_of::<LuaClosure>();
             let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();

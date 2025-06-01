@@ -19,8 +19,10 @@ use crate::lobject::{
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
 use crate::{Lua, Object, Thread};
 use std::alloc::Layout;
+use std::cell::Cell;
 use std::ffi::CStr;
 use std::mem::offset_of;
+use std::ptr::addr_of_mut;
 
 pub unsafe fn luaF_newCclosure(mut L: *const Thread, nupvals: libc::c_int) -> *mut CClosure {
     let nupvals = u8::try_from(nupvals).unwrap();
@@ -42,7 +44,7 @@ pub unsafe fn luaF_newLclosure(mut L: *const Thread, mut nupvals: libc::c_int) -
     let o = Object::new((*L).global, 6 | 0 << 4, layout).cast::<LuaClosure>();
 
     (*o).p = 0 as *mut Proto;
-    (*o).nupvalues = nupvals;
+    addr_of_mut!((*o).nupvalues).write(Cell::new(nupvals));
 
     for i in 0..nupvals {
         let ref mut fresh1 = *((*o).upvals).as_mut_ptr().offset(i as isize);
@@ -56,7 +58,7 @@ pub unsafe fn luaF_initupvals(mut L: *mut Thread, mut cl: *mut LuaClosure) {
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
 
-    while i < (*cl).nupvalues as libc::c_int {
+    while i < (*cl).nupvalues.get() as libc::c_int {
         let layout = Layout::new::<UpVal>();
         let uv = Object::new((*L).global, 9 | 0 << 4, layout).cast::<UpVal>();
 

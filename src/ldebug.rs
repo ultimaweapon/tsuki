@@ -8,7 +8,6 @@
     unused_mut
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
-#![allow(unused_variables)]
 
 use crate::ldo::{luaD_hook, luaD_hookcall};
 use crate::lfunc::luaF_getlocalname;
@@ -898,7 +897,8 @@ unsafe fn funcnamefromcall(
         return 0 as *const libc::c_char;
     };
 }
-unsafe extern "C" fn instack(mut ci: *mut CallInfo, mut o: *const TValue) -> libc::c_int {
+
+unsafe fn instack(mut ci: *mut CallInfo, mut o: *const TValue) -> libc::c_int {
     let mut pos: libc::c_int = 0;
     let mut base: StkId = ((*ci).func).offset(1 as libc::c_int as isize);
     pos = 0 as libc::c_int;
@@ -919,7 +919,7 @@ unsafe fn getupvalname(
     let mut c: *mut LuaClosure = (*(*ci).func).val.value_.gc as *mut LuaClosure;
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
-    while i < (*c).nupvalues as libc::c_int {
+    while i < (*c).nupvalues.get() as libc::c_int {
         if (**((*c).upvals).as_mut_ptr().offset(i as isize)).v.get() == o as *mut TValue {
             *name = upvalname((*c).p, i);
             return b"upvalue\0" as *const u8 as *const libc::c_char;
@@ -930,7 +930,6 @@ unsafe fn getupvalname(
 }
 
 unsafe fn formatvarinfo(
-    mut L: *mut Thread,
     mut kind: *const libc::c_char,
     mut name: *const libc::c_char,
 ) -> Cow<'static, str> {
@@ -965,7 +964,7 @@ unsafe fn varinfo(mut L: *mut Thread, mut o: *const TValue) -> Cow<'static, str>
         }
     }
 
-    formatvarinfo(L, kind, name)
+    formatvarinfo(kind, name)
 }
 
 unsafe fn typeerror(
@@ -995,7 +994,7 @@ pub unsafe fn luaG_callerror(
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
     let mut kind: *const libc::c_char = funcnamefromcall(L, ci, &mut name);
     let extra = if !kind.is_null() {
-        formatvarinfo(L, kind, name)
+        formatvarinfo(kind, name)
     } else {
         varinfo(L, o)
     };
