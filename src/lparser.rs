@@ -32,7 +32,7 @@ use crate::llex::{
 };
 use crate::lmem::{luaM_growaux_, luaM_shrinkvector_};
 use crate::lobject::{
-    AbsLineInfo, LClosure, LocVar, Proto, TString, TValue, Table, Upvaldesc, Value,
+    AbsLineInfo, LocVar, LuaClosure, Proto, TString, TValue, Table, Upvaldesc, Value,
 };
 use crate::lopcodes::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_FORLOOP, OP_FORPREP, OP_GETUPVAL, OP_MOVE, OP_NEWTABLE,
@@ -2887,7 +2887,7 @@ pub unsafe fn luaY_parser(
     mut dyd: *mut Dyndata,
     mut name: *const libc::c_char,
     mut firstchar: libc::c_int,
-) -> Result<*mut LClosure, Box<dyn std::error::Error>> {
+) -> Result<*mut LuaClosure, Box<dyn std::error::Error>> {
     let mut lexstate: LexState = LexState {
         current: 0,
         linenumber: 0,
@@ -2929,9 +2929,9 @@ pub unsafe fn luaY_parser(
         iwthabs: 0,
         needclose: 0,
     };
-    let mut cl: *mut LClosure = luaF_newLclosure(L, 1 as libc::c_int);
+    let mut cl: *mut LuaClosure = luaF_newLclosure(L, 1 as libc::c_int);
     let mut io: *mut TValue = &raw mut (*(*L).top.get()).val;
-    let mut x_: *mut LClosure = cl;
+    let mut x_: *mut LuaClosure = cl;
     (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = (6 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int

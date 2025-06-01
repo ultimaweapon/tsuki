@@ -14,7 +14,7 @@ use crate::gc::luaC_barrier_;
 use crate::ldo::luaD_inctop;
 use crate::lfunc::{luaF_newLclosure, luaF_newproto};
 use crate::lmem::{luaM_malloc_, luaM_toobig};
-use crate::lobject::{AbsLineInfo, LClosure, LocVar, Proto, TString, TValue, Upvaldesc};
+use crate::lobject::{AbsLineInfo, LocVar, LuaClosure, Proto, TString, TValue, Upvaldesc};
 use crate::lstring::{luaS_createlngstrobj, luaS_newlstr};
 use crate::lzio::{ZIO, luaZ_read};
 use crate::{Object, Thread};
@@ -528,13 +528,13 @@ pub unsafe fn luaU_undump(
     mut L: *mut Thread,
     mut Z: *mut ZIO,
     mut name: *const libc::c_char,
-) -> Result<*mut LClosure, Box<dyn std::error::Error>> {
+) -> Result<*mut LuaClosure, Box<dyn std::error::Error>> {
     let mut S: LoadState = LoadState {
         L: 0 as *mut Thread,
         Z: 0 as *mut ZIO,
         name: 0 as *const libc::c_char,
     };
-    let mut cl: *mut LClosure = 0 as *mut LClosure;
+    let mut cl: *mut LuaClosure = 0 as *mut LuaClosure;
     if *name as libc::c_int == '@' as i32 || *name as libc::c_int == '=' as i32 {
         S.name = name.offset(1 as libc::c_int as isize);
     } else if *name as libc::c_int
@@ -550,7 +550,7 @@ pub unsafe fn luaU_undump(
     checkHeader(&mut S)?;
     cl = luaF_newLclosure(L, loadByte(&mut S)? as libc::c_int);
     let mut io: *mut TValue = &raw mut (*(*L).top.get()).val;
-    let mut x_: *mut LClosure = cl;
+    let mut x_: *mut LuaClosure = cl;
     (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = (6 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int

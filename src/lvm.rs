@@ -18,7 +18,7 @@ use crate::lfunc::{
     luaF_close, luaF_closeupval, luaF_findupval, luaF_newLclosure, luaF_newtbcupval,
 };
 use crate::lobject::{
-    LClosure, Proto, StackValue, StkId, TString, TValue, Table, Udata, UpVal, Upvaldesc, Value,
+    LuaClosure, Proto, StackValue, StkId, TString, TValue, Table, Udata, UpVal, Upvaldesc, Value,
     luaO_str2num, luaO_tostring,
 };
 use crate::lopcodes::OpCode;
@@ -1147,10 +1147,10 @@ unsafe extern "C" fn pushclosure(
     let mut nup: libc::c_int = (*p).sizeupvalues;
     let mut uv: *mut Upvaldesc = (*p).upvalues;
     let mut i: libc::c_int = 0;
-    let mut ncl: *mut LClosure = luaF_newLclosure(L, nup);
+    let mut ncl: *mut LuaClosure = luaF_newLclosure(L, nup);
     (*ncl).p = p;
     let mut io: *mut TValue = &mut (*ra).val;
-    let mut x_: *mut LClosure = ncl;
+    let mut x_: *mut LuaClosure = ncl;
     (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = (6 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
@@ -1286,7 +1286,7 @@ pub unsafe fn luaV_execute(
     let mut b_4: libc::c_int = 0;
     let mut nresults: libc::c_int = 0;
     let mut current_block: u64;
-    let mut cl: *mut LClosure = 0 as *mut LClosure;
+    let mut cl: *mut LuaClosure = 0 as *mut LuaClosure;
     let mut k: *mut TValue = 0 as *mut TValue;
     let mut base: StkId = 0 as *mut StackValue;
     let mut pc: *const u32 = 0 as *const u32;
@@ -1294,7 +1294,7 @@ pub unsafe fn luaV_execute(
     '_startfunc: loop {
         trap = (*L).hookmask.get();
         '_returning: loop {
-            cl = (*(*ci).func).val.value_.gc as *mut LClosure;
+            cl = (*(*ci).func).val.value_.gc as *mut LuaClosure;
             k = (*(*cl).p).k;
             pc = (*ci).u.savedpc;
             if (trap != 0 as libc::c_int) as libc::c_int as libc::c_long != 0 {

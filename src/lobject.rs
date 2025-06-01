@@ -196,7 +196,7 @@ pub struct CClosure {
 }
 
 #[repr(C)]
-pub struct LClosure {
+pub struct LuaClosure {
     pub hdr: Object,
     pub nupvalues: u8,
     pub p: *mut Proto,

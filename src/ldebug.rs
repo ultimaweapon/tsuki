@@ -13,7 +13,7 @@
 use crate::ldo::{luaD_hook, luaD_hookcall};
 use crate::lfunc::luaF_getlocalname;
 use crate::lobject::{
-    CClosure, LClosure, Proto, StkId, TString, TValue, Table, Value, luaO_chunkid,
+    CClosure, LuaClosure, Proto, StkId, TString, TValue, Table, Value, luaO_chunkid,
 };
 use crate::lopcodes::{OpCode, luaP_opmodes};
 use crate::lstate::{CallInfo, lua_Debug, lua_Hook};
@@ -32,7 +32,7 @@ use std::ptr::null;
 
 unsafe fn currentpc(mut ci: *mut CallInfo) -> libc::c_int {
     return ((*ci).u.savedpc)
-        .offset_from((*(*((*(*ci).func).val.value_.gc as *mut LClosure)).p).code)
+        .offset_from((*(*((*(*ci).func).val.value_.gc as *mut LuaClosure)).p).code)
         as libc::c_long as libc::c_int
         - 1 as libc::c_int;
 }
@@ -82,7 +82,7 @@ pub unsafe fn luaG_getfuncline(mut f: *const Proto, mut pc: libc::c_int) -> libc
 
 unsafe fn getcurrentline(mut ci: *mut CallInfo) -> libc::c_int {
     return luaG_getfuncline(
-        (*((*(*ci).func).val.value_.gc as *mut LClosure)).p,
+        (*((*(*ci).func).val.value_.gc as *mut LuaClosure)).p,
         currentpc(ci),
     );
 }
@@ -170,7 +170,7 @@ unsafe fn findvararg(
     mut n: libc::c_int,
     mut pos: *mut StkId,
 ) -> *const libc::c_char {
-    if (*(*((*(*ci).func).val.value_.gc as *mut LClosure)).p).is_vararg != 0 {
+    if (*(*((*(*ci).func).val.value_.gc as *mut LuaClosure)).p).is_vararg != 0 {
         let mut nextra: libc::c_int = (*ci).u.nextraargs;
         if n >= -nextra {
             *pos = ((*ci).func)
@@ -195,7 +195,7 @@ pub unsafe fn luaG_findlocal(
             return findvararg(ci, n, pos);
         } else {
             name = luaF_getlocalname(
-                (*((*(*ci).func).val.value_.gc as *mut LClosure)).p,
+                (*((*(*ci).func).val.value_.gc as *mut LuaClosure)).p,
                 n,
                 currentpc(ci),
             );
@@ -244,7 +244,7 @@ pub unsafe fn lua_getlocal(
                 (*((*((*L).top.get()).offset(-(1 as libc::c_int as isize)))
                     .val
                     .value_
-                    .gc as *mut LClosure))
+                    .gc as *mut LuaClosure))
                     .p,
                 n,
                 0 as libc::c_int,
@@ -294,7 +294,7 @@ unsafe fn funcinfo(mut ar: *mut lua_Debug, mut cl: *const Object) {
         (*ar).lastlinedefined = -(1 as libc::c_int);
         (*ar).what = b"C\0" as *const u8 as *const libc::c_char;
     } else {
-        let mut p: *const Proto = (*(cl as *mut LClosure)).p;
+        let mut p: *const Proto = (*(cl as *mut LuaClosure)).p;
         if !((*p).source).is_null() {
             (*ar).source = ((*(*p).source).contents).as_mut_ptr();
             (*ar).srclen = if (*(*p).source).shrlen.get() as libc::c_int != 0xff as libc::c_int {
@@ -342,7 +342,7 @@ unsafe fn collectvalidlines(
             (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
         api_incr_top(L);
     } else {
-        let mut p: *const Proto = (*(f as *mut LClosure)).p;
+        let mut p: *const Proto = (*(f as *mut LuaClosure)).p;
         let mut currentline: libc::c_int = (*p).linedefined;
         let mut t: *mut Table = luaH_new(L)?;
         let mut io: *mut TValue = &raw mut (*(*L).top.get()).val;
@@ -426,8 +426,8 @@ unsafe fn auxgetinfo(
                     (*ar).isvararg = 1 as libc::c_int as libc::c_char;
                     (*ar).nparams = 0 as libc::c_int as libc::c_uchar;
                 } else {
-                    (*ar).isvararg = (*(*(f as *mut LClosure)).p).is_vararg as libc::c_char;
-                    (*ar).nparams = (*(*(f as *mut LClosure)).p).numparams;
+                    (*ar).isvararg = (*(*(f as *mut LuaClosure)).p).is_vararg as libc::c_char;
+                    (*ar).nparams = (*(*(f as *mut LuaClosure)).p).numparams;
                 }
             }
             116 => {
@@ -890,7 +890,7 @@ unsafe fn funcnamefromcall(
     } else if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
         return funcnamefromcode(
             L,
-            (*((*(*ci).func).val.value_.gc as *mut LClosure)).p,
+            (*((*(*ci).func).val.value_.gc as *mut LuaClosure)).p,
             currentpc(ci),
             name,
         );
@@ -916,7 +916,7 @@ unsafe fn getupvalname(
     mut o: *const TValue,
     mut name: *mut *const libc::c_char,
 ) -> *const libc::c_char {
-    let mut c: *mut LClosure = (*(*ci).func).val.value_.gc as *mut LClosure;
+    let mut c: *mut LuaClosure = (*(*ci).func).val.value_.gc as *mut LuaClosure;
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < (*c).nupvalues as libc::c_int {
@@ -956,7 +956,7 @@ unsafe fn varinfo(mut L: *mut Thread, mut o: *const TValue) -> Cow<'static, str>
             let mut reg: libc::c_int = instack(ci, o);
             if reg >= 0 as libc::c_int {
                 kind = getobjname(
-                    (*((*(*ci).func).val.value_.gc as *mut LClosure)).p,
+                    (*((*(*ci).func).val.value_.gc as *mut LuaClosure)).p,
                     currentpc(ci),
                     reg,
                     &mut name,
@@ -1111,7 +1111,7 @@ pub unsafe fn luaG_runerror(
     let msg = if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
         luaG_addinfo(
             fmt,
-            (*(*((*(*ci).func).val.value_.gc as *mut LClosure)).p).source,
+            (*(*((*(*ci).func).val.value_.gc as *mut LuaClosure)).p).source,
             getcurrentline(ci),
         )
     } else {
@@ -1149,7 +1149,7 @@ unsafe extern "C" fn changedline(
 
 pub unsafe fn luaG_tracecall(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut ci: *mut CallInfo = (*L).ci.get();
-    let mut p: *mut Proto = (*((*(*ci).func).val.value_.gc as *mut LClosure)).p;
+    let mut p: *mut Proto = (*((*(*ci).func).val.value_.gc as *mut LuaClosure)).p;
     ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 1 as libc::c_int);
     if (*ci).u.savedpc == (*p).code as *const u32 {
         if (*p).is_vararg != 0 {
@@ -1167,7 +1167,7 @@ pub unsafe fn luaG_traceexec(
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut ci: *mut CallInfo = (*L).ci.get();
     let mut mask: u8 = (*L).hookmask.get() as u8;
-    let mut p: *const Proto = (*((*(*ci).func).val.value_.gc as *mut LClosure)).p;
+    let mut p: *const Proto = (*((*(*ci).func).val.value_.gc as *mut LuaClosure)).p;
     let mut counthook: libc::c_int = 0;
     if mask as libc::c_int
         & ((1 as libc::c_int) << 2 as libc::c_int | (1 as libc::c_int) << 3 as libc::c_int)

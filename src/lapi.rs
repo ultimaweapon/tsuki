@@ -11,7 +11,7 @@ use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall, luaD_protectedparser};
 use crate::ldump::luaU_dump;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::{
-    CClosure, LClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata, UpVal,
+    CClosure, LuaClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata, UpVal,
     Value, luaO_arith, luaO_str2num, luaO_tostring,
 };
 use crate::lstate::{CallInfo, lua_CFunction, lua_Writer};
@@ -1438,10 +1438,10 @@ pub unsafe fn lua_load(
 
     luaD_protectedparser(L, z, name, mode)?;
 
-    let f: *mut LClosure = (*((*L).top.get()).offset(-(1 as libc::c_int as isize)))
+    let f = (*((*L).top.get()).offset(-(1 as libc::c_int as isize)))
         .val
         .value_
-        .gc as *mut LClosure;
+        .gc as *mut LuaClosure;
 
     if (*f).nupvalues as libc::c_int >= 1 as libc::c_int {
         let gt: *const TValue =
@@ -1492,7 +1492,7 @@ pub unsafe fn lua_dump(
     {
         luaU_dump(
             L,
-            (*((*o).value_.gc as *mut LClosure)).p,
+            (*((*o).value_.gc as *mut LuaClosure)).p,
             writer,
             data,
             strip,
@@ -1608,7 +1608,7 @@ unsafe fn aux_upvalue(
             return b"\0" as *const u8 as *const libc::c_char;
         }
         6 => {
-            let f_0: *mut LClosure = (*fi).value_.gc as *mut LClosure;
+            let f_0: *mut LuaClosure = (*fi).value_.gc as *mut LuaClosure;
             let mut name: *mut TString = 0 as *mut TString;
             let p: *mut Proto = (*f_0).p;
             if !((n as libc::c_uint).wrapping_sub(1 as libc::c_uint)
@@ -1699,12 +1699,12 @@ unsafe fn getupvalref(
     L: *mut Thread,
     fidx: libc::c_int,
     n: libc::c_int,
-    pf: *mut *mut LClosure,
+    pf: *mut *mut LuaClosure,
 ) -> *mut *mut UpVal {
     static mut nullup: *const UpVal = 0 as *const UpVal;
-    let mut f: *mut LClosure = 0 as *mut LClosure;
+    let mut f: *mut LuaClosure = 0 as *mut LuaClosure;
     let fi: *mut TValue = index2value(L, fidx);
-    f = (*fi).value_.gc as *mut LClosure;
+    f = (*fi).value_.gc as *mut LuaClosure;
     if !pf.is_null() {
         *pf = f;
     }
@@ -1725,7 +1725,7 @@ pub unsafe fn lua_upvalueid(
     let fi: *mut TValue = index2value(L, fidx);
     match (*fi).tt_ as libc::c_int & 0x3f as libc::c_int {
         6 => {
-            return *getupvalref(L, fidx, n, 0 as *mut *mut LClosure) as *mut libc::c_void;
+            return *getupvalref(L, fidx, n, 0 as *mut *mut LuaClosure) as *mut libc::c_void;
         }
         38 => {
             let f: *mut CClosure = (*fi).value_.gc as *mut CClosure;
@@ -1749,9 +1749,9 @@ pub unsafe fn lua_upvaluejoin(
     fidx2: libc::c_int,
     n2: libc::c_int,
 ) {
-    let mut f1: *mut LClosure = 0 as *mut LClosure;
+    let mut f1: *mut LuaClosure = 0 as *mut LuaClosure;
     let up1: *mut *mut UpVal = getupvalref(L, fidx1, n1, &mut f1);
-    let up2: *mut *mut UpVal = getupvalref(L, fidx2, n2, 0 as *mut *mut LClosure);
+    let up2: *mut *mut UpVal = getupvalref(L, fidx2, n2, 0 as *mut *mut LuaClosure);
     *up1 = *up2;
     if (*f1).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
         && (**up1).hdr.marked.get() as libc::c_int

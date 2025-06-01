@@ -13,7 +13,7 @@ pub use self::r#ref::*;
 use crate::ldo::luaD_shrinkstack;
 use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
 use crate::lobject::{
-    CClosure, LClosure, Node, Proto, StkId, TString, TValue, Table, UValue, Udata, UpVal,
+    CClosure, LuaClosure, Node, Proto, StkId, TString, TValue, Table, UValue, Udata, UpVal,
 };
 use crate::lstring::luaS_remove;
 use crate::ltable::{luaH_free, luaH_realasize};
@@ -600,7 +600,7 @@ unsafe fn traverseCclosure(g: *const Lua, cl: *const CClosure) -> libc::c_int {
     return 1 as libc::c_int + (*cl).nupvalues as libc::c_int;
 }
 
-unsafe fn traverseLclosure(g: *const Lua, cl: *const LClosure) -> libc::c_int {
+unsafe fn traverseLclosure(g: *const Lua, cl: *const LuaClosure) -> libc::c_int {
     let mut i: libc::c_int = 0;
     if !((*cl).p).is_null() {
         if (*(*cl).p).hdr.marked.get() as libc::c_int
@@ -686,7 +686,7 @@ unsafe fn propagatemark(g: &Lua) -> usize {
     match (*o).tt {
         5 => traversetable(g, o as *const Table),
         7 => traverseudata(g, o as *const Udata) as usize,
-        6 => traverseLclosure(g, o as *const LClosure) as usize,
+        6 => traverseLclosure(g, o as *const LuaClosure) as usize,
         38 => traverseCclosure(g, o as *const CClosure) as usize,
         10 => traverseproto(g, o as *const Proto) as usize,
         8 => traversethread(g, o as *const Thread) as usize,
@@ -825,10 +825,10 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
         10 => luaF_freeproto(g, o as *mut Proto),
         9 => freeupval(g, o as *mut UpVal),
         6 => {
-            let cl: *mut LClosure = o as *mut LClosure;
+            let cl = o.cast::<LuaClosure>();
             let nupvalues = usize::from((*cl).nupvalues);
-            let size = offset_of!(LClosure, upvals) + size_of::<*mut TValue>() * nupvalues;
-            let align = align_of::<LClosure>();
+            let size = offset_of!(LuaClosure, upvals) + size_of::<*mut TValue>() * nupvalues;
+            let align = align_of::<LuaClosure>();
             let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
             (*g).gc.dealloc(cl.cast(), layout);

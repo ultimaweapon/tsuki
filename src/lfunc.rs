@@ -1,5 +1,4 @@
 #![allow(
-    dead_code,
     mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
@@ -14,7 +13,7 @@ use crate::ldebug::{luaG_findlocal, luaG_runerror};
 use crate::ldo::luaD_call;
 use crate::lmem::luaM_free_;
 use crate::lobject::{
-    AbsLineInfo, CClosure, LClosure, LocVar, Proto, StackValue, StkId, TString, TValue, UpVal,
+    AbsLineInfo, CClosure, LocVar, LuaClosure, Proto, StackValue, StkId, TString, TValue, UpVal,
     Upvaldesc,
 };
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
@@ -35,12 +34,12 @@ pub unsafe fn luaF_newCclosure(mut L: *const Thread, nupvals: libc::c_int) -> *m
     o
 }
 
-pub unsafe fn luaF_newLclosure(mut L: *const Thread, mut nupvals: libc::c_int) -> *mut LClosure {
+pub unsafe fn luaF_newLclosure(mut L: *const Thread, mut nupvals: libc::c_int) -> *mut LuaClosure {
     let mut nupvals = u8::try_from(nupvals).unwrap();
-    let size = offset_of!(LClosure, upvals) + size_of::<*mut TValue>() * usize::from(nupvals);
-    let align = align_of::<LClosure>();
+    let size = offset_of!(LuaClosure, upvals) + size_of::<*mut TValue>() * usize::from(nupvals);
+    let align = align_of::<LuaClosure>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = Object::new((*L).global, 6 | 0 << 4, layout).cast::<LClosure>();
+    let o = Object::new((*L).global, 6 | 0 << 4, layout).cast::<LuaClosure>();
 
     (*o).p = 0 as *mut Proto;
     (*o).nupvalues = nupvals;
@@ -53,7 +52,7 @@ pub unsafe fn luaF_newLclosure(mut L: *const Thread, mut nupvals: libc::c_int) -
     o
 }
 
-pub unsafe fn luaF_initupvals(mut L: *mut Thread, mut cl: *mut LClosure) {
+pub unsafe fn luaF_initupvals(mut L: *mut Thread, mut cl: *mut LuaClosure) {
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
 
@@ -102,8 +101,7 @@ unsafe fn newupval(
     return uv;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaF_findupval(mut L: *mut Thread, mut level: StkId) -> *mut UpVal {
+pub unsafe fn luaF_findupval(mut L: *mut Thread, mut level: StkId) -> *mut UpVal {
     let mut pp: *mut *mut UpVal = (*L).openupval.as_ptr();
     let mut p: *mut UpVal = 0 as *mut UpVal;
     loop {
@@ -209,16 +207,14 @@ pub unsafe fn luaF_newtbcupval(
     Ok(())
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaF_unlinkupval(mut uv: *mut UpVal) {
+pub unsafe fn luaF_unlinkupval(mut uv: *mut UpVal) {
     *(*(*uv).u.get()).open.previous = (*(*uv).u.get()).open.next;
     if !((*(*uv).u.get()).open.next).is_null() {
         (*(*(*(*uv).u.get()).open.next).u.get()).open.previous = (*(*uv).u.get()).open.previous;
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaF_closeupval(mut L: *mut Thread, mut level: StkId) {
+pub unsafe fn luaF_closeupval(mut L: *mut Thread, mut level: StkId) {
     let mut uv: *mut UpVal = 0 as *mut UpVal;
     let mut upl: StkId = 0 as *mut StackValue;
     loop {
@@ -364,8 +360,7 @@ pub unsafe fn luaF_freeproto(g: *const Lua, mut f: *mut Proto) {
     (*g).gc.dealloc(f.cast(), layout);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaF_getlocalname(
+pub unsafe fn luaF_getlocalname(
     mut f: *const Proto,
     mut local_number: libc::c_int,
     mut pc: libc::c_int,
