@@ -11,7 +11,7 @@
 
 use crate::lmem::{luaM_malloc_, luaM_realloc_, luaM_toobig};
 use crate::lobject::{TString, Table, UValue, Udata};
-use crate::{Lua, StringTable, Thread};
+use crate::{Lua, Object, StringTable, Thread};
 use libc::{memcmp, memcpy, strlen};
 use std::alloc::Layout;
 use std::cell::Cell;
@@ -129,18 +129,17 @@ pub unsafe fn luaS_init(mut L: *mut Thread) {
     (*tb).size = 128 as libc::c_int;
 }
 
-unsafe fn createstrobj(L: *mut Thread, l: usize, tag: u8, h: libc::c_uint) -> *mut TString {
+unsafe fn createstrobj(L: *const Thread, l: usize, tag: u8, h: u32) -> *mut TString {
     let size = offset_of!(TString, contents) + l + 1;
     let align = align_of::<TString>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = (*(*L).global).gc.alloc(tag, layout);
-    let ts = o as *mut TString;
+    let o = Object::new((*L).global, tag, layout).cast::<TString>();
 
-    addr_of_mut!((*ts).hash).write(Cell::new(h));
-    addr_of_mut!((*ts).extra).write(Cell::new(0));
-    *((*ts).contents).as_mut_ptr().offset(l as isize) = '\0' as i32 as libc::c_char;
+    addr_of_mut!((*o).hash).write(Cell::new(h));
+    addr_of_mut!((*o).extra).write(Cell::new(0));
+    *((*o).contents).as_mut_ptr().offset(l as isize) = '\0' as i32 as libc::c_char;
 
-    return ts;
+    o
 }
 
 pub unsafe fn luaS_createlngstrobj(mut L: *mut Thread, mut l: usize) -> *mut TString {
@@ -280,7 +279,7 @@ pub unsafe fn luaS_new(
 }
 
 pub unsafe fn luaS_newudata(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut s: usize,
     mut nuvalue: libc::c_int,
 ) -> Result<*mut Udata, Box<dyn std::error::Error>> {
@@ -305,18 +304,17 @@ pub unsafe fn luaS_newudata(
     let size = min + s;
     let align = align_of::<Udata>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = (*(*L).global).gc.alloc(7 | 0 << 4, layout);
-    let u = o as *mut Udata;
+    let o = Object::new((*L).global, 7 | 0 << 4, layout).cast::<Udata>();
 
-    (*u).len = s;
-    (*u).nuvalue = nuvalue as libc::c_ushort;
-    (*u).metatable = 0 as *mut Table;
+    (*o).len = s;
+    (*o).nuvalue = nuvalue as libc::c_ushort;
+    (*o).metatable = 0 as *mut Table;
     i = 0 as libc::c_int;
 
     while i < nuvalue {
-        (*((*u).uv).as_mut_ptr().offset(i as isize)).uv.tt_ = 0 | 0 << 4;
+        (*((*o).uv).as_mut_ptr().offset(i as isize)).uv.tt_ = 0 | 0 << 4;
         i += 1;
     }
 
-    return Ok(u);
+    Ok(o)
 }

@@ -22,7 +22,7 @@ use libm::frexp;
 use std::alloc::Layout;
 use std::cell::Cell;
 use std::ffi::{c_int, c_uint};
-use std::ptr::addr_of_mut;
+use std::ptr::{addr_of_mut, null};
 
 static mut dummynode_: Node = Node {
     u: {
@@ -576,8 +576,9 @@ pub unsafe fn luaH_resize(
             tt: 0,
             marked: Mark::new(0),
             refs: Cell::new(0),
-            handle: Cell::new(0),
-            gclist: Cell::new(0 as *mut Object),
+            refn: Cell::new(null()),
+            refp: Cell::new(null()),
+            gclist: Cell::new(null()),
         },
         flags: Cell::new(0),
         lsizenode: 0,
@@ -687,16 +688,15 @@ unsafe fn rehash(
 
 pub unsafe fn luaH_new(mut L: *mut Thread) -> Result<*mut Table, Box<dyn std::error::Error>> {
     let layout = Layout::new::<Table>();
-    let o = (*(*L).global).gc.alloc(5 | 0 << 4, layout);
-    let mut t: *mut Table = o as *mut Table;
+    let o = Object::new((*L).global, 5 | 0 << 4, layout).cast::<Table>();
 
-    (*t).metatable = 0 as *mut Table;
-    addr_of_mut!((*t).flags).write(Cell::new(!(!(0 as libc::c_uint) << TM_EQ + 1) as u8));
-    (*t).array = 0 as *mut TValue;
-    (*t).alimit = 0 as libc::c_int as libc::c_uint;
-    setnodevector(L, t, 0 as libc::c_int as libc::c_uint)?;
+    (*o).metatable = 0 as *mut Table;
+    addr_of_mut!((*o).flags).write(Cell::new(!(!(0 as libc::c_uint) << TM_EQ + 1) as u8));
+    (*o).array = 0 as *mut TValue;
+    (*o).alimit = 0 as libc::c_int as libc::c_uint;
+    setnodevector(L, o, 0 as libc::c_int as libc::c_uint)?;
 
-    return Ok(t);
+    Ok(o)
 }
 
 pub unsafe fn luaH_free(g: *const Lua, mut t: *mut Table) {

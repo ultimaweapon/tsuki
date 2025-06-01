@@ -29,7 +29,7 @@ use self::lstring::luaS_init;
 use self::ltable::{luaH_new, luaH_resize};
 use self::ltm::luaT_init;
 use std::alloc::{Layout, handle_alloc_error};
-use std::cell::{Cell, RefCell, UnsafeCell};
+use std::cell::{Cell, UnsafeCell};
 use std::ffi::c_int;
 use std::marker::PhantomPinned;
 use std::ops::Deref;
@@ -81,6 +81,8 @@ unsafe extern "C" fn api_incr_top(td: *mut Thread) {
 
 /// Global states shared with all Lua threads.
 pub struct Lua {
+    all: Cell<*const Object>,
+    refs: Cell<*const Object>,
     gc: Gc,
     GCestimate: Cell<usize>,
     lastatomic: Cell<usize>,
@@ -100,18 +102,18 @@ pub struct Lua {
     weak: Cell<*const Object>,
     ephemeron: Cell<*const Object>,
     allweak: Cell<*const Object>,
-    fixedgc: Cell<*mut Object>,
+    fixedgc: Cell<*const Object>,
     twups: Cell<*const Thread>,
     tmname: [Cell<*mut TString>; 25],
     mt: [Cell<*mut Table>; 9],
-    handle_table: RefCell<Vec<*const Object>>,
-    handle_free: RefCell<Vec<usize>>,
     _phantom: PhantomPinned,
 }
 
 impl Lua {
     pub fn new() -> Result<Pin<Rc<Self>>, Box<dyn std::error::Error>> {
         let g = Rc::pin(Self {
+            all: Cell::new(null()),
+            refs: Cell::new(null()),
             gc: Gc::new(size_of::<Self>()),
             GCestimate: Cell::new(0), // TODO: Lua does not initialize this.
             lastatomic: Cell::new(0),
@@ -141,7 +143,7 @@ impl Lua {
             weak: Cell::new(null_mut()),
             ephemeron: Cell::new(null_mut()),
             allweak: Cell::new(null_mut()),
-            fixedgc: Cell::new(null_mut()),
+            fixedgc: Cell::new(null()),
             twups: Cell::new(null_mut()),
             tmname: [
                 Cell::new(null_mut()),
@@ -181,8 +183,6 @@ impl Lua {
                 Cell::new(null_mut()),
                 Cell::new(null_mut()),
             ],
-            handle_table: RefCell::default(),
-            handle_free: RefCell::default(),
             _phantom: PhantomPinned,
         });
 
@@ -220,20 +220,21 @@ impl Lua {
 
     pub fn spawn(self: &Pin<Rc<Self>>) -> *mut Thread {
         // Create new thread.
-        let td = unsafe { self.gc.alloc(8, Layout::new::<Thread>()) as *mut Thread };
+        let layout = Layout::new::<Thread>();
+        let th = unsafe { Object::new(self.deref(), 8, layout).cast::<Thread>() };
 
-        unsafe { (*td).global = self.deref() };
-        unsafe { addr_of_mut!((*td).stack).write(Cell::new(null_mut())) };
-        unsafe { addr_of_mut!((*td).ci).write(Cell::new(null_mut())) };
-        unsafe { addr_of_mut!((*td).nci).write(Cell::new(0)) };
-        unsafe { addr_of_mut!((*td).twups).write(Cell::new(td)) };
-        unsafe { addr_of_mut!((*td).hook).write(Cell::new(None)) };
-        unsafe { addr_of_mut!((*td).hookmask).write(Cell::new(0)) };
-        unsafe { addr_of_mut!((*td).basehookcount).write(Cell::new(0)) };
-        unsafe { addr_of_mut!((*td).allowhook).write(Cell::new(1)) };
-        unsafe { addr_of_mut!((*td).hookcount).write(Cell::new(0)) };
-        unsafe { addr_of_mut!((*td).openupval).write(Cell::new(null_mut())) };
-        unsafe { addr_of_mut!((*td).oldpc).write(Cell::new(0)) };
+        unsafe { addr_of_mut!((*th).global).write(self.deref()) };
+        unsafe { addr_of_mut!((*th).stack).write(Cell::new(null_mut())) };
+        unsafe { addr_of_mut!((*th).ci).write(Cell::new(null_mut())) };
+        unsafe { addr_of_mut!((*th).nci).write(Cell::new(0)) };
+        unsafe { addr_of_mut!((*th).twups).write(Cell::new(th)) };
+        unsafe { addr_of_mut!((*th).hook).write(Cell::new(None)) };
+        unsafe { addr_of_mut!((*th).hookmask).write(Cell::new(0)) };
+        unsafe { addr_of_mut!((*th).basehookcount).write(Cell::new(0)) };
+        unsafe { addr_of_mut!((*th).allowhook).write(Cell::new(1)) };
+        unsafe { addr_of_mut!((*th).hookcount).write(Cell::new(0)) };
+        unsafe { addr_of_mut!((*th).openupval).write(Cell::new(null_mut())) };
+        unsafe { addr_of_mut!((*th).oldpc).write(Cell::new(0)) };
 
         // Allocate stack.
         let layout = Layout::array::<StackValue>(2 * 20 + 5).unwrap();
@@ -247,26 +248,26 @@ impl Lua {
             unsafe { (*stack.offset(i)).val.tt_ = 0 | 0 << 4 };
         }
 
-        unsafe { (*td).stack.set(stack) };
-        unsafe { addr_of_mut!((*td).top).write(StackPtr::new((*td).stack.get())) };
-        unsafe { addr_of_mut!((*td).stack_last).write(Cell::new((*td).stack.get().add(2 * 20))) };
-        unsafe { addr_of_mut!((*td).tbclist).write(Cell::new((*td).stack.get())) };
+        unsafe { (*th).stack.set(stack) };
+        unsafe { addr_of_mut!((*th).top).write(StackPtr::new((*th).stack.get())) };
+        unsafe { addr_of_mut!((*th).stack_last).write(Cell::new((*th).stack.get().add(2 * 20))) };
+        unsafe { addr_of_mut!((*th).tbclist).write(Cell::new((*th).stack.get())) };
 
         // Setup base CI.
-        let ci = unsafe { (*td).base_ci.get() };
+        let ci = unsafe { (*th).base_ci.get() };
 
         unsafe { (*ci).previous = null_mut() };
         unsafe { (*ci).next = (*ci).previous };
         unsafe { (*ci).callstatus = 1 << 1 };
-        unsafe { (*ci).func = (*td).top.get() };
+        unsafe { (*ci).func = (*th).top.get() };
         unsafe { (*ci).u.savedpc = null() };
         unsafe { (*ci).nresults = 0 };
-        unsafe { (*td).top.write_nil() };
-        unsafe { (*td).top.add(1) };
-        unsafe { (*ci).top = ((*td).top.get()).offset(20) };
-        unsafe { (*td).ci.set(ci) };
+        unsafe { (*th).top.write_nil() };
+        unsafe { (*th).top.add(1) };
+        unsafe { (*ci).top = ((*th).top.get()).offset(20) };
+        unsafe { (*th).ci.set(ci) };
 
-        td
+        th
     }
 
     fn reset_gray(&self) {

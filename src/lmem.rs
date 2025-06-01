@@ -69,7 +69,7 @@ pub unsafe fn luaM_shrinkvector_(
     return newblock;
 }
 
-pub unsafe fn luaM_toobig(L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaM_toobig(L: *const Thread) -> Result<(), Box<dyn std::error::Error>> {
     luaG_runerror(L, "memory allocation error: block too big")
 }
 

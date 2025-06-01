@@ -30,14 +30,14 @@ use std::ffi::{CStr, c_int};
 use std::fmt::Display;
 use std::ptr::null;
 
-unsafe extern "C" fn currentpc(mut ci: *mut CallInfo) -> libc::c_int {
+unsafe fn currentpc(mut ci: *mut CallInfo) -> libc::c_int {
     return ((*ci).u.savedpc)
         .offset_from((*(*((*(*ci).func).val.value_.gc as *mut LClosure)).p).code)
         as libc::c_long as libc::c_int
         - 1 as libc::c_int;
 }
 
-unsafe extern "C" fn getbaseline(
+unsafe fn getbaseline(
     mut f: *const Proto,
     mut pc: libc::c_int,
     mut basepc: *mut libc::c_int,
@@ -62,8 +62,7 @@ unsafe extern "C" fn getbaseline(
     };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaG_getfuncline(mut f: *const Proto, mut pc: libc::c_int) -> libc::c_int {
+pub unsafe fn luaG_getfuncline(mut f: *const Proto, mut pc: libc::c_int) -> libc::c_int {
     if ((*f).lineinfo).is_null() {
         return -(1 as libc::c_int);
     } else {
@@ -81,7 +80,7 @@ pub unsafe extern "C" fn luaG_getfuncline(mut f: *const Proto, mut pc: libc::c_i
     };
 }
 
-unsafe extern "C" fn getcurrentline(mut ci: *mut CallInfo) -> libc::c_int {
+unsafe fn getcurrentline(mut ci: *mut CallInfo) -> libc::c_int {
     return luaG_getfuncline(
         (*((*(*ci).func).val.value_.gc as *mut LClosure)).p,
         currentpc(ci),
@@ -1078,12 +1077,7 @@ pub unsafe fn luaG_ordererror(
     }
 }
 
-pub unsafe fn luaG_addinfo(
-    mut L: *mut Thread,
-    msg: impl Display,
-    mut src: *mut TString,
-    line: libc::c_int,
-) -> String {
+pub unsafe fn luaG_addinfo(msg: impl Display, mut src: *mut TString, line: libc::c_int) -> String {
     let mut buff: [libc::c_char; 60] = [0; 60];
 
     if !src.is_null() {
@@ -1110,13 +1104,12 @@ pub unsafe fn luaG_addinfo(
 }
 
 pub unsafe fn luaG_runerror(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     fmt: impl Display,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let ci = (*L).ci.get();
     let msg = if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
         luaG_addinfo(
-            L,
             fmt,
             (*(*((*(*ci).func).val.value_.gc as *mut LClosure)).p).source,
             getcurrentline(ci),

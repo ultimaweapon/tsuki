@@ -237,7 +237,7 @@ unsafe fn lexerror(
     msg: impl Display,
     mut token: c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let msg = luaG_addinfo((*ls).L, msg, (*ls).source, (*ls).linenumber);
+    let msg = luaG_addinfo(msg, (*ls).source, (*ls).linenumber);
     let msg = if token != 0 {
         format!("{} near {}", msg, txtToken(ls, token)?)
     } else {

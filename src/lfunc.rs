@@ -8,7 +8,6 @@
     unused_mut
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
-#![allow(path_statements)]
 
 use crate::gc::luaC_barrier_;
 use crate::ldebug::{luaG_findlocal, luaG_runerror};
@@ -24,36 +23,34 @@ use std::alloc::Layout;
 use std::ffi::CStr;
 use std::mem::offset_of;
 
-pub unsafe fn luaF_newCclosure(mut L: *mut Thread, nupvals: libc::c_int) -> *mut CClosure {
+pub unsafe fn luaF_newCclosure(mut L: *const Thread, nupvals: libc::c_int) -> *mut CClosure {
     let nupvals = u8::try_from(nupvals).unwrap();
     let size = offset_of!(CClosure, upvalue) + size_of::<TValue>() * usize::from(nupvals);
     let align = align_of::<CClosure>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = (*(*L).global).gc.alloc(6 | 2 << 4, layout);
-    let mut c: *mut CClosure = o as *mut CClosure;
+    let o = Object::new((*L).global, 6 | 2 << 4, layout).cast::<CClosure>();
 
-    (*c).nupvalues = nupvals;
+    (*o).nupvalues = nupvals;
 
-    return c;
+    o
 }
 
-pub unsafe fn luaF_newLclosure(mut L: *mut Thread, mut nupvals: libc::c_int) -> *mut LClosure {
+pub unsafe fn luaF_newLclosure(mut L: *const Thread, mut nupvals: libc::c_int) -> *mut LClosure {
     let mut nupvals = u8::try_from(nupvals).unwrap();
     let size = offset_of!(LClosure, upvals) + size_of::<*mut TValue>() * usize::from(nupvals);
     let align = align_of::<LClosure>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = (*(*L).global).gc.alloc(6 | 0 << 4, layout);
-    let mut c: *mut LClosure = o as *mut LClosure;
+    let o = Object::new((*L).global, 6 | 0 << 4, layout).cast::<LClosure>();
 
-    (*c).p = 0 as *mut Proto;
-    (*c).nupvalues = nupvals;
+    (*o).p = 0 as *mut Proto;
+    (*o).nupvalues = nupvals;
 
     for i in 0..nupvals {
-        let ref mut fresh1 = *((*c).upvals).as_mut_ptr().offset(i as isize);
+        let ref mut fresh1 = *((*o).upvals).as_mut_ptr().offset(i as isize);
         *fresh1 = 0 as *mut UpVal;
     }
 
-    return c;
+    o
 }
 
 pub unsafe fn luaF_initupvals(mut L: *mut Thread, mut cl: *mut LClosure) {
@@ -62,8 +59,7 @@ pub unsafe fn luaF_initupvals(mut L: *mut Thread, mut cl: *mut LClosure) {
 
     while i < (*cl).nupvalues as libc::c_int {
         let layout = Layout::new::<UpVal>();
-        let o = (*(*L).global).gc.alloc(9 | 0 << 4, layout);
-        let mut uv: *mut UpVal = o as *mut UpVal;
+        let uv = Object::new((*L).global, 9 | 0 << 4, layout).cast::<UpVal>();
 
         (*uv).v.set(&raw mut (*(*uv).u.get()).value);
         (*(*uv).v.get()).tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -78,14 +74,16 @@ pub unsafe fn luaF_initupvals(mut L: *mut Thread, mut cl: *mut LClosure) {
         } else {
         };
         i += 1;
-        i;
     }
 }
 
-unsafe fn newupval(mut L: *mut Thread, mut level: StkId, mut prev: *mut *mut UpVal) -> *mut UpVal {
+unsafe fn newupval(
+    mut L: *const Thread,
+    mut level: StkId,
+    mut prev: *mut *mut UpVal,
+) -> *mut UpVal {
     let layout = Layout::new::<UpVal>();
-    let o = (*(*L).global).gc.alloc(9 | 0 << 4, layout);
-    let mut uv: *mut UpVal = o as *mut UpVal;
+    let uv = Object::new((*L).global, 9 | 0 << 4, layout).cast::<UpVal>();
     let mut next: *mut UpVal = *prev;
 
     (*uv).v.set(&raw mut (*level).val);
@@ -296,10 +294,9 @@ pub unsafe fn luaF_close(
     return Ok(level);
 }
 
-pub unsafe fn luaF_newproto(mut L: *mut Thread) -> *mut Proto {
+pub unsafe fn luaF_newproto(mut L: *const Thread) -> *mut Proto {
     let layout = Layout::new::<Proto>();
-    let o = (*(*L).global).gc.alloc(9 + 1 | 0 << 4, layout);
-    let mut f: *mut Proto = o as *mut Proto;
+    let f = Object::new((*L).global, 9 + 1 | 0 << 4, layout).cast::<Proto>();
 
     (*f).k = 0 as *mut TValue;
     (*f).sizek = 0 as libc::c_int;
@@ -378,13 +375,11 @@ pub unsafe extern "C" fn luaF_getlocalname(
     while i < (*f).sizelocvars && (*((*f).locvars).offset(i as isize)).startpc <= pc {
         if pc < (*((*f).locvars).offset(i as isize)).endpc {
             local_number -= 1;
-            local_number;
             if local_number == 0 as libc::c_int {
                 return ((*(*((*f).locvars).offset(i as isize)).varname).contents).as_mut_ptr();
             }
         }
         i += 1;
-        i;
     }
     return 0 as *const libc::c_char;
 }

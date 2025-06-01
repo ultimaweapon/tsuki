@@ -6,9 +6,9 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-pub use self::handle::*;
 pub(crate) use self::mark::*;
 pub(crate) use self::object::*;
+pub use self::r#ref::*;
 
 use crate::ldo::luaD_shrinkstack;
 use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
@@ -20,15 +20,14 @@ use crate::ltable::{luaH_free, luaH_realasize};
 use crate::ltm::{TM_MODE, luaT_gettm};
 use crate::{Lua, Thread};
 use libc::strchr;
-use std::alloc::{Layout, handle_alloc_error};
+use std::alloc::Layout;
 use std::cell::Cell;
 use std::mem::offset_of;
-use std::ops::Deref;
-use std::ptr::{addr_of_mut, null_mut};
+use std::ptr::null_mut;
 
-mod handle;
 mod mark;
 mod object;
+mod r#ref;
 
 #[inline(always)]
 unsafe fn getgclist(o: *const Object) -> *mut *const Object {
@@ -99,12 +98,12 @@ pub(crate) unsafe fn luaC_barrierback_(L: *mut Thread, o: *const Object) {
     }
 }
 
-pub(crate) unsafe fn luaC_fix(g: &Lua, o: *mut Object) {
+pub(crate) unsafe fn luaC_fix(g: &Lua, o: *const Object) {
     (*o).marked
         .set((*o).marked.get() & !(1 << 5 | (1 << 3 | 1 << 4)));
     (*o).marked
         .set(((*o).marked.get() as libc::c_int & !(7 as libc::c_int) | 4 as libc::c_int) as u8);
-    (*g).gc.allgc.set((*o).next.get());
+    g.all.set((*o).next.get());
     (*o).next.set((*g).fixedgc.get());
     (*g).fixedgc.set(o);
 }
@@ -961,11 +960,11 @@ unsafe fn setpause(g: *const Lua) {
 unsafe fn entersweep(L: *mut Thread) {
     let g = (*L).global;
     (*g).gcstate.set(3);
-    (*g).sweepgc.set(sweeptolive(L, (*g).gc.allgc.as_ptr()));
+    (*g).sweepgc.set(sweeptolive(L, (*g).all.as_ptr()));
 }
 
-unsafe fn deletelist(g: &Lua, mut p: *const Object, limit: *mut Object) {
-    while p != limit {
+unsafe fn deletelist(g: &Lua, mut p: *const Object) {
+    while !p.is_null() {
         let next = (*p).next.get();
         freeobj(g, p.cast_mut());
         p = next;
@@ -976,8 +975,8 @@ pub(crate) unsafe fn luaC_freeallobjects(g: &Lua) {
     g.gcstp.set(4);
     g.lastatomic.set(0);
 
-    deletelist(g, (*g).gc.allgc.get(), null_mut());
-    deletelist(g, (*g).fixedgc.get(), null_mut());
+    deletelist(g, (*g).all.get());
+    deletelist(g, (*g).fixedgc.get());
 }
 
 unsafe fn atomic(L: *mut Thread) -> usize {
@@ -988,20 +987,27 @@ unsafe fn atomic(L: *mut Thread) -> usize {
     g.grayagain.set(null_mut());
     g.gcstate.set(2);
 
+    // Mark current thread.
     if (*L).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
-        reallymarkobject(g, L as *mut Object);
+        reallymarkobject(g, L.cast());
     }
 
+    // Mark registry.
     if (*g.l_registry.get()).tt_ & 1 << 6 != 0
         && (*(*g.l_registry.get()).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
     {
         reallymarkobject(g, (*g.l_registry.get()).value_.gc);
     }
 
-    for &o in g.handle_table.borrow().deref() {
-        if !o.is_null() && ((*o).marked.get() & (1 << 3 | 1 << 4)) != 0 {
+    // Mark object with Rust references.
+    let mut o = g.refs.get();
+
+    while !o.is_null() {
+        if ((*o).marked.get() & (1 << 3 | 1 << 4)) != 0 {
             reallymarkobject(g, o);
         }
+
+        o = (*o).refp.get();
     }
 
     markmt(g);
@@ -1148,7 +1154,6 @@ pub struct Gc {
     currentwhite: Cell<u8>,
     totalbytes: Cell<isize>,
     debt: Cell<isize>,
-    allgc: Cell<*const Object>,
 }
 
 impl Gc {
@@ -1157,7 +1162,6 @@ impl Gc {
             currentwhite: Cell::new(1 << 3),
             totalbytes: Cell::new(totalbytes.try_into().unwrap()),
             debt: Cell::new(0),
-            allgc: Cell::new(null_mut()),
         }
     }
 
@@ -1180,29 +1184,6 @@ impl Gc {
 
         self.totalbytes.set(tb - debt);
         self.debt.set(debt);
-    }
-
-    pub(crate) unsafe fn alloc(&self, tt: u8, layout: Layout) -> *mut Object {
-        let o = unsafe { std::alloc::alloc(layout) as *mut Object };
-
-        if o.is_null() {
-            handle_alloc_error(layout);
-        }
-
-        unsafe {
-            addr_of_mut!((*o).marked).write(Mark::new(self.currentwhite.get() & (1 << 3 | 1 << 4)))
-        };
-        unsafe { (*o).tt = tt };
-        unsafe { addr_of_mut!((*o).refs).write(Cell::new(0)) };
-        unsafe { addr_of_mut!((*o).handle).write(Cell::new(0)) };
-        unsafe { addr_of_mut!((*o).gclist).write(Cell::new(null_mut())) };
-        unsafe { addr_of_mut!((*o).next).write(Cell::new(self.allgc.get())) };
-
-        self.allgc.set(o);
-        self.debt
-            .set(self.debt.get().checked_add_unsigned(layout.size()).unwrap());
-
-        o
     }
 
     pub(crate) unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
