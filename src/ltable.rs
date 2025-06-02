@@ -272,7 +272,7 @@ unsafe fn arrayindex(mut k: i64) -> libc::c_uint {
 }
 
 unsafe fn findindex(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut t: *mut Table,
     mut key: *mut TValue,
     mut asize: libc::c_uint,
@@ -307,7 +307,7 @@ unsafe fn findindex(
 }
 
 pub unsafe fn luaH_next(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut t: *mut Table,
     mut key: StkId,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -463,7 +463,7 @@ unsafe extern "C" fn numusehash(
 }
 
 unsafe fn setnodevector(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut t: *mut Table,
     mut size: libc::c_uint,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -522,7 +522,7 @@ unsafe fn setnodevector(
 }
 
 unsafe fn reinsert(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut ot: *mut Table,
     mut t: *mut Table,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -564,7 +564,7 @@ unsafe extern "C" fn exchangehashpart(mut t1: *mut Table, mut t2: *mut Table) {
 }
 
 pub unsafe fn luaH_resize(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut t: *mut Table,
     mut newasize: libc::c_uint,
     mut nhsize: libc::c_uint,
@@ -642,7 +642,7 @@ pub unsafe fn luaH_resize(
 }
 
 pub unsafe fn luaH_resizearray(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut t: *mut Table,
     mut nasize: libc::c_uint,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -656,7 +656,7 @@ pub unsafe fn luaH_resizearray(
 }
 
 unsafe fn rehash(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut t: *mut Table,
     mut ek: *const TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -686,7 +686,7 @@ unsafe fn rehash(
     luaH_resize(L, t, asize, (totaluse as libc::c_uint).wrapping_sub(na))
 }
 
-pub unsafe fn luaH_new(mut L: *mut Thread) -> Result<*mut Table, Box<dyn std::error::Error>> {
+pub unsafe fn luaH_new(mut L: *const Thread) -> Result<*mut Table, Box<dyn std::error::Error>> {
     let layout = Layout::new::<Table>();
     let o = Object::new((*L).global, 5 | 0 << 4, layout).cast::<Table>();
 
@@ -726,7 +726,7 @@ unsafe extern "C" fn getfreepos(mut t: *mut Table) -> *mut Node {
 }
 
 unsafe fn luaH_newkey(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut t: *mut Table,
     mut key: *const TValue,
     mut value: *mut TValue,
@@ -901,7 +901,7 @@ pub unsafe fn luaH_get(mut t: *mut Table, mut key: *const TValue) -> *const TVal
 }
 
 pub unsafe fn luaH_finishset(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut t: *mut Table,
     mut key: *const TValue,
     mut slot: *const TValue,
@@ -919,7 +919,7 @@ pub unsafe fn luaH_finishset(
 }
 
 pub unsafe fn luaH_set(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut t: *mut Table,
     mut key: *const TValue,
     mut value: *mut TValue,
@@ -930,7 +930,7 @@ pub unsafe fn luaH_set(
 }
 
 pub unsafe fn luaH_setint(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut t: *mut Table,
     mut key: i64,
     mut value: *mut TValue,

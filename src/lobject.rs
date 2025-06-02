@@ -195,13 +195,6 @@ pub struct CClosure {
     pub upvalue: [TValue; 1],
 }
 
-#[repr(C)]
-pub struct LuaClosure {
-    pub hdr: Object,
-    pub p: Cell<*mut Proto>,
-    pub upvals: Box<[Cell<*mut UpVal>]>,
-}
-
 pub unsafe fn luaO_ceillog2(mut x: libc::c_uint) -> c_int {
     static mut log_2: [u8; 256] = [
         0 as c_int as u8,
@@ -473,7 +466,7 @@ pub unsafe fn luaO_ceillog2(mut x: libc::c_uint) -> c_int {
 }
 
 unsafe fn intarith(
-    L: *mut Thread,
+    L: *const Thread,
     op: c_int,
     v1: i64,
     v2: i64,
@@ -497,7 +490,7 @@ unsafe fn intarith(
     Ok(r)
 }
 
-unsafe fn numarith(L: *mut Thread, op: c_int, v1: f64, v2: f64) -> f64 {
+unsafe fn numarith(op: c_int, v1: f64, v2: f64) -> f64 {
     match op {
         0 => return v1 + v2,
         1 => return v1 - v2,
@@ -512,13 +505,13 @@ unsafe fn numarith(L: *mut Thread, op: c_int, v1: f64, v2: f64) -> f64 {
         }
         6 => return floor(v1 / v2),
         12 => return -v1,
-        3 => return luaV_modf(L, v1, v2),
+        3 => luaV_modf(v1, v2),
         _ => return 0 as c_int as f64,
-    };
+    }
 }
 
 pub unsafe fn luaO_rawarith(
-    L: *mut Thread,
+    L: *const Thread,
     op: c_int,
     p1: *const TValue,
     p2: *const TValue,
@@ -582,7 +575,7 @@ pub unsafe fn luaO_rawarith(
                 }) != 0
             {
                 let io_0: *mut TValue = res;
-                (*io_0).value_.n = numarith(L, op, n1, n2);
+                (*io_0).value_.n = numarith(op, n1, n2);
                 (*io_0).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                 return Ok(1 as c_int);
             } else {
@@ -623,7 +616,7 @@ pub unsafe fn luaO_rawarith(
                 }) != 0
             {
                 let io_2: *mut TValue = res;
-                (*io_2).value_.n = numarith(L, op, n1_0, n2_0);
+                (*io_2).value_.n = numarith(op, n1_0, n2_0);
                 (*io_2).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                 return Ok(1 as c_int);
             } else {
@@ -634,7 +627,7 @@ pub unsafe fn luaO_rawarith(
 }
 
 pub unsafe fn luaO_arith(
-    L: *mut Thread,
+    L: *const Thread,
     op: c_int,
     p1: *const TValue,
     p2: *const TValue,
@@ -841,7 +834,7 @@ unsafe fn tostringbuff(obj: *mut TValue, buff: *mut c_char) -> c_int {
 }
 
 pub unsafe fn luaO_tostring(
-    L: *mut Thread,
+    L: *const Thread,
     obj: *mut TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut buff: [c_char; 44] = [0; 44];

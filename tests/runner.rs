@@ -1,10 +1,7 @@
 use std::path::PathBuf;
 use std::ptr::null;
 use std::sync::LazyLock;
-use tsuki::{
-    Lua, lua_closethread, lua_load, lua_pcall, lua_pop, luaL_requiref, luaopen_base, luaopen_math,
-    luaopen_string, luaopen_table,
-};
+use tsuki::{Builder, lua_closethread, lua_load, lua_pcall};
 
 #[test]
 fn close() {
@@ -55,17 +52,8 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     // Setup Lua.
     let content = std::fs::read(&path).unwrap();
-    let lua = Lua::new().unwrap();
+    let lua = Builder::new().enable_all().build();
     let lua = lua.spawn();
-
-    unsafe { luaL_requiref(lua, c"_G".as_ptr(), luaopen_base, 0).unwrap() };
-    unsafe { lua_pop(lua, 1).unwrap() };
-    unsafe { luaL_requiref(lua, c"math".as_ptr(), luaopen_math, 1).unwrap() };
-    unsafe { lua_pop(lua, 1).unwrap() };
-    unsafe { luaL_requiref(lua, c"string".as_ptr(), luaopen_string, 1).unwrap() };
-    unsafe { lua_pop(lua, 1).unwrap() };
-    unsafe { luaL_requiref(lua, c"table".as_ptr(), luaopen_table, 1).unwrap() };
-    unsafe { lua_pop(lua, 1).unwrap() };
 
     // Build chunk name.
     let mut name = String::with_capacity(1 + path.as_os_str().len() + 1);

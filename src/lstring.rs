@@ -86,7 +86,7 @@ unsafe fn tablerehash(mut vect: *mut *mut TString, mut osize: libc::c_int, mut n
     }
 }
 
-pub unsafe fn luaS_resize(mut L: *mut Thread, mut nsize: libc::c_int) {
+pub unsafe fn luaS_resize(mut L: *const Thread, mut nsize: libc::c_int) {
     let mut tb = (*(*L).global).strt.get();
     let mut osize: libc::c_int = (*tb).size;
     let mut newvect: *mut *mut TString = 0 as *mut *mut TString;
@@ -142,7 +142,7 @@ unsafe fn createstrobj(L: *const Thread, l: usize, tag: u8, h: u32) -> *mut TStr
     o
 }
 
-pub unsafe fn luaS_createlngstrobj(mut L: *mut Thread, mut l: usize) -> *mut TString {
+pub unsafe fn luaS_createlngstrobj(mut L: *const Thread, mut l: usize) -> *mut TString {
     let ts: *mut TString = createstrobj(L, l, 4 | 1 << 4, (*(*L).global).seed);
 
     (*(*ts).u.get()).lnglen = l;
@@ -165,7 +165,7 @@ pub unsafe fn luaS_remove(g: *const Lua, mut ts: *mut TString) {
     (*tb).nuse;
 }
 
-unsafe fn growstrtab(mut L: *mut Thread, mut tb: *mut StringTable) {
+unsafe fn growstrtab(mut L: *const Thread, mut tb: *mut StringTable) {
     if (*tb).size
         <= (if 2147483647 as libc::c_int as usize
             <= (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<*mut TString>())
@@ -182,7 +182,7 @@ unsafe fn growstrtab(mut L: *mut Thread, mut tb: *mut StringTable) {
 }
 
 unsafe fn internshrstr(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut str: *const libc::c_char,
     mut l: usize,
 ) -> *mut TString {
@@ -239,7 +239,7 @@ unsafe fn internshrstr(
 }
 
 pub unsafe fn luaS_newlstr(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut str: *const libc::c_char,
     mut l: usize,
 ) -> Result<*mut TString, Box<dyn std::error::Error>> {
@@ -272,7 +272,7 @@ pub unsafe fn luaS_newlstr(
 }
 
 pub unsafe fn luaS_new(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut str: *const libc::c_char,
 ) -> Result<*mut TString, Box<dyn std::error::Error>> {
     luaS_newlstr(L, str, strlen(str))

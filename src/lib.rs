@@ -1,4 +1,6 @@
+pub use self::builder::*;
 pub use self::error::*;
+pub use self::function::*;
 pub use self::gc::*;
 pub use self::lapi::{
     lua_arith, lua_call, lua_closeslot, lua_createtable, lua_dump, lua_getglobal,
@@ -13,21 +15,13 @@ pub use self::lapi::{
 pub use self::lauxlib::{
     luaL_Reg, luaL_argerror, luaL_checkinteger, luaL_checklstring, luaL_checknumber,
     luaL_checkstack, luaL_checktype, luaL_error, luaL_getmetafield, luaL_optinteger,
-    luaL_optlstring, luaL_requiref, luaL_setfuncs, luaL_tolstring, luaL_typeerror,
+    luaL_optlstring, luaL_setfuncs, luaL_tolstring, luaL_typeerror,
 };
-pub use self::lbaselib::luaopen_base;
-pub use self::lmathlib::luaopen_math;
 pub use self::lstate::lua_closethread;
-pub use self::lstrlib::luaopen_string;
-pub use self::ltablib::luaopen_table;
 pub use self::thread::*;
 
-use self::llex::luaX_init;
 use self::lmem::luaM_free_;
-use self::lobject::{StackValue, TString, TValue, Table, Value};
-use self::lstring::luaS_init;
-use self::ltable::{luaH_new, luaH_resize};
-use self::ltm::luaT_init;
+use self::lobject::{StackValue, TString, TValue, Table};
 use std::alloc::{Layout, handle_alloc_error};
 use std::cell::{Cell, UnsafeCell};
 use std::ffi::c_int;
@@ -37,7 +31,9 @@ use std::pin::Pin;
 use std::ptr::{addr_of_mut, null, null_mut};
 use std::rc::Rc;
 
+mod builder;
 mod error;
+mod function;
 mod gc;
 mod lapi;
 mod lauxlib;
@@ -66,20 +62,22 @@ mod lzio;
 mod thread;
 
 #[inline(always)]
-pub unsafe fn lua_pop(td: *mut Thread, n: c_int) -> Result<(), Box<dyn std::error::Error>> {
-    unsafe { lua_settop(td, -(n) - 1) }
+pub unsafe fn lua_pop(th: *const Thread, n: c_int) -> Result<(), Box<dyn std::error::Error>> {
+    unsafe { lua_settop(th, -(n) - 1) }
 }
 
 #[inline(always)]
-unsafe extern "C" fn api_incr_top(td: *mut Thread) {
-    unsafe { (*td).top.add(1) };
+unsafe extern "C" fn api_incr_top(th: *const Thread) {
+    unsafe { (*th).top.add(1) };
 
-    if unsafe { (*td).top.get() > (*(*td).ci.get()).top } {
+    if unsafe { (*th).top.get() > (*(*th).ci.get()).top } {
         panic!("stack overflow");
     }
 }
 
 /// Global states shared with all Lua threads.
+///
+/// Use [`Builder`] to get the instance of this type.
 pub struct Lua {
     all: Cell<*const Object>,
     refs: Cell<*const Object>,
@@ -110,114 +108,6 @@ pub struct Lua {
 }
 
 impl Lua {
-    pub fn new() -> Result<Pin<Rc<Self>>, Box<dyn std::error::Error>> {
-        let g = Rc::pin(Self {
-            all: Cell::new(null()),
-            refs: Cell::new(null()),
-            gc: Gc::new(size_of::<Self>()),
-            GCestimate: Cell::new(0), // TODO: Lua does not initialize this.
-            lastatomic: Cell::new(0),
-            strt: UnsafeCell::new(StringTable {
-                hash: null_mut(),
-                nuse: 0,
-                size: 0,
-            }),
-            l_registry: UnsafeCell::new(TValue {
-                value_: Value { i: 0 },
-                tt_: (0 | 0 << 4),
-            }),
-            nilvalue: UnsafeCell::new(TValue {
-                value_: Value { i: 0 },
-                tt_: (0 | 0 << 4),
-            }),
-            seed: rand::random(),
-            gcstate: Cell::new(8),
-            gcstopem: Cell::new(0),
-            gcstp: Cell::new(2),
-            gcpause: Cell::new((200 as libc::c_int / 4 as libc::c_int) as u8),
-            gcstepmul: Cell::new((100 as libc::c_int / 4 as libc::c_int) as u8),
-            gcstepsize: Cell::new(13 as libc::c_int as u8),
-            sweepgc: Cell::new(null_mut()),
-            gray: Cell::new(null_mut()),
-            grayagain: Cell::new(null_mut()),
-            weak: Cell::new(null_mut()),
-            ephemeron: Cell::new(null_mut()),
-            allweak: Cell::new(null_mut()),
-            fixedgc: Cell::new(null()),
-            twups: Cell::new(null_mut()),
-            tmname: [
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-            ],
-            mt: [
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-            ],
-            _phantom: PhantomPinned,
-        });
-
-        // Setup registry.
-        let td = g.spawn();
-        let registry: *mut Table = unsafe { luaH_new(td)? };
-        let io: *mut TValue = g.l_registry.get();
-
-        unsafe { (*io).value_.gc = registry as *mut Object };
-        unsafe { (*io).tt_ = 5 | 0 << 4 | 1 << 6 };
-
-        unsafe { luaH_resize(td, registry, 2, 0) }?;
-
-        // Create dummy object for LUA_RIDX_MAINTHREAD.
-        let io_0 = unsafe { ((*registry).array).offset(1 - 1) as *mut TValue };
-
-        unsafe { (*io_0).value_.gc = luaH_new(td)? as *mut Object };
-        unsafe { (*io_0).tt_ = 5 | 0 << 4 | 1 << 6 };
-
-        // Create LUA_RIDX_GLOBALS.
-        let io_1 = unsafe { ((*registry).array).offset(2 - 1) as *mut TValue };
-
-        unsafe { (*io_1).value_.gc = luaH_new(td)? as *mut Object };
-        unsafe { (*io_1).tt_ = 5 | 0 << 4 | 1 << 6 };
-
-        // Initialize internal module.
-        unsafe { luaS_init(td) };
-        unsafe { luaT_init(td)? };
-        unsafe { luaX_init(td)? };
-
-        g.gcstp.set(0);
-
-        Ok(g)
-    }
-
     pub fn spawn(self: &Pin<Rc<Self>>) -> *mut Thread {
         // Create new thread.
         let layout = Layout::new::<Thread>();

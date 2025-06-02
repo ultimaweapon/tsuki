@@ -14,9 +14,9 @@ use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::lobject::StkId;
 use std::ffi::{c_int, c_void};
 
-pub type lua_Hook = Option<unsafe extern "C" fn(*mut Thread, *mut lua_Debug) -> ()>;
+pub type lua_Hook = Option<unsafe extern "C" fn(*const Thread, *mut lua_Debug) -> ()>;
 pub type lua_Writer = unsafe fn(
-    *mut Thread,
+    *const Thread,
     *const c_void,
     usize,
     *mut c_void,
@@ -80,9 +80,9 @@ pub struct C2RustUnnamed_3 {
     pub nextraargs: libc::c_int,
 }
 
-pub type lua_CFunction = unsafe fn(*mut Thread) -> Result<c_int, Box<dyn std::error::Error>>;
+pub type lua_CFunction = unsafe fn(*const Thread) -> Result<c_int, Box<dyn std::error::Error>>;
 
-pub unsafe fn luaE_extendCI(mut L: *mut Thread) -> *mut CallInfo {
+pub unsafe fn luaE_extendCI(mut L: *const Thread) -> *mut CallInfo {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     ci = luaM_malloc_((*L).global, ::core::mem::size_of::<CallInfo>()) as *mut CallInfo;
     (*(*L).ci.get()).next = ci;

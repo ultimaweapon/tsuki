@@ -7,9 +7,7 @@
     unused_mut
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
-#![allow(unused_variables)]
 
-use crate::Thread;
 use crate::gc::{Object, luaC_barrier_, luaC_barrierback_, luaC_step};
 use crate::ldebug::{luaG_forerror, luaG_runerror, luaG_tracecall, luaG_traceexec, luaG_typeerror};
 use crate::ldo::{luaD_call, luaD_hookcall, luaD_poscall, luaD_precall, luaD_pretailcall};
@@ -17,8 +15,8 @@ use crate::lfunc::{
     luaF_close, luaF_closeupval, luaF_findupval, luaF_newLclosure, luaF_newtbcupval,
 };
 use crate::lobject::{
-    LuaClosure, Proto, StackValue, StkId, TString, TValue, Table, Udata, UpVal, Upvaldesc, Value,
-    luaO_str2num, luaO_tostring,
+    Proto, StackValue, StkId, TString, TValue, Table, Udata, UpVal, Upvaldesc, Value, luaO_str2num,
+    luaO_tostring,
 };
 use crate::lopcodes::OpCode;
 use crate::lstate::CallInfo;
@@ -32,6 +30,7 @@ use crate::ltm::{
     luaT_callTM, luaT_callTMres, luaT_callorderTM, luaT_callorderiTM, luaT_gettm, luaT_gettmbyobj,
     luaT_getvarargs, luaT_trybinTM, luaT_trybinassocTM, luaT_trybiniTM, luaT_tryconcatTM,
 };
+use crate::{LuaClosure, Thread};
 use libc::{memcpy, strcoll, strlen};
 use libm::{floor, fmod, pow};
 use std::cell::Cell;
@@ -134,7 +133,7 @@ pub unsafe fn luaV_tointeger(
 }
 
 unsafe fn forlimit(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut init: i64,
     mut lim: *const TValue,
     mut p: *mut i64,
@@ -180,7 +179,10 @@ unsafe fn forlimit(
     };
 }
 
-unsafe fn forprep(mut L: *mut Thread, mut ra: StkId) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn forprep(
+    mut L: *const Thread,
+    mut ra: StkId,
+) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut pinit: *mut TValue = &mut (*ra).val;
     let mut plimit: *mut TValue = &mut (*ra.offset(1 as libc::c_int as isize)).val;
     let mut pstep: *mut TValue = &mut (*ra.offset(2 as libc::c_int as isize)).val;
@@ -309,7 +311,7 @@ unsafe extern "C" fn floatforloop(mut ra: StkId) -> libc::c_int {
 }
 
 pub unsafe fn luaV_finishget(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut t: *const TValue,
     mut key: *mut TValue,
     mut val: StkId,
@@ -376,7 +378,7 @@ pub unsafe fn luaV_finishget(
 }
 
 pub unsafe fn luaV_finishset(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut t: *const TValue,
     mut key: *mut TValue,
     mut val: *mut TValue,
@@ -618,7 +620,7 @@ unsafe extern "C" fn LEnum(mut l: *const TValue, mut r: *const TValue) -> libc::
 }
 
 unsafe fn lessthanothers(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut l: *const TValue,
     mut r: *const TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -635,7 +637,7 @@ unsafe fn lessthanothers(
 }
 
 pub unsafe fn luaV_lessthan(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut l: *const TValue,
     mut r: *const TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -649,7 +651,7 @@ pub unsafe fn luaV_lessthan(
 }
 
 unsafe fn lessequalothers(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut l: *const TValue,
     mut r: *const TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -666,7 +668,7 @@ unsafe fn lessequalothers(
 }
 
 pub unsafe fn luaV_lessequal(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut l: *const TValue,
     mut r: *const TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -680,7 +682,7 @@ pub unsafe fn luaV_lessequal(
 }
 
 pub unsafe fn luaV_equalobj(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut t1: *const TValue,
     mut t2: *const TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -833,7 +835,7 @@ unsafe extern "C" fn copy2buff(mut top: StkId, mut n: libc::c_int, mut buff: *mu
 }
 
 pub unsafe fn luaV_concat(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut total: c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if total == 1 {
@@ -1004,7 +1006,7 @@ pub unsafe fn luaV_concat(
 }
 
 pub unsafe fn luaV_objlen(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut ra: StkId,
     mut rb: *const TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -1059,7 +1061,7 @@ pub unsafe fn luaV_objlen(
 }
 
 pub unsafe fn luaV_idiv(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut m: i64,
     mut n: i64,
 ) -> Result<i64, Box<dyn std::error::Error>> {
@@ -1082,7 +1084,7 @@ pub unsafe fn luaV_idiv(
 }
 
 pub unsafe fn luaV_mod(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut m: i64,
     mut n: i64,
 ) -> Result<i64, Box<dyn std::error::Error>> {
@@ -1104,7 +1106,7 @@ pub unsafe fn luaV_mod(
     };
 }
 
-pub unsafe extern "C" fn luaV_modf(mut L: *mut Thread, mut m: f64, mut n: f64) -> f64 {
+pub unsafe fn luaV_modf(mut m: f64, mut n: f64) -> f64 {
     let mut r: f64 = 0.;
     r = fmod(m, n);
     if if r > 0 as libc::c_int as f64 {
@@ -1118,8 +1120,7 @@ pub unsafe extern "C" fn luaV_modf(mut L: *mut Thread, mut m: f64, mut n: f64) -
     return r;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaV_shiftl(mut x: i64, mut y: i64) -> i64 {
+pub unsafe fn luaV_shiftl(mut x: i64, mut y: i64) -> i64 {
     if y < 0 as libc::c_int as i64 {
         if y <= -((::core::mem::size_of::<i64>() as libc::c_ulong)
             .wrapping_mul(8 as libc::c_int as libc::c_ulong) as libc::c_int) as i64
@@ -1139,7 +1140,7 @@ pub unsafe extern "C" fn luaV_shiftl(mut x: i64, mut y: i64) -> i64 {
 }
 
 unsafe fn pushclosure(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut p: *mut Proto,
     mut encup: &[Cell<*mut UpVal>],
     mut base: StkId,
@@ -1180,7 +1181,7 @@ unsafe fn pushclosure(
 }
 
 pub unsafe fn luaV_execute(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut ci: *mut CallInfo,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: u32 = 0;
@@ -2632,7 +2633,7 @@ pub unsafe fn luaV_execute(
                             {
                                 pc = pc.offset(1);
                                 let mut io_13: *mut TValue = &mut (*ra_23).val;
-                                (*io_13).value_.n = luaV_modf(L, n1_2, n2_2);
+                                (*io_13).value_.n = luaV_modf(n1_2, n2_2);
                                 (*io_13).tt_ = (3 as libc::c_int
                                     | (1 as libc::c_int) << 4 as libc::c_int)
                                     as u8;
@@ -3442,7 +3443,7 @@ pub unsafe fn luaV_execute(
                             {
                                 pc = pc.offset(1);
                                 let mut io_30: *mut TValue = &mut (*ra_35).val;
-                                (*io_30).value_.n = luaV_modf(L, n1_9, n2_9);
+                                (*io_30).value_.n = luaV_modf(n1_9, n2_9);
                                 (*io_30).tt_ = (3 as libc::c_int
                                     | (1 as libc::c_int) << 4 as libc::c_int)
                                     as u8;

@@ -11,8 +11,8 @@ use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall, luaD_protectedparser};
 use crate::ldump::luaU_dump;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::{
-    CClosure, LuaClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata, UpVal,
-    Value, luaO_arith, luaO_str2num, luaO_tostring,
+    CClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata, UpVal, Value,
+    luaO_arith, luaO_str2num, luaO_tostring,
 };
 use crate::lstate::{CallInfo, lua_CFunction, lua_Writer};
 use crate::lstring::{luaS_new, luaS_newlstr, luaS_newudata};
@@ -26,7 +26,7 @@ use crate::lvm::{
     luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
 };
 use crate::lzio::Zio;
-use crate::{Object, Thread, api_incr_top};
+use crate::{LuaClosure, Object, Thread, api_incr_top};
 use std::ffi::{c_int, c_void};
 use std::mem::offset_of;
 use std::ptr::null_mut;
@@ -38,7 +38,7 @@ pub struct CallS {
     pub nresults: libc::c_int,
 }
 
-unsafe fn index2value(L: *mut Thread, mut idx: libc::c_int) -> *mut TValue {
+unsafe fn index2value(L: *const Thread, mut idx: libc::c_int) -> *mut TValue {
     let ci: *mut CallInfo = (*L).ci.get();
     if idx > 0 as libc::c_int {
         let o: StkId = ((*ci).func).offset(idx as isize);
@@ -72,7 +72,7 @@ unsafe fn index2value(L: *mut Thread, mut idx: libc::c_int) -> *mut TValue {
     };
 }
 
-unsafe fn index2stack(L: *mut Thread, idx: libc::c_int) -> StkId {
+unsafe fn index2stack(L: *const Thread, idx: libc::c_int) -> StkId {
     let ci: *mut CallInfo = (*L).ci.get();
     if idx > 0 as libc::c_int {
         let o: StkId = ((*ci).func).offset(idx as isize);
@@ -82,7 +82,7 @@ unsafe fn index2stack(L: *mut Thread, idx: libc::c_int) -> StkId {
     };
 }
 
-pub unsafe fn lua_checkstack(L: *mut Thread, n: usize) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn lua_checkstack(L: *const Thread, n: usize) -> Result<(), Box<dyn std::error::Error>> {
     let ci = (*L).ci.get();
 
     if ((*L).stack_last.get()).offset_from_unsigned((*L).top.get()) > n {
@@ -115,7 +115,7 @@ pub unsafe fn lua_xmove(from: *mut Thread, to: *mut Thread, n: libc::c_int) {
     }
 }
 
-pub unsafe fn lua_absindex(L: *mut Thread, idx: libc::c_int) -> libc::c_int {
+pub unsafe fn lua_absindex(L: *const Thread, idx: libc::c_int) -> libc::c_int {
     return if idx > 0 as libc::c_int || idx <= -(1000000 as libc::c_int) - 1000 as libc::c_int {
         idx
     } else {
@@ -123,13 +123,13 @@ pub unsafe fn lua_absindex(L: *mut Thread, idx: libc::c_int) -> libc::c_int {
     };
 }
 
-pub unsafe fn lua_gettop(L: *mut Thread) -> libc::c_int {
+pub unsafe fn lua_gettop(L: *const Thread) -> libc::c_int {
     return ((*L).top.get()).offset_from(((*(*L).ci.get()).func).offset(1 as libc::c_int as isize))
         as libc::c_long as libc::c_int;
 }
 
 pub unsafe fn lua_settop(
-    L: *mut Thread,
+    L: *const Thread,
     idx: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
@@ -200,7 +200,7 @@ unsafe fn reverse(mut from: StkId, mut to: StkId) {
     }
 }
 
-pub unsafe fn lua_rotate(L: *mut Thread, idx: libc::c_int, n: libc::c_int) {
+pub unsafe fn lua_rotate(L: *const Thread, idx: libc::c_int, n: libc::c_int) {
     let mut p: StkId = 0 as *mut StackValue;
     let mut t: StkId = 0 as *mut StackValue;
     let mut m: StkId = 0 as *mut StackValue;
@@ -216,7 +216,7 @@ pub unsafe fn lua_rotate(L: *mut Thread, idx: libc::c_int, n: libc::c_int) {
     reverse(p, t);
 }
 
-pub unsafe fn lua_copy(L: *mut Thread, fromidx: libc::c_int, toidx: libc::c_int) {
+pub unsafe fn lua_copy(L: *const Thread, fromidx: libc::c_int, toidx: libc::c_int) {
     let mut fr: *mut TValue = 0 as *mut TValue;
     let mut to: *mut TValue = 0 as *mut TValue;
     fr = index2value(L, fromidx);
@@ -251,7 +251,7 @@ pub unsafe fn lua_copy(L: *mut Thread, fromidx: libc::c_int, toidx: libc::c_int)
     }
 }
 
-pub unsafe fn lua_pushvalue(L: *mut Thread, idx: libc::c_int) {
+pub unsafe fn lua_pushvalue(L: *const Thread, idx: libc::c_int) {
     let io1: *mut TValue = &raw mut (*(*L).top.get()).val;
     let io2: *const TValue = index2value(L, idx);
     (*io1).value_ = (*io2).value_;
@@ -259,7 +259,7 @@ pub unsafe fn lua_pushvalue(L: *mut Thread, idx: libc::c_int) {
     api_incr_top(L);
 }
 
-pub unsafe fn lua_type(L: *mut Thread, idx: libc::c_int) -> libc::c_int {
+pub unsafe fn lua_type(L: *const Thread, idx: libc::c_int) -> libc::c_int {
     let o: *const TValue = index2value(L, idx);
     return if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int)
         || o != (*(*L).global).nilvalue.get() as *mut TValue as *const TValue
@@ -284,13 +284,13 @@ pub unsafe fn lua_iscfunction(L: *mut Thread, idx: libc::c_int) -> libc::c_int {
                 | (1 as libc::c_int) << 6 as libc::c_int) as libc::c_int;
 }
 
-pub unsafe fn lua_isinteger(L: *mut Thread, idx: libc::c_int) -> libc::c_int {
+pub unsafe fn lua_isinteger(L: *const Thread, idx: libc::c_int) -> libc::c_int {
     let o: *const TValue = index2value(L, idx);
     return ((*o).tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int)
         as libc::c_int;
 }
 
-pub unsafe fn lua_isnumber(L: *mut Thread, idx: libc::c_int) -> libc::c_int {
+pub unsafe fn lua_isnumber(L: *const Thread, idx: libc::c_int) -> libc::c_int {
     let mut n: f64 = 0.;
     let o: *const TValue = index2value(L, idx);
     return if (*o).tt_ as libc::c_int == 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int {
@@ -301,7 +301,7 @@ pub unsafe fn lua_isnumber(L: *mut Thread, idx: libc::c_int) -> libc::c_int {
     };
 }
 
-pub unsafe fn lua_isstring(L: *mut Thread, idx: libc::c_int) -> libc::c_int {
+pub unsafe fn lua_isstring(L: *const Thread, idx: libc::c_int) -> libc::c_int {
     let o: *const TValue = index2value(L, idx);
     return ((*o).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
         || (*o).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int)
@@ -319,7 +319,7 @@ pub unsafe fn lua_isuserdata(L: *mut Thread, idx: libc::c_int) -> libc::c_int {
 }
 
 pub unsafe fn lua_rawequal(
-    L: *mut Thread,
+    L: *const Thread,
     index1: libc::c_int,
     index2: libc::c_int,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -336,7 +336,10 @@ pub unsafe fn lua_rawequal(
     };
 }
 
-pub unsafe fn lua_arith(L: *mut Thread, op: libc::c_int) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn lua_arith(
+    L: *const Thread,
+    op: libc::c_int,
+) -> Result<(), Box<dyn std::error::Error>> {
     if !(op != 12 as libc::c_int && op != 13 as libc::c_int) {
         let io1: *mut TValue = &raw mut (*(*L).top.get()).val;
         let io2: *const TValue =
@@ -358,7 +361,7 @@ pub unsafe fn lua_arith(L: *mut Thread, op: libc::c_int) -> Result<(), Box<dyn s
 }
 
 pub unsafe fn lua_compare(
-    L: *mut Thread,
+    L: *const Thread,
     index1: libc::c_int,
     index2: libc::c_int,
     op: libc::c_int,
@@ -389,7 +392,7 @@ pub unsafe fn lua_compare(
     return Ok(i);
 }
 
-pub unsafe fn lua_stringtonumber(L: *mut Thread, s: *const libc::c_char) -> usize {
+pub unsafe fn lua_stringtonumber(L: *const Thread, s: *const libc::c_char) -> usize {
     let sz: usize = luaO_str2num(s, &raw mut (*(*L).top.get()).val);
     if sz != 0 as libc::c_int as usize {
         api_incr_top(L);
@@ -397,7 +400,7 @@ pub unsafe fn lua_stringtonumber(L: *mut Thread, s: *const libc::c_char) -> usiz
     return sz;
 }
 
-pub unsafe fn lua_tonumberx(L: *mut Thread, idx: libc::c_int, pisnum: *mut libc::c_int) -> f64 {
+pub unsafe fn lua_tonumberx(L: *const Thread, idx: libc::c_int, pisnum: *mut libc::c_int) -> f64 {
     let mut n: f64 = 0 as libc::c_int as f64;
     let o: *const TValue = index2value(L, idx);
     let isnum: libc::c_int =
@@ -413,7 +416,7 @@ pub unsafe fn lua_tonumberx(L: *mut Thread, idx: libc::c_int, pisnum: *mut libc:
     return n;
 }
 
-pub unsafe fn lua_tointegerx(L: *mut Thread, idx: libc::c_int, pisnum: *mut libc::c_int) -> i64 {
+pub unsafe fn lua_tointegerx(L: *const Thread, idx: libc::c_int, pisnum: *mut libc::c_int) -> i64 {
     let mut res: i64 = 0 as libc::c_int as i64;
     let o: *const TValue = index2value(L, idx);
     let isnum: libc::c_int = if (((*o).tt_ as libc::c_int
@@ -433,7 +436,7 @@ pub unsafe fn lua_tointegerx(L: *mut Thread, idx: libc::c_int, pisnum: *mut libc
     return res;
 }
 
-pub unsafe fn lua_toboolean(L: *mut Thread, idx: libc::c_int) -> libc::c_int {
+pub unsafe fn lua_toboolean(L: *const Thread, idx: libc::c_int) -> libc::c_int {
     let o: *const TValue = index2value(L, idx);
     return !((*o).tt_ as libc::c_int == 1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
         || (*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int)
@@ -441,7 +444,7 @@ pub unsafe fn lua_toboolean(L: *mut Thread, idx: libc::c_int) -> libc::c_int {
 }
 
 pub unsafe fn lua_tolstring(
-    L: *mut Thread,
+    L: *const Thread,
     idx: libc::c_int,
     len: *mut usize,
 ) -> Result<*const libc::c_char, Box<dyn std::error::Error>> {
@@ -470,7 +473,7 @@ pub unsafe fn lua_tolstring(
     return Ok(((*((*o).value_.gc as *mut TString)).contents).as_mut_ptr());
 }
 
-pub unsafe fn lua_rawlen(L: *mut Thread, idx: libc::c_int) -> u64 {
+pub unsafe fn lua_rawlen(L: *const Thread, idx: libc::c_int) -> u64 {
     let o: *const TValue = index2value(L, idx);
     match (*o).tt_ as libc::c_int & 0x3f as libc::c_int {
         4 => return (*((*o).value_.gc as *mut TString)).shrlen.get() as u64,
@@ -511,7 +514,7 @@ unsafe fn touserdata(o: *const TValue) -> *mut libc::c_void {
     }
 }
 
-pub unsafe fn lua_touserdata(L: *mut Thread, idx: libc::c_int) -> *mut libc::c_void {
+pub unsafe fn lua_touserdata(L: *const Thread, idx: libc::c_int) -> *mut libc::c_void {
     let o: *const TValue = index2value(L, idx);
     return touserdata(o);
 }
@@ -529,7 +532,7 @@ pub unsafe fn lua_tothread(L: *mut Thread, idx: libc::c_int) -> *mut Thread {
     };
 }
 
-pub unsafe fn lua_topointer(L: *mut Thread, idx: libc::c_int) -> *const libc::c_void {
+pub unsafe fn lua_topointer(L: *const Thread, idx: libc::c_int) -> *const libc::c_void {
     let o: *const TValue = index2value(L, idx);
     match (*o).tt_ as libc::c_int & 0x3f as libc::c_int {
         22 => {
@@ -547,19 +550,19 @@ pub unsafe fn lua_topointer(L: *mut Thread, idx: libc::c_int) -> *const libc::c_
     };
 }
 
-pub unsafe fn lua_pushnil(L: *mut Thread) {
+pub unsafe fn lua_pushnil(L: *const Thread) {
     (*(*L).top.get()).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     api_incr_top(L);
 }
 
-pub unsafe fn lua_pushnumber(L: *mut Thread, n: f64) {
+pub unsafe fn lua_pushnumber(L: *const Thread, n: f64) {
     let io: *mut TValue = &raw mut (*(*L).top.get()).val;
     (*io).value_.n = n;
     (*io).tt_ = (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
     api_incr_top(L);
 }
 
-pub unsafe fn lua_pushinteger(L: *mut Thread, n: i64) {
+pub unsafe fn lua_pushinteger(L: *const Thread, n: i64) {
     let io: *mut TValue = &raw mut (*(*L).top.get()).val;
     (*io).value_.i = n;
     (*io).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -567,7 +570,7 @@ pub unsafe fn lua_pushinteger(L: *mut Thread, n: i64) {
 }
 
 pub unsafe fn lua_pushlstring(
-    L: *mut Thread,
+    L: *const Thread,
     s: impl AsRef<[u8]>,
 ) -> Result<*const libc::c_char, Box<dyn std::error::Error>> {
     let s = s.as_ref();
@@ -589,7 +592,7 @@ pub unsafe fn lua_pushlstring(
 }
 
 pub unsafe fn lua_pushstring(
-    L: *mut Thread,
+    L: *const Thread,
     mut s: *const libc::c_char,
 ) -> Result<*const libc::c_char, Box<dyn std::error::Error>> {
     if s.is_null() {
@@ -611,7 +614,7 @@ pub unsafe fn lua_pushstring(
     return Ok(s);
 }
 
-pub unsafe fn lua_pushcclosure(L: *mut Thread, fn_0: lua_CFunction, mut n: libc::c_int) {
+pub unsafe fn lua_pushcclosure(L: *const Thread, fn_0: lua_CFunction, mut n: libc::c_int) {
     if n == 0 as libc::c_int {
         let io: *mut TValue = &raw mut (*(*L).top.get()).val;
         (*io).value_.f = fn_0;
@@ -647,7 +650,7 @@ pub unsafe fn lua_pushcclosure(L: *mut Thread, fn_0: lua_CFunction, mut n: libc:
     };
 }
 
-pub unsafe fn lua_pushboolean(L: *mut Thread, b: libc::c_int) {
+pub unsafe fn lua_pushboolean(L: *const Thread, b: libc::c_int) {
     if b != 0 {
         (*(*L).top.get()).val.tt_ =
             (1 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -669,7 +672,7 @@ pub unsafe fn lua_pushthread(L: *mut Thread) {
 }
 
 unsafe fn auxgetstr(
-    L: *mut Thread,
+    L: *const Thread,
     t: *const TValue,
     k: &[u8],
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -724,7 +727,7 @@ pub unsafe fn lua_getglobal(
 }
 
 pub unsafe fn lua_gettable(
-    L: *mut Thread,
+    L: *const Thread,
     idx: libc::c_int,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut slot: *const TValue = 0 as *const TValue;
@@ -766,7 +769,7 @@ pub unsafe fn lua_gettable(
 }
 
 pub unsafe fn lua_getfield(
-    L: *mut Thread,
+    L: *const Thread,
     idx: libc::c_int,
     k: impl AsRef<[u8]>,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -774,7 +777,7 @@ pub unsafe fn lua_getfield(
 }
 
 pub unsafe fn lua_geti(
-    L: *mut Thread,
+    L: *const Thread,
     idx: libc::c_int,
     n: i64,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -825,7 +828,7 @@ pub unsafe fn lua_geti(
         & 0xf as libc::c_int);
 }
 
-unsafe fn finishrawget(L: *mut Thread, val: *const TValue) -> libc::c_int {
+unsafe fn finishrawget(L: *const Thread, val: *const TValue) -> libc::c_int {
     if (*val).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         (*(*L).top.get()).val.tt_ =
             (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -842,12 +845,12 @@ unsafe fn finishrawget(L: *mut Thread, val: *const TValue) -> libc::c_int {
         & 0xf as libc::c_int;
 }
 
-unsafe fn gettable(L: *mut Thread, idx: libc::c_int) -> *mut Table {
+unsafe fn gettable(L: *const Thread, idx: libc::c_int) -> *mut Table {
     let t: *mut TValue = index2value(L, idx);
     return (*t).value_.gc as *mut Table;
 }
 
-pub unsafe fn lua_rawget(L: *mut Thread, idx: libc::c_int) -> libc::c_int {
+pub unsafe fn lua_rawget(L: *const Thread, idx: libc::c_int) -> libc::c_int {
     let mut t: *mut Table = 0 as *mut Table;
     let mut val: *const TValue = 0 as *const TValue;
     t = gettable(L, idx);
@@ -860,14 +863,14 @@ pub unsafe fn lua_rawget(L: *mut Thread, idx: libc::c_int) -> libc::c_int {
     return finishrawget(L, val);
 }
 
-pub unsafe fn lua_rawgeti(L: *mut Thread, idx: libc::c_int, n: i64) -> libc::c_int {
+pub unsafe fn lua_rawgeti(L: *const Thread, idx: libc::c_int, n: i64) -> libc::c_int {
     let mut t: *mut Table = 0 as *mut Table;
     t = gettable(L, idx);
     return finishrawget(L, luaH_getint(t, n));
 }
 
 pub unsafe fn lua_createtable(
-    L: *mut Thread,
+    L: *const Thread,
     narray: libc::c_int,
     nrec: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -889,7 +892,7 @@ pub unsafe fn lua_createtable(
     Ok(())
 }
 
-pub unsafe fn lua_getmetatable(L: *mut Thread, objindex: libc::c_int) -> libc::c_int {
+pub unsafe fn lua_getmetatable(L: *const Thread, objindex: libc::c_int) -> libc::c_int {
     let mut obj: *const TValue = 0 as *const TValue;
     let mut mt: *mut Table = 0 as *mut Table;
     let mut res: libc::c_int = 0 as libc::c_int;
@@ -941,7 +944,7 @@ pub unsafe fn lua_getiuservalue(L: *mut Thread, idx: libc::c_int, n: libc::c_int
 }
 
 unsafe fn auxsetstr(
-    L: *mut Thread,
+    L: *const Thread,
     t: *const TValue,
     k: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -1009,7 +1012,7 @@ unsafe fn auxsetstr(
 }
 
 pub unsafe fn lua_setglobal(
-    L: *mut Thread,
+    L: *const Thread,
     name: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut G: *const TValue = 0 as *const TValue;
@@ -1083,7 +1086,7 @@ pub unsafe fn lua_settable(
 }
 
 pub unsafe fn lua_setfield(
-    L: *mut Thread,
+    L: *const Thread,
     idx: libc::c_int,
     k: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -1091,7 +1094,7 @@ pub unsafe fn lua_setfield(
 }
 
 pub unsafe fn lua_seti(
-    L: *mut Thread,
+    L: *const Thread,
     idx: libc::c_int,
     n: i64,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -1172,7 +1175,7 @@ pub unsafe fn lua_seti(
 }
 
 unsafe fn aux_rawset(
-    L: *mut Thread,
+    L: *const Thread,
     idx: libc::c_int,
     key: *mut TValue,
     n: libc::c_int,
@@ -1215,7 +1218,7 @@ unsafe fn aux_rawset(
 }
 
 pub unsafe fn lua_rawset(
-    L: *mut Thread,
+    L: *const Thread,
     idx: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     aux_rawset(
@@ -1267,7 +1270,7 @@ pub unsafe fn lua_rawseti(
 }
 
 pub unsafe fn lua_setmetatable(
-    L: *mut Thread,
+    L: *const Thread,
     objindex: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let obj = index2value(L, objindex);
@@ -1384,7 +1387,7 @@ pub unsafe fn lua_setiuservalue(L: *mut Thread, idx: libc::c_int, n: libc::c_int
 }
 
 pub unsafe fn lua_call(
-    L: *mut Thread,
+    L: *const Thread,
     nargs: libc::c_int,
     nresults: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -1400,7 +1403,7 @@ pub unsafe fn lua_call(
 }
 
 pub unsafe fn lua_pcall(
-    L: *mut Thread,
+    L: *const Thread,
     nargs: libc::c_int,
     nresults: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -1420,7 +1423,7 @@ pub unsafe fn lua_pcall(
 }
 
 pub unsafe fn lua_load(
-    L: *mut Thread,
+    L: *const Thread,
     mut name: *const libc::c_char,
     mode: *const libc::c_char,
     chunk: impl AsRef<[u8]>,
@@ -1466,7 +1469,7 @@ pub unsafe fn lua_load(
 }
 
 pub unsafe fn lua_dump(
-    L: *mut Thread,
+    L: *const Thread,
     writer: lua_Writer,
     data: *mut c_void,
     strip: c_int,
@@ -1491,7 +1494,7 @@ pub unsafe fn lua_dump(
 }
 
 pub unsafe fn lua_next(
-    L: *mut Thread,
+    L: *const Thread,
     idx: libc::c_int,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut t: *mut Table = 0 as *mut Table;
@@ -1521,7 +1524,7 @@ pub unsafe fn lua_toclose(
     Ok(())
 }
 
-pub unsafe fn lua_concat(L: *mut Thread, n: c_int) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn lua_concat(L: *const Thread, n: c_int) -> Result<(), Box<dyn std::error::Error>> {
     if n > 0 as libc::c_int {
         luaV_concat(L, n)?;
     } else {
@@ -1541,7 +1544,7 @@ pub unsafe fn lua_concat(L: *mut Thread, n: c_int) -> Result<(), Box<dyn std::er
     Ok(())
 }
 
-pub unsafe fn lua_len(L: *mut Thread, idx: c_int) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn lua_len(L: *const Thread, idx: c_int) -> Result<(), Box<dyn std::error::Error>> {
     let mut t: *mut TValue = 0 as *mut TValue;
     t = index2value(L, idx);
     luaV_objlen(L, (*L).top.get(), t)?;
@@ -1550,7 +1553,7 @@ pub unsafe fn lua_len(L: *mut Thread, idx: c_int) -> Result<(), Box<dyn std::err
 }
 
 pub unsafe fn lua_newuserdatauv(
-    L: *mut Thread,
+    L: *const Thread,
     size: usize,
     nuvalue: libc::c_int,
 ) -> Result<*mut c_void, Box<dyn std::error::Error>> {
@@ -1647,7 +1650,7 @@ pub unsafe fn lua_getupvalue(
 }
 
 pub unsafe fn lua_setupvalue(
-    L: *mut Thread,
+    L: *const Thread,
     funcindex: libc::c_int,
     n: libc::c_int,
 ) -> *const libc::c_char {

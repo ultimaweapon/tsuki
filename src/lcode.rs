@@ -742,7 +742,7 @@ unsafe fn addk(
         },
         tt_: 0,
     };
-    let mut L: *mut Thread = (*(*fs).ls).L;
+    let mut L = (*(*fs).ls).L;
     let mut f: *mut Proto = (*fs).f;
     let mut idx: *const TValue = luaH_get((*(*fs).ls).h, key);
     let mut k: libc::c_int = 0;

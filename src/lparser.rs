@@ -31,9 +31,7 @@ use crate::llex::{
     luaX_lookahead, luaX_newstring, luaX_next, luaX_setinput, luaX_syntaxerror, luaX_token2str,
 };
 use crate::lmem::{luaM_growaux_, luaM_shrinkvector_};
-use crate::lobject::{
-    AbsLineInfo, LocVar, LuaClosure, Proto, TString, TValue, Table, Upvaldesc, Value,
-};
+use crate::lobject::{AbsLineInfo, LocVar, Proto, TString, TValue, Table, Upvaldesc, Value};
 use crate::lopcodes::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_FORLOOP, OP_FORPREP, OP_GETUPVAL, OP_MOVE, OP_NEWTABLE,
     OP_TAILCALL, OP_TBC, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_VARARG, OP_VARARGPREP, OpCode,
@@ -41,7 +39,7 @@ use crate::lopcodes::{
 use crate::lstring::{luaS_new, luaS_newlstr};
 use crate::ltable::luaH_new;
 use crate::lzio::{Mbuffer, ZIO};
-use crate::{Object, Thread};
+use crate::{LuaClosure, Object, Thread};
 use libc::strcmp;
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
@@ -226,7 +224,7 @@ unsafe fn errorlimit(
     limit: libc::c_int,
     what: impl Display,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut L: *mut Thread = (*(*fs).ls).L;
+    let mut L = (*(*fs).ls).L;
     let mut line: libc::c_int = (*(*fs).f).linedefined;
     let where_0: Cow<'static, str> = if line == 0 as libc::c_int {
         "main function".into()
@@ -388,7 +386,7 @@ unsafe fn new_localvar(
     mut ls: *mut LexState,
     mut name: *mut TString,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut L: *mut Thread = (*ls).L;
+    let mut L = (*ls).L;
     let mut fs: *mut FuncState = (*ls).fs;
     let mut dyd: *mut Dyndata = (*ls).dyd;
     let mut var: *mut Vardesc = 0 as *mut Vardesc;
@@ -1003,7 +1001,7 @@ unsafe fn leaveblock(mut fs: *mut FuncState) -> Result<(), Box<dyn std::error::E
 
 unsafe fn addprototype(mut ls: *mut LexState) -> Result<*mut Proto, Box<dyn std::error::Error>> {
     let mut clp: *mut Proto = 0 as *mut Proto;
-    let mut L: *mut Thread = (*ls).L;
+    let mut L = (*ls).L;
     let mut fs: *mut FuncState = (*ls).fs;
     let mut f: *mut Proto = (*fs).f;
     if (*fs).np >= (*f).sizep {
@@ -1105,7 +1103,7 @@ unsafe extern "C" fn open_func(
 }
 
 unsafe fn close_func(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
-    let mut L: *mut Thread = (*ls).L;
+    let mut L = (*ls).L;
     let mut fs: *mut FuncState = (*ls).fs;
     let mut f: *mut Proto = (*fs).f;
     luaK_ret(fs, luaY_nvarstack(fs), 0 as libc::c_int)?;
@@ -2881,7 +2879,7 @@ unsafe fn mainfunc(
 }
 
 pub unsafe fn luaY_parser(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut z: *mut ZIO,
     mut buff: *mut Mbuffer,
     mut dyd: *mut Dyndata,

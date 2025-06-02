@@ -18,7 +18,7 @@ use std::ptr::null_mut;
 
 #[repr(C)]
 struct DumpState {
-    L: *mut Thread,
+    L: *const Thread,
     writer: lua_Writer,
     data: *mut c_void,
     strip: c_int,
@@ -324,7 +324,7 @@ unsafe fn dumpHeader(mut D: *mut DumpState) -> Result<(), Box<dyn std::error::Er
 }
 
 pub unsafe fn luaU_dump(
-    L: *mut Thread,
+    L: *const Thread,
     f: *const Proto,
     writer: lua_Writer,
     data: *mut c_void,

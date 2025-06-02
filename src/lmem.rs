@@ -13,7 +13,7 @@ use std::ffi::{CStr, c_void};
 use std::ptr::null_mut;
 
 pub unsafe fn luaM_growaux_(
-    L: *mut Thread,
+    L: *const Thread,
     block: *mut libc::c_void,
     nelems: libc::c_int,
     psize: *mut libc::c_int,
@@ -56,7 +56,7 @@ pub unsafe fn luaM_growaux_(
 }
 
 pub unsafe fn luaM_shrinkvector_(
-    L: *mut Thread,
+    L: *const Thread,
     block: *mut libc::c_void,
     size: *mut libc::c_int,
     final_n: libc::c_int,
@@ -79,7 +79,7 @@ pub unsafe fn luaM_free_(g: *const Lua, block: *mut libc::c_void, osize: usize) 
 }
 
 pub unsafe fn luaM_realloc_(
-    L: *mut Thread,
+    L: *const Thread,
     block: *mut libc::c_void,
     osize: usize,
     nsize: usize,
@@ -106,7 +106,7 @@ pub unsafe fn luaM_realloc_(
 }
 
 pub unsafe fn luaM_saferealloc_(
-    L: *mut Thread,
+    L: *const Thread,
     block: *mut libc::c_void,
     osize: usize,
     nsize: usize,

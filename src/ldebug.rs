@@ -11,9 +11,7 @@
 
 use crate::ldo::{luaD_hook, luaD_hookcall};
 use crate::lfunc::luaF_getlocalname;
-use crate::lobject::{
-    CClosure, LuaClosure, Proto, StkId, TString, TValue, Table, Value, luaO_chunkid,
-};
+use crate::lobject::{CClosure, Proto, StkId, TString, TValue, Table, Value, luaO_chunkid};
 use crate::lopcodes::{OpCode, luaP_opmodes};
 use crate::lstate::{CallInfo, lua_Debug, lua_Hook};
 use crate::ltable::{luaH_new, luaH_setint};
@@ -22,7 +20,7 @@ use crate::ltm::{
     luaT_objtypename,
 };
 use crate::lvm::{F2Ieq, luaV_tointegerns};
-use crate::{Object, Thread, api_incr_top};
+use crate::{LuaClosure, Object, Thread, api_incr_top};
 use libc::{strchr, strcmp};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
@@ -129,7 +127,7 @@ pub unsafe fn lua_gethookcount(mut L: *mut Thread) -> libc::c_int {
 }
 
 pub unsafe fn lua_getstack(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut level: libc::c_int,
     mut ar: *mut lua_Debug,
 ) -> libc::c_int {
@@ -183,7 +181,7 @@ unsafe fn findvararg(
 }
 
 pub unsafe fn luaG_findlocal(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut ci: *mut CallInfo,
     mut n: libc::c_int,
     mut pos: *mut StkId,
@@ -335,7 +333,7 @@ unsafe extern "C" fn nextline(
 }
 
 unsafe fn collectvalidlines(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut f: *const Object,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !(!f.is_null()
@@ -380,8 +378,8 @@ unsafe fn collectvalidlines(
     Ok(())
 }
 
-unsafe extern "C" fn getfuncname(
-    mut L: *mut Thread,
+unsafe fn getfuncname(
+    mut L: *const Thread,
     mut ci: *mut CallInfo,
     mut name: *mut *const libc::c_char,
 ) -> *const libc::c_char {
@@ -395,7 +393,7 @@ unsafe extern "C" fn getfuncname(
 }
 
 unsafe fn auxgetinfo(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut what: *const libc::c_char,
     mut ar: *mut lua_Debug,
     mut f: *const Object,
@@ -469,7 +467,7 @@ unsafe fn auxgetinfo(
 }
 
 pub unsafe fn lua_getinfo(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut what: *const libc::c_char,
     mut ar: *mut lua_Debug,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -809,8 +807,9 @@ unsafe extern "C" fn getobjname(
     }
     return 0 as *const libc::c_char;
 }
-unsafe extern "C" fn funcnamefromcode(
-    mut L: *mut Thread,
+
+unsafe fn funcnamefromcode(
+    mut L: *const Thread,
     mut p: *const Proto,
     mut pc: libc::c_int,
     mut name: *mut *const libc::c_char,
@@ -886,7 +885,7 @@ unsafe extern "C" fn funcnamefromcode(
 }
 
 unsafe fn funcnamefromcall(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut ci: *mut CallInfo,
     mut name: *mut *const libc::c_char,
 ) -> *const libc::c_char {
@@ -954,7 +953,7 @@ unsafe fn formatvarinfo(
     }
 }
 
-unsafe fn varinfo(mut L: *mut Thread, mut o: *const TValue) -> Cow<'static, str> {
+unsafe fn varinfo(mut L: *const Thread, mut o: *const TValue) -> Cow<'static, str> {
     let mut ci: *mut CallInfo = (*L).ci.get();
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
     let mut kind: *const libc::c_char = 0 as *const libc::c_char;
@@ -977,7 +976,7 @@ unsafe fn varinfo(mut L: *mut Thread, mut o: *const TValue) -> Cow<'static, str>
 }
 
 unsafe fn typeerror(
-    L: *mut Thread,
+    L: *const Thread,
     o: *const TValue,
     op: impl Display,
     extra: impl Display,
@@ -988,7 +987,7 @@ unsafe fn typeerror(
 }
 
 pub unsafe fn luaG_typeerror(
-    L: *mut Thread,
+    L: *const Thread,
     o: *const TValue,
     op: impl Display,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -996,7 +995,7 @@ pub unsafe fn luaG_typeerror(
 }
 
 pub unsafe fn luaG_callerror(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut o: *const TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut ci: *mut CallInfo = (*L).ci.get();
@@ -1012,7 +1011,7 @@ pub unsafe fn luaG_callerror(
 }
 
 pub unsafe fn luaG_forerror(
-    L: *mut Thread,
+    L: *const Thread,
     o: *const TValue,
     what: impl Display,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -1027,7 +1026,7 @@ pub unsafe fn luaG_forerror(
 }
 
 pub unsafe fn luaG_concaterror(
-    L: *mut Thread,
+    L: *const Thread,
     mut p1: *const TValue,
     p2: *const TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -1041,7 +1040,7 @@ pub unsafe fn luaG_concaterror(
 }
 
 pub unsafe fn luaG_opinterror(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut p1: *const TValue,
     mut p2: *const TValue,
     msg: impl Display,
@@ -1054,7 +1053,7 @@ pub unsafe fn luaG_opinterror(
 }
 
 pub unsafe fn luaG_tointerror(
-    L: *mut Thread,
+    L: *const Thread,
     p1: *const TValue,
     mut p2: *const TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -1071,7 +1070,7 @@ pub unsafe fn luaG_tointerror(
 }
 
 pub unsafe fn luaG_ordererror(
-    L: *mut Thread,
+    L: *const Thread,
     p1: *const TValue,
     p2: *const TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -1155,7 +1154,7 @@ unsafe extern "C" fn changedline(
     return (luaG_getfuncline(p, oldpc) != luaG_getfuncline(p, newpc)) as libc::c_int;
 }
 
-pub unsafe fn luaG_tracecall(mut L: *mut Thread) -> Result<c_int, Box<dyn std::error::Error>> {
+pub unsafe fn luaG_tracecall(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut ci: *mut CallInfo = (*L).ci.get();
     let mut p: *mut Proto = (*(*(*ci).func).val.value_.gc.cast::<LuaClosure>()).p.get();
     ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 1 as libc::c_int);
@@ -1170,7 +1169,7 @@ pub unsafe fn luaG_tracecall(mut L: *mut Thread) -> Result<c_int, Box<dyn std::e
 }
 
 pub unsafe fn luaG_traceexec(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut pc: *const u32,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut ci: *mut CallInfo = (*L).ci.get();

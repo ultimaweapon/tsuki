@@ -14,17 +14,17 @@ use crate::gc::luaC_barrier_;
 use crate::ldo::luaD_inctop;
 use crate::lfunc::{luaF_newLclosure, luaF_newproto};
 use crate::lmem::{luaM_malloc_, luaM_toobig};
-use crate::lobject::{AbsLineInfo, LocVar, LuaClosure, Proto, TString, TValue, Upvaldesc};
+use crate::lobject::{AbsLineInfo, LocVar, Proto, TString, TValue, Upvaldesc};
 use crate::lstring::{luaS_createlngstrobj, luaS_newlstr};
 use crate::lzio::{ZIO, luaZ_read};
-use crate::{Object, Thread};
+use crate::{LuaClosure, Object, Thread};
 use libc::{memcmp, strlen};
 use std::ffi::CStr;
 use std::fmt::Display;
 
 #[repr(C)]
 struct LoadState {
-    pub L: *mut Thread,
+    pub L: *const Thread,
     pub Z: *mut ZIO,
     pub name: *const libc::c_char,
 }
@@ -116,7 +116,7 @@ unsafe fn loadStringN(
     mut S: *mut LoadState,
     mut p: *mut Proto,
 ) -> Result<*mut TString, Box<dyn std::error::Error>> {
-    let mut L: *mut Thread = (*S).L;
+    let mut L = (*S).L;
     let mut ts: *mut TString = 0 as *mut TString;
     let mut size: usize = loadSize(S)?;
     if size == 0 as libc::c_int as usize {
@@ -525,7 +525,7 @@ unsafe fn checkHeader(mut S: *mut LoadState) -> Result<(), Box<dyn std::error::E
 }
 
 pub unsafe fn luaU_undump(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut Z: *mut ZIO,
     mut name: *const libc::c_char,
 ) -> Result<*mut LuaClosure, Box<dyn std::error::Error>> {

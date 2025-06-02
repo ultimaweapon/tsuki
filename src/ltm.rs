@@ -116,7 +116,7 @@ pub unsafe extern "C" fn luaT_gettm(
 }
 
 pub unsafe fn luaT_gettmbyobj(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut o: *const TValue,
     mut event: TMS,
 ) -> *const TValue {
@@ -141,7 +141,7 @@ pub unsafe fn luaT_gettmbyobj(
 }
 
 pub unsafe fn luaT_objtypename(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut o: *const TValue,
 ) -> Result<Cow<'static, str>, Box<dyn std::error::Error>> {
     let mut mt: *mut Table = 0 as *mut Table;
@@ -182,7 +182,7 @@ pub unsafe fn luaT_objtypename(
 }
 
 pub unsafe fn luaT_callTM(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut f: *const TValue,
     mut p1: *const TValue,
     mut p2: *const TValue,
@@ -211,7 +211,7 @@ pub unsafe fn luaT_callTM(
 }
 
 pub unsafe fn luaT_callTMres(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut f: *const TValue,
     mut p1: *const TValue,
     mut p2: *const TValue,
@@ -247,7 +247,7 @@ pub unsafe fn luaT_callTMres(
 }
 
 unsafe fn callbinTM(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut p1: *const TValue,
     mut p2: *const TValue,
     mut res: StkId,
@@ -265,7 +265,7 @@ unsafe fn callbinTM(
 }
 
 pub unsafe fn luaT_trybinTM(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut p1: *const TValue,
     mut p2: *const TValue,
     mut res: StkId,
@@ -292,7 +292,7 @@ pub unsafe fn luaT_trybinTM(
     Ok(())
 }
 
-pub unsafe fn luaT_tryconcatTM(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaT_tryconcatTM(mut L: *const Thread) -> Result<(), Box<dyn std::error::Error>> {
     let mut top: StkId = (*L).top.get();
     if ((callbinTM(
         L,
@@ -315,7 +315,7 @@ pub unsafe fn luaT_tryconcatTM(mut L: *mut Thread) -> Result<(), Box<dyn std::er
 }
 
 pub unsafe fn luaT_trybinassocTM(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut p1: *const TValue,
     mut p2: *const TValue,
     mut flip: libc::c_int,
@@ -330,7 +330,7 @@ pub unsafe fn luaT_trybinassocTM(
 }
 
 pub unsafe fn luaT_trybiniTM(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut p1: *const TValue,
     mut i2: i64,
     mut flip: libc::c_int,
@@ -350,7 +350,7 @@ pub unsafe fn luaT_trybiniTM(
 }
 
 pub unsafe fn luaT_callorderTM(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut p1: *const TValue,
     mut p2: *const TValue,
     mut event: TMS,
@@ -366,7 +366,7 @@ pub unsafe fn luaT_callorderTM(
 }
 
 pub unsafe fn luaT_callorderiTM(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut p1: *const TValue,
     mut v2: libc::c_int,
     mut flip: libc::c_int,
@@ -399,7 +399,7 @@ pub unsafe fn luaT_callorderiTM(
 }
 
 pub unsafe fn luaT_adjustvarargs(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut nfixparams: libc::c_int,
     mut ci: *mut CallInfo,
     mut p: *const Proto,
@@ -444,7 +444,7 @@ pub unsafe fn luaT_adjustvarargs(
 }
 
 pub unsafe fn luaT_getvarargs(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut ci: *mut CallInfo,
     mut where_0: StkId,
     mut wanted: libc::c_int,

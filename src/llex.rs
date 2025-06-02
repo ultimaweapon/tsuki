@@ -89,7 +89,7 @@ pub struct LexState {
     pub t: Token,
     pub lookahead: Token,
     pub fs: *mut FuncState,
-    pub L: *mut Thread,
+    pub L: *const Thread,
     pub z: *mut ZIO,
     pub buff: *mut Mbuffer,
     pub h: *mut Table,
@@ -259,7 +259,7 @@ pub unsafe fn luaX_newstring(
     mut str: *const libc::c_char,
     mut l: usize,
 ) -> Result<*mut TString, Box<dyn std::error::Error>> {
-    let mut L: *mut Thread = (*ls).L;
+    let mut L = (*ls).L;
     let mut ts: *mut TString = luaS_newlstr(L, str, l)?;
     let mut o: *const TValue = luaH_getstr((*ls).h, ts);
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
@@ -311,7 +311,7 @@ unsafe fn inclinenumber(mut ls: *mut LexState) -> Result<(), Box<dyn std::error:
 }
 
 pub unsafe fn luaX_setinput(
-    mut L: *mut Thread,
+    mut L: *const Thread,
     mut ls: *mut LexState,
     mut z: *mut ZIO,
     mut source: *mut TString,
