@@ -1480,7 +1480,7 @@ pub unsafe fn lua_dump(
     {
         luaU_dump(
             L,
-            (*((*o).value_.gc as *mut LuaClosure)).p,
+            (*(*o).value_.gc.cast::<LuaClosure>()).p.get(),
             writer,
             data,
             strip,
@@ -1598,7 +1598,8 @@ unsafe fn aux_upvalue(
         6 => {
             let f_0: *mut LuaClosure = (*fi).value_.gc as *mut LuaClosure;
             let mut name: *mut TString = 0 as *mut TString;
-            let p: *mut Proto = (*f_0).p;
+            let p: *mut Proto = (*f_0).p.get();
+
             if !((n as libc::c_uint).wrapping_sub(1 as libc::c_uint)
                 < (*p).sizeupvalues as libc::c_uint)
             {
@@ -1693,7 +1694,7 @@ unsafe fn getupvalref(
         *pf = f;
     }
 
-    if 1 as libc::c_int <= n && n <= (*(*f).p).sizeupvalues {
+    if 1 as libc::c_int <= n && n <= (*(*f).p.get()).sizeupvalues {
         return (*f).upvals[(n - 1) as usize].as_ptr();
     } else {
         return &raw const nullup as *const *const UpVal as *mut *mut UpVal;

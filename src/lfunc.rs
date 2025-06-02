@@ -45,7 +45,7 @@ pub unsafe fn luaF_newLclosure(L: *const Thread, nupvals: libc::c_int) -> *mut L
         upvals.push(Cell::new(null_mut()));
     }
 
-    (*o).p = 0 as *mut Proto;
+    addr_of_mut!((*o).p).write(Cell::new(null_mut()));
     addr_of_mut!((*o).upvals).write(upvals.into_boxed_slice());
 
     o

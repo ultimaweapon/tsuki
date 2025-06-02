@@ -198,7 +198,7 @@ pub struct CClosure {
 #[repr(C)]
 pub struct LuaClosure {
     pub hdr: Object,
-    pub p: *mut Proto,
+    pub p: Cell<*mut Proto>,
     pub upvals: Box<[Cell<*mut UpVal>]>,
 }
 

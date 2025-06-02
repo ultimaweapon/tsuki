@@ -556,15 +556,18 @@ pub unsafe fn luaU_undump(
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     luaD_inctop(L)?;
-    (*cl).p = luaF_newproto(L);
+    (*cl).p.set(luaF_newproto(L));
+
     if (*cl).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-        && (*(*cl).p).hdr.marked.get() as libc::c_int
+        && (*(*cl).p.get()).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
-        luaC_barrier_(L, cl as *mut Object, (*cl).p as *mut Object);
+        luaC_barrier_(L, cl.cast(), (*cl).p.get().cast());
     } else {
     };
-    loadFunction(&mut S, (*cl).p, 0 as *mut TString)?;
+
+    loadFunction(&mut S, (*cl).p.get(), 0 as *mut TString)?;
+
     return Ok(cl);
 }

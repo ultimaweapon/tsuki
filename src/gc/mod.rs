@@ -601,13 +601,10 @@ unsafe fn traverseCclosure(g: *const Lua, cl: *const CClosure) -> libc::c_int {
 }
 
 unsafe fn traverseLclosure(g: &Lua, cl: *const LuaClosure) -> usize {
-    if !((*cl).p).is_null() {
-        if (*(*cl).p).hdr.marked.get() as libc::c_int
-            & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
-            != 0
-        {
-            reallymarkobject(g, (*cl).p as *const Object);
-        }
+    let p = (*cl).p.get();
+
+    if !p.is_null() && (*p).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
+        reallymarkobject(g, p.cast());
     }
 
     for uv in (*cl)
