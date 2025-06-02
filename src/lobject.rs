@@ -198,9 +198,8 @@ pub struct CClosure {
 #[repr(C)]
 pub struct LuaClosure {
     pub hdr: Object,
-    pub nupvalues: Cell<u8>,
     pub p: *mut Proto,
-    pub upvals: [*mut UpVal; 1],
+    pub upvals: Box<[Cell<*mut UpVal>]>,
 }
 
 pub unsafe fn luaO_ceillog2(mut x: libc::c_uint) -> c_int {

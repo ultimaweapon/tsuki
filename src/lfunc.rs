@@ -3,8 +3,7 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
-    unused_mut
+    unused_assignments
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
@@ -22,9 +21,9 @@ use std::alloc::Layout;
 use std::cell::Cell;
 use std::ffi::CStr;
 use std::mem::offset_of;
-use std::ptr::addr_of_mut;
+use std::ptr::{addr_of_mut, null_mut};
 
-pub unsafe fn luaF_newCclosure(mut L: *const Thread, nupvals: libc::c_int) -> *mut CClosure {
+pub unsafe fn luaF_newCclosure(L: *const Thread, nupvals: libc::c_int) -> *mut CClosure {
     let nupvals = u8::try_from(nupvals).unwrap();
     let size = offset_of!(CClosure, upvalue) + size_of::<TValue>() * usize::from(nupvals);
     let align = align_of::<CClosure>();
@@ -36,36 +35,32 @@ pub unsafe fn luaF_newCclosure(mut L: *const Thread, nupvals: libc::c_int) -> *m
     o
 }
 
-pub unsafe fn luaF_newLclosure(mut L: *const Thread, mut nupvals: libc::c_int) -> *mut LuaClosure {
-    let mut nupvals = u8::try_from(nupvals).unwrap();
-    let size = offset_of!(LuaClosure, upvals) + size_of::<*mut TValue>() * usize::from(nupvals);
-    let align = align_of::<LuaClosure>();
-    let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
+pub unsafe fn luaF_newLclosure(L: *const Thread, nupvals: libc::c_int) -> *mut LuaClosure {
+    let nupvals = u8::try_from(nupvals).unwrap();
+    let layout = Layout::new::<LuaClosure>();
     let o = Object::new((*L).global, 6 | 0 << 4, layout).cast::<LuaClosure>();
+    let mut upvals = Vec::with_capacity(nupvals.into());
+
+    for _ in 0..nupvals {
+        upvals.push(Cell::new(null_mut()));
+    }
 
     (*o).p = 0 as *mut Proto;
-    addr_of_mut!((*o).nupvalues).write(Cell::new(nupvals));
-
-    for i in 0..nupvals {
-        let ref mut fresh1 = *((*o).upvals).as_mut_ptr().offset(i as isize);
-        *fresh1 = 0 as *mut UpVal;
-    }
+    addr_of_mut!((*o).upvals).write(upvals.into_boxed_slice());
 
     o
 }
 
-pub unsafe fn luaF_initupvals(mut L: *mut Thread, mut cl: *mut LuaClosure) {
-    let mut i: libc::c_int = 0;
-    i = 0 as libc::c_int;
-
-    while i < (*cl).nupvalues.get() as libc::c_int {
+pub unsafe fn luaF_initupvals(L: *mut Thread, cl: *mut LuaClosure) {
+    for v in &(*cl).upvals {
         let layout = Layout::new::<UpVal>();
         let uv = Object::new((*L).global, 9 | 0 << 4, layout).cast::<UpVal>();
 
         (*uv).v.set(&raw mut (*(*uv).u.get()).value);
         (*(*uv).v.get()).tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
-        let ref mut fresh2 = *((*cl).upvals).as_mut_ptr().offset(i as isize);
-        *fresh2 = uv;
+
+        v.set(uv);
+
         if (*cl).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
             && (*uv).hdr.marked.get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
@@ -74,18 +69,13 @@ pub unsafe fn luaF_initupvals(mut L: *mut Thread, mut cl: *mut LuaClosure) {
             luaC_barrier_(L, cl as *mut Object, uv as *mut Object);
         } else {
         };
-        i += 1;
     }
 }
 
-unsafe fn newupval(
-    mut L: *const Thread,
-    mut level: StkId,
-    mut prev: *mut *mut UpVal,
-) -> *mut UpVal {
+unsafe fn newupval(L: *const Thread, level: StkId, prev: *mut *mut UpVal) -> *mut UpVal {
     let layout = Layout::new::<UpVal>();
     let uv = Object::new((*L).global, 9 | 0 << 4, layout).cast::<UpVal>();
-    let mut next: *mut UpVal = *prev;
+    let next: *mut UpVal = *prev;
 
     (*uv).v.set(&raw mut (*level).val);
     (*(*uv).u.get()).open.next = next;
@@ -103,7 +93,7 @@ unsafe fn newupval(
     return uv;
 }
 
-pub unsafe fn luaF_findupval(mut L: *mut Thread, mut level: StkId) -> *mut UpVal {
+pub unsafe fn luaF_findupval(L: *mut Thread, level: StkId) -> *mut UpVal {
     let mut pp: *mut *mut UpVal = (*L).openupval.as_ptr();
     let mut p: *mut UpVal = 0 as *mut UpVal;
     loop {
@@ -120,22 +110,22 @@ pub unsafe fn luaF_findupval(mut L: *mut Thread, mut level: StkId) -> *mut UpVal
 }
 
 unsafe fn callclosemethod(
-    mut L: *mut Thread,
-    mut obj: *mut TValue,
-    mut err: *mut TValue,
+    L: *mut Thread,
+    obj: *mut TValue,
+    err: *mut TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut top: StkId = (*L).top.get();
-    let mut tm: *const TValue = luaT_gettmbyobj(L, obj, TM_CLOSE);
-    let mut io1: *mut TValue = &mut (*top).val;
-    let mut io2: *const TValue = tm;
+    let top: StkId = (*L).top.get();
+    let tm: *const TValue = luaT_gettmbyobj(L, obj, TM_CLOSE);
+    let io1: *mut TValue = &mut (*top).val;
+    let io2: *const TValue = tm;
     (*io1).value_ = (*io2).value_;
     (*io1).tt_ = (*io2).tt_;
-    let mut io1_0: *mut TValue = &mut (*top.offset(1 as libc::c_int as isize)).val;
-    let mut io2_0: *const TValue = obj;
+    let io1_0: *mut TValue = &mut (*top.offset(1 as libc::c_int as isize)).val;
+    let io2_0: *const TValue = obj;
     (*io1_0).value_ = (*io2_0).value_;
     (*io1_0).tt_ = (*io2_0).tt_;
-    let mut io1_1: *mut TValue = &mut (*top.offset(2 as libc::c_int as isize)).val;
-    let mut io2_1: *const TValue = err;
+    let io1_1: *mut TValue = &mut (*top.offset(2 as libc::c_int as isize)).val;
+    let io2_1: *const TValue = err;
     (*io1_1).value_ = (*io2_1).value_;
     (*io1_1).tt_ = (*io2_1).tt_;
     (*L).top.set(top.offset(3 as libc::c_int as isize));
@@ -143,13 +133,10 @@ unsafe fn callclosemethod(
     luaD_call(L, top, 0 as libc::c_int)
 }
 
-unsafe fn checkclosemth(
-    mut L: *mut Thread,
-    mut level: StkId,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut tm: *const TValue = luaT_gettmbyobj(L, &mut (*level).val, TM_CLOSE);
+unsafe fn checkclosemth(L: *mut Thread, level: StkId) -> Result<(), Box<dyn std::error::Error>> {
+    let tm: *const TValue = luaT_gettmbyobj(L, &mut (*level).val, TM_CLOSE);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
-        let mut idx: libc::c_int =
+        let idx: libc::c_int =
             level.offset_from((*(*L).ci.get()).func) as libc::c_long as libc::c_int;
         let mut vname: *const libc::c_char = luaG_findlocal(L, (*L).ci.get(), idx, 0 as *mut StkId);
         if vname.is_null() {
@@ -168,15 +155,15 @@ unsafe fn checkclosemth(
 }
 
 unsafe fn prepcallclosemth(L: *mut Thread, level: StkId) -> Result<(), Box<dyn std::error::Error>> {
-    let mut uv: *mut TValue = &mut (*level).val;
+    let uv: *mut TValue = &mut (*level).val;
     let errobj = (*(*L).global).nilvalue.get();
 
     callclosemethod(L, uv, errobj)
 }
 
 pub unsafe fn luaF_newtbcupval(
-    mut L: *mut Thread,
-    mut level: StkId,
+    L: *mut Thread,
+    level: StkId,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if (*level).val.tt_ as libc::c_int == 1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
         || (*level).val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int
@@ -209,14 +196,14 @@ pub unsafe fn luaF_newtbcupval(
     Ok(())
 }
 
-pub unsafe fn luaF_unlinkupval(mut uv: *mut UpVal) {
+pub unsafe fn luaF_unlinkupval(uv: *mut UpVal) {
     *(*(*uv).u.get()).open.previous = (*(*uv).u.get()).open.next;
     if !((*(*uv).u.get()).open.next).is_null() {
         (*(*(*(*uv).u.get()).open.next).u.get()).open.previous = (*(*uv).u.get()).open.previous;
     }
 }
 
-pub unsafe fn luaF_closeupval(mut L: *mut Thread, mut level: StkId) {
+pub unsafe fn luaF_closeupval(L: *mut Thread, level: StkId) {
     let mut uv: *mut UpVal = 0 as *mut UpVal;
     let mut upl: StkId = 0 as *mut StackValue;
     loop {
@@ -227,10 +214,10 @@ pub unsafe fn luaF_closeupval(mut L: *mut Thread, mut level: StkId) {
         }) {
             break;
         }
-        let mut slot: *mut TValue = &raw mut (*(*uv).u.get()).value;
+        let slot: *mut TValue = &raw mut (*(*uv).u.get()).value;
         luaF_unlinkupval(uv);
-        let mut io1: *mut TValue = slot;
-        let mut io2: *const TValue = (*uv).v.get();
+        let io1: *mut TValue = slot;
+        let io2: *const TValue = (*uv).v.get();
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
         (*uv).v.set(slot);
@@ -258,7 +245,7 @@ pub unsafe fn luaF_closeupval(mut L: *mut Thread, mut level: StkId) {
     }
 }
 
-unsafe fn poptbclist(mut L: *mut Thread) {
+unsafe fn poptbclist(L: *mut Thread) {
     let mut tbc: StkId = (*L).tbclist.get();
     tbc = tbc.offset(-((*tbc).tbclist.delta as libc::c_int as isize));
     while tbc > (*L).stack.get() && (*tbc).tbclist.delta as libc::c_int == 0 as libc::c_int {
@@ -274,16 +261,15 @@ unsafe fn poptbclist(mut L: *mut Thread) {
 }
 
 pub unsafe fn luaF_close(
-    mut L: *mut Thread,
+    L: *mut Thread,
     mut level: StkId,
 ) -> Result<StkId, Box<dyn std::error::Error>> {
-    let mut levelrel =
-        (level as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
+    let levelrel = (level as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
 
     luaF_closeupval(L, level);
 
     while (*L).tbclist.get() >= level {
-        let mut tbc: StkId = (*L).tbclist.get();
+        let tbc: StkId = (*L).tbclist.get();
         poptbclist(L);
         prepcallclosemth(L, tbc)?;
         level = ((*L).stack.get() as *mut libc::c_char).offset(levelrel as isize) as StkId;
@@ -292,7 +278,7 @@ pub unsafe fn luaF_close(
     return Ok(level);
 }
 
-pub unsafe fn luaF_newproto(mut L: *const Thread) -> *mut Proto {
+pub unsafe fn luaF_newproto(L: *const Thread) -> *mut Proto {
     let layout = Layout::new::<Proto>();
     let f = Object::new((*L).global, 9 + 1 | 0 << 4, layout).cast::<Proto>();
 
@@ -319,7 +305,7 @@ pub unsafe fn luaF_newproto(mut L: *const Thread) -> *mut Proto {
     return f;
 }
 
-pub unsafe fn luaF_freeproto(g: *const Lua, mut f: *mut Proto) {
+pub unsafe fn luaF_freeproto(g: *const Lua, f: *mut Proto) {
     luaM_free_(
         g,
         (*f).code as *mut libc::c_void,
@@ -363,9 +349,9 @@ pub unsafe fn luaF_freeproto(g: *const Lua, mut f: *mut Proto) {
 }
 
 pub unsafe fn luaF_getlocalname(
-    mut f: *const Proto,
+    f: *const Proto,
     mut local_number: libc::c_int,
-    mut pc: libc::c_int,
+    pc: libc::c_int,
 ) -> *const libc::c_char {
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;

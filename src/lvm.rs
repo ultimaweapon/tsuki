@@ -35,6 +35,7 @@ use crate::ltm::{
 };
 use libc::{memcpy, strcoll, strlen};
 use libm::{floor, fmod, pow};
+use std::cell::Cell;
 use std::ffi::c_int;
 
 pub type F2Imod = libc::c_uint;
@@ -1137,10 +1138,11 @@ pub unsafe extern "C" fn luaV_shiftl(mut x: i64, mut y: i64) -> i64 {
         return ((x as u64) << y as u64) as i64;
     };
 }
-unsafe extern "C" fn pushclosure(
+
+unsafe fn pushclosure(
     mut L: *mut Thread,
     mut p: *mut Proto,
-    mut encup: *mut *mut UpVal,
+    mut encup: &[Cell<*mut UpVal>],
     mut base: StkId,
     mut ra: StkId,
 ) {
@@ -1156,30 +1158,21 @@ unsafe extern "C" fn pushclosure(
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     i = 0 as libc::c_int;
+
     while i < nup {
         if (*uv.offset(i as isize)).instack != 0 {
-            let ref mut fresh0 = *((*ncl).upvals).as_mut_ptr().offset(i as isize);
-            *fresh0 = luaF_findupval(
+            (*ncl).upvals[i as usize].set(luaF_findupval(
                 L,
                 base.offset((*uv.offset(i as isize)).idx as libc::c_int as isize),
-            );
+            ));
         } else {
-            let ref mut fresh1 = *((*ncl).upvals).as_mut_ptr().offset(i as isize);
-            *fresh1 = *encup.offset((*uv.offset(i as isize)).idx as isize);
+            (*ncl).upvals[i as usize].set(encup[usize::from((*uv.offset(i as isize)).idx)].get());
         }
-        if (*ncl).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-            && (**((*ncl).upvals).as_mut_ptr().offset(i as isize))
-                .hdr
-                .marked
-                .get() as libc::c_int
-                & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
-                != 0
+
+        if (*ncl).hdr.marked.get() & 1 << 5 != 0
+            && (*(*ncl).upvals[i as usize].get()).hdr.marked.get() & (1 << 3 | 1 << 4) != 0
         {
-            luaC_barrier_(
-                L,
-                ncl as *mut Object,
-                *((*ncl).upvals).as_mut_ptr().offset(i as isize) as *mut Object,
-            );
+            luaC_barrier_(L, ncl.cast(), (*ncl).upvals[i as usize].get().cast());
         } else {
         };
         i += 1;
@@ -1502,8 +1495,7 @@ pub unsafe fn luaV_execute(
                             & !(!(0 as libc::c_int as u32) << 8 as libc::c_int) << 0 as libc::c_int)
                             as libc::c_int;
                         let mut io1_2: *mut TValue = &mut (*ra_8).val;
-                        let mut io2_2: *const TValue =
-                            (**((*cl).upvals).as_mut_ptr().offset(b_2 as isize)).v.get();
+                        let mut io2_2: *const TValue = (*(*cl).upvals[b_2 as usize].get()).v.get();
                         (*io1_2).value_ = (*io2_2).value_;
                         (*io1_2).tt_ = (*io2_2).tt_;
                         continue;
@@ -1515,15 +1507,15 @@ pub unsafe fn luaV_execute(
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut uv: *mut UpVal = *((*cl).upvals).as_mut_ptr().offset(
-                            (i >> 0 as libc::c_int
+                        let mut uv: *mut UpVal = (*cl).upvals[(i
+                            >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
                                 + 1 as libc::c_int
-                                & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
-                                    << 0 as libc::c_int) as libc::c_int
-                                as isize,
-                        );
+                            & !(!(0 as libc::c_int as u32) << 8 as libc::c_int) << 0 as libc::c_int)
+                            as libc::c_int
+                            as usize]
+                            .get();
                         let mut io1_3: *mut TValue = (*uv).v.get();
                         let mut io2_3: *const TValue = &mut (*ra_9).val;
                         (*io1_3).value_ = (*io2_3).value_;
@@ -1558,14 +1550,15 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         );
                         let mut slot: *const TValue = 0 as *const TValue;
-                        let mut upval: *mut TValue = (**((*cl).upvals).as_mut_ptr().offset(
-                            (i >> 0 as libc::c_int
+                        let mut upval: *mut TValue = (*(*cl).upvals[(i
+                            >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
                                 + 1 as libc::c_int
-                                & !(!(0 as libc::c_int as u32) << 8) << 0)
-                                as libc::c_int as isize,
-                        ))
+                            & !(!(0 as libc::c_int as u32) << 8) << 0)
+                            as libc::c_int
+                            as usize]
+                            .get())
                         .v
                         .get();
                         let mut rc: *mut TValue = k.offset(
@@ -1810,11 +1803,12 @@ pub unsafe fn luaV_execute(
                     }
                     15 => {
                         let mut slot_3: *const TValue = 0 as *const TValue;
-                        let mut upval_0: *mut TValue = (**((*cl).upvals).as_mut_ptr().offset(
-                            (i >> 0 as libc::c_int + 7 as libc::c_int
-                                & !(!(0 as libc::c_int as u32) << 8) << 0)
-                                as libc::c_int as isize,
-                        ))
+                        let mut upval_0: *mut TValue = (*(*cl).upvals[(i
+                            >> 0 as libc::c_int + 7 as libc::c_int
+                            & !(!(0 as libc::c_int as u32) << 8) << 0)
+                            as libc::c_int
+                            as usize]
+                            .get())
                         .v
                         .get();
                         let mut rb_4: *mut TValue = k.offset(
@@ -5575,7 +5569,7 @@ pub unsafe fn luaV_execute(
                         );
                         (*ci).u.savedpc = pc;
                         (*L).top.set((*ci).top);
-                        pushclosure(L, p, ((*cl).upvals).as_mut_ptr(), base, ra_77);
+                        pushclosure(L, p, &(*cl).upvals, base, ra_77);
 
                         if (*(*L).global).gc.debt() > 0 {
                             (*ci).u.savedpc = pc;

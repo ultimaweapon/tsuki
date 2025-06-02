@@ -155,8 +155,9 @@ pub unsafe fn lua_getstack(
     return status;
 }
 
-unsafe fn upvalname(mut p: *const Proto, mut uv: libc::c_int) -> *const libc::c_char {
-    let mut s: *mut TString = (*((*p).upvalues).offset(uv as isize)).name;
+unsafe fn upvalname(mut p: *const Proto, mut uv: usize) -> *const libc::c_char {
+    let mut s: *mut TString = (*((*p).upvalues).add(uv)).name;
+
     if s.is_null() {
         return b"?\0" as *const u8 as *const libc::c_char;
     } else {
@@ -641,9 +642,13 @@ unsafe extern "C" fn basicgetobjname(
             9 => {
                 *name = upvalname(
                     p,
-                    (i >> 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int + 1 as libc::c_int
+                    (i >> 0 as libc::c_int
+                        + 7 as libc::c_int
+                        + 8 as libc::c_int
+                        + 1 as libc::c_int
                         & !(!(0 as libc::c_int as u32) << 8 as libc::c_int) << 0 as libc::c_int)
-                        as libc::c_int,
+                        .try_into()
+                        .unwrap(),
                 );
                 return b"upvalue\0" as *const u8 as *const libc::c_char;
             }
@@ -722,11 +727,13 @@ unsafe extern "C" fn isEnv(
         & !(!(0 as libc::c_int as u32) << 8 as libc::c_int) << 0 as libc::c_int)
         as libc::c_int;
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
+
     if isup != 0 {
-        name = upvalname(p, t);
+        name = upvalname(p, t.try_into().unwrap());
     } else {
         basicgetobjname(p, &mut pc, t, &mut name);
     }
+
     return if !name.is_null()
         && strcmp(name, b"_ENV\0" as *const u8 as *const libc::c_char) == 0 as libc::c_int
     {
@@ -916,16 +923,15 @@ unsafe fn getupvalname(
     mut o: *const TValue,
     mut name: *mut *const libc::c_char,
 ) -> *const libc::c_char {
-    let mut c: *mut LuaClosure = (*(*ci).func).val.value_.gc as *mut LuaClosure;
-    let mut i: libc::c_int = 0;
-    i = 0 as libc::c_int;
-    while i < (*c).nupvalues.get() as libc::c_int {
-        if (**((*c).upvals).as_mut_ptr().offset(i as isize)).v.get() == o as *mut TValue {
+    let mut c = (*(*ci).func).val.value_.gc.cast::<LuaClosure>();
+
+    for (i, uv) in (*c).upvals.iter().map(|v| v.get()).enumerate() {
+        if (*uv).v.get() == o as *mut TValue {
             *name = upvalname((*c).p, i);
             return b"upvalue\0" as *const u8 as *const libc::c_char;
         }
-        i += 1;
     }
+
     return 0 as *const libc::c_char;
 }
 

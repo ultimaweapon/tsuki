@@ -67,7 +67,7 @@ unsafe fn iscleared(g: *const Lua, o: *const Object) -> libc::c_int {
     };
 }
 
-pub(crate) unsafe fn luaC_barrier_(L: *mut Thread, o: *mut Object, v: *mut Object) {
+pub(crate) unsafe fn luaC_barrier_(L: *const Thread, o: *const Object, v: *const Object) {
     let g = (*L).global;
 
     if (*g).gcstate.get() <= 2 {
@@ -601,7 +601,6 @@ unsafe fn traverseCclosure(g: *const Lua, cl: *const CClosure) -> libc::c_int {
 }
 
 unsafe fn traverseLclosure(g: &Lua, cl: *const LuaClosure) -> usize {
-    let mut i: libc::c_int = 0;
     if !((*cl).p).is_null() {
         if (*(*cl).p).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
@@ -610,22 +609,19 @@ unsafe fn traverseLclosure(g: &Lua, cl: *const LuaClosure) -> usize {
             reallymarkobject(g, (*cl).p as *const Object);
         }
     }
-    i = 0 as libc::c_int;
 
-    while i < (*cl).nupvalues.get() as libc::c_int {
-        let uv: *mut UpVal = *((*cl).upvals).as_ptr().offset(i as isize);
-        if !uv.is_null() {
-            if (*uv).hdr.marked.get() as libc::c_int
-                & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
-                != 0
-            {
-                reallymarkobject(g, uv as *mut Object);
-            }
+    for uv in (*cl)
+        .upvals
+        .iter()
+        .map(|v| v.get())
+        .filter(|v| !v.is_null())
+    {
+        if (*uv).hdr.marked.get() as libc::c_int & ((1 as libc::c_int) << 3 | 1 << 4) != 0 {
+            reallymarkobject(g, uv.cast());
         }
-        i += 1;
     }
 
-    1 + usize::from((*cl).nupvalues.get())
+    1 + (*cl).upvals.len()
 }
 
 unsafe fn traversethread(g: *const Lua, th: *const Thread) -> libc::c_int {
@@ -827,13 +823,8 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
         10 => luaF_freeproto(g, o as *mut Proto),
         9 => freeupval(g, o as *mut UpVal),
         6 => {
-            let cl = o.cast::<LuaClosure>();
-            let nupvalues = usize::from((*cl).nupvalues.get());
-            let size = offset_of!(LuaClosure, upvals) + size_of::<*mut TValue>() * nupvalues;
-            let align = align_of::<LuaClosure>();
-            let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-
-            (*g).gc.dealloc(cl.cast(), layout);
+            std::ptr::drop_in_place(o.cast::<LuaClosure>());
+            (*g).gc.dealloc(o.cast(), Layout::new::<LuaClosure>());
         }
         38 => {
             let cl_0: *mut CClosure = o as *mut CClosure;
@@ -846,7 +837,7 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
         }
         5 => luaH_free(g, o as *mut Table),
         8 => {
-            std::ptr::drop_in_place(o as *mut Thread);
+            std::ptr::drop_in_place(o.cast::<Thread>());
             (*g).gc.dealloc(o.cast(), Layout::new::<Thread>());
         }
         7 => {
