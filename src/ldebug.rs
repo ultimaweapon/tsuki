@@ -320,7 +320,7 @@ unsafe fn funcinfo(mut ar: *mut lua_Debug, mut cl: *const Object) {
     luaO_chunkid(((*ar).short_src).as_mut_ptr(), (*ar).source, (*ar).srclen);
 }
 
-unsafe extern "C" fn nextline(
+unsafe fn nextline(
     mut p: *const Proto,
     mut currentline: libc::c_int,
     mut pc: libc::c_int,
@@ -345,7 +345,7 @@ unsafe fn collectvalidlines(
     } else {
         let mut p: *const Proto = (*f.cast::<LuaClosure>()).p.get();
         let mut currentline: libc::c_int = (*p).linedefined;
-        let mut t: *mut Table = luaH_new(L)?;
+        let mut t: *mut Table = luaH_new((*L).global);
         let mut io: *mut TValue = &raw mut (*(*L).top.get()).val;
         let mut x_: *mut Table = t;
         (*io).value_.gc = x_ as *mut Object;

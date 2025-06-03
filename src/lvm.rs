@@ -2137,7 +2137,7 @@ pub unsafe fn luaV_execute(
                         }
                         pc = pc.offset(1);
                         (*L).top.set(ra_17.offset(1 as libc::c_int as isize));
-                        t = luaH_new(L)?;
+                        t = luaH_new((*L).global);
                         let io_3: *mut TValue = &raw mut (*ra_17).val;
                         let x_: *mut Table = t;
                         (*io_3).value_.gc = x_ as *mut Object;

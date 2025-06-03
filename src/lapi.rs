@@ -868,7 +868,7 @@ pub unsafe fn lua_createtable(
     nrec: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut t: *mut Table = 0 as *mut Table;
-    t = luaH_new(L)?;
+    t = luaH_new((*L).global);
     let io: *mut TValue = &raw mut (*(*L).top.get()).val;
     let x_: *mut Table = t;
     (*io).value_.gc = x_ as *mut Object;

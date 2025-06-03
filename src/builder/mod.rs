@@ -103,7 +103,7 @@ impl Builder {
 
         // Setup registry.
         let th = g.spawn();
-        let registry: *mut Table = unsafe { luaH_new(th).unwrap() };
+        let registry: *mut Table = unsafe { luaH_new(g.deref()) };
         let io: *mut TValue = g.l_registry.get();
 
         unsafe { (*io).value_.gc = registry as *mut Object };
@@ -114,13 +114,13 @@ impl Builder {
         // Create dummy object for LUA_RIDX_MAINTHREAD.
         let io_0 = unsafe { ((*registry).array).offset(1 - 1) as *mut TValue };
 
-        unsafe { (*io_0).value_.gc = luaH_new(th).unwrap() as *mut Object };
+        unsafe { (*io_0).value_.gc = luaH_new(g.deref()).cast() };
         unsafe { (*io_0).tt_ = 5 | 0 << 4 | 1 << 6 };
 
         // Create LUA_RIDX_GLOBALS.
         let io_1 = unsafe { ((*registry).array).offset(2 - 1) as *mut TValue };
 
-        unsafe { (*io_1).value_.gc = luaH_new(th).unwrap() as *mut Object };
+        unsafe { (*io_1).value_.gc = luaH_new(g.deref()).cast() };
         unsafe { (*io_1).tt_ = 5 | 0 << 4 | 1 << 6 };
 
         // Initialize internal module.

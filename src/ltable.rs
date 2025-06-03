@@ -455,11 +455,7 @@ unsafe fn numusehash(
     return totaluse;
 }
 
-unsafe fn setnodevector(
-    L: *const Thread,
-    t: *mut Table,
-    mut size: libc::c_uint,
-) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn setnodevector(g: *const Lua, t: *mut Table, mut size: libc::c_uint) {
     if size == 0 as libc::c_int as libc::c_uint {
         (*t).node = &raw mut dummynode_;
         (*t).lsizenode = 0 as libc::c_int as u8;
@@ -492,13 +488,12 @@ unsafe fn setnodevector(
                         as libc::c_uint
                 })
         {
-            luaG_runerror(L, "table overflow")?;
+            panic!("table overflow");
         }
+
         size = ((1 as libc::c_int) << lsize) as libc::c_uint;
-        (*t).node = luaM_malloc_(
-            (*L).global,
-            (size as usize).wrapping_mul(::core::mem::size_of::<Node>()),
-        ) as *mut Node;
+        (*t).node = luaM_malloc_(g, (size as usize) * size_of::<Node>()) as *mut Node;
+
         i = 0 as libc::c_int;
         while i < size as libc::c_int {
             let n: *mut Node = &mut *((*t).node).offset(i as isize) as *mut Node;
@@ -508,10 +503,8 @@ unsafe fn setnodevector(
             i += 1;
         }
         (*t).lsizenode = lsize as u8;
-        (*t).lastfree = &mut *((*t).node).offset(size as isize) as *mut Node;
-    };
-
-    Ok(())
+        (*t).lastfree = (*t).node.offset(size as isize) as *mut Node;
+    }
 }
 
 unsafe fn reinsert(
@@ -575,7 +568,7 @@ pub unsafe fn luaH_resize(
     };
     let oldasize: libc::c_uint = setlimittosize(t);
     let mut newarray: *mut TValue = 0 as *mut TValue;
-    setnodevector(L, &mut newt, nhsize)?;
+    setnodevector((*L).global, &raw mut newt, nhsize);
     if newasize < oldasize {
         (*t).alimit = newasize;
         exchangehashpart(t, &mut newt);
@@ -674,17 +667,17 @@ unsafe fn rehash(
     luaH_resize(L, t, asize, (totaluse as libc::c_uint).wrapping_sub(na))
 }
 
-pub unsafe fn luaH_new(L: *const Thread) -> Result<*mut Table, Box<dyn std::error::Error>> {
+pub unsafe fn luaH_new(g: *const Lua) -> *mut Table {
     let layout = Layout::new::<Table>();
-    let o = Object::new((*L).global, 5 | 0 << 4, layout).cast::<Table>();
+    let o = Object::new(g, 5 | 0 << 4, layout).cast::<Table>();
 
     (*o).metatable = 0 as *mut Table;
     addr_of_mut!((*o).flags).write(Cell::new(!(!(0 as libc::c_uint) << TM_EQ + 1) as u8));
     (*o).array = 0 as *mut TValue;
     (*o).alimit = 0 as libc::c_int as libc::c_uint;
-    setnodevector(L, o, 0 as libc::c_int as libc::c_uint)?;
 
-    Ok(o)
+    setnodevector(g, o, 0);
+    o
 }
 
 pub unsafe fn luaH_free(g: *const Lua, t: *mut Table) {

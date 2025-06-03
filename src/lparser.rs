@@ -1,6 +1,4 @@
 #![allow(
-    dead_code,
-    mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -8,7 +6,6 @@
     unused_mut
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
-#![allow(unused_variables)]
 
 use crate::gc::{luaC_barrier_, luaC_step};
 use crate::lcode::{
@@ -223,7 +220,6 @@ unsafe fn errorlimit(
     limit: libc::c_int,
     what: impl Display,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut L = (*(*fs).ls).L;
     let mut line: libc::c_int = (*(*fs).f).linedefined;
     let where_0: Cow<'static, str> = if line == 0 as libc::c_int {
         "main function".into()
@@ -2932,14 +2928,16 @@ pub unsafe fn luaY_parser(
 
     luaD_inctop(L)?;
 
-    lexstate.h = luaH_new(L)?;
+    lexstate.h = luaH_new((*L).global);
+
     let mut io_0: *mut TValue = &raw mut (*(*L).top.get()).val;
     let mut x__0: *mut Table = lexstate.h;
+
     (*io_0).value_.gc = x__0 as *mut Object;
-    (*io_0).tt_ = (5 as libc::c_int
-        | (0 as libc::c_int) << 4 as libc::c_int
-        | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+    (*io_0).tt_ = (5 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int | 1 << 6) as u8;
+
     luaD_inctop(L)?;
+
     (*cl).p.set(luaF_newproto((*L).global));
     funcstate.f = (*cl).p.get();
 
