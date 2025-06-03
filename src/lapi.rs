@@ -1548,24 +1548,22 @@ pub unsafe fn lua_newuserdatauv(
     L: *const Thread,
     size: usize,
     nuvalue: libc::c_int,
-) -> Result<*mut c_void, Box<dyn std::error::Error>> {
-    let mut u: *mut Udata = 0 as *mut Udata;
-    u = luaS_newudata(L, size, nuvalue)?;
+) -> *mut c_void {
+    let u = luaS_newudata((*L).global, size, nuvalue);
     let io: *mut TValue = &raw mut (*(*L).top.get()).val;
     let x_: *mut Udata = u;
+
     (*io).value_.gc = x_ as *mut Object;
-    (*io).tt_ = (7 as libc::c_int
-        | (0 as libc::c_int) << 4 as libc::c_int
-        | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+    (*io).tt_ = (7 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int | 1 << 6) as u8;
+
     api_incr_top(L);
+
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
 
-    Ok(
-        u.byte_add(offset_of!(Udata, uv) + size_of::<UValue>() * usize::from((*u).nuvalue))
-            .cast(),
-    )
+    u.byte_add(offset_of!(Udata, uv) + size_of::<UValue>() * usize::from((*u).nuvalue))
+        .cast()
 }
 
 unsafe fn aux_upvalue(

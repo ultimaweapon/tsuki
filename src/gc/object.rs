@@ -45,3 +45,18 @@ impl Object {
         o
     }
 }
+
+impl Default for Object {
+    #[inline(always)]
+    fn default() -> Self {
+        Self {
+            next: Cell::new(null()),
+            tt: 0,
+            marked: Mark::default(),
+            refs: Cell::new(0),
+            refn: Cell::new(null()),
+            refp: Cell::new(null()),
+            gclist: Cell::new(null()),
+        }
+    }
+}

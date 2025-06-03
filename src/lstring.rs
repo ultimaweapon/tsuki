@@ -9,7 +9,7 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::lmem::{luaM_malloc_, luaM_realloc_, luaM_toobig};
+use crate::lmem::{luaM_malloc_, luaM_realloc_};
 use crate::lobject::{TString, Table, UValue, Udata};
 use crate::{Lua, Object, StringTable, Thread};
 use libc::{memcmp, memcpy, strlen};
@@ -258,32 +258,16 @@ pub unsafe fn luaS_new(mut g: *const Lua, mut str: *const libc::c_char) -> *mut 
 }
 
 pub unsafe fn luaS_newudata(
-    mut L: *const Thread,
+    mut g: *const Lua,
     mut s: usize,
     mut nuvalue: libc::c_int,
-) -> Result<*mut Udata, Box<dyn std::error::Error>> {
+) -> *mut Udata {
     let mut i: libc::c_int = 0;
-    let min = offset_of!(Udata, uv) + size_of::<UValue>().wrapping_mul(nuvalue as usize);
-
-    if ((s
-        > (if (::core::mem::size_of::<usize>() as libc::c_ulong)
-            < ::core::mem::size_of::<i64>() as libc::c_ulong
-        {
-            !(0 as libc::c_int as usize)
-        } else {
-            0x7fffffffffffffff as libc::c_longlong as usize
-        })
-        .wrapping_sub(min)) as libc::c_int
-        != 0) as libc::c_int as libc::c_long
-        != 0
-    {
-        luaM_toobig(L)?;
-    }
-
+    let min = offset_of!(Udata, uv) + size_of::<UValue>() * nuvalue as usize;
     let size = min + s;
     let align = align_of::<Udata>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = Object::new((*L).global, 7 | 0 << 4, layout).cast::<Udata>();
+    let o = Object::new(g, 7 | 0 << 4, layout).cast::<Udata>();
 
     (*o).len = s;
     (*o).nuvalue = nuvalue as libc::c_ushort;
@@ -295,5 +279,5 @@ pub unsafe fn luaS_newudata(
         i += 1;
     }
 
-    Ok(o)
+    o
 }

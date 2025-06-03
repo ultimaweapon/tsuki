@@ -1,6 +1,7 @@
 use std::cell::Cell;
 
 /// Mark on each GC object for identify its collectable state.
+#[derive(Default)]
 pub(crate) struct Mark(Cell<u8>);
 
 impl Mark {

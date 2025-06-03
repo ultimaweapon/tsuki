@@ -1418,7 +1418,7 @@ unsafe fn gmatch(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Erro
     .wrapping_sub(1 as libc::c_int as usize);
     let mut gm: *mut GMatchState = 0 as *mut GMatchState;
     lua_settop(L, 2 as libc::c_int)?;
-    gm = lua_newuserdatauv(L, ::core::mem::size_of::<GMatchState>(), 0)? as *mut GMatchState;
+    gm = lua_newuserdatauv(L, ::core::mem::size_of::<GMatchState>(), 0) as *mut GMatchState;
     if init > ls {
         init = ls.wrapping_add(1 as libc::c_int as usize);
     }

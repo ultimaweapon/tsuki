@@ -434,7 +434,7 @@ static mut randfuncs: [luaL_Reg; 3] = [
 ];
 
 unsafe fn setrandfunc(mut L: *const Thread) -> Result<(), Box<dyn std::error::Error>> {
-    let state = lua_newuserdatauv(L, ::core::mem::size_of::<RanState>(), 0)? as *mut RanState;
+    let state = lua_newuserdatauv(L, ::core::mem::size_of::<RanState>(), 0) as *mut RanState;
     randseed(L, state);
     lua_settop(L, -(2 as libc::c_int) - 1 as libc::c_int)?;
     luaL_setfuncs(L, &raw const randfuncs as *const luaL_Reg, 1 as libc::c_int)?;
