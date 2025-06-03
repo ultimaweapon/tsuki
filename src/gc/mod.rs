@@ -485,7 +485,7 @@ unsafe fn traversetable(g: *const Lua, h: *const Table) -> usize {
         .wrapping_add((*h).alimit.get())
         .wrapping_add(
             (2 as libc::c_int
-                * (if ((*h).lastfree).is_null() {
+                * (if ((*h).lastfree.get()).is_null() {
                     0 as libc::c_int
                 } else {
                     (1 as libc::c_int) << (*h).lsizenode.get() as libc::c_int

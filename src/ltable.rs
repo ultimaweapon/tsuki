@@ -347,7 +347,7 @@ pub unsafe fn luaH_next(
 }
 
 unsafe fn freehash(g: *const Lua, t: *mut Table) {
-    if !((*t).lastfree).is_null() {
+    if !((*t).lastfree.get()).is_null() {
         luaM_free_(
             g,
             (*t).node.get() as *mut libc::c_void,
@@ -464,7 +464,7 @@ unsafe fn setnodevector(g: *const Lua, t: *mut Table, mut size: libc::c_uint) {
     if size == 0 as libc::c_int as libc::c_uint {
         (*t).node.set(&raw mut dummynode_);
         (*t).lsizenode.set(0 as libc::c_int as u8);
-        (*t).lastfree = 0 as *mut Node;
+        (*t).lastfree.set(0 as *mut Node);
     } else {
         let mut i: libc::c_int = 0;
         let lsize: libc::c_int = luaO_ceillog2(size);
@@ -509,7 +509,8 @@ unsafe fn setnodevector(g: *const Lua, t: *mut Table, mut size: libc::c_uint) {
             i += 1;
         }
         (*t).lsizenode.set(lsize as u8);
-        (*t).lastfree = (*t).node.get().offset(size as isize) as *mut Node;
+        (*t).lastfree
+            .set((*t).node.get().offset(size as isize) as *mut Node);
     }
 }
 
@@ -542,13 +543,13 @@ unsafe fn reinsert(L: *const Thread, ot: *mut Table, t: *mut Table) {
 unsafe fn exchangehashpart(t1: *mut Table, t2: *mut Table) {
     let lsizenode: u8 = (*t1).lsizenode.get();
     let node: *mut Node = (*t1).node.get();
-    let lastfree: *mut Node = (*t1).lastfree;
+    let lastfree: *mut Node = (*t1).lastfree.get();
     (*t1).lsizenode.set((*t2).lsizenode.get());
     (*t1).node.set((*t2).node.get());
-    (*t1).lastfree = (*t2).lastfree;
+    (*t1).lastfree.set((*t2).lastfree.get());
     (*t2).lsizenode.set(lsizenode);
     (*t2).node.set(node);
-    (*t2).lastfree = lastfree;
+    (*t2).lastfree.set(lastfree);
 }
 
 pub unsafe fn luaH_resize(
@@ -565,7 +566,7 @@ pub unsafe fn luaH_resize(
         alimit: Cell::new(0),
         array: Cell::new(0 as *mut TValue),
         node: Cell::new(0 as *mut Node),
-        lastfree: 0 as *mut Node,
+        lastfree: Cell::new(0 as *mut Node),
         metatable: 0 as *mut Table,
     };
     let oldasize: libc::c_uint = setlimittosize(t);
@@ -623,7 +624,7 @@ pub unsafe fn luaH_resize(
 }
 
 pub unsafe fn luaH_resizearray(L: *const Thread, t: *mut Table, nasize: libc::c_uint) {
-    let nsize: libc::c_int = if ((*t).lastfree).is_null() {
+    let nsize: libc::c_int = if ((*t).lastfree.get()).is_null() {
         0 as libc::c_int
     } else {
         (1 as libc::c_int) << (*t).lsizenode.get() as libc::c_int
@@ -668,6 +669,7 @@ pub unsafe fn luaH_new(g: *const Lua) -> *mut Table {
     addr_of_mut!((*o).alimit).write(Cell::new(0 as libc::c_int as libc::c_uint));
     addr_of_mut!((*o).array).write(Cell::new(0 as *mut TValue));
     addr_of_mut!((*o).node).write(Cell::new(null_mut()));
+    addr_of_mut!((*o).lastfree).write(Cell::new(null_mut()));
     (*o).metatable = 0 as *mut Table;
 
     setnodevector(g, o, 0);
@@ -688,12 +690,12 @@ pub unsafe fn luaH_free(g: *const Lua, t: *mut Table) {
 }
 
 unsafe fn getfreepos(t: *mut Table) -> *mut Node {
-    if !((*t).lastfree).is_null() {
-        while (*t).lastfree > (*t).node.get() {
-            (*t).lastfree = ((*t).lastfree).offset(-1);
-            (*t).lastfree;
-            if (*(*t).lastfree).u.key_tt as libc::c_int == 0 as libc::c_int {
-                return (*t).lastfree;
+    if !((*t).lastfree.get()).is_null() {
+        while (*t).lastfree.get() > (*t).node.get() {
+            (*t).lastfree.set(((*t).lastfree.get()).offset(-1));
+
+            if (*(*t).lastfree.get()).u.key_tt as libc::c_int == 0 as libc::c_int {
+                return (*t).lastfree.get();
             }
         }
     }
@@ -737,7 +739,7 @@ unsafe fn luaH_newkey(
     mp = mainpositionTV(t, key);
 
     if !((*mp).i_val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int)
-        || ((*t).lastfree).is_null()
+        || ((*t).lastfree.get()).is_null()
     {
         let mut othern: *mut Node = 0 as *mut Node;
         let f_0: *mut Node = getfreepos(t);
@@ -1051,7 +1053,7 @@ pub unsafe fn luaH_getn(t: *mut Table) -> u64 {
             return boundary_0 as u64;
         }
     }
-    if ((*t).lastfree).is_null()
+    if ((*t).lastfree.get()).is_null()
         || (*luaH_getint(
             t,
             limit.wrapping_add(1 as libc::c_int as libc::c_uint) as i64,
