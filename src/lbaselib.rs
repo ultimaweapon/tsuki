@@ -26,7 +26,7 @@ use crate::lauxlib::{
 use libc::{isalnum, isdigit, strspn, toupper};
 use std::ffi::{c_char, c_int, c_void};
 use std::io::Write;
-use std::ptr::null_mut;
+use std::ptr::{null, null_mut};
 
 unsafe fn luaB_print(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut n: libc::c_int = lua_gettop(L);
@@ -356,21 +356,20 @@ unsafe fn generic_reader(
 unsafe fn luaB_load(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut l: usize = 0;
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
-    let mut mode: *const libc::c_char = luaL_optlstring(
-        L,
-        3 as libc::c_int,
-        b"bt\0" as *const u8 as *const libc::c_char,
-        0 as *mut usize,
-    )?;
+    let mut mode: *const libc::c_char = luaL_optlstring(L, 3, null(), 0 as *mut usize)?;
     let mut env: libc::c_int = if !(lua_type(L, 4 as libc::c_int) == -(1 as libc::c_int)) {
         4 as libc::c_int
     } else {
         0 as libc::c_int
     };
 
+    if !mode.is_null() {
+        return luaL_argerror(L, 3, "mode is not supported");
+    }
+
     let name = luaL_optlstring(L, 2, s, null_mut())?;
     let s = std::slice::from_raw_parts(s.cast(), l);
-    let status = lua_load(L, name, mode, s);
+    let status = lua_load(L, name, s);
 
     load_aux(L, status, env)
 }

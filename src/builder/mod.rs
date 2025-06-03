@@ -124,7 +124,7 @@ impl Builder {
         unsafe { (*io_1).tt_ = 5 | 0 << 4 | 1 << 6 };
 
         // Initialize internal module.
-        unsafe { luaS_init(th) };
+        unsafe { luaS_init(g.deref()) };
         unsafe { luaT_init(g.deref()) };
         unsafe { luaX_init(g.deref()) };
 

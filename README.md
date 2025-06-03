@@ -12,7 +12,7 @@ Tsuki is a port of vanilla Lua 5.4 to Rust. This is porting, not binding; which 
 
 ## Differences from vanilla Lua
 
-- Binary chunk is not supported.
+- Binary chunk is not supported and third argument of `load` must be `nil`.
 - Panic when memory allocation is failed without retry.
 - GC has only one mode and no `collectgarbage` in basic library.
 - First argument of `error` and `load` accept only a string.

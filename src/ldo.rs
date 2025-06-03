@@ -17,16 +17,14 @@ use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, Zio};
 use crate::{LuaClosure, Thread};
-use libc::strchr;
 use std::alloc::{Layout, handle_alloc_error};
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::c_int;
 
 #[repr(C)]
 struct SParser {
     z: *mut ZIO,
     buff: Mbuffer,
     dyd: Dyndata,
-    mode: *const libc::c_char,
     name: *const libc::c_char,
 }
 
@@ -746,27 +744,10 @@ where
     status
 }
 
-unsafe fn checkmode(
-    mode: *const c_char,
-    x: *const c_char,
-) -> Result<(), Box<dyn std::error::Error>> {
-    if !mode.is_null() && (strchr(mode, *x.offset(0) as libc::c_int)).is_null() {
-        return Err(format!(
-            "attempt to load a {} chunk (mode is '{}')",
-            CStr::from_ptr(x).to_string_lossy(),
-            CStr::from_ptr(mode).to_string_lossy()
-        )
-        .into());
-    }
-
-    Ok(())
-}
-
 pub unsafe fn luaD_protectedparser(
     L: *const Thread,
     mut z: Zio,
     name: *const libc::c_char,
-    mode: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut p = SParser {
         z: 0 as *mut ZIO,
@@ -792,13 +773,11 @@ pub unsafe fn luaD_protectedparser(
                 size: 0,
             },
         },
-        mode: 0 as *const libc::c_char,
         name: 0 as *const libc::c_char,
     };
 
     p.z = &mut z;
     p.name = name;
-    p.mode = mode;
     p.dyd.actvar.arr = 0 as *mut Vardesc;
     p.dyd.actvar.size = 0 as libc::c_int;
     p.dyd.gt.arr = 0 as *mut Labeldesc;
@@ -824,7 +803,6 @@ pub unsafe fn luaD_protectedparser(
                 -1
             };
 
-            checkmode(p.mode, b"text\0" as *const u8 as *const libc::c_char)?;
             cl = luaY_parser(L, p.z, &raw mut p.buff, &raw mut p.dyd, p.name, c)?;
 
             luaF_initupvals((*L).global, cl);

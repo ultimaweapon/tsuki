@@ -10,6 +10,6 @@ fn dump() {
     let lua = Builder::new().build();
     let td = lua.spawn();
 
-    unsafe { lua_load(td, null(), null(), chunk).unwrap() };
+    unsafe { lua_load(td, null(), chunk).unwrap() };
     unsafe { lua_closethread(td).unwrap() };
 }

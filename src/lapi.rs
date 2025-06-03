@@ -1414,7 +1414,6 @@ pub unsafe fn lua_pcall(
 pub unsafe fn lua_load(
     L: *const Thread,
     mut name: *const libc::c_char,
-    mode: *const libc::c_char,
     chunk: impl AsRef<[u8]>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load.
@@ -1428,7 +1427,7 @@ pub unsafe fn lua_load(
         name = b"?\0" as *const u8 as *const libc::c_char;
     }
 
-    luaD_protectedparser(L, z, name, mode)?;
+    luaD_protectedparser(L, z, name)?;
 
     let f = (*((*L).top.get()).offset(-(1 as libc::c_int as isize)))
         .val
@@ -1448,10 +1447,8 @@ pub unsafe fn lua_load(
                 && (*(*gt).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
             {
                 luaC_barrier_((*L).global, (*f).upvals[0].get().cast(), (*gt).value_.gc);
-            } else {
-            };
-        } else {
-        };
+            }
+        }
     }
 
     Ok(())
