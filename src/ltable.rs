@@ -567,7 +567,7 @@ pub unsafe fn luaH_resize(
         array: Cell::new(0 as *mut TValue),
         node: Cell::new(0 as *mut Node),
         lastfree: Cell::new(0 as *mut Node),
-        metatable: 0 as *mut Table,
+        metatable: Cell::new(0 as *mut Table),
     };
     let oldasize: libc::c_uint = setlimittosize(t);
     let mut newarray: *mut TValue = 0 as *mut TValue;
@@ -670,7 +670,7 @@ pub unsafe fn luaH_new(g: *const Lua) -> *mut Table {
     addr_of_mut!((*o).array).write(Cell::new(0 as *mut TValue));
     addr_of_mut!((*o).node).write(Cell::new(null_mut()));
     addr_of_mut!((*o).lastfree).write(Cell::new(null_mut()));
-    (*o).metatable = 0 as *mut Table;
+    addr_of_mut!((*o).metatable).write(Cell::new(0 as *mut Table));
 
     setnodevector(g, o, 0);
     o

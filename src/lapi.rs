@@ -896,17 +896,13 @@ pub unsafe fn lua_getmetatable(L: *const Thread, objindex: libc::c_int) -> libc:
     let mut mt: *mut Table = 0 as *mut Table;
     let mut res: libc::c_int = 0 as libc::c_int;
     obj = index2value(L, objindex);
+
     match (*obj).tt_ as libc::c_int & 0xf as libc::c_int {
-        5 => {
-            mt = (*((*obj).value_.gc as *mut Table)).metatable;
-        }
-        7 => {
-            mt = (*((*obj).value_.gc as *mut Udata)).metatable;
-        }
-        _ => {
-            mt = (*(*L).global).mt[((*obj).tt_ & 0xf) as usize].get();
-        }
+        5 => mt = (*((*obj).value_.gc as *mut Table)).metatable.get(),
+        7 => mt = (*((*obj).value_.gc as *mut Udata)).metatable,
+        _ => mt = (*(*L).global).mt[((*obj).tt_ & 0xf) as usize].get(),
     }
+
     if !mt.is_null() {
         let io: *mut TValue = &raw mut (*(*L).top.get()).val;
         let x_: *mut Table = mt;
@@ -1273,8 +1269,8 @@ pub unsafe fn lua_setmetatable(
 
     match (*obj).tt_ & 0xf {
         5 => {
-            let ref mut fresh3 = (*((*obj).value_.gc as *mut Table)).metatable;
-            *fresh3 = mt;
+            (*((*obj).value_.gc as *mut Table)).metatable.set(mt);
+
             if !mt.is_null() {
                 if (*(*obj).value_.gc).marked.get() as libc::c_int
                     & (1 as libc::c_int) << 5 as libc::c_int

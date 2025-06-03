@@ -317,16 +317,18 @@ pub unsafe fn luaV_finishget(
                 luaG_typeerror(L, t, "index")?;
             }
         } else {
-            tm = if ((*((*t).value_.gc as *mut Table)).metatable).is_null() {
+            tm = if ((*((*t).value_.gc as *mut Table)).metatable.get()).is_null() {
                 0 as *const TValue
-            } else if (*(*((*t).value_.gc as *mut Table)).metatable).flags.get() as libc::c_uint
+            } else if (*(*((*t).value_.gc as *mut Table)).metatable.get())
+                .flags
+                .get() as libc::c_uint
                 & (1 as libc::c_uint) << TM_INDEX as libc::c_int
                 != 0
             {
                 0 as *const TValue
             } else {
                 luaT_gettm(
-                    (*((*t).value_.gc as *mut Table)).metatable,
+                    (*((*t).value_.gc as *mut Table)).metatable.get(),
                     TM_INDEX,
                     (*(*L).global).tmname[TM_INDEX as usize].get(),
                 )
@@ -377,16 +379,16 @@ pub unsafe fn luaV_finishset(
         let mut tm: *const TValue = 0 as *const TValue;
         if !slot.is_null() {
             let h: *mut Table = (*t).value_.gc as *mut Table;
-            tm = if ((*h).metatable).is_null() {
+            tm = if ((*h).metatable.get()).is_null() {
                 0 as *const TValue
-            } else if (*(*h).metatable).flags.get() as libc::c_uint
+            } else if (*(*h).metatable.get()).flags.get() as libc::c_uint
                 & (1 as libc::c_uint) << TM_NEWINDEX as libc::c_int
                 != 0
             {
                 0 as *const TValue
             } else {
                 luaT_gettm(
-                    (*h).metatable,
+                    (*h).metatable.get(),
                     TM_NEWINDEX,
                     (*(*L).global).tmname[TM_NEWINDEX as usize].get(),
                 )
@@ -750,32 +752,35 @@ pub unsafe fn luaV_equalobj(
             } else if L.is_null() {
                 return Ok(0 as libc::c_int);
             }
-            tm = if ((*((*t1).value_.gc as *mut Table)).metatable).is_null() {
+            tm = if ((*((*t1).value_.gc as *mut Table)).metatable.get()).is_null() {
                 0 as *const TValue
-            } else if (*(*((*t1).value_.gc as *mut Table)).metatable).flags.get() as libc::c_uint
+            } else if (*(*((*t1).value_.gc as *mut Table)).metatable.get())
+                .flags
+                .get() as libc::c_uint
                 & (1 as libc::c_uint) << TM_EQ as libc::c_int
                 != 0
             {
                 0 as *const TValue
             } else {
                 luaT_gettm(
-                    (*((*t1).value_.gc as *mut Table)).metatable,
+                    (*((*t1).value_.gc as *mut Table)).metatable.get(),
                     TM_EQ,
                     (*(*L).global).tmname[TM_EQ as usize].get(),
                 )
             };
             if tm.is_null() {
-                tm = if ((*((*t2).value_.gc as *mut Table)).metatable).is_null() {
+                tm = if ((*((*t2).value_.gc as *mut Table)).metatable.get()).is_null() {
                     0 as *const TValue
-                } else if (*(*((*t2).value_.gc as *mut Table)).metatable).flags.get()
-                    as libc::c_uint
+                } else if (*(*((*t2).value_.gc as *mut Table)).metatable.get())
+                    .flags
+                    .get() as libc::c_uint
                     & (1 as libc::c_uint) << TM_EQ as libc::c_int
                     != 0
                 {
                     0 as *const TValue
                 } else {
                     luaT_gettm(
-                        (*((*t2).value_.gc as *mut Table)).metatable,
+                        (*((*t2).value_.gc as *mut Table)).metatable.get(),
                         TM_EQ,
                         (*(*L).global).tmname[TM_EQ as usize].get(),
                     )
@@ -994,16 +999,16 @@ pub unsafe fn luaV_objlen(
     match (*rb).tt_ as libc::c_int & 0x3f as libc::c_int {
         5 => {
             let h: *mut Table = (*rb).value_.gc as *mut Table;
-            tm = if ((*h).metatable).is_null() {
+            tm = if ((*h).metatable.get()).is_null() {
                 0 as *const TValue
-            } else if (*(*h).metatable).flags.get() as libc::c_uint
+            } else if (*(*h).metatable.get()).flags.get() as libc::c_uint
                 & (1 as libc::c_uint) << TM_LEN as libc::c_int
                 != 0
             {
                 0 as *const TValue
             } else {
                 luaT_gettm(
-                    (*h).metatable,
+                    (*h).metatable.get(),
                     TM_LEN,
                     (*(*L).global).tmname[TM_LEN as usize].get(),
                 )

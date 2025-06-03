@@ -113,16 +113,11 @@ pub unsafe fn luaT_gettmbyobj(
     mut event: TMS,
 ) -> *const TValue {
     let mut mt: *mut Table = 0 as *mut Table;
+
     match (*o).tt_ as libc::c_int & 0xf as libc::c_int {
-        5 => {
-            mt = (*((*o).value_.gc as *mut Table)).metatable;
-        }
-        7 => {
-            mt = (*((*o).value_.gc as *mut Udata)).metatable;
-        }
-        _ => {
-            mt = (*(*L).global).mt[((*o).tt_ & 0xf) as usize].get();
-        }
+        5 => mt = (*((*o).value_.gc as *mut Table)).metatable.get(),
+        7 => mt = (*((*o).value_.gc as *mut Udata)).metatable,
+        _ => mt = (*(*L).global).mt[((*o).tt_ & 0xf) as usize].get(),
     }
 
     return if !mt.is_null() {
@@ -139,7 +134,7 @@ pub unsafe fn luaT_objtypename(mut g: *const Lua, mut o: *const TValue) -> Cow<'
             | (0 as libc::c_int) << 4 as libc::c_int
             | (1 as libc::c_int) << 6 as libc::c_int
         && {
-            mt = (*((*o).value_.gc as *mut Table)).metatable;
+            mt = (*((*o).value_.gc as *mut Table)).metatable.get();
             !mt.is_null()
         }
         || (*o).tt_ as libc::c_int

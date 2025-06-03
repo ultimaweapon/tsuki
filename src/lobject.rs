@@ -98,7 +98,7 @@ pub struct Table {
     pub array: Cell<*mut TValue>,
     pub node: Cell<*mut Node>,
     pub lastfree: Cell<*mut Node>,
-    pub metatable: *mut Table,
+    pub metatable: Cell<*mut Table>,
 }
 
 #[derive(Copy, Clone)]

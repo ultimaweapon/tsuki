@@ -437,21 +437,25 @@ unsafe fn traversestrongtable(g: *const Lua, h: *const Table) {
 unsafe fn traversetable(g: *const Lua, h: *const Table) -> usize {
     let mut weakkey: *const libc::c_char = 0 as *const libc::c_char;
     let mut weakvalue: *const libc::c_char = 0 as *const libc::c_char;
-    let mode: *const TValue = if ((*h).metatable).is_null() {
+    let mode: *const TValue = if ((*h).metatable.get()).is_null() {
         0 as *const TValue
-    } else if (*(*h).metatable).flags.get() & 1 << TM_MODE != 0 {
+    } else if (*(*h).metatable.get()).flags.get() & 1 << TM_MODE != 0 {
         0 as *const TValue
     } else {
-        luaT_gettm((*h).metatable, TM_MODE, (*g).tmname[TM_MODE as usize].get())
+        luaT_gettm(
+            (*h).metatable.get(),
+            TM_MODE,
+            (*g).tmname[TM_MODE as usize].get(),
+        )
     };
 
     let mut smode: *mut TString = 0 as *mut TString;
-    if !((*h).metatable).is_null() {
-        if (*(*h).metatable).hdr.marked.get() as libc::c_int
+    if !((*h).metatable.get()).is_null() {
+        if (*(*h).metatable.get()).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
         {
-            reallymarkobject(g, (*h).metatable as *mut Object);
+            reallymarkobject(g, (*h).metatable.get() as *mut Object);
         }
     }
     if !mode.is_null()
