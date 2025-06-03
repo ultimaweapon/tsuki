@@ -14,7 +14,7 @@ use crate::lstate::lua_CFunction;
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::ltm::TM_EQ;
 use crate::lvm::{F2Ieq, luaV_flttointeger};
-use crate::{Lua, Thread};
+use crate::{Lua, TableError, Thread};
 use libm::frexp;
 use std::alloc::Layout;
 use std::cell::Cell;
@@ -697,7 +697,7 @@ unsafe fn luaH_newkey(
     t: *mut Table,
     mut key: *const TValue,
     value: *mut TValue,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), TableError> {
     let mut mp: *mut Node = 0 as *mut Node;
     let mut aux: TValue = TValue {
         value_: Value {
@@ -707,18 +707,18 @@ unsafe fn luaH_newkey(
     };
 
     if (*key).tt_ & 0xf == 0 {
-        luaG_runerror(L, "table index is nil")?;
+        return Err(TableError::NilKey);
     } else if (*key).tt_ as libc::c_int == 3 as libc::c_int | (1 as libc::c_int) << 4 {
         let f: f64 = (*key).value_.n;
         let mut k: i64 = 0;
+
         if luaV_flttointeger(f, &mut k, F2Ieq) != 0 {
             let io: *mut TValue = &raw mut aux;
             (*io).value_.i = k;
             (*io).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
             key = &mut aux;
-        } else if (!(f == f) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long != 0
-        {
-            luaG_runerror(L, "table index is NaN")?;
+        } else if !(f == f) {
+            return Err(TableError::NanKey);
         }
     }
 
@@ -873,7 +873,7 @@ pub unsafe fn luaH_finishset(
     key: *const TValue,
     slot: *const TValue,
     value: *mut TValue,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), TableError> {
     if (*slot).tt_ as libc::c_int == 0 as libc::c_int | (2 as libc::c_int) << 4 as libc::c_int {
         luaH_newkey(L, t, key, value)?;
     } else {
@@ -890,7 +890,7 @@ pub unsafe fn luaH_set(
     t: *mut Table,
     key: *const TValue,
     value: *mut TValue,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), TableError> {
     let slot: *const TValue = luaH_get(t, key);
 
     luaH_finishset(L, t, key, slot, value)

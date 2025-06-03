@@ -393,7 +393,9 @@ pub unsafe fn luaV_finishset(
             };
 
             if tm.is_null() {
-                luaH_finishset(L, h, key, slot, val)?;
+                if let Err(e) = luaH_finishset(L, h, key, slot, val) {
+                    luaG_runerror(L, e)?;
+                }
 
                 (*h).flags
                     .set(((*h).flags.get() as libc::c_uint & !!(!0 << TM_EQ + 1)) as u8);

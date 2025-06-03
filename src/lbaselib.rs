@@ -23,6 +23,7 @@ use crate::lauxlib::{
     luaL_checktype, luaL_error, luaL_getmetafield, luaL_optinteger, luaL_optlstring, luaL_setfuncs,
     luaL_tolstring, luaL_typeerror, luaL_where,
 };
+use crate::ldebug::luaG_runerror;
 use libc::{isalnum, isdigit, strspn, toupper};
 use std::ffi::{c_char, c_int, c_void};
 use std::io::Write;
@@ -236,7 +237,11 @@ unsafe fn luaB_rawset(mut L: *const Thread) -> Result<c_int, Box<dyn std::error:
     luaL_checkany(L, 2 as libc::c_int)?;
     luaL_checkany(L, 3 as libc::c_int)?;
     lua_settop(L, 3 as libc::c_int)?;
-    lua_rawset(L, 1 as libc::c_int)?;
+
+    if let Err(e) = lua_rawset(L, 1) {
+        luaG_runerror(L, e)?;
+    }
+
     return Ok(1 as libc::c_int);
 }
 

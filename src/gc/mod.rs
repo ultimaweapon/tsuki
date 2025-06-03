@@ -1187,7 +1187,7 @@ pub(crate) enum GcContext<'a> {
 
 impl<'a> GcContext<'a> {
     #[inline(always)]
-    fn global(self) -> &'a Lua {
+    pub fn global(self) -> &'a Lua {
         match self {
             Self::Global(v) => v,
             Self::Thread(v) => unsafe { &*v.global },

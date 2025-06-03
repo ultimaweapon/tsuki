@@ -26,7 +26,7 @@ use crate::lvm::{
     luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
 };
 use crate::lzio::Zio;
-use crate::{GcContext, LuaClosure, Object, Thread, api_incr_top};
+use crate::{GcContext, LuaClosure, Object, TableError, Thread, api_incr_top};
 use std::ffi::{c_int, c_void};
 use std::mem::offset_of;
 use std::ptr::null_mut;
@@ -1169,14 +1169,10 @@ pub unsafe fn lua_seti(
     Ok(())
 }
 
-unsafe fn aux_rawset(
-    L: *const Thread,
-    idx: libc::c_int,
-    key: *mut TValue,
-    n: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut t: *mut Table = 0 as *mut Table;
-    t = gettable(L, idx);
+pub unsafe fn lua_rawset(L: *const Thread, idx: libc::c_int) -> Result<(), TableError> {
+    let key = &raw mut (*(*L).top.get().offset(-2)).val;
+    let t = gettable(L, idx);
+
     luaH_set(
         L,
         t,
@@ -1206,22 +1202,10 @@ unsafe fn aux_rawset(
             luaC_barrierback_(L, t as *mut Object);
         } else {
         };
-    } else {
-    };
-    (*L).top.sub(n.try_into().unwrap());
-    Ok(())
-}
+    }
 
-pub unsafe fn lua_rawset(
-    L: *const Thread,
-    idx: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
-    aux_rawset(
-        L,
-        idx,
-        &raw mut (*((*L).top.get()).offset(-(2 as libc::c_int as isize))).val,
-        2 as libc::c_int,
-    )
+    (*L).top.sub(2);
+    Ok(())
 }
 
 pub unsafe fn lua_rawseti(L: *mut Thread, idx: libc::c_int, n: i64) {

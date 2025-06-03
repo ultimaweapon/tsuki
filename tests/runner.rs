@@ -3,6 +3,11 @@ use std::sync::LazyLock;
 use tsuki::{Builder, lua_closethread, lua_load, lua_pcall};
 
 #[test]
+fn badkey() {
+    run("badkey.lua").unwrap();
+}
+
+#[test]
 fn close() {
     run("close.lua").unwrap();
 }

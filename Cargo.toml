@@ -7,3 +7,4 @@ edition = "2024"
 libc = "0.2.172"
 libm = "0.2.15"
 rand = { version = "0.9.1", features = ["thread_rng"], default-features = false }
+thiserror = { version = "2.0.12", default-features = false }

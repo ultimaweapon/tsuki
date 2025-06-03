@@ -255,7 +255,7 @@ pub unsafe fn luaX_newstring(
     mut ls: *mut LexState,
     mut str: *const libc::c_char,
     mut l: usize,
-) -> Result<*mut TString, Box<dyn std::error::Error>> {
+) -> *mut TString {
     let mut L = (*ls).L;
     let mut ts: *mut TString = luaS_newlstr((*L).global, str, l);
     let mut o: *const TValue = luaH_getstr((*ls).h, ts);
@@ -264,14 +264,14 @@ pub unsafe fn luaX_newstring(
     } else {
         let fresh1 = (*L).top.get();
         (*L).top.add(1);
-        let mut stv: *mut TValue = &mut (*fresh1).val;
+        let mut stv: *mut TValue = &raw mut (*fresh1).val;
         let mut io: *mut TValue = stv;
         let mut x_: *mut TString = ts;
 
         (*io).value_.gc = (x_ as *mut Object);
         (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
 
-        luaH_finishset(L, (*ls).h, stv, o, stv)?;
+        luaH_finishset(L, (*ls).h, stv, o, stv).unwrap(); // This should never fails.
 
         if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
             crate::gc::step(GcContext::Thread(&*L));
@@ -279,7 +279,8 @@ pub unsafe fn luaX_newstring(
 
         (*L).top.sub(1);
     }
-    return Ok(ts);
+
+    ts
 }
 
 unsafe fn inclinenumber(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
@@ -587,7 +588,7 @@ unsafe fn read_long_string(
             ls,
             ((*(*ls).buff).buffer).offset(sep as isize),
             ((*(*ls).buff).n).wrapping_sub(2 as libc::c_int as usize * sep),
-        )?;
+        );
     }
 
     Ok(())
@@ -915,7 +916,7 @@ unsafe fn read_string(
         ls,
         ((*(*ls).buff).buffer).offset(1 as libc::c_int as isize),
         ((*(*ls).buff).n).wrapping_sub(2 as libc::c_int as usize),
-    )?;
+    );
     Ok(())
 }
 
@@ -1167,7 +1168,7 @@ unsafe fn llex(
                             break;
                         }
                     }
-                    ts = luaX_newstring(ls, (*(*ls).buff).buffer, (*(*ls).buff).n)?;
+                    ts = luaX_newstring(ls, (*(*ls).buff).buffer, (*(*ls).buff).n);
                     (*seminfo).ts = ts;
                     if (*ts).hdr.tt as libc::c_int
                         == 4 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int

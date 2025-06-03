@@ -1475,7 +1475,7 @@ unsafe fn body(
                 ::core::mem::size_of::<[libc::c_char; 5]>()
                     .wrapping_div(::core::mem::size_of::<libc::c_char>())
                     .wrapping_sub(1),
-            )?,
+            ),
         )?;
         adjustlocalvars(ls, 1 as libc::c_int)?;
     }
@@ -2340,7 +2340,7 @@ unsafe fn fornum(
             ::core::mem::size_of::<[libc::c_char; 12]>()
                 .wrapping_div(::core::mem::size_of::<libc::c_char>())
                 .wrapping_sub(1),
-        )?,
+        ),
     )?;
     new_localvar(
         ls,
@@ -2350,7 +2350,7 @@ unsafe fn fornum(
             ::core::mem::size_of::<[libc::c_char; 12]>()
                 .wrapping_div(::core::mem::size_of::<libc::c_char>())
                 .wrapping_sub(1),
-        )?,
+        ),
     )?;
     new_localvar(
         ls,
@@ -2360,7 +2360,7 @@ unsafe fn fornum(
             ::core::mem::size_of::<[libc::c_char; 12]>()
                 .wrapping_div(::core::mem::size_of::<libc::c_char>())
                 .wrapping_sub(1),
-        )?,
+        ),
     )?;
     new_localvar(ls, varname)?;
     checknext(ls, '=' as i32)?;
@@ -2401,7 +2401,7 @@ unsafe fn forlist(
             ::core::mem::size_of::<[libc::c_char; 12]>()
                 .wrapping_div(::core::mem::size_of::<libc::c_char>())
                 .wrapping_sub(1),
-        )?,
+        ),
     )?;
     new_localvar(
         ls,
@@ -2411,7 +2411,7 @@ unsafe fn forlist(
             ::core::mem::size_of::<[libc::c_char; 12]>()
                 .wrapping_div(::core::mem::size_of::<libc::c_char>())
                 .wrapping_sub(1),
-        )?,
+        ),
     )?;
     new_localvar(
         ls,
@@ -2421,7 +2421,7 @@ unsafe fn forlist(
             ::core::mem::size_of::<[libc::c_char; 12]>()
                 .wrapping_div(::core::mem::size_of::<libc::c_char>())
                 .wrapping_sub(1),
-        )?,
+        ),
     )?;
     new_localvar(
         ls,
@@ -2431,7 +2431,7 @@ unsafe fn forlist(
             ::core::mem::size_of::<[libc::c_char; 12]>()
                 .wrapping_div(::core::mem::size_of::<libc::c_char>())
                 .wrapping_sub(1),
-        )?,
+        ),
     )?;
     new_localvar(ls, indexname)?;
     while testnext(ls, ',' as i32)? != 0 {
