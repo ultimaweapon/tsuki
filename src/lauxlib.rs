@@ -88,7 +88,7 @@ unsafe fn pushglobalfuncname(
     mut ar: *mut lua_Debug,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut top: libc::c_int = lua_gettop(L);
-    lua_getinfo(L, b"f\0" as *const u8 as *const libc::c_char, ar)?;
+    lua_getinfo(L, b"f\0" as *const u8 as *const libc::c_char, ar);
     lua_getfield(
         L,
         -(1000000 as libc::c_int) - 1000 as libc::c_int,
@@ -242,7 +242,7 @@ pub unsafe fn luaL_traceback(
 
             level += n;
         } else {
-            lua_getinfo(L1, b"Slnt\0" as *const u8 as *const libc::c_char, &mut ar)?;
+            lua_getinfo(L1, b"Slnt\0" as *const u8 as *const libc::c_char, &mut ar);
 
             if ar.currentline <= 0 {
                 write!(
@@ -300,7 +300,7 @@ pub unsafe fn luaL_argerror(
     if lua_getstack(L, 0 as libc::c_int, &mut ar) == 0 {
         return luaL_error(L, format!("bad argument #{arg} ({extramsg})"));
     }
-    lua_getinfo(L, b"n\0" as *const u8 as *const libc::c_char, &mut ar)?;
+    lua_getinfo(L, b"n\0" as *const u8 as *const libc::c_char, &mut ar);
     if strcmp(ar.namewhat, b"method\0" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
         arg -= 1;
 
@@ -355,10 +355,7 @@ unsafe fn tag_error(
     Ok(())
 }
 
-pub unsafe fn luaL_where(
-    mut L: *const Thread,
-    level: c_int,
-) -> Result<Cow<'static, str>, Box<dyn std::error::Error>> {
+pub unsafe fn luaL_where(mut L: *const Thread, level: c_int) -> Cow<'static, str> {
     let mut ar: lua_Debug = lua_Debug {
         event: 0,
         name: 0 as *const libc::c_char,
@@ -380,26 +377,26 @@ pub unsafe fn luaL_where(
     };
 
     if lua_getstack(L, level, &mut ar) != 0 {
-        lua_getinfo(L, b"Sl\0" as *const u8 as *const libc::c_char, &mut ar)?;
+        lua_getinfo(L, b"Sl\0" as *const u8 as *const libc::c_char, &mut ar);
 
         if ar.currentline > 0 {
-            return Ok(format!(
+            return format!(
                 "{}:{}: ",
                 CStr::from_ptr(ar.short_src.as_ptr()).to_string_lossy(),
                 ar.currentline,
             )
-            .into());
+            .into();
         }
     }
 
-    Ok("".into())
+    "".into()
 }
 
 pub unsafe fn luaL_error(
     L: *const Thread,
     m: impl Display,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
-    Err(format!("{}{}", luaL_where(L, 1)?, m).into())
+    Err(format!("{}{}", luaL_where(L, 1), m).into())
 }
 
 pub unsafe fn luaL_fileresult(
@@ -442,7 +439,7 @@ pub unsafe fn luaL_newmetatable(
         return Ok(0 as libc::c_int);
     }
     lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-    lua_createtable(L, 0 as libc::c_int, 2 as libc::c_int)?;
+    lua_createtable(L, 0 as libc::c_int, 2 as libc::c_int);
     lua_pushstring(L, tname);
     lua_setfield(
         L,
@@ -678,34 +675,29 @@ pub unsafe fn luaL_ref(
     if lua_rawgeti(L, t, (2 as libc::c_int + 1 as libc::c_int) as i64) == 0 as libc::c_int {
         ref_0 = 0 as libc::c_int;
         lua_pushinteger(L, 0 as libc::c_int as i64);
-        lua_rawseti(L, t, (2 as libc::c_int + 1 as libc::c_int) as i64)?;
+        lua_rawseti(L, t, (2 as libc::c_int + 1 as libc::c_int) as i64);
     } else {
         ref_0 = lua_tointegerx(L, -(1 as libc::c_int), 0 as *mut libc::c_int) as libc::c_int;
     }
     lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
     if ref_0 != 0 as libc::c_int {
         lua_rawgeti(L, t, ref_0 as i64);
-        lua_rawseti(L, t, (2 as libc::c_int + 1 as libc::c_int) as i64)?;
+        lua_rawseti(L, t, (2 as libc::c_int + 1 as libc::c_int) as i64);
     } else {
         ref_0 = lua_rawlen(L, t) as libc::c_int + 1 as libc::c_int;
     }
-    lua_rawseti(L, t, ref_0 as i64)?;
+    lua_rawseti(L, t, ref_0 as i64);
     return Ok(ref_0);
 }
 
-pub unsafe fn luaL_unref(
-    mut L: *mut Thread,
-    mut t: libc::c_int,
-    mut ref_0: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaL_unref(mut L: *mut Thread, mut t: libc::c_int, mut ref_0: libc::c_int) {
     if ref_0 >= 0 as libc::c_int {
         t = lua_absindex(L, t);
         lua_rawgeti(L, t, (2 as libc::c_int + 1 as libc::c_int) as i64);
-        lua_rawseti(L, t, ref_0 as i64)?;
+        lua_rawseti(L, t, ref_0 as i64);
         lua_pushinteger(L, ref_0 as i64);
-        lua_rawseti(L, t, (2 as libc::c_int + 1 as libc::c_int) as i64)?;
+        lua_rawseti(L, t, (2 as libc::c_int + 1 as libc::c_int) as i64);
     }
-    Ok(())
 }
 
 unsafe fn getS(
@@ -880,7 +872,7 @@ pub unsafe fn luaL_getsubtable(
     } else {
         lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
         idx = lua_absindex(L, idx);
-        lua_createtable(L, 0 as libc::c_int, 0 as libc::c_int)?;
+        lua_createtable(L, 0 as libc::c_int, 0 as libc::c_int);
         lua_pushvalue(L, -(1 as libc::c_int));
         lua_setfield(L, idx, fname)?;
         return Ok(0 as libc::c_int);

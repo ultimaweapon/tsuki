@@ -2797,7 +2797,7 @@ unsafe fn createmetatable(mut L: *const Thread) -> Result<(), Box<dyn std::error
         (::core::mem::size_of::<[luaL_Reg; 10]>() as libc::c_ulong)
             .wrapping_div(::core::mem::size_of::<luaL_Reg>() as libc::c_ulong)
             .wrapping_sub(1 as libc::c_int as libc::c_ulong) as libc::c_int,
-    )?;
+    );
     luaL_setfuncs(
         L,
         &raw const stringmetamethods as *const luaL_Reg,
@@ -2824,7 +2824,7 @@ pub unsafe fn luaopen_string(mut L: *const Thread) -> Result<c_int, Box<dyn std:
         (::core::mem::size_of::<[luaL_Reg; 18]>() as libc::c_ulong)
             .wrapping_div(::core::mem::size_of::<luaL_Reg>() as libc::c_ulong)
             .wrapping_sub(1 as libc::c_int as libc::c_ulong) as libc::c_int,
-    )?;
+    );
     luaL_setfuncs(L, &raw const strlib as *const luaL_Reg, 0 as libc::c_int)?;
     createmetatable(L)?;
     return Ok(1 as libc::c_int);

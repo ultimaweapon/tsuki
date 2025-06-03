@@ -862,27 +862,25 @@ pub unsafe fn lua_rawgeti(L: *const Thread, idx: libc::c_int, n: i64) -> libc::c
     return finishrawget(L, luaH_getint(t, n));
 }
 
-pub unsafe fn lua_createtable(
-    L: *const Thread,
-    narray: libc::c_int,
-    nrec: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut t: *mut Table = 0 as *mut Table;
-    t = luaH_new((*L).global);
+pub unsafe fn lua_createtable(L: *const Thread, narray: libc::c_int, nrec: libc::c_int) {
+    let t = luaH_new((*L).global);
     let io: *mut TValue = &raw mut (*(*L).top.get()).val;
     let x_: *mut Table = t;
+
     (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = (5 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+
     api_incr_top(L);
+
     if narray > 0 as libc::c_int || nrec > 0 as libc::c_int {
-        luaH_resize(L, t, narray as libc::c_uint, nrec as libc::c_uint)?;
+        luaH_resize(L, t, narray as libc::c_uint, nrec as libc::c_uint);
     }
+
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
-    Ok(())
 }
 
 pub unsafe fn lua_getmetatable(L: *const Thread, objindex: libc::c_int) -> libc::c_int {
@@ -1222,19 +1220,16 @@ pub unsafe fn lua_rawset(
     )
 }
 
-pub unsafe fn lua_rawseti(
-    L: *mut Thread,
-    idx: libc::c_int,
-    n: i64,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut t: *mut Table = 0 as *mut Table;
-    t = gettable(L, idx);
+pub unsafe fn lua_rawseti(L: *mut Thread, idx: libc::c_int, n: i64) {
+    let t = gettable(L, idx);
+
     luaH_setint(
         L,
         t,
         n,
         &raw mut (*((*L).top.get()).offset(-(1 as libc::c_int as isize))).val,
-    )?;
+    );
+
     if (*((*L).top.get()).offset(-(1 as libc::c_int as isize)))
         .val
         .tt_ as libc::c_int
@@ -1254,12 +1249,9 @@ pub unsafe fn lua_rawseti(
             luaC_barrierback_(L, t as *mut Object);
         } else {
         };
-    } else {
-    };
+    }
 
     (*L).top.sub(1);
-
-    Ok(())
 }
 
 pub unsafe fn lua_setmetatable(

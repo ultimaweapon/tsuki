@@ -164,7 +164,7 @@ unsafe fn luaB_error(L: *const Thread) -> Result<c_int, Box<dyn std::error::Erro
     lua_settop(L, 1)?;
 
     if lv > 0 {
-        Err(format!("{}{}", luaL_where(L, lv)?, msg).into())
+        Err(format!("{}{}", luaL_where(L, lv), msg).into())
     } else {
         Err(msg.into())
     }

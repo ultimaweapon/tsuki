@@ -18,6 +18,7 @@ pub use self::lauxlib::{
     luaL_optlstring, luaL_setfuncs, luaL_tolstring, luaL_typeerror,
 };
 pub use self::lstate::lua_closethread;
+pub use self::table::*;
 pub use self::thread::*;
 
 use self::lmem::luaM_free_;
@@ -58,6 +59,7 @@ mod ltablib;
 mod ltm;
 mod lvm;
 mod lzio;
+mod table;
 mod thread;
 
 #[inline(always)]
@@ -66,7 +68,7 @@ pub unsafe fn lua_pop(th: *const Thread, n: c_int) -> Result<(), Box<dyn std::er
 }
 
 #[inline(always)]
-unsafe extern "C" fn api_incr_top(th: *const Thread) {
+unsafe fn api_incr_top(th: *const Thread) {
     unsafe { (*th).top.add(1) };
 
     if unsafe { (*th).top.get() > (*(*th).ci.get()).top } {

@@ -2147,7 +2147,7 @@ pub unsafe fn luaV_execute(
                             as u8;
 
                         if b_3 != 0 as libc::c_int || c_1 != 0 as libc::c_int {
-                            luaH_resize(L, t, c_1 as libc::c_uint, b_3 as libc::c_uint)?;
+                            luaH_resize(L, t, c_1 as libc::c_uint, b_3 as libc::c_uint);
                         }
 
                         if (*(*L).global).gc.debt() > 0 {
@@ -5416,7 +5416,7 @@ pub unsafe fn luaV_execute(
                             pc = pc.offset(1);
                         }
                         if last > luaH_realasize(h) {
-                            luaH_resizearray(L, h, last)?;
+                            luaH_resizearray(L, h, last);
                         }
                         while n_4 > 0 as libc::c_int {
                             let val: *mut TValue = &raw mut (*ra_76.offset(n_4 as isize)).val;

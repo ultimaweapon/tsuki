@@ -332,15 +332,9 @@ unsafe fn nextline(
     };
 }
 
-unsafe fn collectvalidlines(
-    mut L: *const Thread,
-    mut f: *const Object,
-) -> Result<(), Box<dyn std::error::Error>> {
-    if !(!f.is_null()
-        && (*f).tt as libc::c_int == 6 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int)
-    {
-        (*(*L).top.get()).val.tt_ =
-            (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+unsafe fn collectvalidlines(mut L: *const Thread, mut f: *const Object) {
+    if !(!f.is_null() && (*f).tt as libc::c_int == 6 as libc::c_int | (0 as libc::c_int) << 4) {
+        (*(*L).top.get()).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4) as u8;
         api_incr_top(L);
     } else {
         let mut p: *const Proto = (*f.cast::<LuaClosure>()).p.get();
@@ -370,12 +364,11 @@ unsafe fn collectvalidlines(
             }
             while i < (*p).sizelineinfo {
                 currentline = nextline(p, currentline, i);
-                luaH_setint(L, t, currentline as i64, &mut v)?;
+                luaH_setint(L, t, currentline as i64, &raw mut v);
                 i += 1;
             }
         }
-    };
-    Ok(())
+    }
 }
 
 unsafe fn getfuncname(
@@ -470,7 +463,7 @@ pub unsafe fn lua_getinfo(
     mut L: *const Thread,
     mut what: *const libc::c_char,
     mut ar: *mut lua_Debug,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> c_int {
     let mut status: libc::c_int = 0;
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     let mut func: *mut TValue = 0 as *mut TValue;
@@ -507,12 +500,13 @@ pub unsafe fn lua_getinfo(
         api_incr_top(L);
     }
     if !(strchr(what, 'L' as i32)).is_null() {
-        collectvalidlines(L, cl)?;
+        collectvalidlines(L, cl);
     }
-    return Ok(status);
+
+    status
 }
 
-unsafe extern "C" fn filterpc(mut pc: libc::c_int, mut jmptarget: libc::c_int) -> libc::c_int {
+unsafe fn filterpc(mut pc: libc::c_int, mut jmptarget: libc::c_int) -> libc::c_int {
     if pc < jmptarget {
         return -(1 as libc::c_int);
     } else {

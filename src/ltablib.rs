@@ -1,11 +1,8 @@
 #![allow(
-    dead_code,
-    mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
-    unused_mut
+    unused_assignments
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
@@ -21,21 +18,17 @@ use crate::{
 };
 use std::ffi::c_int;
 
-pub type IdxT = libc::c_uint;
+type IdxT = libc::c_uint;
 
-unsafe fn checkfield(
-    mut L: *const Thread,
-    mut key: *const libc::c_char,
-    mut n: libc::c_int,
-) -> c_int {
+unsafe fn checkfield(L: *const Thread, key: *const libc::c_char, n: libc::c_int) -> c_int {
     lua_pushstring(L, key);
     (lua_rawget(L, -n) != 0 as libc::c_int) as libc::c_int
 }
 
 unsafe fn checktab(
-    mut L: *const Thread,
-    mut arg: libc::c_int,
-    mut what: libc::c_int,
+    L: *const Thread,
+    arg: libc::c_int,
+    what: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if lua_type(L, arg) != 5 as c_int {
         let mut n: libc::c_int = 1 as libc::c_int;
@@ -62,7 +55,7 @@ unsafe fn checktab(
     Ok(())
 }
 
-unsafe fn tinsert(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn tinsert(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut pos: i64 = 0;
     checktab(
         L,
@@ -98,13 +91,13 @@ unsafe fn tinsert(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Err
     return Ok(0 as libc::c_int);
 }
 
-unsafe fn tremove(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn tremove(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     checktab(
         L,
         1 as libc::c_int,
         1 as libc::c_int | 2 as libc::c_int | 4 as libc::c_int,
     )?;
-    let mut size: i64 = luaL_len(L, 1 as libc::c_int)?;
+    let size: i64 = luaL_len(L, 1 as libc::c_int)?;
     let mut pos: i64 = luaL_optinteger(L, 2 as libc::c_int, size)?;
     if pos != size {
         ((((pos as u64).wrapping_sub(1 as libc::c_uint as u64) <= size as u64) as libc::c_int
@@ -124,11 +117,11 @@ unsafe fn tremove(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Err
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn tmove(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut f: i64 = luaL_checkinteger(L, 2 as libc::c_int)?;
-    let mut e: i64 = luaL_checkinteger(L, 3 as libc::c_int)?;
-    let mut t: i64 = luaL_checkinteger(L, 4 as libc::c_int)?;
-    let mut tt: libc::c_int = if !(lua_type(L, 5 as libc::c_int) <= 0 as libc::c_int) {
+unsafe fn tmove(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
+    let f: i64 = luaL_checkinteger(L, 2 as libc::c_int)?;
+    let e: i64 = luaL_checkinteger(L, 3 as libc::c_int)?;
+    let t: i64 = luaL_checkinteger(L, 4 as libc::c_int)?;
+    let tt: libc::c_int = if !(lua_type(L, 5 as libc::c_int) <= 0 as libc::c_int) {
         5 as libc::c_int
     } else {
         1 as libc::c_int
@@ -172,9 +165,9 @@ unsafe fn tmove(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error
 }
 
 unsafe fn addfield(
-    mut L: *const Thread,
-    mut b: &mut Vec<u8>,
-    mut i: i64,
+    L: *const Thread,
+    b: &mut Vec<u8>,
+    i: i64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     lua_geti(L, 1 as libc::c_int, i)?;
     if ((lua_isstring(L, -(1 as libc::c_int)) == 0) as libc::c_int != 0 as libc::c_int)
@@ -198,11 +191,11 @@ unsafe fn addfield(
     Ok(())
 }
 
-unsafe fn tconcat(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn tconcat(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     checktab(L, 1 as libc::c_int, 1 as libc::c_int | 4 as libc::c_int)?;
     let mut last: i64 = luaL_len(L, 1 as libc::c_int)?;
     let mut lsep: usize = 0;
-    let mut sep: *const libc::c_char = luaL_optlstring(
+    let sep: *const libc::c_char = luaL_optlstring(
         L,
         2 as libc::c_int,
         b"\0" as *const u8 as *const libc::c_char,
@@ -228,10 +221,10 @@ unsafe fn tconcat(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Err
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn tpack(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn tpack(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
-    let mut n: libc::c_int = lua_gettop(L);
-    lua_createtable(L, n, 1 as libc::c_int)?;
+    let n: libc::c_int = lua_gettop(L);
+    lua_createtable(L, n, 1 as libc::c_int);
     lua_rotate(L, 1 as libc::c_int, 1 as libc::c_int);
     i = n;
     while i >= 1 as libc::c_int {
@@ -247,7 +240,7 @@ unsafe fn tpack(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn tunpack(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn tunpack(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut n: u64 = 0;
     let mut i = luaL_optinteger(L, 2, 1)?;
     let e = if lua_type(L, 3) <= 0 {
@@ -279,19 +272,15 @@ unsafe fn tunpack(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Err
     Ok(n as libc::c_int)
 }
 
-unsafe fn set2(
-    mut L: *const Thread,
-    mut i: IdxT,
-    mut j: IdxT,
-) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn set2(L: *const Thread, i: IdxT, j: IdxT) -> Result<(), Box<dyn std::error::Error>> {
     lua_seti(L, 1 as libc::c_int, i as i64)?;
     lua_seti(L, 1 as libc::c_int, j as i64)
 }
 
 unsafe fn sort_comp(
-    mut L: *const Thread,
-    mut a: libc::c_int,
-    mut b: libc::c_int,
+    L: *const Thread,
+    a: libc::c_int,
+    b: libc::c_int,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     if lua_type(L, 2 as libc::c_int) == 0 as libc::c_int {
         return lua_compare(L, a, b, 1 as libc::c_int);
@@ -308,9 +297,9 @@ unsafe fn sort_comp(
 }
 
 unsafe fn partition(
-    mut L: *const Thread,
-    mut lo: IdxT,
-    mut up: IdxT,
+    L: *const Thread,
+    lo: IdxT,
+    up: IdxT,
 ) -> Result<IdxT, Box<dyn std::error::Error>> {
     let mut i: IdxT = lo;
     let mut j: IdxT = up.wrapping_sub(1 as libc::c_int as IdxT);
@@ -349,16 +338,16 @@ unsafe fn partition(
     }
 }
 
-unsafe extern "C" fn choosePivot(mut lo: IdxT, mut up: IdxT, mut rnd: libc::c_uint) -> IdxT {
-    let mut r4: IdxT = up.wrapping_sub(lo) / 4 as libc::c_int as IdxT;
-    let mut p: IdxT = rnd
+unsafe fn choosePivot(lo: IdxT, up: IdxT, rnd: libc::c_uint) -> IdxT {
+    let r4: IdxT = up.wrapping_sub(lo) / 4 as libc::c_int as IdxT;
+    let p: IdxT = rnd
         .wrapping_rem(r4 * 2 as libc::c_int as IdxT)
         .wrapping_add(lo.wrapping_add(r4));
     return p;
 }
 
 unsafe fn auxsort(
-    mut L: *const Thread,
+    L: *const Thread,
     mut lo: IdxT,
     mut up: IdxT,
     mut rnd: libc::c_uint,
@@ -423,13 +412,13 @@ unsafe fn auxsort(
     Ok(())
 }
 
-unsafe fn sort(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn sort(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     checktab(
         L,
         1 as libc::c_int,
         1 as libc::c_int | 2 as libc::c_int | 4 as libc::c_int,
     )?;
-    let mut n: i64 = luaL_len(L, 1 as libc::c_int)?;
+    let n: i64 = luaL_len(L, 1 as libc::c_int)?;
     if n > 1 as libc::c_int as i64 {
         (((n < 2147483647 as libc::c_int as i64) as libc::c_int != 0 as libc::c_int) as libc::c_int
             as libc::c_long
@@ -451,56 +440,56 @@ unsafe fn sort(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>
 
 static mut tab_funcs: [luaL_Reg; 8] = [
     {
-        let mut init = luaL_Reg {
+        let init = luaL_Reg {
             name: b"concat\0" as *const u8 as *const libc::c_char,
             func: Some(tconcat),
         };
         init
     },
     {
-        let mut init = luaL_Reg {
+        let init = luaL_Reg {
             name: b"insert\0" as *const u8 as *const libc::c_char,
             func: Some(tinsert),
         };
         init
     },
     {
-        let mut init = luaL_Reg {
+        let init = luaL_Reg {
             name: b"pack\0" as *const u8 as *const libc::c_char,
             func: Some(tpack),
         };
         init
     },
     {
-        let mut init = luaL_Reg {
+        let init = luaL_Reg {
             name: b"unpack\0" as *const u8 as *const libc::c_char,
             func: Some(tunpack),
         };
         init
     },
     {
-        let mut init = luaL_Reg {
+        let init = luaL_Reg {
             name: b"remove\0" as *const u8 as *const libc::c_char,
             func: Some(tremove),
         };
         init
     },
     {
-        let mut init = luaL_Reg {
+        let init = luaL_Reg {
             name: b"move\0" as *const u8 as *const libc::c_char,
             func: Some(tmove),
         };
         init
     },
     {
-        let mut init = luaL_Reg {
+        let init = luaL_Reg {
             name: b"sort\0" as *const u8 as *const libc::c_char,
             func: Some(sort),
         };
         init
     },
     {
-        let mut init = luaL_Reg {
+        let init = luaL_Reg {
             name: 0 as *const libc::c_char,
             func: None,
         };
@@ -508,14 +497,14 @@ static mut tab_funcs: [luaL_Reg; 8] = [
     },
 ];
 
-pub unsafe fn luaopen_table(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
+pub unsafe fn luaopen_table(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     lua_createtable(
         L,
         0 as libc::c_int,
         (::core::mem::size_of::<[luaL_Reg; 8]>() as libc::c_ulong)
             .wrapping_div(::core::mem::size_of::<luaL_Reg>() as libc::c_ulong)
             .wrapping_sub(1 as libc::c_int as libc::c_ulong) as libc::c_int,
-    )?;
+    );
     luaL_setfuncs(L, &raw const tab_funcs as *const luaL_Reg, 0 as libc::c_int)?;
     return Ok(1 as libc::c_int);
 }
