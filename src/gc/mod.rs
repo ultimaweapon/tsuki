@@ -249,7 +249,7 @@ unsafe fn genlink(g: *const Lua, o: *const Object) {
 unsafe fn traverseweakvalue(g: *const Lua, h: *const Table) {
     let mut n: *mut Node = 0 as *mut Node;
     let limit: *mut Node = ((*h).node)
-        .offset(((1 as libc::c_int) << (*h).lsizenode as libc::c_int) as usize as isize)
+        .offset(((1 as libc::c_int) << (*h).lsizenode.get() as libc::c_int) as usize as isize)
         as *mut Node;
     let mut hasclears: libc::c_int =
         ((*h).alimit > 0 as libc::c_int as libc::c_uint) as libc::c_int;
@@ -302,7 +302,8 @@ unsafe fn traverseephemeron(g: *const Lua, h: *const Table, inv: libc::c_int) ->
     let mut hasww: libc::c_int = 0 as libc::c_int;
     let mut i: libc::c_uint = 0;
     let asize: libc::c_uint = luaH_realasize(h);
-    let nsize: libc::c_uint = ((1 as libc::c_int) << (*h).lsizenode as libc::c_int) as libc::c_uint;
+    let nsize: libc::c_uint =
+        ((1 as libc::c_int) << (*h).lsizenode.get() as libc::c_int) as libc::c_uint;
     i = 0 as libc::c_int as libc::c_uint;
     while i < asize {
         if (*((*h).array).offset(i as isize)).tt_ as libc::c_int
@@ -385,7 +386,7 @@ unsafe fn traverseephemeron(g: *const Lua, h: *const Table, inv: libc::c_int) ->
 unsafe fn traversestrongtable(g: *const Lua, h: *const Table) {
     let mut n: *mut Node = 0 as *mut Node;
     let limit: *mut Node = ((*h).node)
-        .offset(((1 as libc::c_int) << (*h).lsizenode as libc::c_int) as usize as isize)
+        .offset(((1 as libc::c_int) << (*h).lsizenode.get() as libc::c_int) as usize as isize)
         as *mut Node;
     let mut i: libc::c_uint = 0;
     let asize: libc::c_uint = luaH_realasize(h);
@@ -483,7 +484,7 @@ unsafe fn traversetable(g: *const Lua, h: *const Table) -> usize {
                 * (if ((*h).lastfree).is_null() {
                     0 as libc::c_int
                 } else {
-                    (1 as libc::c_int) << (*h).lsizenode as libc::c_int
+                    (1 as libc::c_int) << (*h).lsizenode.get() as libc::c_int
                 })) as libc::c_uint,
         ) as usize;
 }
@@ -742,7 +743,7 @@ unsafe fn clearbykeys(g: *const Lua, mut l: *const Object) {
     while !l.is_null() {
         let h: *mut Table = l as *mut Table;
         let limit: *mut Node = &mut *((*h).node)
-            .offset(((1 as libc::c_int) << (*h).lsizenode as libc::c_int) as usize as isize)
+            .offset(((1 as libc::c_int) << (*h).lsizenode.get() as libc::c_int) as usize as isize)
             as *mut Node;
         let mut n: *mut Node = 0 as *mut Node;
         n = &mut *((*h).node).offset(0 as libc::c_int as isize) as *mut Node;
@@ -772,7 +773,7 @@ unsafe fn clearbyvalues(g: *const Lua, mut l: *const Object, f: *const Object) {
         let h: *mut Table = l as *mut Table;
         let mut n: *mut Node = 0 as *mut Node;
         let limit: *mut Node = &mut *((*h).node)
-            .offset(((1 as libc::c_int) << (*h).lsizenode as libc::c_int) as usize as isize)
+            .offset(((1 as libc::c_int) << (*h).lsizenode.get() as libc::c_int) as usize as isize)
             as *mut Node;
         let mut i: libc::c_uint = 0;
         let asize: libc::c_uint = luaH_realasize(h);

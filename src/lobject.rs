@@ -93,7 +93,7 @@ pub union C2RustUnnamed_8 {
 pub struct Table {
     pub hdr: Object,
     pub flags: Cell<u8>,
-    pub lsizenode: u8,
+    pub lsizenode: Cell<u8>,
     pub alimit: libc::c_uint,
     pub array: *mut TValue,
     pub node: *mut Node,
