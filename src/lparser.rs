@@ -9,7 +9,6 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(unused_variables)]
-#![allow(path_statements)]
 
 use crate::gc::{luaC_barrier_, luaC_step};
 use crate::lcode::{
@@ -525,7 +524,6 @@ unsafe fn adjustlocalvars(
         (*var).vd.ridx = fresh7 as u8;
         (*var).vd.pidx = registerlocalvar(ls, fs, (*var).vd.name)? as libc::c_short;
         i += 1;
-        i;
     }
     Ok(())
 }
@@ -550,7 +548,6 @@ unsafe extern "C" fn searchupvalue(mut fs: *mut FuncState, mut name: *mut TStrin
             return i;
         }
         i += 1;
-        i;
     }
     return -(1 as libc::c_int);
 }
@@ -645,7 +642,6 @@ unsafe extern "C" fn searchvar(
             return (*var).k as libc::c_int;
         }
         i -= 1;
-        i;
     }
     return -(1 as libc::c_int);
 }
@@ -793,7 +789,6 @@ unsafe fn solvegoto(
     while i < (*gl).n - 1 as libc::c_int {
         *((*gl).arr).offset(i as isize) = *((*gl).arr).offset((i + 1 as libc::c_int) as isize);
         i += 1;
-        i;
     }
     (*gl).n -= 1;
     (*gl).n;
@@ -810,7 +805,6 @@ unsafe extern "C" fn findlabel(mut ls: *mut LexState, mut name: *mut TString) ->
             return lb;
         }
         i += 1;
-        i;
     }
     return 0 as *mut Labeldesc;
 }
@@ -871,7 +865,6 @@ unsafe fn solvegotos(
             solvegoto(ls, i, lb)?;
         } else {
             i += 1;
-            i;
         }
     }
     return Ok(needsclose);
@@ -914,7 +907,6 @@ unsafe fn movegotosout(mut fs: *mut FuncState, mut bl: *mut BlockCnt) {
         }
         (*gt).nactvar = (*bl).nactvar;
         i += 1;
-        i;
     }
 }
 
@@ -1415,7 +1407,6 @@ unsafe fn parlist(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error
                 291 => {
                     new_localvar(ls, str_checkname(ls)?)?;
                     nparams += 1;
-                    nparams;
                 }
                 280 => {
                     luaX_next(ls)?;
@@ -1510,7 +1501,6 @@ unsafe fn explist(
         luaK_exp2nextreg((*ls).fs, v)?;
         expr(ls, v)?;
         n += 1;
-        n;
     }
     return Ok(n);
 }
@@ -2449,7 +2439,6 @@ unsafe fn forlist(
     while testnext(ls, ',' as i32)? != 0 {
         new_localvar(ls, str_checkname(ls)?)?;
         nvars += 1;
-        nvars;
     }
     checknext(ls, TK_IN as libc::c_int)?;
     line = (*ls).linenumber;
@@ -2647,7 +2636,6 @@ unsafe fn localstat(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Err
             toclose = (*fs).nactvar as libc::c_int + nvars;
         }
         nvars += 1;
-        nvars;
         if !(testnext(ls, ',' as i32)? != 0) {
             break;
         }
@@ -2935,14 +2923,15 @@ pub unsafe fn luaY_parser(
         iwthabs: 0,
         needclose: 0,
     };
-    let mut cl: *mut LuaClosure = luaF_newLclosure(L, 1 as libc::c_int);
+    let mut cl: *mut LuaClosure = luaF_newLclosure((*L).global, 1 as libc::c_int);
     let mut io: *mut TValue = &raw mut (*(*L).top.get()).val;
     let mut x_: *mut LuaClosure = cl;
+
     (*io).value_.gc = x_ as *mut Object;
-    (*io).tt_ = (6 as libc::c_int
-        | (0 as libc::c_int) << 4 as libc::c_int
-        | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+    (*io).tt_ = (6 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int | 1 << 6) as u8;
+
     luaD_inctop(L)?;
+
     lexstate.h = luaH_new(L)?;
     let mut io_0: *mut TValue = &raw mut (*(*L).top.get()).val;
     let mut x__0: *mut Table = lexstate.h;

@@ -1127,15 +1127,13 @@ unsafe fn pushclosure(
     let nup: libc::c_int = (*p).sizeupvalues;
     let uv: *mut Upvaldesc = (*p).upvalues;
     let mut i: libc::c_int = 0;
-    let ncl: *mut LuaClosure = luaF_newLclosure(L, nup);
+    let ncl: *mut LuaClosure = luaF_newLclosure((*L).global, nup);
     (*ncl).p.set(p);
     let io: *mut TValue = &raw mut (*ra).val;
     let x_: *mut LuaClosure = ncl;
 
     (*io).value_.gc = x_ as *mut Object;
-    (*io).tt_ = (6 as libc::c_int
-        | (0 as libc::c_int) << 4 as libc::c_int
-        | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+    (*io).tt_ = (6 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int | 1 << 6) as u8;
     i = 0 as libc::c_int;
 
     while i < nup {

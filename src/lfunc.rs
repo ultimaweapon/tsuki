@@ -33,10 +33,10 @@ pub unsafe fn luaF_newCclosure(L: *const Thread, nupvals: libc::c_int) -> *mut C
     o
 }
 
-pub unsafe fn luaF_newLclosure(L: *const Thread, nupvals: libc::c_int) -> *mut LuaClosure {
+pub unsafe fn luaF_newLclosure(g: *const Lua, nupvals: libc::c_int) -> *mut LuaClosure {
     let nupvals = u8::try_from(nupvals).unwrap();
     let layout = Layout::new::<LuaClosure>();
-    let o = Object::new((*L).global, 6 | 0 << 4, layout).cast::<LuaClosure>();
+    let o = Object::new(g, 6 | 0 << 4, layout).cast::<LuaClosure>();
     let mut upvals = Vec::with_capacity(nupvals.into());
 
     for _ in 0..nupvals {
