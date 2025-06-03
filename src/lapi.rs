@@ -232,7 +232,7 @@ pub unsafe fn lua_copy(L: *const Thread, fromidx: libc::c_int, toidx: libc::c_in
                     != 0
             {
                 luaC_barrier_(
-                    L,
+                    (*L).global,
                     ((*(*(*L).ci.get()).func).val.value_.gc as *mut CClosure) as *mut CClosure
                         as *mut Object,
                     (*fr).value_.gc as *mut Object,
@@ -1295,7 +1295,11 @@ pub unsafe fn lua_setmetatable(
                             | (1 as libc::c_int) << 4 as libc::c_int)
                         != 0
                 {
-                    luaC_barrier_(L, (*obj).value_.gc as *mut Object, mt as *mut Object);
+                    luaC_barrier_(
+                        (*L).global,
+                        (*obj).value_.gc as *mut Object,
+                        mt as *mut Object,
+                    );
                 };
             }
         }
@@ -1312,7 +1316,7 @@ pub unsafe fn lua_setmetatable(
                         != 0
                 {
                     luaC_barrier_(
-                        L,
+                        (*L).global,
                         ((*obj).value_.gc as *mut Udata) as *mut Udata as *mut Object,
                         mt as *mut Object,
                     );
@@ -1450,7 +1454,7 @@ pub unsafe fn lua_load(
             if (*(*f).upvals[0].get()).hdr.marked.get() & 1 << 5 != 0
                 && (*(*gt).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
             {
-                luaC_barrier_(L, (*f).upvals[0].get().cast(), (*gt).value_.gc);
+                luaC_barrier_((*L).global, (*f).upvals[0].get().cast(), (*gt).value_.gc);
             } else {
             };
         } else {
@@ -1664,7 +1668,11 @@ pub unsafe fn lua_setupvalue(
                         | (1 as libc::c_int) << 4 as libc::c_int)
                     != 0
             {
-                luaC_barrier_(L, owner as *mut Object, (*val).value_.gc as *mut Object);
+                luaC_barrier_(
+                    (*L).global,
+                    owner as *mut Object,
+                    (*val).value_.gc as *mut Object,
+                );
             } else {
             };
         } else {
@@ -1737,7 +1745,7 @@ pub unsafe fn lua_upvaluejoin(
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
-        luaC_barrier_(L, f1 as *mut Object, *up1 as *mut Object);
+        luaC_barrier_((*L).global, f1 as *mut Object, *up1 as *mut Object);
     } else {
     };
 }

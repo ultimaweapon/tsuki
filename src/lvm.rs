@@ -1,5 +1,4 @@
 #![allow(
-    mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -1152,7 +1151,11 @@ unsafe fn pushclosure(
         if (*ncl).hdr.marked.get() & 1 << 5 != 0
             && (*(*ncl).upvals[i as usize].get()).hdr.marked.get() & (1 << 3 | 1 << 4) != 0
         {
-            luaC_barrier_(L, ncl.cast(), (*ncl).upvals[i as usize].get().cast());
+            luaC_barrier_(
+                (*L).global,
+                ncl.cast(),
+                (*ncl).upvals[i as usize].get().cast(),
+            );
         } else {
         };
         i += 1;
@@ -1426,7 +1429,7 @@ pub unsafe fn luaV_execute(
                                     != 0
                             {
                                 luaC_barrier_(
-                                    L,
+                                    (*L).global,
                                     uv as *mut Object,
                                     (*ra_9).val.value_.gc as *mut Object,
                                 );

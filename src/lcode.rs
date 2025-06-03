@@ -692,14 +692,14 @@ pub unsafe fn luaK_reserveregs(
     Ok(())
 }
 
-unsafe extern "C" fn freereg(mut fs: *mut FuncState, mut reg: libc::c_int) {
+unsafe fn freereg(mut fs: *mut FuncState, mut reg: libc::c_int) {
     if reg >= luaY_nvarstack(fs) {
         (*fs).freereg = ((*fs).freereg).wrapping_sub(1);
         (*fs).freereg;
     }
 }
 
-unsafe extern "C" fn freeregs(mut fs: *mut FuncState, mut r1: libc::c_int, mut r2: libc::c_int) {
+unsafe fn freeregs(mut fs: *mut FuncState, mut r1: libc::c_int, mut r2: libc::c_int) {
     if r1 > r2 {
         freereg(fs, r1);
         freereg(fs, r2);
@@ -709,13 +709,13 @@ unsafe extern "C" fn freeregs(mut fs: *mut FuncState, mut r1: libc::c_int, mut r
     };
 }
 
-unsafe extern "C" fn freeexp(mut fs: *mut FuncState, mut e: *mut expdesc) {
+unsafe fn freeexp(mut fs: *mut FuncState, mut e: *mut expdesc) {
     if (*e).k as libc::c_uint == VNONRELOC as libc::c_int as libc::c_uint {
         freereg(fs, (*e).u.info);
     }
 }
 
-unsafe extern "C" fn freeexps(mut fs: *mut FuncState, mut e1: *mut expdesc, mut e2: *mut expdesc) {
+unsafe fn freeexps(mut fs: *mut FuncState, mut e1: *mut expdesc, mut e2: *mut expdesc) {
     let mut r1: libc::c_int = if (*e1).k as libc::c_uint == VNONRELOC as libc::c_int as libc::c_uint
     {
         (*e1).u.info
@@ -801,7 +801,7 @@ unsafe fn addk(
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            luaC_barrier_(L, f as *mut Object, (*v).value_.gc as *mut Object);
+            luaC_barrier_((*L).global, f as *mut Object, (*v).value_.gc as *mut Object);
         } else {
         };
     } else {

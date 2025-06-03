@@ -66,9 +66,7 @@ unsafe fn iscleared(g: *const Lua, o: *const Object) -> libc::c_int {
     };
 }
 
-pub(crate) unsafe fn luaC_barrier_(L: *const Thread, o: *const Object, v: *const Object) {
-    let g = (*L).global;
-
+pub(crate) unsafe fn luaC_barrier_(g: *const Lua, o: *const Object, v: *const Object) {
     if (*g).gcstate.get() <= 2 {
         reallymarkobject(g, v);
         if (*o).marked.get() as libc::c_int & 7 as libc::c_int > 1 as libc::c_int {

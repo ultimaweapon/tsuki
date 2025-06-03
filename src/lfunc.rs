@@ -65,7 +65,7 @@ pub unsafe fn luaF_initupvals(L: *const Thread, cl: *mut LuaClosure) {
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            luaC_barrier_(L, cl as *mut Object, uv as *mut Object);
+            luaC_barrier_((*L).global, cl as *mut Object, uv as *mut Object);
         } else {
         };
     }
@@ -238,7 +238,11 @@ pub unsafe fn luaF_closeupval(L: *const Thread, level: StkId) {
                             | (1 as libc::c_int) << 4 as libc::c_int)
                         != 0
                 {
-                    luaC_barrier_(L, uv as *mut Object, (*slot).value_.gc as *mut Object);
+                    luaC_barrier_(
+                        (*L).global,
+                        uv as *mut Object,
+                        (*slot).value_.gc as *mut Object,
+                    );
                 } else {
                 };
             } else {
@@ -280,9 +284,9 @@ pub unsafe fn luaF_close(
     return Ok(level);
 }
 
-pub unsafe fn luaF_newproto(L: *const Thread) -> *mut Proto {
+pub unsafe fn luaF_newproto(g: *const Lua) -> *mut Proto {
     let layout = Layout::new::<Proto>();
-    let f = Object::new((*L).global, 9 + 1 | 0 << 4, layout).cast::<Proto>();
+    let f = Object::new(g, 9 + 1 | 0 << 4, layout).cast::<Proto>();
 
     (*f).k = 0 as *mut TValue;
     (*f).sizek = 0 as libc::c_int;

@@ -8,7 +8,7 @@ use std::ptr::null;
 ///
 /// All object must have this struct at the beginning of its memory block.
 pub(crate) struct Object {
-    pub next: Cell<*const Object>,
+    pub(super) next: Cell<*const Object>,
     pub tt: u8,
     pub marked: Mark,
     pub refs: Cell<usize>,
