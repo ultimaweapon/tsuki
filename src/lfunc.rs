@@ -1,5 +1,4 @@
 #![allow(
-    mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -50,24 +49,19 @@ pub unsafe fn luaF_newLclosure(L: *const Thread, nupvals: libc::c_int) -> *mut L
     o
 }
 
-pub unsafe fn luaF_initupvals(L: *const Thread, cl: *mut LuaClosure) {
+pub unsafe fn luaF_initupvals(g: *const Lua, cl: *mut LuaClosure) {
     for v in &(*cl).upvals {
         let layout = Layout::new::<UpVal>();
-        let uv = Object::new((*L).global, 9 | 0 << 4, layout).cast::<UpVal>();
+        let uv = Object::new(g, 9 | 0 << 4, layout).cast::<UpVal>();
 
         (*uv).v.set(&raw mut (*(*uv).u.get()).value);
         (*(*uv).v.get()).tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
 
         v.set(uv);
 
-        if (*cl).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-            && (*uv).hdr.marked.get() as libc::c_int
-                & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
-                != 0
-        {
-            luaC_barrier_((*L).global, cl as *mut Object, uv as *mut Object);
-        } else {
-        };
+        if (*cl).hdr.marked.get() & 1 << 5 != 0 && (*uv).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
+            luaC_barrier_(g, cl as *mut Object, uv as *mut Object);
+        }
     }
 }
 

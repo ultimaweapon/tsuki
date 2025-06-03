@@ -827,7 +827,7 @@ pub unsafe fn luaD_protectedparser(
             checkmode(p.mode, b"text\0" as *const u8 as *const libc::c_char)?;
             cl = luaY_parser(L, p.z, &raw mut p.buff, &raw mut p.dyd, p.name, c)?;
 
-            luaF_initupvals(L, cl);
+            luaF_initupvals((*L).global, cl);
             Ok(())
         },
     );
