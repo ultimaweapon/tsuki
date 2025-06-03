@@ -306,15 +306,17 @@ unsafe fn traverseephemeron(g: *const Lua, h: *const Table, inv: libc::c_int) ->
         ((1 as libc::c_int) << (*h).lsizenode.get() as libc::c_int) as libc::c_uint;
     i = 0 as libc::c_int as libc::c_uint;
     while i < asize {
-        if (*((*h).array).offset(i as isize)).tt_ as libc::c_int
+        if (*(*h).array.get().offset(i as isize)).tt_ as libc::c_int
             & (1 as libc::c_int) << 6 as libc::c_int
             != 0
-            && (*(*((*h).array).offset(i as isize)).value_.gc).marked.get() as libc::c_int
+            && (*(*(*h).array.get().offset(i as isize)).value_.gc)
+                .marked
+                .get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
             marked = 1 as libc::c_int;
-            reallymarkobject(g, (*((*h).array).offset(i as isize)).value_.gc);
+            reallymarkobject(g, (*(*h).array.get().offset(i as isize)).value_.gc);
         }
         i = i.wrapping_add(1);
     }
@@ -392,14 +394,16 @@ unsafe fn traversestrongtable(g: *const Lua, h: *const Table) {
     let asize: libc::c_uint = luaH_realasize(h);
     i = 0 as libc::c_int as libc::c_uint;
     while i < asize {
-        if (*((*h).array).offset(i as isize)).tt_ as libc::c_int
+        if (*(*h).array.get().offset(i as isize)).tt_ as libc::c_int
             & (1 as libc::c_int) << 6 as libc::c_int
             != 0
-            && (*(*((*h).array).offset(i as isize)).value_.gc).marked.get() as libc::c_int
+            && (*(*(*h).array.get().offset(i as isize)).value_.gc)
+                .marked
+                .get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            reallymarkobject(g, (*((*h).array).offset(i as isize)).value_.gc);
+            reallymarkobject(g, (*(*h).array.get().offset(i as isize)).value_.gc);
         }
         i = i.wrapping_add(1);
     }
@@ -779,7 +783,7 @@ unsafe fn clearbyvalues(g: *const Lua, mut l: *const Object, f: *const Object) {
         let asize: libc::c_uint = luaH_realasize(h);
         i = 0 as libc::c_int as libc::c_uint;
         while i < asize {
-            let o: *mut TValue = &mut *((*h).array).offset(i as isize) as *mut TValue;
+            let o: *mut TValue = (*h).array.get().offset(i as isize) as *mut TValue;
             if iscleared(
                 g,
                 if (*o).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {

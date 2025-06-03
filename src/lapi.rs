@@ -718,7 +718,9 @@ pub unsafe fn lua_getglobal(
     name: impl AsRef<[u8]>,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut G: *const TValue = 0 as *const TValue;
-    G = &mut *((*((*(*(*L).global).l_registry.get()).value_.gc as *mut Table)).array)
+    G = (*((*(*(*L).global).l_registry.get()).value_.gc as *mut Table))
+        .array
+        .get()
         .offset((2 as libc::c_int - 1 as libc::c_int) as isize) as *mut TValue;
     return auxgetstr(L, G, name.as_ref());
 }
@@ -792,7 +794,9 @@ pub unsafe fn lua_geti(
         slot = if (n as u64).wrapping_sub(1 as libc::c_uint as u64)
             < (*((*t).value_.gc as *mut Table)).alimit.get() as u64
         {
-            &mut *((*((*t).value_.gc as *mut Table)).array)
+            (*((*t).value_.gc as *mut Table))
+                .array
+                .get()
                 .offset((n - 1 as libc::c_int as i64) as isize) as *mut TValue
                 as *const TValue
         } else {
@@ -1011,7 +1015,9 @@ pub unsafe fn lua_setglobal(
     name: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut G: *const TValue = 0 as *const TValue;
-    G = &mut *((*((*(*(*L).global).l_registry.get()).value_.gc as *mut Table)).array)
+    G = (*((*(*(*L).global).l_registry.get()).value_.gc as *mut Table))
+        .array
+        .get()
         .offset((2 as libc::c_int - 1 as libc::c_int) as isize) as *mut TValue;
     auxsetstr(L, G, name)
 }
@@ -1107,7 +1113,9 @@ pub unsafe fn lua_seti(
         slot = if (n as u64).wrapping_sub(1 as libc::c_uint as u64)
             < (*((*t).value_.gc as *mut Table)).alimit.get() as u64
         {
-            &mut *((*((*t).value_.gc as *mut Table)).array)
+            (*((*t).value_.gc as *mut Table))
+                .array
+                .get()
                 .offset((n - 1 as libc::c_int as i64) as isize) as *mut TValue
                 as *const TValue
         } else {
@@ -1423,8 +1431,10 @@ pub unsafe fn lua_load(
         .gc as *mut LuaClosure;
 
     if !(*f).upvals.is_empty() {
-        let gt: *const TValue =
-            ((*((*(*(*L).global).l_registry.get()).value_.gc as *mut Table)).array).offset(2 - 1);
+        let gt: *const TValue = (*((*(*(*L).global).l_registry.get()).value_.gc as *mut Table))
+            .array
+            .get()
+            .offset(2 - 1);
         let io1: *mut TValue = (*(*f).upvals[0].get()).v.get();
         let io2: *const TValue = gt;
         (*io1).value_ = (*io2).value_;

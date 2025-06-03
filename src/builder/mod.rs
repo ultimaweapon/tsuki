@@ -113,13 +113,13 @@ impl Builder {
         unsafe { luaH_resize(th, registry, 2, 0) };
 
         // Create dummy object for LUA_RIDX_MAINTHREAD.
-        let io_0 = unsafe { ((*registry).array).offset(1 - 1) as *mut TValue };
+        let io_0 = unsafe { (*registry).array.get().offset(1 - 1) as *mut TValue };
 
         unsafe { (*io_0).value_.gc = luaH_new(g.deref()).cast() };
         unsafe { (*io_0).tt_ = 5 | 0 << 4 | 1 << 6 };
 
         // Create LUA_RIDX_GLOBALS.
-        let io_1 = unsafe { ((*registry).array).offset(2 - 1) as *mut TValue };
+        let io_1 = unsafe { (*registry).array.get().offset(2 - 1) as *mut TValue };
 
         unsafe { (*io_1).value_.gc = luaH_new(g.deref()).cast() };
         unsafe { (*io_1).tt_ = 5 | 0 << 4 | 1 << 6 };

@@ -1536,16 +1536,15 @@ pub unsafe fn luaV_execute(
                                 slot_0 = 0 as *const TValue;
                                 0 as libc::c_int
                             } else {
-                                slot_0 = if n.wrapping_sub(1 as libc::c_uint as u64)
-                                    < (*((*rb_1).value_.gc as *mut Table)).alimit.get() as u64
-                                {
-                                    &mut *((*((*rb_1).value_.gc as *mut Table)).array)
+                                slot_0 =
+                                    if n.wrapping_sub(1 as libc::c_uint as u64)
+                                        < (*((*rb_1).value_.gc as *mut Table)).alimit.get() as u64
+                                    {
+                                        (*((*rb_1).value_.gc as *mut Table)).array.get()
                                         .offset(n.wrapping_sub(1 as libc::c_int as u64) as isize)
-                                        as *mut TValue
-                                        as *const TValue
-                                } else {
-                                    luaH_getint((*rb_1).value_.gc as *mut Table, n as i64)
-                                };
+                                    } else {
+                                        luaH_getint((*rb_1).value_.gc as *mut Table, n as i64)
+                                    };
                                 !((*slot_0).tt_ as libc::c_int & 0xf as libc::c_int
                                     == 0 as libc::c_int)
                                     as libc::c_int
@@ -1612,9 +1611,10 @@ pub unsafe fn luaV_execute(
                             slot_1 = if (c as u64).wrapping_sub(1 as libc::c_uint as u64)
                                 < (*((*rb_2).value_.gc as *mut Table)).alimit.get() as u64
                             {
-                                &mut *((*((*rb_2).value_.gc as *mut Table)).array)
+                                (*((*rb_2).value_.gc as *mut Table))
+                                    .array
+                                    .get()
                                     .offset((c - 1 as libc::c_int) as isize)
-                                    as *mut TValue as *const TValue
                             } else {
                                 luaH_getint((*rb_2).value_.gc as *mut Table, c as i64)
                             };
@@ -1851,10 +1851,10 @@ pub unsafe fn luaV_execute(
                                 slot_4 = if n_0.wrapping_sub(1 as libc::c_uint as u64)
                                     < (*((*ra_14).val.value_.gc as *mut Table)).alimit.get() as u64
                                 {
-                                    &mut *((*((*ra_14).val.value_.gc as *mut Table)).array)
+                                    (*((*ra_14).val.value_.gc as *mut Table))
+                                        .array
+                                        .get()
                                         .offset(n_0.wrapping_sub(1 as libc::c_int as u64) as isize)
-                                        as *mut TValue
-                                        as *const TValue
                                 } else {
                                     luaH_getint((*ra_14).val.value_.gc as *mut Table, n_0 as i64)
                                 };
@@ -1958,9 +1958,10 @@ pub unsafe fn luaV_execute(
                             slot_5 = if (c_0 as u64).wrapping_sub(1 as libc::c_uint as u64)
                                 < (*((*ra_15).val.value_.gc as *mut Table)).alimit.get() as u64
                             {
-                                &mut *((*((*ra_15).val.value_.gc as *mut Table)).array)
+                                (*((*ra_15).val.value_.gc as *mut Table))
+                                    .array
+                                    .get()
                                     .offset((c_0 - 1 as libc::c_int) as isize)
-                                    as *mut TValue as *const TValue
                             } else {
                                 luaH_getint((*ra_15).val.value_.gc as *mut Table, c_0 as i64)
                             };
@@ -5422,10 +5423,7 @@ pub unsafe fn luaV_execute(
                         }
                         while n_4 > 0 as libc::c_int {
                             let val: *mut TValue = &raw mut (*ra_76.offset(n_4 as isize)).val;
-                            let io1_17: *mut TValue =
-                                &raw mut *((*h).array)
-                                    .offset(last.wrapping_sub(1 as libc::c_int as libc::c_uint)
-                                        as isize) as *mut TValue;
+                            let io1_17 = (*h).array.get().offset(last.wrapping_sub(1) as isize);
                             let io2_17: *const TValue = val;
                             (*io1_17).value_ = (*io2_17).value_;
                             (*io1_17).tt_ = (*io2_17).tt_;
