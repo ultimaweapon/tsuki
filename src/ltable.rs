@@ -611,12 +611,14 @@ pub unsafe fn luaH_resize(
         (*t).alimit = oldasize;
         exchangehashpart(t, &mut newt);
     }
+
     newarray = luaM_realloc_(
-        L,
+        (*L).global,
         (*t).array as *mut libc::c_void,
         (oldasize as usize).wrapping_mul(::core::mem::size_of::<TValue>()),
         (newasize as usize).wrapping_mul(::core::mem::size_of::<TValue>()),
     ) as *mut TValue;
+
     if ((newarray.is_null() && newasize > 0 as libc::c_int as libc::c_uint) as libc::c_int
         != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
@@ -624,6 +626,7 @@ pub unsafe fn luaH_resize(
         freehash((*L).global, &mut newt);
         todo!("invoke handle_alloc_error");
     }
+
     exchangehashpart(t, &mut newt);
     (*t).array = newarray;
     (*t).alimit = newasize;

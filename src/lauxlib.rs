@@ -71,7 +71,7 @@ unsafe fn findfield(
                 lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
                 return Ok(1 as libc::c_int);
             } else if findfield(L, objidx, level - 1 as libc::c_int)? != 0 {
-                lua_pushstring(L, b".\0" as *const u8 as *const libc::c_char)?;
+                lua_pushstring(L, b".\0" as *const u8 as *const libc::c_char);
                 lua_copy(L, -(1 as libc::c_int), -(3 as libc::c_int));
                 lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
                 lua_concat(L, 3 as libc::c_int)?;
@@ -100,9 +100,9 @@ unsafe fn pushglobalfuncname(
         b"not enough stack\0" as *const u8 as *const libc::c_char,
     )?;
     if findfield(L, top + 1 as libc::c_int, 2 as libc::c_int)? != 0 {
-        let mut name: *const libc::c_char = lua_tolstring(L, -(1 as libc::c_int), 0 as *mut usize)?;
+        let mut name: *const libc::c_char = lua_tolstring(L, -(1 as libc::c_int), 0 as *mut usize);
         if strncmp(name, b"_G.\0" as *const u8 as *const libc::c_char, 3) == 0 as libc::c_int {
-            lua_pushstring(L, name.offset(3 as libc::c_int as isize))?;
+            lua_pushstring(L, name.offset(3 as libc::c_int as isize));
             lua_rotate(L, -(2 as libc::c_int), -(1 as libc::c_int));
             lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
         }
@@ -121,7 +121,7 @@ unsafe fn pushfuncname(
     mut ar: &mut lua_Debug,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if pushglobalfuncname(L, ar)? != 0 {
-        let n = CStr::from_ptr(lua_tolstring(L, -1, 0 as *mut usize)?).to_string_lossy();
+        let n = CStr::from_ptr(lua_tolstring(L, -1, 0 as *mut usize)).to_string_lossy();
 
         dst.push_str("function '");
         dst.push_str(&n);
@@ -269,7 +269,7 @@ pub unsafe fn luaL_traceback(
         }
     }
 
-    lua_pushlstring(L, b)?;
+    lua_pushlstring(L, b);
     Ok(())
 }
 
@@ -316,7 +316,7 @@ pub unsafe fn luaL_argerror(
     }
     if (ar.name).is_null() {
         ar.name = if pushglobalfuncname(L, &mut ar)? != 0 {
-            lua_tolstring(L, -(1 as libc::c_int), 0 as *mut usize)?
+            lua_tolstring(L, -(1 as libc::c_int), 0 as *mut usize)
         } else {
             b"?\0" as *const u8 as *const libc::c_char
         };
@@ -336,7 +336,7 @@ pub unsafe fn luaL_typeerror(
     expect: impl Display,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let actual = if luaL_getmetafield(L, arg, c"__name".as_ptr())? == 4 {
-        CStr::from_ptr(lua_tolstring(L, -1, 0 as *mut usize)?).to_string_lossy()
+        CStr::from_ptr(lua_tolstring(L, -1, 0 as *mut usize)).to_string_lossy()
     } else if lua_type(L, arg) == 2 {
         "light userdata".into()
     } else {
@@ -406,12 +406,12 @@ pub unsafe fn luaL_fileresult(
     mut L: *mut Thread,
     mut stat: libc::c_int,
     mut fname: *const libc::c_char,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> c_int {
     let en = std::io::Error::last_os_error();
 
     if stat != 0 {
         lua_pushboolean(L, 1 as libc::c_int);
-        return Ok(1 as libc::c_int);
+        return 1 as libc::c_int;
     } else {
         lua_pushnil(L);
 
@@ -419,13 +419,13 @@ pub unsafe fn luaL_fileresult(
             lua_pushlstring(
                 L,
                 format!("{}: {}", CStr::from_ptr(fname).to_string_lossy(), en),
-            )?;
+            );
         } else {
-            lua_pushlstring(L, en.to_string())?;
+            lua_pushlstring(L, en.to_string());
         }
 
         lua_pushinteger(L, en.raw_os_error().unwrap().into());
-        return Ok(3 as libc::c_int);
+        return 3 as libc::c_int;
     };
 }
 
@@ -443,7 +443,7 @@ pub unsafe fn luaL_newmetatable(
     }
     lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
     lua_createtable(L, 0 as libc::c_int, 2 as libc::c_int)?;
-    lua_pushstring(L, tname)?;
+    lua_pushstring(L, tname);
     lua_setfield(
         L,
         -(2 as libc::c_int),
@@ -582,7 +582,7 @@ pub unsafe fn luaL_checklstring(
     mut arg: libc::c_int,
     mut len: *mut usize,
 ) -> Result<*const libc::c_char, Box<dyn std::error::Error>> {
-    let mut s: *const libc::c_char = lua_tolstring(L, arg, len)?;
+    let mut s: *const libc::c_char = lua_tolstring(L, arg, len);
     if (s.is_null() as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long != 0 {
         tag_error(L, arg, 4 as libc::c_int)?;
     }
@@ -730,7 +730,7 @@ pub unsafe fn luaL_getmetafield(
         return Ok(0 as libc::c_int);
     } else {
         let mut tt: libc::c_int = 0;
-        lua_pushstring(L, event)?;
+        lua_pushstring(L, event);
         tt = lua_rawget(L, -(2 as libc::c_int));
         if tt == 0 as libc::c_int {
             lua_settop(L, -(2 as libc::c_int) - 1 as libc::c_int)?;
@@ -789,16 +789,16 @@ pub unsafe fn luaL_tolstring(
         match lua_type(L, idx) {
             3 => {
                 if lua_isinteger(L, idx) != 0 {
-                    lua_pushlstring(L, lua_tointegerx(L, idx, 0 as *mut libc::c_int).to_string())?;
+                    lua_pushlstring(L, lua_tointegerx(L, idx, 0 as *mut libc::c_int).to_string());
                 } else {
                     // Lua expect 0.0 as "0.0". The problem is there is no way to force Rust to
                     // output "0.0" so we need to do this manually.
                     let v = lua_tonumberx(L, idx, null_mut());
 
                     if v.fract() == 0.0 {
-                        lua_pushlstring(L, format!("{v:.1}"))?;
+                        lua_pushlstring(L, format!("{v:.1}"));
                     } else {
-                        lua_pushlstring(L, v.to_string())?;
+                        lua_pushlstring(L, v.to_string());
                     }
                 }
             }
@@ -811,20 +811,20 @@ pub unsafe fn luaL_tolstring(
                     } else {
                         b"false\0" as *const u8 as *const libc::c_char
                     },
-                )?;
+                );
             }
             0 => {
-                lua_pushstring(L, b"nil\0" as *const u8 as *const libc::c_char)?;
+                lua_pushstring(L, b"nil\0" as *const u8 as *const libc::c_char);
             }
             _ => {
                 let mut tt = luaL_getmetafield(L, idx, c"__name".as_ptr())?;
                 let kind = if tt == 4 {
-                    CStr::from_ptr(lua_tolstring(L, -1, 0 as *mut usize)?).to_string_lossy()
+                    CStr::from_ptr(lua_tolstring(L, -1, 0 as *mut usize)).to_string_lossy()
                 } else {
                     lua_typename(lua_type(L, idx)).into()
                 };
 
-                lua_pushlstring(L, format!("{}: {:p}", kind, lua_topointer(L, idx)))?;
+                lua_pushlstring(L, format!("{}: {:p}", kind, lua_topointer(L, idx)));
 
                 if tt != 0 as libc::c_int {
                     lua_rotate(L, -(2 as libc::c_int), -(1 as libc::c_int));
@@ -834,7 +834,7 @@ pub unsafe fn luaL_tolstring(
         }
     }
 
-    lua_tolstring(L, -(1 as libc::c_int), len)
+    Ok(lua_tolstring(L, -(1 as libc::c_int), len))
 }
 
 pub unsafe fn luaL_setfuncs(
@@ -902,7 +902,7 @@ pub unsafe fn luaL_requiref(
     if lua_toboolean(L, -(1 as libc::c_int)) == 0 {
         lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
         lua_pushcclosure(L, openf, 0 as libc::c_int);
-        lua_pushstring(L, modname)?;
+        lua_pushstring(L, modname);
         lua_call(L, 1, 1)?;
         lua_pushvalue(L, -(1 as libc::c_int));
         lua_setfield(L, -(3 as libc::c_int), modname)?;

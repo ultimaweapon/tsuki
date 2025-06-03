@@ -23,7 +23,7 @@ use crate::lparser::{Dyndata, FuncState};
 use crate::lstring::luaS_newlstr;
 use crate::ltable::{luaH_finishset, luaH_getstr};
 use crate::lzio::{Mbuffer, ZIO};
-use crate::{Object, Thread};
+use crate::{Lua, Object, Thread};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
 use std::fmt::Display;
@@ -158,7 +158,7 @@ unsafe fn save(
         }
         newsize = (*b).buffsize * 2 as libc::c_int as usize;
         (*b).buffer = luaM_saferealloc_(
-            (*ls).L,
+            (*(*ls).L).global,
             (*b).buffer as *mut libc::c_void,
             ((*b).buffsize).wrapping_mul(::core::mem::size_of::<libc::c_char>()),
             newsize.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
@@ -171,29 +171,28 @@ unsafe fn save(
     Ok(())
 }
 
-pub unsafe fn luaX_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaX_init(mut g: *const Lua) {
     let mut i: libc::c_int = 0;
     let mut e: *mut TString = luaS_newlstr(
-        L,
+        g,
         b"_ENV\0" as *const u8 as *const libc::c_char,
         ::core::mem::size_of::<[libc::c_char; 5]>()
             .wrapping_div(::core::mem::size_of::<libc::c_char>())
             .wrapping_sub(1),
-    )?;
-    luaC_fix(&*(*L).global, (e as *mut Object));
+    );
+    luaC_fix(&*g, (e as *mut Object));
     i = 0 as libc::c_int;
     while i < TK_WHILE as libc::c_int - (255 as libc::c_int + 1 as libc::c_int) + 1 as libc::c_int {
         let mut ts: *mut TString = luaS_newlstr(
-            L,
+            g,
             luaX_tokens[i as usize].as_ptr().cast(),
             luaX_tokens[i as usize].len(),
-        )?;
-        luaC_fix(&*(*L).global, (ts as *mut Object));
+        );
+        luaC_fix(&*g, (ts as *mut Object));
         (*ts).extra.set((i + 1 as libc::c_int) as u8);
         i += 1;
         i;
     }
-    Ok(())
 }
 
 pub unsafe fn luaX_token2str(mut ls: *mut LexState, mut token: libc::c_int) -> Cow<'static, str> {
@@ -260,7 +259,7 @@ pub unsafe fn luaX_newstring(
     mut l: usize,
 ) -> Result<*mut TString, Box<dyn std::error::Error>> {
     let mut L = (*ls).L;
-    let mut ts: *mut TString = luaS_newlstr(L, str, l)?;
+    let mut ts: *mut TString = luaS_newlstr((*L).global, str, l);
     let mut o: *const TValue = luaH_getstr((*ls).h, ts);
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
         ts = ((*(o as *mut Node)).u.key_val.gc as *mut TString);
@@ -316,7 +315,7 @@ pub unsafe fn luaX_setinput(
     mut z: *mut ZIO,
     mut source: *mut TString,
     mut firstchar: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) {
     (*ls).t.token = 0 as libc::c_int;
     (*ls).L = L;
     (*ls).current = firstchar;
@@ -327,20 +326,19 @@ pub unsafe fn luaX_setinput(
     (*ls).lastline = 1 as libc::c_int;
     (*ls).source = source;
     (*ls).envn = luaS_newlstr(
-        L,
+        (*L).global,
         b"_ENV\0" as *const u8 as *const libc::c_char,
         ::core::mem::size_of::<[libc::c_char; 5]>()
             .wrapping_div(::core::mem::size_of::<libc::c_char>())
             .wrapping_sub(1),
-    )?;
+    );
     (*(*ls).buff).buffer = luaM_saferealloc_(
-        (*ls).L,
+        (*(*ls).L).global,
         (*(*ls).buff).buffer as *mut libc::c_void,
         ((*(*ls).buff).buffsize).wrapping_mul(::core::mem::size_of::<libc::c_char>()),
         32usize.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
     ) as *mut libc::c_char;
     (*(*ls).buff).buffsize = 32 as libc::c_int as usize;
-    Ok(())
 }
 
 unsafe fn check_next1(

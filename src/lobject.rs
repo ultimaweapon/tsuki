@@ -7,13 +7,13 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::Thread;
 use crate::gc::Object;
 use crate::lctype::luai_ctype_;
 use crate::lstate::lua_CFunction;
 use crate::lstring::luaS_newlstr;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
+use crate::{Lua, Thread};
 use libc::{c_char, c_int, memcpy, sprintf, strchr, strpbrk, strspn, strtod};
 use libm::{floor, pow};
 use std::cell::{Cell, UnsafeCell};
@@ -833,17 +833,13 @@ unsafe fn tostringbuff(obj: *mut TValue, buff: *mut c_char) -> c_int {
     }
 }
 
-pub unsafe fn luaO_tostring(
-    L: *const Thread,
-    obj: *mut TValue,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaO_tostring(g: *const Lua, obj: *mut TValue) {
     let mut buff: [c_char; 44] = [0; 44];
     let len: c_int = tostringbuff(obj, buff.as_mut_ptr());
     let io: *mut TValue = obj;
-    let x_: *mut TString = luaS_newlstr(L, buff.as_mut_ptr(), len as usize)?;
+    let x_: *mut TString = luaS_newlstr(g, buff.as_mut_ptr(), len as usize);
     (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
-    Ok(())
 }
 
 pub unsafe fn luaO_chunkid(mut out: *mut c_char, source: *const c_char, mut srclen: usize) {

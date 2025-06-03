@@ -27,9 +27,9 @@ unsafe fn checkfield(
     mut L: *const Thread,
     mut key: *const libc::c_char,
     mut n: libc::c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
-    lua_pushstring(L, key)?;
-    return Ok((lua_rawget(L, -n) != 0 as libc::c_int) as libc::c_int);
+) -> c_int {
+    lua_pushstring(L, key);
+    (lua_rawget(L, -n) != 0 as libc::c_int) as libc::c_int
 }
 
 unsafe fn checktab(
@@ -42,15 +42,15 @@ unsafe fn checktab(
         if lua_getmetatable(L, arg) != 0
             && (what & 1 as libc::c_int == 0 || {
                 n += 1;
-                checkfield(L, b"__index\0" as *const u8 as *const libc::c_char, n)? != 0
+                checkfield(L, b"__index\0" as *const u8 as *const libc::c_char, n) != 0
             })
             && (what & 2 as libc::c_int == 0 || {
                 n += 1;
-                checkfield(L, b"__newindex\0" as *const u8 as *const libc::c_char, n)? != 0
+                checkfield(L, b"__newindex\0" as *const u8 as *const libc::c_char, n) != 0
             })
             && (what & 4 as libc::c_int == 0 || {
                 n += 1;
-                checkfield(L, b"__len\0" as *const u8 as *const libc::c_char, n)? != 0
+                checkfield(L, b"__len\0" as *const u8 as *const libc::c_char, n) != 0
             })
         {
             lua_settop(L, -n - 1)?;
@@ -192,7 +192,7 @@ unsafe fn addfield(
     }
 
     let mut l = 0;
-    let s = lua_tolstring(L, -1, &mut l)?;
+    let s = lua_tolstring(L, -1, &mut l);
     b.extend_from_slice(std::slice::from_raw_parts(s.cast(), l));
     lua_pop(L, 1)?;
     Ok(())
@@ -223,7 +223,7 @@ unsafe fn tconcat(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Err
         addfield(L, &mut b, i)?;
     }
 
-    lua_pushlstring(L, b)?;
+    lua_pushlstring(L, b);
 
     return Ok(1 as libc::c_int);
 }

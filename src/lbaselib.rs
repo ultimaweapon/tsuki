@@ -67,7 +67,7 @@ unsafe fn luaB_warn(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
 
     for i in 1..=n {
         let mut len = 0;
-        let msg = lua_tolstring(L, i, &mut len)?;
+        let msg = lua_tolstring(L, i, &mut len);
         let msg = std::slice::from_raw_parts(msg.cast(), len);
 
         dst.write_all(msg).unwrap();
@@ -126,7 +126,7 @@ unsafe fn luaB_tonumber(mut L: *const Thread) -> Result<c_int, Box<dyn std::erro
             return Ok(1 as libc::c_int);
         } else {
             let mut l: usize = 0;
-            let mut s: *const libc::c_char = lua_tolstring(L, 1 as libc::c_int, &mut l)?;
+            let mut s: *const libc::c_char = lua_tolstring(L, 1 as libc::c_int, &mut l);
             if !s.is_null() && lua_stringtonumber(L, s) == l.wrapping_add(1 as libc::c_int as usize)
             {
                 return Ok(1 as libc::c_int);
@@ -139,7 +139,7 @@ unsafe fn luaB_tonumber(mut L: *const Thread) -> Result<c_int, Box<dyn std::erro
         let mut n: i64 = 0 as libc::c_int as i64;
         let mut base: i64 = luaL_checkinteger(L, 2 as libc::c_int)?;
         luaL_checktype(L, 1 as libc::c_int, 4 as libc::c_int)?;
-        s_0 = lua_tolstring(L, 1 as libc::c_int, &mut l_0)?;
+        s_0 = lua_tolstring(L, 1 as libc::c_int, &mut l_0);
         (((2 as libc::c_int as i64 <= base && base <= 36 as libc::c_int as i64) as libc::c_int
             != 0 as libc::c_int) as libc::c_int as libc::c_long
             != 0
@@ -240,31 +240,12 @@ unsafe fn luaB_rawset(mut L: *const Thread) -> Result<c_int, Box<dyn std::error:
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn pushmode(
-    mut L: *mut Thread,
-    mut oldmode: libc::c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
-    if oldmode == -(1 as libc::c_int) {
-        lua_pushnil(L);
-    } else {
-        lua_pushstring(
-            L,
-            if oldmode == 11 as libc::c_int {
-                b"incremental\0" as *const u8 as *const libc::c_char
-            } else {
-                b"generational\0" as *const u8 as *const libc::c_char
-            },
-        )?;
-    }
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn luaB_type(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut t: libc::c_int = lua_type(L, 1 as libc::c_int);
     (((t != -(1 as libc::c_int)) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long
         != 0
         || luaL_argerror(L, 1 as libc::c_int, "value expected")? != 0) as libc::c_int;
-    lua_pushlstring(L, lua_typename(t))?;
+    lua_pushlstring(L, lua_typename(t));
     return Ok(1 as libc::c_int);
 }
 
@@ -336,7 +317,7 @@ unsafe fn load_aux(
         }
         Err(e) => {
             lua_pushnil(L);
-            lua_pushlstring(L, e.to_string())?;
+            lua_pushlstring(L, e.to_string());
 
             Ok(2)
         }
@@ -369,7 +350,7 @@ unsafe fn generic_reader(
     lua_copy(L, -(1 as libc::c_int), 5 as libc::c_int);
     lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
 
-    lua_tolstring(L, 5 as libc::c_int, size)
+    Ok(lua_tolstring(L, 5 as libc::c_int, size))
 }
 
 unsafe fn luaB_load(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -409,7 +390,7 @@ unsafe fn luaB_assert(mut L: *const Thread) -> Result<c_int, Box<dyn std::error:
         lua_pushstring(
             L,
             b"assertion failed!\0" as *const u8 as *const libc::c_char,
-        )?;
+        );
         lua_settop(L, 1 as libc::c_int)?;
         return luaB_error(L);
     };
@@ -418,7 +399,7 @@ unsafe fn luaB_assert(mut L: *const Thread) -> Result<c_int, Box<dyn std::error:
 unsafe fn luaB_select(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut n: libc::c_int = lua_gettop(L);
     if lua_type(L, 1 as libc::c_int) == 4 as libc::c_int
-        && *lua_tolstring(L, 1 as libc::c_int, 0 as *mut usize)? as libc::c_int == '#' as i32
+        && *lua_tolstring(L, 1 as libc::c_int, 0 as *mut usize) as libc::c_int == '#' as i32
     {
         lua_pushinteger(L, (n - 1 as libc::c_int) as i64);
         return Ok(1 as libc::c_int);
@@ -447,7 +428,7 @@ unsafe fn luaB_pcall(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::
         Ok(_) => lua_gettop(L),
         Err(e) => {
             lua_pushboolean(L, 0 as libc::c_int);
-            lua_pushlstring(L, e.to_string())?;
+            lua_pushlstring(L, e.to_string());
             2
         }
     })

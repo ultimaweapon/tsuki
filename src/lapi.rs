@@ -31,13 +31,6 @@ use std::ffi::{c_int, c_void};
 use std::mem::offset_of;
 use std::ptr::null_mut;
 
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CallS {
-    pub func: StkId,
-    pub nresults: libc::c_int,
-}
-
 unsafe fn index2value(L: *const Thread, mut idx: libc::c_int) -> *mut TValue {
     let ci: *mut CallInfo = (*L).ci.get();
     if idx > 0 as libc::c_int {
@@ -447,22 +440,23 @@ pub unsafe fn lua_tolstring(
     L: *const Thread,
     idx: libc::c_int,
     len: *mut usize,
-) -> Result<*const libc::c_char, Box<dyn std::error::Error>> {
-    let mut o: *mut TValue = 0 as *mut TValue;
-    o = index2value(L, idx);
+) -> *const libc::c_char {
+    let mut o = index2value(L, idx);
+
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int) {
         if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int) {
             if !len.is_null() {
                 *len = 0 as libc::c_int as usize;
             }
-            return Ok(0 as *const libc::c_char);
+            return 0 as *const libc::c_char;
         }
-        luaO_tostring(L, o)?;
+        luaO_tostring((*L).global, o);
         if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
             luaC_step(L);
         }
         o = index2value(L, idx);
     }
+
     if !len.is_null() {
         *len = if (*((*o).value_.gc as *mut TString)).shrlen.get() as libc::c_int != 0xff {
             (*((*o).value_.gc as *mut TString)).shrlen.get() as usize
@@ -470,7 +464,8 @@ pub unsafe fn lua_tolstring(
             (*(*((*o).value_.gc as *mut TString)).u.get()).lnglen
         };
     }
-    return Ok(((*((*o).value_.gc as *mut TString)).contents).as_mut_ptr());
+
+    ((*((*o).value_.gc as *mut TString)).contents).as_mut_ptr()
 }
 
 pub unsafe fn lua_rawlen(L: *const Thread, idx: libc::c_int) -> u64 {
@@ -569,49 +564,46 @@ pub unsafe fn lua_pushinteger(L: *const Thread, n: i64) {
     api_incr_top(L);
 }
 
-pub unsafe fn lua_pushlstring(
-    L: *const Thread,
-    s: impl AsRef<[u8]>,
-) -> Result<*const libc::c_char, Box<dyn std::error::Error>> {
+pub unsafe fn lua_pushlstring(L: *const Thread, s: impl AsRef<[u8]>) -> *const libc::c_char {
     let s = s.as_ref();
-    let mut ts: *mut TString = 0 as *mut TString;
-    ts = if s.is_empty() {
-        luaS_new(L, b"\0" as *const u8 as *const libc::c_char)?
+    let ts = if s.is_empty() {
+        luaS_new((*L).global, b"\0" as *const u8 as *const libc::c_char)
     } else {
-        luaS_newlstr(L, s.as_ptr().cast(), s.len() as _)?
+        luaS_newlstr((*L).global, s.as_ptr().cast(), s.len())
     };
     let io: *mut TValue = &raw mut (*(*L).top.get()).val;
     let x_: *mut TString = ts;
     (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     api_incr_top(L);
+
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
-    return Ok(((*ts).contents).as_mut_ptr());
+
+    ((*ts).contents).as_mut_ptr()
 }
 
-pub unsafe fn lua_pushstring(
-    L: *const Thread,
-    mut s: *const libc::c_char,
-) -> Result<*const libc::c_char, Box<dyn std::error::Error>> {
+pub unsafe fn lua_pushstring(L: *const Thread, mut s: *const libc::c_char) -> *const libc::c_char {
     if s.is_null() {
         (*(*L).top.get()).val.tt_ =
             (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     } else {
-        let mut ts: *mut TString = 0 as *mut TString;
-        ts = luaS_new(L, s)?;
+        let ts = luaS_new((*L).global, s);
         let io: *mut TValue = &raw mut (*(*L).top.get()).val;
         let x_: *mut TString = ts;
         (*io).value_.gc = x_ as *mut Object;
         (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         s = ((*ts).contents).as_mut_ptr();
     }
+
     api_incr_top(L);
+
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
         luaC_step(L);
     }
-    return Ok(s);
+
+    s
 }
 
 pub unsafe fn lua_pushcclosure(L: *const Thread, fn_0: lua_CFunction, mut n: libc::c_int) {
@@ -677,7 +669,7 @@ unsafe fn auxgetstr(
     k: &[u8],
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut slot: *const TValue = 0 as *const TValue;
-    let str: *mut TString = luaS_newlstr(L, k.as_ptr().cast(), k.len())?;
+    let str: *mut TString = luaS_newlstr((*L).global, k.as_ptr().cast(), k.len());
     if if !((*t).tt_ as libc::c_int
         == 5 as libc::c_int
             | (0 as libc::c_int) << 4 as libc::c_int
@@ -949,7 +941,7 @@ unsafe fn auxsetstr(
     k: *const libc::c_char,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut slot: *const TValue = 0 as *const TValue;
-    let str: *mut TString = luaS_new(L, k)?;
+    let str: *mut TString = luaS_new((*L).global, k);
     if if !((*t).tt_ as libc::c_int
         == 5 as libc::c_int
             | (0 as libc::c_int) << 4 as libc::c_int
@@ -1408,13 +1400,13 @@ pub unsafe fn lua_pcall(
     nresults: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let func = ((*L).top.get()).offset(-((nargs + 1) as isize));
-    let c: CallS = CallS { func, nresults };
     let status = luaD_pcall(
         L,
-        (c.func as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char),
-        |L| luaD_call(L, c.func, c.nresults),
+        func.byte_offset_from_unsigned((*L).stack.get()),
+        move |L| luaD_call(L, func, nresults),
     );
 
+    // Adjust current CI.
     if nresults <= -1 && (*(*L).ci.get()).top < (*L).top.get() {
         (*(*L).ci.get()).top = (*L).top.get();
     }
@@ -1530,10 +1522,10 @@ pub unsafe fn lua_concat(L: *const Thread, n: c_int) -> Result<(), Box<dyn std::
     } else {
         let io: *mut TValue = &raw mut (*(*L).top.get()).val;
         let x_: *mut TString = luaS_newlstr(
-            L,
+            (*L).global,
             b"\0" as *const u8 as *const libc::c_char,
             0 as libc::c_int as usize,
-        )?;
+        );
         (*io).value_.gc = x_ as *mut Object;
         (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         api_incr_top(L);

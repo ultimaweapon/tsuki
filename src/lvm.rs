@@ -3,8 +3,7 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
-    unused_mut
+    unused_assignments
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
@@ -42,11 +41,11 @@ pub const F2Iceil: F2Imod = 2;
 pub const F2Ifloor: F2Imod = 1;
 pub const F2Ieq: F2Imod = 0;
 
-unsafe fn l_strton(mut obj: *const TValue, mut result: *mut TValue) -> libc::c_int {
+unsafe fn l_strton(obj: *const TValue, result: *mut TValue) -> libc::c_int {
     if !((*obj).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int) {
         return 0 as libc::c_int;
     } else {
-        let mut st: *mut TString = (*obj).value_.gc as *mut TString;
+        let st: *mut TString = (*obj).value_.gc as *mut TString;
         return (luaO_str2num(((*st).contents).as_mut_ptr(), result)
             == (if (*st).shrlen.get() as libc::c_int != 0xff as libc::c_int {
                 (*st).shrlen.get() as usize
@@ -57,7 +56,7 @@ unsafe fn l_strton(mut obj: *const TValue, mut result: *mut TValue) -> libc::c_i
     };
 }
 
-pub unsafe fn luaV_tonumber_(mut obj: *const TValue, mut n: *mut f64) -> libc::c_int {
+pub unsafe fn luaV_tonumber_(obj: *const TValue, n: *mut f64) -> libc::c_int {
     let mut v: TValue = TValue {
         value_: Value {
             gc: 0 as *mut Object,
@@ -79,7 +78,7 @@ pub unsafe fn luaV_tonumber_(mut obj: *const TValue, mut n: *mut f64) -> libc::c
     };
 }
 
-pub unsafe fn luaV_flttointeger(mut n: f64, mut p: *mut i64, mut mode: F2Imod) -> libc::c_int {
+pub unsafe fn luaV_flttointeger(n: f64, p: *mut i64, mode: F2Imod) -> libc::c_int {
     let mut f: f64 = floor(n);
     if n != f {
         if mode as libc::c_uint == F2Ieq as libc::c_int as libc::c_uint {
@@ -99,11 +98,7 @@ pub unsafe fn luaV_flttointeger(mut n: f64, mut p: *mut i64, mut mode: F2Imod) -
         }) as libc::c_int;
 }
 
-pub unsafe fn luaV_tointegerns(
-    mut obj: *const TValue,
-    mut p: *mut i64,
-    mut mode: F2Imod,
-) -> libc::c_int {
+pub unsafe fn luaV_tointegerns(obj: *const TValue, p: *mut i64, mode: F2Imod) -> libc::c_int {
     if (*obj).tt_ as libc::c_int == 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int {
         return luaV_flttointeger((*obj).value_.n, p, mode);
     } else if (*obj).tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
@@ -115,11 +110,7 @@ pub unsafe fn luaV_tointegerns(
     };
 }
 
-pub unsafe fn luaV_tointeger(
-    mut obj: *const TValue,
-    mut p: *mut i64,
-    mut mode: F2Imod,
-) -> libc::c_int {
+pub unsafe fn luaV_tointeger(mut obj: *const TValue, p: *mut i64, mode: F2Imod) -> libc::c_int {
     let mut v: TValue = TValue {
         value_: Value {
             gc: 0 as *mut Object,
@@ -133,11 +124,11 @@ pub unsafe fn luaV_tointeger(
 }
 
 unsafe fn forlimit(
-    mut L: *const Thread,
-    mut init: i64,
-    mut lim: *const TValue,
-    mut p: *mut i64,
-    mut step: i64,
+    L: *const Thread,
+    init: i64,
+    lim: *const TValue,
+    p: *mut i64,
+    step: i64,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     if luaV_tointeger(
         lim,
@@ -179,23 +170,20 @@ unsafe fn forlimit(
     };
 }
 
-unsafe fn forprep(
-    mut L: *const Thread,
-    mut ra: StkId,
-) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut pinit: *mut TValue = &mut (*ra).val;
-    let mut plimit: *mut TValue = &mut (*ra.offset(1 as libc::c_int as isize)).val;
-    let mut pstep: *mut TValue = &mut (*ra.offset(2 as libc::c_int as isize)).val;
+unsafe fn forprep(L: *const Thread, ra: StkId) -> Result<c_int, Box<dyn std::error::Error>> {
+    let pinit: *mut TValue = &mut (*ra).val;
+    let plimit: *mut TValue = &mut (*ra.offset(1 as libc::c_int as isize)).val;
+    let pstep: *mut TValue = &mut (*ra.offset(2 as libc::c_int as isize)).val;
     if (*pinit).tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
         && (*pstep).tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
     {
-        let mut init: i64 = (*pinit).value_.i;
-        let mut step: i64 = (*pstep).value_.i;
+        let init: i64 = (*pinit).value_.i;
+        let step: i64 = (*pstep).value_.i;
         let mut limit: i64 = 0;
         if step == 0 as libc::c_int as i64 {
             luaG_runerror(L, "'for' step is zero")?;
         }
-        let mut io: *mut TValue = &mut (*ra.offset(3 as libc::c_int as isize)).val;
+        let io: *mut TValue = &mut (*ra.offset(3 as libc::c_int as isize)).val;
         (*io).value_.i = init;
         (*io).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
         if forlimit(L, init, plimit, &mut limit, step)? != 0 {
@@ -213,7 +201,7 @@ unsafe fn forprep(
                     / (-(step + 1 as libc::c_int as i64) as u64)
                         .wrapping_add(1 as libc::c_uint as u64);
             }
-            let mut io_0: *mut TValue = plimit;
+            let io_0: *mut TValue = plimit;
             (*io_0).value_.i = count as i64;
             (*io_0).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
         }
@@ -271,16 +259,16 @@ unsafe fn forprep(
         {
             return Ok(1 as libc::c_int);
         } else {
-            let mut io_1: *mut TValue = plimit;
+            let io_1: *mut TValue = plimit;
             (*io_1).value_.n = limit_0;
             (*io_1).tt_ = (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
-            let mut io_2: *mut TValue = pstep;
+            let io_2: *mut TValue = pstep;
             (*io_2).value_.n = step_0;
             (*io_2).tt_ = (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
-            let mut io_3: *mut TValue = &mut (*ra).val;
+            let io_3: *mut TValue = &mut (*ra).val;
             (*io_3).value_.n = init_0;
             (*io_3).tt_ = (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
-            let mut io_4: *mut TValue = &mut (*ra.offset(3 as libc::c_int as isize)).val;
+            let io_4: *mut TValue = &mut (*ra.offset(3 as libc::c_int as isize)).val;
             (*io_4).value_.n = init_0;
             (*io_4).tt_ = (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
         }
@@ -288,9 +276,9 @@ unsafe fn forprep(
     return Ok(0 as libc::c_int);
 }
 
-unsafe extern "C" fn floatforloop(mut ra: StkId) -> libc::c_int {
-    let mut step: f64 = (*ra.offset(2 as libc::c_int as isize)).val.value_.n;
-    let mut limit: f64 = (*ra.offset(1 as libc::c_int as isize)).val.value_.n;
+unsafe fn floatforloop(ra: StkId) -> libc::c_int {
+    let step: f64 = (*ra.offset(2 as libc::c_int as isize)).val.value_.n;
+    let limit: f64 = (*ra.offset(1 as libc::c_int as isize)).val.value_.n;
     let mut idx: f64 = (*ra).val.value_.n;
     idx = idx + step;
     if if (0 as libc::c_int as f64) < step {
@@ -299,9 +287,9 @@ unsafe extern "C" fn floatforloop(mut ra: StkId) -> libc::c_int {
         (limit <= idx) as libc::c_int
     } != 0
     {
-        let mut io: *mut TValue = &mut (*ra).val;
+        let io: *mut TValue = &mut (*ra).val;
         (*io).value_.n = idx;
-        let mut io_0: *mut TValue = &mut (*ra.offset(3 as libc::c_int as isize)).val;
+        let io_0: *mut TValue = &mut (*ra.offset(3 as libc::c_int as isize)).val;
         (*io_0).value_.n = idx;
         (*io_0).tt_ = (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
         return 1 as libc::c_int;
@@ -311,10 +299,10 @@ unsafe extern "C" fn floatforloop(mut ra: StkId) -> libc::c_int {
 }
 
 pub unsafe fn luaV_finishget(
-    mut L: *const Thread,
+    L: *const Thread,
     mut t: *const TValue,
-    mut key: *mut TValue,
-    mut val: StkId,
+    key: *mut TValue,
+    val: StkId,
     mut slot: *const TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut loop_0: libc::c_int = 0;
@@ -365,8 +353,8 @@ pub unsafe fn luaV_finishget(
             !((*slot).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) as libc::c_int
         } != 0
         {
-            let mut io1: *mut TValue = &mut (*val).val;
-            let mut io2: *const TValue = slot;
+            let io1: *mut TValue = &mut (*val).val;
+            let io2: *const TValue = slot;
             (*io1).value_ = (*io2).value_;
             (*io1).tt_ = (*io2).tt_;
             return Ok(());
@@ -378,10 +366,10 @@ pub unsafe fn luaV_finishget(
 }
 
 pub unsafe fn luaV_finishset(
-    mut L: *const Thread,
+    L: *const Thread,
     mut t: *const TValue,
-    mut key: *mut TValue,
-    mut val: *mut TValue,
+    key: *mut TValue,
+    val: *mut TValue,
     mut slot: *const TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut loop_0: libc::c_int = 0;
@@ -389,7 +377,7 @@ pub unsafe fn luaV_finishset(
     while loop_0 < 2000 as libc::c_int {
         let mut tm: *const TValue = 0 as *const TValue;
         if !slot.is_null() {
-            let mut h: *mut Table = (*t).value_.gc as *mut Table;
+            let h: *mut Table = (*t).value_.gc as *mut Table;
             tm = if ((*h).metatable).is_null() {
                 0 as *const TValue
             } else if (*(*h).metatable).flags.get() as libc::c_uint
@@ -452,8 +440,8 @@ pub unsafe fn luaV_finishset(
             !((*slot).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) as libc::c_int
         } != 0
         {
-            let mut io1: *mut TValue = slot as *mut TValue;
-            let mut io2: *const TValue = val;
+            let io1: *mut TValue = slot as *mut TValue;
+            let io2: *const TValue = val;
             (*io1).value_ = (*io2).value_;
             (*io1).tt_ = (*io2).tt_;
             if (*val).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
@@ -478,7 +466,7 @@ pub unsafe fn luaV_finishset(
     unreachable!("luaG_runerror always return Err");
 }
 
-unsafe extern "C" fn l_strcmp(mut ts1: *const TString, mut ts2: *const TString) -> libc::c_int {
+unsafe fn l_strcmp(ts1: *const TString, ts2: *const TString) -> libc::c_int {
     let mut s1: *const libc::c_char = ((*ts1).contents).as_ptr();
     let mut rl1: usize = if (*ts1).shrlen.get() as libc::c_int != 0xff as libc::c_int {
         (*ts1).shrlen.get() as usize
@@ -492,7 +480,7 @@ unsafe extern "C" fn l_strcmp(mut ts1: *const TString, mut ts2: *const TString) 
         (*(*ts2).u.get()).lnglen
     };
     loop {
-        let mut temp: libc::c_int = strcoll(s1, s2);
+        let temp: libc::c_int = strcoll(s1, s2);
         if temp != 0 as libc::c_int {
             return temp;
         } else {
@@ -517,8 +505,7 @@ unsafe extern "C" fn l_strcmp(mut ts1: *const TString, mut ts2: *const TString) 
     }
 }
 
-#[inline]
-unsafe extern "C" fn LTintfloat(mut i: i64, mut f: f64) -> libc::c_int {
+unsafe fn LTintfloat(i: i64, f: f64) -> libc::c_int {
     if ((1 as libc::c_int as u64) << 53 as libc::c_int).wrapping_add(i as u64)
         <= 2 as libc::c_int as u64 * ((1 as libc::c_int as u64) << 53 as libc::c_int)
     {
@@ -533,8 +520,7 @@ unsafe extern "C" fn LTintfloat(mut i: i64, mut f: f64) -> libc::c_int {
     };
 }
 
-#[inline]
-unsafe extern "C" fn LEintfloat(mut i: i64, mut f: f64) -> libc::c_int {
+unsafe fn LEintfloat(i: i64, f: f64) -> libc::c_int {
     if ((1 as libc::c_int as u64) << 53 as libc::c_int).wrapping_add(i as u64)
         <= 2 as libc::c_int as u64 * ((1 as libc::c_int as u64) << 53 as libc::c_int)
     {
@@ -549,8 +535,7 @@ unsafe extern "C" fn LEintfloat(mut i: i64, mut f: f64) -> libc::c_int {
     };
 }
 
-#[inline]
-unsafe extern "C" fn LTfloatint(mut f: f64, mut i: i64) -> libc::c_int {
+unsafe fn LTfloatint(f: f64, i: i64) -> libc::c_int {
     if ((1 as libc::c_int as u64) << 53 as libc::c_int).wrapping_add(i as u64)
         <= 2 as libc::c_int as u64 * ((1 as libc::c_int as u64) << 53 as libc::c_int)
     {
@@ -565,8 +550,7 @@ unsafe extern "C" fn LTfloatint(mut f: f64, mut i: i64) -> libc::c_int {
     };
 }
 
-#[inline]
-unsafe extern "C" fn LEfloatint(mut f: f64, mut i: i64) -> libc::c_int {
+unsafe fn LEfloatint(f: f64, i: i64) -> libc::c_int {
     if ((1 as libc::c_int as u64) << 53 as libc::c_int).wrapping_add(i as u64)
         <= 2 as libc::c_int as u64 * ((1 as libc::c_int as u64) << 53 as libc::c_int)
     {
@@ -581,17 +565,16 @@ unsafe extern "C" fn LEfloatint(mut f: f64, mut i: i64) -> libc::c_int {
     };
 }
 
-#[inline]
-unsafe extern "C" fn LTnum(mut l: *const TValue, mut r: *const TValue) -> libc::c_int {
+unsafe fn LTnum(l: *const TValue, r: *const TValue) -> libc::c_int {
     if (*l).tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
-        let mut li: i64 = (*l).value_.i;
+        let li: i64 = (*l).value_.i;
         if (*r).tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
             return (li < (*r).value_.i) as libc::c_int;
         } else {
             return LTintfloat(li, (*r).value_.n);
         }
     } else {
-        let mut lf: f64 = (*l).value_.n;
+        let lf: f64 = (*l).value_.n;
         if (*r).tt_ as libc::c_int == 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int {
             return (lf < (*r).value_.n) as libc::c_int;
         } else {
@@ -600,17 +583,16 @@ unsafe extern "C" fn LTnum(mut l: *const TValue, mut r: *const TValue) -> libc::
     };
 }
 
-#[inline]
-unsafe extern "C" fn LEnum(mut l: *const TValue, mut r: *const TValue) -> libc::c_int {
+unsafe fn LEnum(l: *const TValue, r: *const TValue) -> libc::c_int {
     if (*l).tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
-        let mut li: i64 = (*l).value_.i;
+        let li: i64 = (*l).value_.i;
         if (*r).tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
             return (li <= (*r).value_.i) as libc::c_int;
         } else {
             return LEintfloat(li, (*r).value_.n);
         }
     } else {
-        let mut lf: f64 = (*l).value_.n;
+        let lf: f64 = (*l).value_.n;
         if (*r).tt_ as libc::c_int == 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int {
             return (lf <= (*r).value_.n) as libc::c_int;
         } else {
@@ -620,9 +602,9 @@ unsafe extern "C" fn LEnum(mut l: *const TValue, mut r: *const TValue) -> libc::
 }
 
 unsafe fn lessthanothers(
-    mut L: *const Thread,
-    mut l: *const TValue,
-    mut r: *const TValue,
+    L: *const Thread,
+    l: *const TValue,
+    r: *const TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     if (*l).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
         && (*r).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
@@ -637,9 +619,9 @@ unsafe fn lessthanothers(
 }
 
 pub unsafe fn luaV_lessthan(
-    mut L: *const Thread,
-    mut l: *const TValue,
-    mut r: *const TValue,
+    L: *const Thread,
+    l: *const TValue,
+    r: *const TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     if (*l).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
         && (*r).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
@@ -651,9 +633,9 @@ pub unsafe fn luaV_lessthan(
 }
 
 unsafe fn lessequalothers(
-    mut L: *const Thread,
-    mut l: *const TValue,
-    mut r: *const TValue,
+    L: *const Thread,
+    l: *const TValue,
+    r: *const TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     if (*l).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
         && (*r).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
@@ -668,9 +650,9 @@ unsafe fn lessequalothers(
 }
 
 pub unsafe fn luaV_lessequal(
-    mut L: *const Thread,
-    mut l: *const TValue,
-    mut r: *const TValue,
+    L: *const Thread,
+    l: *const TValue,
+    r: *const TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     if (*l).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
         && (*r).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
@@ -682,9 +664,9 @@ pub unsafe fn luaV_lessequal(
 }
 
 pub unsafe fn luaV_equalobj(
-    mut L: *const Thread,
-    mut t1: *const TValue,
-    mut t2: *const TValue,
+    L: *const Thread,
+    t1: *const TValue,
+    t2: *const TValue,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut tm: *const TValue = 0 as *const TValue;
     if (*t1).tt_ as libc::c_int & 0x3f as libc::c_int
@@ -812,11 +794,11 @@ pub unsafe fn luaV_equalobj(
     };
 }
 
-unsafe extern "C" fn copy2buff(mut top: StkId, mut n: libc::c_int, mut buff: *mut libc::c_char) {
+unsafe fn copy2buff(top: StkId, mut n: libc::c_int, buff: *mut libc::c_char) {
     let mut tl: usize = 0 as libc::c_int as usize;
     loop {
-        let mut st: *mut TString = (*top.offset(-(n as isize))).val.value_.gc as *mut TString;
-        let mut l: usize = if (*st).shrlen.get() as libc::c_int != 0xff as libc::c_int {
+        let st: *mut TString = (*top.offset(-(n as isize))).val.value_.gc as *mut TString;
+        let l: usize = if (*st).shrlen.get() as libc::c_int != 0xff as libc::c_int {
             (*st).shrlen.get() as usize
         } else {
             (*(*st).u.get()).lnglen
@@ -835,7 +817,7 @@ unsafe extern "C" fn copy2buff(mut top: StkId, mut n: libc::c_int, mut buff: *mu
 }
 
 pub unsafe fn luaV_concat(
-    mut L: *const Thread,
+    L: *const Thread,
     mut total: c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if total == 1 {
@@ -843,7 +825,7 @@ pub unsafe fn luaV_concat(
     }
 
     loop {
-        let mut top: StkId = (*L).top.get();
+        let top: StkId = (*L).top.get();
         let mut n: libc::c_int = 2 as libc::c_int;
 
         if !((*top.offset(-2)).val.tt_ & 0xf == 4 || (*top.offset(-2)).val.tt_ & 0xf == 3)
@@ -854,7 +836,7 @@ pub unsafe fn luaV_concat(
                     & 0xf as libc::c_int
                     == 3 as libc::c_int
                     && {
-                        luaO_tostring(L, &mut (*top.offset(-(1 as libc::c_int as isize))).val)?;
+                        luaO_tostring((*L).global, &raw mut (*top.offset(-1)).val);
                         1 as libc::c_int != 0
                     })
         {
@@ -875,7 +857,7 @@ pub unsafe fn luaV_concat(
                     & 0xf as libc::c_int
                     == 3 as libc::c_int
                     && {
-                        luaO_tostring(L, &mut (*top.offset(-(2 as libc::c_int as isize))).val)?;
+                        luaO_tostring((*L).global, &raw mut (*top.offset(-2)).val);
                         1 as libc::c_int != 0
                     }) as libc::c_int;
         } else if (*top.offset(-(2 as libc::c_int as isize))).val.tt_ as libc::c_int
@@ -887,8 +869,8 @@ pub unsafe fn luaV_concat(
                 .get() as libc::c_int
                 == 0 as libc::c_int
         {
-            let mut io1: *mut TValue = &mut (*top.offset(-(2 as libc::c_int as isize))).val;
-            let mut io2: *const TValue = &mut (*top.offset(-(1 as libc::c_int as isize))).val;
+            let io1: *mut TValue = &raw mut (*top.offset(-(2 as libc::c_int as isize))).val;
+            let io2: *const TValue = &raw mut (*top.offset(-(1 as libc::c_int as isize))).val;
             (*io1).value_ = (*io2).value_;
             (*io1).tt_ = (*io2).tt_;
         } else {
@@ -926,16 +908,13 @@ pub unsafe fn luaV_concat(
                         == 3 as libc::c_int
                         && {
                             luaO_tostring(
-                                L,
-                                &mut (*top
-                                    .offset(-(n as isize))
-                                    .offset(-(1 as libc::c_int as isize)))
-                                .val,
-                            )?;
+                                (*L).global,
+                                &raw mut (*top.offset(-(n as isize)).offset(-1)).val,
+                            );
                             1 as libc::c_int != 0
                         })
             {
-                let mut l: usize = if (*((*top
+                let l: usize = if (*((*top
                     .offset(-(n as isize))
                     .offset(-(1 as libc::c_int as isize)))
                 .val
@@ -986,13 +965,13 @@ pub unsafe fn luaV_concat(
             if tl <= 40 as libc::c_int as usize {
                 let mut buff: [libc::c_char; 40] = [0; 40];
                 copy2buff(top, n, buff.as_mut_ptr());
-                ts = luaS_newlstr(L, buff.as_mut_ptr(), tl)?;
+                ts = luaS_newlstr((*L).global, buff.as_mut_ptr(), tl);
             } else {
-                ts = luaS_createlngstrobj(L, tl);
+                ts = luaS_createlngstrobj((*L).global, tl);
                 copy2buff(top, n, ((*ts).contents).as_mut_ptr());
             }
-            let mut io: *mut TValue = &mut (*top.offset(-(n as isize))).val;
-            let mut x_: *mut TString = ts;
+            let io: *mut TValue = &raw mut (*top.offset(-(n as isize))).val;
+            let x_: *mut TString = ts;
             (*io).value_.gc = x_ as *mut Object;
             (*io).tt_ =
                 ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -1006,14 +985,14 @@ pub unsafe fn luaV_concat(
 }
 
 pub unsafe fn luaV_objlen(
-    mut L: *const Thread,
-    mut ra: StkId,
-    mut rb: *const TValue,
+    L: *const Thread,
+    ra: StkId,
+    rb: *const TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut tm: *const TValue = 0 as *const TValue;
     match (*rb).tt_ as libc::c_int & 0x3f as libc::c_int {
         5 => {
-            let mut h: *mut Table = (*rb).value_.gc as *mut Table;
+            let h: *mut Table = (*rb).value_.gc as *mut Table;
             tm = if ((*h).metatable).is_null() {
                 0 as *const TValue
             } else if (*(*h).metatable).flags.get() as libc::c_uint
@@ -1029,20 +1008,20 @@ pub unsafe fn luaV_objlen(
                 )
             };
             if tm.is_null() {
-                let mut io: *mut TValue = &mut (*ra).val;
+                let io: *mut TValue = &raw mut (*ra).val;
                 (*io).value_.i = luaH_getn(h) as i64;
                 (*io).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
                 return Ok(());
             }
         }
         4 => {
-            let mut io_0: *mut TValue = &mut (*ra).val;
+            let io_0: *mut TValue = &raw mut (*ra).val;
             (*io_0).value_.i = (*((*rb).value_.gc as *mut TString)).shrlen.get() as i64;
             (*io_0).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
             return Ok(());
         }
         20 => {
-            let mut io_1: *mut TValue = &mut (*ra).val;
+            let io_1: *mut TValue = &raw mut (*ra).val;
             (*io_1).value_.i = (*(*((*rb).value_.gc as *mut TString)).u.get()).lnglen as i64;
             (*io_1).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
             return Ok(());
@@ -1061,9 +1040,9 @@ pub unsafe fn luaV_objlen(
 }
 
 pub unsafe fn luaV_idiv(
-    mut L: *const Thread,
-    mut m: i64,
-    mut n: i64,
+    L: *const Thread,
+    m: i64,
+    n: i64,
 ) -> Result<i64, Box<dyn std::error::Error>> {
     if (((n as u64).wrapping_add(1 as libc::c_uint as u64) <= 1 as libc::c_uint as u64)
         as libc::c_int
@@ -1084,9 +1063,9 @@ pub unsafe fn luaV_idiv(
 }
 
 pub unsafe fn luaV_mod(
-    mut L: *const Thread,
-    mut m: i64,
-    mut n: i64,
+    L: *const Thread,
+    m: i64,
+    n: i64,
 ) -> Result<i64, Box<dyn std::error::Error>> {
     if (((n as u64).wrapping_add(1 as libc::c_uint as u64) <= 1 as libc::c_uint as u64)
         as libc::c_int
@@ -1106,7 +1085,7 @@ pub unsafe fn luaV_mod(
     };
 }
 
-pub unsafe fn luaV_modf(mut m: f64, mut n: f64) -> f64 {
+pub unsafe fn luaV_modf(m: f64, n: f64) -> f64 {
     let mut r: f64 = 0.;
     r = fmod(m, n);
     if if r > 0 as libc::c_int as f64 {
@@ -1120,7 +1099,7 @@ pub unsafe fn luaV_modf(mut m: f64, mut n: f64) -> f64 {
     return r;
 }
 
-pub unsafe fn luaV_shiftl(mut x: i64, mut y: i64) -> i64 {
+pub unsafe fn luaV_shiftl(x: i64, y: i64) -> i64 {
     if y < 0 as libc::c_int as i64 {
         if y <= -((::core::mem::size_of::<i64>() as libc::c_ulong)
             .wrapping_mul(8 as libc::c_int as libc::c_ulong) as libc::c_int) as i64
@@ -1140,19 +1119,19 @@ pub unsafe fn luaV_shiftl(mut x: i64, mut y: i64) -> i64 {
 }
 
 unsafe fn pushclosure(
-    mut L: *const Thread,
-    mut p: *mut Proto,
-    mut encup: &[Cell<*mut UpVal>],
-    mut base: StkId,
-    mut ra: StkId,
+    L: *const Thread,
+    p: *mut Proto,
+    encup: &[Cell<*mut UpVal>],
+    base: StkId,
+    ra: StkId,
 ) {
-    let mut nup: libc::c_int = (*p).sizeupvalues;
-    let mut uv: *mut Upvaldesc = (*p).upvalues;
+    let nup: libc::c_int = (*p).sizeupvalues;
+    let uv: *mut Upvaldesc = (*p).upvalues;
     let mut i: libc::c_int = 0;
-    let mut ncl: *mut LuaClosure = luaF_newLclosure(L, nup);
+    let ncl: *mut LuaClosure = luaF_newLclosure(L, nup);
     (*ncl).p.set(p);
-    let mut io: *mut TValue = &raw mut (*ra).val;
-    let mut x_: *mut LuaClosure = ncl;
+    let io: *mut TValue = &raw mut (*ra).val;
+    let x_: *mut LuaClosure = ncl;
 
     (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = (6 as libc::c_int
@@ -1181,7 +1160,7 @@ unsafe fn pushclosure(
 }
 
 pub unsafe fn luaV_execute(
-    mut L: *const Thread,
+    L: *const Thread,
     mut ci: *mut CallInfo,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: u32 = 0;
@@ -1224,14 +1203,14 @@ pub unsafe fn luaV_execute(
                     as OpCode as libc::c_uint
                 {
                     0 => {
-                        let mut ra: StkId = base.offset(
+                        let ra: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut io1: *mut TValue = &mut (*ra).val;
-                        let mut io2: *const TValue = &mut (*base.offset(
+                        let io1: *mut TValue = &raw mut (*ra).val;
+                        let io2: *const TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -1246,36 +1225,35 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     1 => {
-                        let mut ra_0: StkId = base.offset(
+                        let ra_0: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut b: i64 =
-                            ((i >> 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int
-                                & !(!(0 as libc::c_int as u32)
-                                    << 8 as libc::c_int + 8 as libc::c_int + 1 as libc::c_int)
-                                    << 0 as libc::c_int)
-                                as libc::c_int
-                                - (((1 as libc::c_int)
-                                    << 8 as libc::c_int + 8 as libc::c_int + 1 as libc::c_int)
-                                    - 1 as libc::c_int
-                                    >> 1 as libc::c_int)) as i64;
-                        let mut io: *mut TValue = &mut (*ra_0).val;
+                        let b: i64 = ((i >> 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int
+                            & !(!(0 as libc::c_int as u32)
+                                << 8 as libc::c_int + 8 as libc::c_int + 1 as libc::c_int)
+                                << 0 as libc::c_int)
+                            as libc::c_int
+                            - (((1 as libc::c_int)
+                                << 8 as libc::c_int + 8 as libc::c_int + 1 as libc::c_int)
+                                - 1 as libc::c_int
+                                >> 1 as libc::c_int)) as i64;
+                        let io: *mut TValue = &raw mut (*ra_0).val;
                         (*io).value_.i = b;
                         (*io).tt_ =
                             (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
                         continue;
                     }
                     2 => {
-                        let mut ra_1: StkId = base.offset(
+                        let ra_1: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut b_0: libc::c_int =
+                        let b_0: libc::c_int =
                             (i >> 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int
                                 & !(!(0 as libc::c_int as u32)
                                     << 8 as libc::c_int + 8 as libc::c_int + 1 as libc::c_int)
@@ -1284,34 +1262,34 @@ pub unsafe fn luaV_execute(
                                     << 8 as libc::c_int + 8 as libc::c_int + 1 as libc::c_int)
                                     - 1 as libc::c_int
                                     >> 1 as libc::c_int);
-                        let mut io_0: *mut TValue = &mut (*ra_1).val;
+                        let io_0: *mut TValue = &raw mut (*ra_1).val;
                         (*io_0).value_.n = b_0 as f64;
                         (*io_0).tt_ =
                             (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
                         continue;
                     }
                     3 => {
-                        let mut ra_2: StkId = base.offset(
+                        let ra_2: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut rb: *mut TValue = k.offset(
+                        let rb: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int
                                 & !(!(0 as libc::c_int as u32)
                                     << 8 as libc::c_int + 8 as libc::c_int + 1 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut io1_0: *mut TValue = &mut (*ra_2).val;
-                        let mut io2_0: *const TValue = rb;
+                        let io1_0: *mut TValue = &raw mut (*ra_2).val;
+                        let io2_0: *const TValue = rb;
                         (*io1_0).value_ = (*io2_0).value_;
                         (*io1_0).tt_ = (*io2_0).tt_;
                         continue;
                     }
                     4 => {
-                        let mut ra_3: StkId = base.offset(
+                        let ra_3: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -1329,14 +1307,14 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         );
                         pc = pc.offset(1);
-                        let mut io1_1: *mut TValue = &mut (*ra_3).val;
-                        let mut io2_1: *const TValue = rb_0;
+                        let io1_1: *mut TValue = &raw mut (*ra_3).val;
+                        let io2_1: *const TValue = rb_0;
                         (*io1_1).value_ = (*io2_1).value_;
                         (*io1_1).tt_ = (*io2_1).tt_;
                         continue;
                     }
                     5 => {
-                        let mut ra_4: StkId = base.offset(
+                        let ra_4: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -1347,7 +1325,7 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     6 => {
-                        let mut ra_5: StkId = base.offset(
+                        let ra_5: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -1359,7 +1337,7 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     7 => {
-                        let mut ra_6: StkId = base.offset(
+                        let ra_6: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -1397,33 +1375,33 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     9 => {
-                        let mut ra_8: StkId = base.offset(
+                        let ra_8: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut b_2: libc::c_int = (i
+                        let b_2: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
                                 + 1 as libc::c_int
                             & !(!(0 as libc::c_int as u32) << 8 as libc::c_int) << 0 as libc::c_int)
                             as libc::c_int;
-                        let mut io1_2: *mut TValue = &mut (*ra_8).val;
-                        let mut io2_2: *const TValue = (*(*cl).upvals[b_2 as usize].get()).v.get();
+                        let io1_2: *mut TValue = &raw mut (*ra_8).val;
+                        let io2_2: *const TValue = (*(*cl).upvals[b_2 as usize].get()).v.get();
                         (*io1_2).value_ = (*io2_2).value_;
                         (*io1_2).tt_ = (*io2_2).tt_;
                         continue;
                     }
                     10 => {
-                        let mut ra_9: StkId = base.offset(
+                        let ra_9: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut uv: *mut UpVal = (*cl).upvals[(i
+                        let uv: *mut UpVal = (*cl).upvals[(i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -1432,8 +1410,8 @@ pub unsafe fn luaV_execute(
                             as libc::c_int
                             as usize]
                             .get();
-                        let mut io1_3: *mut TValue = (*uv).v.get();
-                        let mut io2_3: *const TValue = &mut (*ra_9).val;
+                        let io1_3: *mut TValue = (*uv).v.get();
+                        let io2_3: *const TValue = &raw mut (*ra_9).val;
                         (*io1_3).value_ = (*io2_3).value_;
                         (*io1_3).tt_ = (*io2_3).tt_;
                         if (*ra_9).val.tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int
@@ -1459,14 +1437,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     11 => {
-                        let mut ra_10: StkId = base.offset(
+                        let ra_10: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut slot: *const TValue = 0 as *const TValue;
-                        let mut upval: *mut TValue = (*(*cl).upvals[(i
+                        let upval: *mut TValue = (*(*cl).upvals[(i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -1477,7 +1455,7 @@ pub unsafe fn luaV_execute(
                             .get())
                         .v
                         .get();
-                        let mut rc: *mut TValue = k.offset(
+                        let rc: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -1487,7 +1465,7 @@ pub unsafe fn luaV_execute(
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut key: *mut TString = (*rc).value_.gc as *mut TString;
+                        let key: *mut TString = (*rc).value_.gc as *mut TString;
                         if if !((*upval).tt_ as libc::c_int
                             == 5 as libc::c_int
                                 | (0 as libc::c_int) << 4 as libc::c_int
@@ -1501,8 +1479,8 @@ pub unsafe fn luaV_execute(
                                 as libc::c_int
                         } != 0
                         {
-                            let mut io1_4: *mut TValue = &mut (*ra_10).val;
-                            let mut io2_4: *const TValue = slot;
+                            let io1_4: *mut TValue = &raw mut (*ra_10).val;
+                            let io2_4: *const TValue = slot;
                             (*io1_4).value_ = (*io2_4).value_;
                             (*io1_4).tt_ = (*io2_4).tt_;
                         } else {
@@ -1514,14 +1492,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     12 => {
-                        let mut ra_11: StkId = base.offset(
+                        let ra_11: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut slot_0: *const TValue = 0 as *const TValue;
-                        let mut rb_1: *mut TValue = &mut (*base.offset(
+                        let rb_1: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -1531,7 +1509,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut rc_0: *mut TValue = &mut (*base.offset(
+                        let rc_0: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -1582,8 +1560,8 @@ pub unsafe fn luaV_execute(
                                 as libc::c_int
                         } != 0
                         {
-                            let mut io1_5: *mut TValue = &mut (*ra_11).val;
-                            let mut io2_5: *const TValue = slot_0;
+                            let io1_5: *mut TValue = &raw mut (*ra_11).val;
+                            let io2_5: *const TValue = slot_0;
                             (*io1_5).value_ = (*io2_5).value_;
                             (*io1_5).tt_ = (*io2_5).tt_;
                         } else {
@@ -1595,14 +1573,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     13 => {
-                        let mut ra_12: StkId = base.offset(
+                        let ra_12: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut slot_1: *const TValue = 0 as *const TValue;
-                        let mut rb_2: *mut TValue = &mut (*base.offset(
+                        let rb_2: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -1612,7 +1590,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut c: libc::c_int = (i
+                        let c: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -1641,8 +1619,8 @@ pub unsafe fn luaV_execute(
                                 as libc::c_int
                         } != 0
                         {
-                            let mut io1_6: *mut TValue = &mut (*ra_12).val;
-                            let mut io2_6: *const TValue = slot_1;
+                            let io1_6: *mut TValue = &raw mut (*ra_12).val;
+                            let io2_6: *const TValue = slot_1;
                             (*io1_6).value_ = (*io2_6).value_;
                             (*io1_6).tt_ = (*io2_6).tt_;
                         } else {
@@ -1652,7 +1630,7 @@ pub unsafe fn luaV_execute(
                                 },
                                 tt_: 0,
                             };
-                            let mut io_1: *mut TValue = &mut key_0;
+                            let io_1: *mut TValue = &raw mut key_0;
                             (*io_1).value_.i = c as i64;
                             (*io_1).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -1664,14 +1642,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     14 => {
-                        let mut ra_13: StkId = base.offset(
+                        let ra_13: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut slot_2: *const TValue = 0 as *const TValue;
-                        let mut rb_3: *mut TValue = &mut (*base.offset(
+                        let rb_3: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -1681,7 +1659,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut rc_1: *mut TValue = k.offset(
+                        let rc_1: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -1691,7 +1669,7 @@ pub unsafe fn luaV_execute(
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut key_1: *mut TString = (*rc_1).value_.gc as *mut TString;
+                        let key_1: *mut TString = (*rc_1).value_.gc as *mut TString;
                         if if !((*rb_3).tt_ as libc::c_int
                             == 5 as libc::c_int
                                 | (0 as libc::c_int) << 4 as libc::c_int
@@ -1705,8 +1683,8 @@ pub unsafe fn luaV_execute(
                                 as libc::c_int
                         } != 0
                         {
-                            let mut io1_7: *mut TValue = &mut (*ra_13).val;
-                            let mut io2_7: *const TValue = slot_2;
+                            let io1_7: *mut TValue = &raw mut (*ra_13).val;
+                            let io2_7: *const TValue = slot_2;
                             (*io1_7).value_ = (*io2_7).value_;
                             (*io1_7).tt_ = (*io2_7).tt_;
                         } else {
@@ -1719,7 +1697,7 @@ pub unsafe fn luaV_execute(
                     }
                     15 => {
                         let mut slot_3: *const TValue = 0 as *const TValue;
-                        let mut upval_0: *mut TValue = (*(*cl).upvals[(i
+                        let upval_0: *mut TValue = (*(*cl).upvals[(i
                             >> 0 as libc::c_int + 7 as libc::c_int
                             & !(!(0 as libc::c_int as u32) << 8) << 0)
                             as libc::c_int
@@ -1727,7 +1705,7 @@ pub unsafe fn luaV_execute(
                             .get())
                         .v
                         .get();
-                        let mut rb_4: *mut TValue = k.offset(
+                        let rb_4: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -1736,7 +1714,7 @@ pub unsafe fn luaV_execute(
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut rc_2: *mut TValue = if (i
+                        let rc_2: *mut TValue = if (i
                             & (1 as libc::c_uint)
                                 << 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int)
                             as libc::c_int
@@ -1765,7 +1743,7 @@ pub unsafe fn luaV_execute(
                             ))
                             .val
                         };
-                        let mut key_2: *mut TString = (*rb_4).value_.gc as *mut TString;
+                        let key_2: *mut TString = (*rb_4).value_.gc as *mut TString;
                         if if !((*upval_0).tt_ as libc::c_int
                             == 5 as libc::c_int
                                 | (0 as libc::c_int) << 4 as libc::c_int
@@ -1779,8 +1757,8 @@ pub unsafe fn luaV_execute(
                                 as libc::c_int
                         } != 0
                         {
-                            let mut io1_8: *mut TValue = slot_3 as *mut TValue;
-                            let mut io2_8: *const TValue = rc_2;
+                            let io1_8: *mut TValue = slot_3 as *mut TValue;
+                            let io2_8: *const TValue = rc_2;
                             (*io1_8).value_ = (*io2_8).value_;
                             (*io1_8).tt_ = (*io2_8).tt_;
                             if (*rc_2).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int
@@ -1808,14 +1786,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     16 => {
-                        let mut ra_14: StkId = base.offset(
+                        let ra_14: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut slot_4: *const TValue = 0 as *const TValue;
-                        let mut rb_5: *mut TValue = &mut (*base.offset(
+                        let rb_5: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -1825,7 +1803,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut rc_3: *mut TValue = if (i
+                        let rc_3: *mut TValue = if (i
                             & (1 as libc::c_uint)
                                 << 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int)
                             as libc::c_int
@@ -1894,8 +1872,8 @@ pub unsafe fn luaV_execute(
                                 as libc::c_int
                         } != 0
                         {
-                            let mut io1_9: *mut TValue = slot_4 as *mut TValue;
-                            let mut io2_9: *const TValue = rc_3;
+                            let io1_9: *mut TValue = slot_4 as *mut TValue;
+                            let io2_9: *const TValue = rc_3;
                             (*io1_9).value_ = (*io2_9).value_;
                             (*io1_9).tt_ = (*io2_9).tt_;
                             if (*rc_3).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int
@@ -1923,21 +1901,21 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     17 => {
-                        let mut ra_15: StkId = base.offset(
+                        let ra_15: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut slot_5: *const TValue = 0 as *const TValue;
-                        let mut c_0: libc::c_int = (i
+                        let c_0: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
                                 + 1 as libc::c_int
                             & !(!(0 as libc::c_int as u32) << 8 as libc::c_int) << 0 as libc::c_int)
                             as libc::c_int;
-                        let mut rc_4: *mut TValue = if (i
+                        let rc_4: *mut TValue = if (i
                             & (1 as libc::c_uint)
                                 << 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int)
                             as libc::c_int
@@ -1987,8 +1965,8 @@ pub unsafe fn luaV_execute(
                                 as libc::c_int
                         } != 0
                         {
-                            let mut io1_10: *mut TValue = slot_5 as *mut TValue;
-                            let mut io2_10: *const TValue = rc_4;
+                            let io1_10: *mut TValue = slot_5 as *mut TValue;
+                            let io2_10: *const TValue = rc_4;
                             (*io1_10).value_ = (*io2_10).value_;
                             (*io1_10).tt_ = (*io2_10).tt_;
                             if (*rc_4).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int
@@ -2014,7 +1992,7 @@ pub unsafe fn luaV_execute(
                                 },
                                 tt_: 0,
                             };
-                            let mut io_2: *mut TValue = &mut key_3;
+                            let io_2: *mut TValue = &raw mut key_3;
                             (*io_2).value_.i = c_0 as i64;
                             (*io_2).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -2026,14 +2004,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     18 => {
-                        let mut ra_16: StkId = base.offset(
+                        let ra_16: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut slot_6: *const TValue = 0 as *const TValue;
-                        let mut rb_6: *mut TValue = k.offset(
+                        let rb_6: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2042,7 +2020,7 @@ pub unsafe fn luaV_execute(
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut rc_5: *mut TValue = if (i
+                        let rc_5: *mut TValue = if (i
                             & (1 as libc::c_uint)
                                 << 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int)
                             as libc::c_int
@@ -2071,7 +2049,7 @@ pub unsafe fn luaV_execute(
                             ))
                             .val
                         };
-                        let mut key_4: *mut TString = (*rb_6).value_.gc as *mut TString;
+                        let key_4: *mut TString = (*rb_6).value_.gc as *mut TString;
                         if if !((*ra_16).val.tt_ as libc::c_int
                             == 5 as libc::c_int
                                 | (0 as libc::c_int) << 4 as libc::c_int
@@ -2085,8 +2063,8 @@ pub unsafe fn luaV_execute(
                                 as libc::c_int
                         } != 0
                         {
-                            let mut io1_11: *mut TValue = slot_6 as *mut TValue;
-                            let mut io2_11: *const TValue = rc_5;
+                            let io1_11: *mut TValue = slot_6 as *mut TValue;
+                            let io2_11: *const TValue = rc_5;
                             (*io1_11).value_ = (*io2_11).value_;
                             (*io1_11).tt_ = (*io2_11).tt_;
                             if (*rc_5).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int
@@ -2114,7 +2092,7 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     19 => {
-                        let mut ra_17: StkId = base.offset(
+                        let ra_17: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -2159,8 +2137,8 @@ pub unsafe fn luaV_execute(
                         pc = pc.offset(1);
                         (*L).top.set(ra_17.offset(1 as libc::c_int as isize));
                         t = luaH_new(L)?;
-                        let mut io_3: *mut TValue = &mut (*ra_17).val;
-                        let mut x_: *mut Table = t;
+                        let io_3: *mut TValue = &raw mut (*ra_17).val;
+                        let x_: *mut Table = t;
                         (*io_3).value_.gc = x_ as *mut Object;
                         (*io_3).tt_ = (5 as libc::c_int
                             | (0 as libc::c_int) << 4 as libc::c_int
@@ -2181,14 +2159,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     20 => {
-                        let mut ra_18: StkId = base.offset(
+                        let ra_18: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut slot_7: *const TValue = 0 as *const TValue;
-                        let mut rb_7: *mut TValue = &mut (*base.offset(
+                        let rb_7: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2198,7 +2176,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut rc_6: *mut TValue = if (i
+                        let rc_6: *mut TValue = if (i
                             & (1 as libc::c_uint)
                                 << 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int)
                             as libc::c_int
@@ -2227,10 +2205,10 @@ pub unsafe fn luaV_execute(
                             ))
                             .val
                         };
-                        let mut key_5: *mut TString = (*rc_6).value_.gc as *mut TString;
-                        let mut io1_12: *mut TValue =
-                            &mut (*ra_18.offset(1 as libc::c_int as isize)).val;
-                        let mut io2_12: *const TValue = rb_7;
+                        let key_5: *mut TString = (*rc_6).value_.gc as *mut TString;
+                        let io1_12: *mut TValue =
+                            &raw mut (*ra_18.offset(1 as libc::c_int as isize)).val;
+                        let io2_12: *const TValue = rb_7;
                         (*io1_12).value_ = (*io2_12).value_;
                         (*io1_12).tt_ = (*io2_12).tt_;
                         if if !((*rb_7).tt_ as libc::c_int
@@ -2246,8 +2224,8 @@ pub unsafe fn luaV_execute(
                                 as libc::c_int
                         } != 0
                         {
-                            let mut io1_13: *mut TValue = &mut (*ra_18).val;
-                            let mut io2_13: *const TValue = slot_7;
+                            let io1_13: *mut TValue = &raw mut (*ra_18).val;
+                            let io2_13: *const TValue = slot_7;
                             (*io1_13).value_ = (*io2_13).value_;
                             (*io1_13).tt_ = (*io2_13).tt_;
                         } else {
@@ -2259,13 +2237,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     21 => {
-                        let mut ra_19: StkId = base.offset(
+                        let ra_19: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut v1: *mut TValue = &mut (*base.offset(
+                        let v1: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2275,7 +2253,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut imm: libc::c_int = (i
+                        let imm: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2288,19 +2266,19 @@ pub unsafe fn luaV_execute(
                         if (*v1).tt_ as libc::c_int
                             == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut iv1: i64 = (*v1).value_.i;
+                            let iv1: i64 = (*v1).value_.i;
                             pc = pc.offset(1);
-                            let mut io_4: *mut TValue = &mut (*ra_19).val;
+                            let io_4: *mut TValue = &raw mut (*ra_19).val;
                             (*io_4).value_.i = (iv1 as u64).wrapping_add(imm as u64) as i64;
                             (*io_4).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
                         } else if (*v1).tt_ as libc::c_int
                             == 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut nb: f64 = (*v1).value_.n;
-                            let mut fimm: f64 = imm as f64;
+                            let nb: f64 = (*v1).value_.n;
+                            let fimm: f64 = imm as f64;
                             pc = pc.offset(1);
-                            let mut io_5: *mut TValue = &mut (*ra_19).val;
+                            let io_5: *mut TValue = &raw mut (*ra_19).val;
                             (*io_5).value_.n = nb + fimm;
                             (*io_5).tt_ =
                                 (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -2308,7 +2286,7 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     22 => {
-                        let mut v1_0: *mut TValue = &mut (*base.offset(
+                        let v1_0: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2318,7 +2296,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2: *mut TValue = k.offset(
+                        let v2: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2328,7 +2306,7 @@ pub unsafe fn luaV_execute(
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut ra_20: StkId = base.offset(
+                        let ra_20: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -2339,10 +2317,10 @@ pub unsafe fn luaV_execute(
                             && (*v2).tt_ as libc::c_int
                                 == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut i1: i64 = (*v1_0).value_.i;
-                            let mut i2: i64 = (*v2).value_.i;
+                            let i1: i64 = (*v1_0).value_.i;
+                            let i2: i64 = (*v2).value_.i;
                             pc = pc.offset(1);
-                            let mut io_6: *mut TValue = &mut (*ra_20).val;
+                            let io_6: *mut TValue = &raw mut (*ra_20).val;
                             (*io_6).value_.i = (i1 as u64).wrapping_add(i2 as u64) as i64;
                             (*io_6).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -2381,7 +2359,7 @@ pub unsafe fn luaV_execute(
                                 }) != 0
                             {
                                 pc = pc.offset(1);
-                                let mut io_7: *mut TValue = &mut (*ra_20).val;
+                                let io_7: *mut TValue = &raw mut (*ra_20).val;
                                 (*io_7).value_.n = n1 + n2;
                                 (*io_7).tt_ = (3 as libc::c_int
                                     | (1 as libc::c_int) << 4 as libc::c_int)
@@ -2391,7 +2369,7 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     23 => {
-                        let mut v1_1: *mut TValue = &mut (*base.offset(
+                        let v1_1: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2401,7 +2379,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_0: *mut TValue = k.offset(
+                        let v2_0: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2411,7 +2389,7 @@ pub unsafe fn luaV_execute(
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut ra_21: StkId = base.offset(
+                        let ra_21: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -2422,10 +2400,10 @@ pub unsafe fn luaV_execute(
                             && (*v2_0).tt_ as libc::c_int
                                 == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut i1_0: i64 = (*v1_1).value_.i;
-                            let mut i2_0: i64 = (*v2_0).value_.i;
+                            let i1_0: i64 = (*v1_1).value_.i;
+                            let i2_0: i64 = (*v2_0).value_.i;
                             pc = pc.offset(1);
-                            let mut io_8: *mut TValue = &mut (*ra_21).val;
+                            let io_8: *mut TValue = &raw mut (*ra_21).val;
                             (*io_8).value_.i = (i1_0 as u64).wrapping_sub(i2_0 as u64) as i64;
                             (*io_8).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -2464,7 +2442,7 @@ pub unsafe fn luaV_execute(
                                 }) != 0
                             {
                                 pc = pc.offset(1);
-                                let mut io_9: *mut TValue = &mut (*ra_21).val;
+                                let io_9: *mut TValue = &raw mut (*ra_21).val;
                                 (*io_9).value_.n = n1_0 - n2_0;
                                 (*io_9).tt_ = (3 as libc::c_int
                                     | (1 as libc::c_int) << 4 as libc::c_int)
@@ -2474,7 +2452,7 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     24 => {
-                        let mut v1_2: *mut TValue = &mut (*base.offset(
+                        let v1_2: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2484,7 +2462,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_1: *mut TValue = k.offset(
+                        let v2_1: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2494,7 +2472,7 @@ pub unsafe fn luaV_execute(
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut ra_22: StkId = base.offset(
+                        let ra_22: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -2505,10 +2483,10 @@ pub unsafe fn luaV_execute(
                             && (*v2_1).tt_ as libc::c_int
                                 == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut i1_1: i64 = (*v1_2).value_.i;
-                            let mut i2_1: i64 = (*v2_1).value_.i;
+                            let i1_1: i64 = (*v1_2).value_.i;
+                            let i2_1: i64 = (*v2_1).value_.i;
                             pc = pc.offset(1);
-                            let mut io_10: *mut TValue = &mut (*ra_22).val;
+                            let io_10: *mut TValue = &raw mut (*ra_22).val;
                             (*io_10).value_.i = (i1_1 as u64 * i2_1 as u64) as i64;
                             (*io_10).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -2547,7 +2525,7 @@ pub unsafe fn luaV_execute(
                                 }) != 0
                             {
                                 pc = pc.offset(1);
-                                let mut io_11: *mut TValue = &mut (*ra_22).val;
+                                let io_11: *mut TValue = &raw mut (*ra_22).val;
                                 (*io_11).value_.n = n1_1 * n2_1;
                                 (*io_11).tt_ = (3 as libc::c_int
                                     | (1 as libc::c_int) << 4 as libc::c_int)
@@ -2559,7 +2537,7 @@ pub unsafe fn luaV_execute(
                     25 => {
                         (*ci).u.savedpc = pc;
                         (*L).top.set((*ci).top);
-                        let mut v1_3: *mut TValue = &mut (*base.offset(
+                        let v1_3: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2569,7 +2547,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_2: *mut TValue = k.offset(
+                        let v2_2: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2579,7 +2557,7 @@ pub unsafe fn luaV_execute(
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut ra_23: StkId = base.offset(
+                        let ra_23: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -2590,10 +2568,10 @@ pub unsafe fn luaV_execute(
                             && (*v2_2).tt_ as libc::c_int
                                 == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut i1_2: i64 = (*v1_3).value_.i;
-                            let mut i2_2: i64 = (*v2_2).value_.i;
+                            let i1_2: i64 = (*v1_3).value_.i;
+                            let i2_2: i64 = (*v2_2).value_.i;
                             pc = pc.offset(1);
-                            let mut io_12: *mut TValue = &mut (*ra_23).val;
+                            let io_12: *mut TValue = &raw mut (*ra_23).val;
                             (*io_12).value_.i = luaV_mod(L, i1_2, i2_2)?;
                             (*io_12).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -2632,7 +2610,7 @@ pub unsafe fn luaV_execute(
                                 }) != 0
                             {
                                 pc = pc.offset(1);
-                                let mut io_13: *mut TValue = &mut (*ra_23).val;
+                                let io_13: *mut TValue = &raw mut (*ra_23).val;
                                 (*io_13).value_.n = luaV_modf(n1_2, n2_2);
                                 (*io_13).tt_ = (3 as libc::c_int
                                     | (1 as libc::c_int) << 4 as libc::c_int)
@@ -2642,13 +2620,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     26 => {
-                        let mut ra_24: StkId = base.offset(
+                        let ra_24: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut v1_4: *mut TValue = &mut (*base.offset(
+                        let v1_4: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2658,7 +2636,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_3: *mut TValue = k.offset(
+                        let v2_3: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2702,7 +2680,7 @@ pub unsafe fn luaV_execute(
                             }) != 0
                         {
                             pc = pc.offset(1);
-                            let mut io_14: *mut TValue = &mut (*ra_24).val;
+                            let io_14: *mut TValue = &raw mut (*ra_24).val;
                             (*io_14).value_.n = if n2_3 == 2 as libc::c_int as f64 {
                                 n1_3 * n1_3
                             } else {
@@ -2714,13 +2692,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     27 => {
-                        let mut ra_25: StkId = base.offset(
+                        let ra_25: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut v1_5: *mut TValue = &mut (*base.offset(
+                        let v1_5: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2730,7 +2708,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_4: *mut TValue = k.offset(
+                        let v2_4: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2774,7 +2752,7 @@ pub unsafe fn luaV_execute(
                             }) != 0
                         {
                             pc = pc.offset(1);
-                            let mut io_15: *mut TValue = &mut (*ra_25).val;
+                            let io_15: *mut TValue = &raw mut (*ra_25).val;
                             (*io_15).value_.n = n1_4 / n2_4;
                             (*io_15).tt_ =
                                 (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -2784,7 +2762,7 @@ pub unsafe fn luaV_execute(
                     28 => {
                         (*ci).u.savedpc = pc;
                         (*L).top.set((*ci).top);
-                        let mut v1_6: *mut TValue = &mut (*base.offset(
+                        let v1_6: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2794,7 +2772,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_5: *mut TValue = k.offset(
+                        let v2_5: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2804,7 +2782,7 @@ pub unsafe fn luaV_execute(
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut ra_26: StkId = base.offset(
+                        let ra_26: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -2815,10 +2793,10 @@ pub unsafe fn luaV_execute(
                             && (*v2_5).tt_ as libc::c_int
                                 == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut i1_3: i64 = (*v1_6).value_.i;
-                            let mut i2_3: i64 = (*v2_5).value_.i;
+                            let i1_3: i64 = (*v1_6).value_.i;
+                            let i2_3: i64 = (*v2_5).value_.i;
                             pc = pc.offset(1);
-                            let mut io_16: *mut TValue = &mut (*ra_26).val;
+                            let io_16: *mut TValue = &raw mut (*ra_26).val;
                             (*io_16).value_.i = luaV_idiv(L, i1_3, i2_3)?;
                             (*io_16).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -2857,7 +2835,7 @@ pub unsafe fn luaV_execute(
                                 }) != 0
                             {
                                 pc = pc.offset(1);
-                                let mut io_17: *mut TValue = &mut (*ra_26).val;
+                                let io_17: *mut TValue = &raw mut (*ra_26).val;
                                 (*io_17).value_.n = floor(n1_5 / n2_5);
                                 (*io_17).tt_ = (3 as libc::c_int
                                     | (1 as libc::c_int) << 4 as libc::c_int)
@@ -2867,13 +2845,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     29 => {
-                        let mut ra_27: StkId = base.offset(
+                        let ra_27: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut v1_7: *mut TValue = &mut (*base.offset(
+                        let v1_7: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2883,7 +2861,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_6: *mut TValue = k.offset(
+                        let v2_6: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2894,7 +2872,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         );
                         let mut i1_4: i64 = 0;
-                        let mut i2_4: i64 = (*v2_6).value_.i;
+                        let i2_4: i64 = (*v2_6).value_.i;
                         if if (((*v1_7).tt_ as libc::c_int
                             == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int)
                             as libc::c_int
@@ -2909,7 +2887,7 @@ pub unsafe fn luaV_execute(
                         } != 0
                         {
                             pc = pc.offset(1);
-                            let mut io_18: *mut TValue = &mut (*ra_27).val;
+                            let io_18: *mut TValue = &raw mut (*ra_27).val;
                             (*io_18).value_.i = (i1_4 as u64 & i2_4 as u64) as i64;
                             (*io_18).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -2917,13 +2895,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     30 => {
-                        let mut ra_28: StkId = base.offset(
+                        let ra_28: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut v1_8: *mut TValue = &mut (*base.offset(
+                        let v1_8: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2933,7 +2911,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_7: *mut TValue = k.offset(
+                        let v2_7: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2944,7 +2922,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         );
                         let mut i1_5: i64 = 0;
-                        let mut i2_5: i64 = (*v2_7).value_.i;
+                        let i2_5: i64 = (*v2_7).value_.i;
                         if if (((*v1_8).tt_ as libc::c_int
                             == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int)
                             as libc::c_int
@@ -2959,7 +2937,7 @@ pub unsafe fn luaV_execute(
                         } != 0
                         {
                             pc = pc.offset(1);
-                            let mut io_19: *mut TValue = &mut (*ra_28).val;
+                            let io_19: *mut TValue = &raw mut (*ra_28).val;
                             (*io_19).value_.i = (i1_5 as u64 | i2_5 as u64) as i64;
                             (*io_19).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -2967,13 +2945,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     31 => {
-                        let mut ra_29: StkId = base.offset(
+                        let ra_29: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut v1_9: *mut TValue = &mut (*base.offset(
+                        let v1_9: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2983,7 +2961,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_8: *mut TValue = k.offset(
+                        let v2_8: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -2994,7 +2972,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         );
                         let mut i1_6: i64 = 0;
-                        let mut i2_6: i64 = (*v2_8).value_.i;
+                        let i2_6: i64 = (*v2_8).value_.i;
                         if if (((*v1_9).tt_ as libc::c_int
                             == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int)
                             as libc::c_int
@@ -3009,7 +2987,7 @@ pub unsafe fn luaV_execute(
                         } != 0
                         {
                             pc = pc.offset(1);
-                            let mut io_20: *mut TValue = &mut (*ra_29).val;
+                            let io_20: *mut TValue = &raw mut (*ra_29).val;
                             (*io_20).value_.i = (i1_6 as u64 ^ i2_6 as u64) as i64;
                             (*io_20).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -3017,13 +2995,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     32 => {
-                        let mut ra_30: StkId = base.offset(
+                        let ra_30: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut rb_8: *mut TValue = &mut (*base.offset(
+                        let rb_8: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3033,7 +3011,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut ic: libc::c_int = (i
+                        let ic: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3058,7 +3036,7 @@ pub unsafe fn luaV_execute(
                         } != 0
                         {
                             pc = pc.offset(1);
-                            let mut io_21: *mut TValue = &mut (*ra_30).val;
+                            let io_21: *mut TValue = &raw mut (*ra_30).val;
                             (*io_21).value_.i = luaV_shiftl(ib, -ic as i64);
                             (*io_21).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -3066,13 +3044,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     33 => {
-                        let mut ra_31: StkId = base.offset(
+                        let ra_31: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut rb_9: *mut TValue = &mut (*base.offset(
+                        let rb_9: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3082,7 +3060,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut ic_0: libc::c_int = (i
+                        let ic_0: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3107,7 +3085,7 @@ pub unsafe fn luaV_execute(
                         } != 0
                         {
                             pc = pc.offset(1);
-                            let mut io_22: *mut TValue = &mut (*ra_31).val;
+                            let io_22: *mut TValue = &raw mut (*ra_31).val;
                             (*io_22).value_.i = luaV_shiftl(ic_0 as i64, ib_0);
                             (*io_22).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -3115,7 +3093,7 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     34 => {
-                        let mut v1_10: *mut TValue = &mut (*base.offset(
+                        let v1_10: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3125,7 +3103,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_9: *mut TValue = &mut (*base.offset(
+                        let v2_9: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3136,7 +3114,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut ra_32: StkId = base.offset(
+                        let ra_32: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -3147,10 +3125,10 @@ pub unsafe fn luaV_execute(
                             && (*v2_9).tt_ as libc::c_int
                                 == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut i1_7: i64 = (*v1_10).value_.i;
-                            let mut i2_7: i64 = (*v2_9).value_.i;
+                            let i1_7: i64 = (*v1_10).value_.i;
+                            let i2_7: i64 = (*v2_9).value_.i;
                             pc = pc.offset(1);
-                            let mut io_23: *mut TValue = &mut (*ra_32).val;
+                            let io_23: *mut TValue = &raw mut (*ra_32).val;
                             (*io_23).value_.i = (i1_7 as u64).wrapping_add(i2_7 as u64) as i64;
                             (*io_23).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -3189,7 +3167,7 @@ pub unsafe fn luaV_execute(
                                 }) != 0
                             {
                                 pc = pc.offset(1);
-                                let mut io_24: *mut TValue = &mut (*ra_32).val;
+                                let io_24: *mut TValue = &raw mut (*ra_32).val;
                                 (*io_24).value_.n = n1_6 + n2_6;
                                 (*io_24).tt_ = (3 as libc::c_int
                                     | (1 as libc::c_int) << 4 as libc::c_int)
@@ -3199,7 +3177,7 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     35 => {
-                        let mut v1_11: *mut TValue = &mut (*base.offset(
+                        let v1_11: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3209,7 +3187,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_10: *mut TValue = &mut (*base.offset(
+                        let v2_10: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3220,7 +3198,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut ra_33: StkId = base.offset(
+                        let ra_33: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -3231,10 +3209,10 @@ pub unsafe fn luaV_execute(
                             && (*v2_10).tt_ as libc::c_int
                                 == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut i1_8: i64 = (*v1_11).value_.i;
-                            let mut i2_8: i64 = (*v2_10).value_.i;
+                            let i1_8: i64 = (*v1_11).value_.i;
+                            let i2_8: i64 = (*v2_10).value_.i;
                             pc = pc.offset(1);
-                            let mut io_25: *mut TValue = &mut (*ra_33).val;
+                            let io_25: *mut TValue = &raw mut (*ra_33).val;
                             (*io_25).value_.i = (i1_8 as u64).wrapping_sub(i2_8 as u64) as i64;
                             (*io_25).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -3273,7 +3251,7 @@ pub unsafe fn luaV_execute(
                                 }) != 0
                             {
                                 pc = pc.offset(1);
-                                let mut io_26: *mut TValue = &mut (*ra_33).val;
+                                let io_26: *mut TValue = &raw mut (*ra_33).val;
                                 (*io_26).value_.n = n1_7 - n2_7;
                                 (*io_26).tt_ = (3 as libc::c_int
                                     | (1 as libc::c_int) << 4 as libc::c_int)
@@ -3283,7 +3261,7 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     36 => {
-                        let mut v1_12: *mut TValue = &mut (*base.offset(
+                        let v1_12: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3293,7 +3271,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_11: *mut TValue = &mut (*base.offset(
+                        let v2_11: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3304,7 +3282,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut ra_34: StkId = base.offset(
+                        let ra_34: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -3315,10 +3293,10 @@ pub unsafe fn luaV_execute(
                             && (*v2_11).tt_ as libc::c_int
                                 == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut i1_9: i64 = (*v1_12).value_.i;
-                            let mut i2_9: i64 = (*v2_11).value_.i;
+                            let i1_9: i64 = (*v1_12).value_.i;
+                            let i2_9: i64 = (*v2_11).value_.i;
                             pc = pc.offset(1);
-                            let mut io_27: *mut TValue = &mut (*ra_34).val;
+                            let io_27: *mut TValue = &raw mut (*ra_34).val;
                             (*io_27).value_.i = ((i1_9 as u64).wrapping_mul(i2_9 as u64)) as i64;
                             (*io_27).tt_ = 3 | 0 << 4;
                         } else {
@@ -3356,7 +3334,7 @@ pub unsafe fn luaV_execute(
                                 }) != 0
                             {
                                 pc = pc.offset(1);
-                                let mut io_28: *mut TValue = &mut (*ra_34).val;
+                                let io_28: *mut TValue = &raw mut (*ra_34).val;
                                 (*io_28).value_.n = n1_8 * n2_8;
                                 (*io_28).tt_ = (3 as libc::c_int
                                     | (1 as libc::c_int) << 4 as libc::c_int)
@@ -3368,7 +3346,7 @@ pub unsafe fn luaV_execute(
                     37 => {
                         (*ci).u.savedpc = pc;
                         (*L).top.set((*ci).top);
-                        let mut v1_13: *mut TValue = &mut (*base.offset(
+                        let v1_13: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3378,7 +3356,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_12: *mut TValue = &mut (*base.offset(
+                        let v2_12: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3389,7 +3367,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut ra_35: StkId = base.offset(
+                        let ra_35: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -3400,10 +3378,10 @@ pub unsafe fn luaV_execute(
                             && (*v2_12).tt_ as libc::c_int
                                 == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut i1_10: i64 = (*v1_13).value_.i;
-                            let mut i2_10: i64 = (*v2_12).value_.i;
+                            let i1_10: i64 = (*v1_13).value_.i;
+                            let i2_10: i64 = (*v2_12).value_.i;
                             pc = pc.offset(1);
-                            let mut io_29: *mut TValue = &mut (*ra_35).val;
+                            let io_29: *mut TValue = &raw mut (*ra_35).val;
                             (*io_29).value_.i = luaV_mod(L, i1_10, i2_10)?;
                             (*io_29).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -3442,7 +3420,7 @@ pub unsafe fn luaV_execute(
                                 }) != 0
                             {
                                 pc = pc.offset(1);
-                                let mut io_30: *mut TValue = &mut (*ra_35).val;
+                                let io_30: *mut TValue = &raw mut (*ra_35).val;
                                 (*io_30).value_.n = luaV_modf(n1_9, n2_9);
                                 (*io_30).tt_ = (3 as libc::c_int
                                     | (1 as libc::c_int) << 4 as libc::c_int)
@@ -3452,13 +3430,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     38 => {
-                        let mut ra_36: StkId = base.offset(
+                        let ra_36: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut v1_14: *mut TValue = &mut (*base.offset(
+                        let v1_14: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3468,7 +3446,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_13: *mut TValue = &mut (*base.offset(
+                        let v2_13: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3513,7 +3491,7 @@ pub unsafe fn luaV_execute(
                             }) != 0
                         {
                             pc = pc.offset(1);
-                            let mut io_31: *mut TValue = &mut (*ra_36).val;
+                            let io_31: *mut TValue = &raw mut (*ra_36).val;
                             (*io_31).value_.n = if n2_10 == 2 as libc::c_int as f64 {
                                 n1_10 * n1_10
                             } else {
@@ -3525,13 +3503,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     39 => {
-                        let mut ra_37: StkId = base.offset(
+                        let ra_37: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut v1_15: *mut TValue = &mut (*base.offset(
+                        let v1_15: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3541,7 +3519,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_14: *mut TValue = &mut (*base.offset(
+                        let v2_14: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3586,7 +3564,7 @@ pub unsafe fn luaV_execute(
                             }) != 0
                         {
                             pc = pc.offset(1);
-                            let mut io_32: *mut TValue = &mut (*ra_37).val;
+                            let io_32: *mut TValue = &raw mut (*ra_37).val;
                             (*io_32).value_.n = n1_11 / n2_11;
                             (*io_32).tt_ =
                                 (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -3596,7 +3574,7 @@ pub unsafe fn luaV_execute(
                     40 => {
                         (*ci).u.savedpc = pc;
                         (*L).top.set((*ci).top);
-                        let mut v1_16: *mut TValue = &mut (*base.offset(
+                        let v1_16: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3606,7 +3584,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_15: *mut TValue = &mut (*base.offset(
+                        let v2_15: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3617,7 +3595,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut ra_38: StkId = base.offset(
+                        let ra_38: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -3628,10 +3606,10 @@ pub unsafe fn luaV_execute(
                             && (*v2_15).tt_ as libc::c_int
                                 == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut i1_11: i64 = (*v1_16).value_.i;
-                            let mut i2_11: i64 = (*v2_15).value_.i;
+                            let i1_11: i64 = (*v1_16).value_.i;
+                            let i2_11: i64 = (*v2_15).value_.i;
                             pc = pc.offset(1);
-                            let mut io_33: *mut TValue = &mut (*ra_38).val;
+                            let io_33: *mut TValue = &raw mut (*ra_38).val;
                             (*io_33).value_.i = luaV_idiv(L, i1_11, i2_11)?;
                             (*io_33).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -3670,7 +3648,7 @@ pub unsafe fn luaV_execute(
                                 }) != 0
                             {
                                 pc = pc.offset(1);
-                                let mut io_34: *mut TValue = &mut (*ra_38).val;
+                                let io_34: *mut TValue = &raw mut (*ra_38).val;
                                 (*io_34).value_.n = floor(n1_12 / n2_12);
                                 (*io_34).tt_ = (3 as libc::c_int
                                     | (1 as libc::c_int) << 4 as libc::c_int)
@@ -3680,13 +3658,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     41 => {
-                        let mut ra_39: StkId = base.offset(
+                        let ra_39: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut v1_17: *mut TValue = &mut (*base.offset(
+                        let v1_17: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3696,7 +3674,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_16: *mut TValue = &mut (*base.offset(
+                        let v2_16: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3735,7 +3713,7 @@ pub unsafe fn luaV_execute(
                             }) != 0
                         {
                             pc = pc.offset(1);
-                            let mut io_35: *mut TValue = &mut (*ra_39).val;
+                            let io_35: *mut TValue = &raw mut (*ra_39).val;
                             (*io_35).value_.i = (i1_12 as u64 & i2_12 as u64) as i64;
                             (*io_35).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -3743,13 +3721,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     42 => {
-                        let mut ra_40: StkId = base.offset(
+                        let ra_40: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut v1_18: *mut TValue = &mut (*base.offset(
+                        let v1_18: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3759,7 +3737,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_17: *mut TValue = &mut (*base.offset(
+                        let v2_17: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3798,7 +3776,7 @@ pub unsafe fn luaV_execute(
                             }) != 0
                         {
                             pc = pc.offset(1);
-                            let mut io_36: *mut TValue = &mut (*ra_40).val;
+                            let io_36: *mut TValue = &raw mut (*ra_40).val;
                             (*io_36).value_.i = (i1_13 as u64 | i2_13 as u64) as i64;
                             (*io_36).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -3806,13 +3784,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     43 => {
-                        let mut ra_41: StkId = base.offset(
+                        let ra_41: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut v1_19: *mut TValue = &mut (*base.offset(
+                        let v1_19: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3822,7 +3800,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_18: *mut TValue = &mut (*base.offset(
+                        let v2_18: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3861,7 +3839,7 @@ pub unsafe fn luaV_execute(
                             }) != 0
                         {
                             pc = pc.offset(1);
-                            let mut io_37: *mut TValue = &mut (*ra_41).val;
+                            let io_37: *mut TValue = &raw mut (*ra_41).val;
                             (*io_37).value_.i = (i1_14 as u64 ^ i2_14 as u64) as i64;
                             (*io_37).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -3869,13 +3847,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     45 => {
-                        let mut ra_42: StkId = base.offset(
+                        let ra_42: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut v1_20: *mut TValue = &mut (*base.offset(
+                        let v1_20: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3885,7 +3863,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_19: *mut TValue = &mut (*base.offset(
+                        let v2_19: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3924,7 +3902,7 @@ pub unsafe fn luaV_execute(
                             }) != 0
                         {
                             pc = pc.offset(1);
-                            let mut io_38: *mut TValue = &mut (*ra_42).val;
+                            let io_38: *mut TValue = &raw mut (*ra_42).val;
                             (*io_38).value_.i = luaV_shiftl(
                                 i1_15,
                                 (0 as libc::c_int as u64).wrapping_sub(i2_15 as u64) as i64,
@@ -3935,13 +3913,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     44 => {
-                        let mut ra_43: StkId = base.offset(
+                        let ra_43: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut v1_21: *mut TValue = &mut (*base.offset(
+                        let v1_21: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3951,7 +3929,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut v2_20: *mut TValue = &mut (*base.offset(
+                        let v2_20: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -3990,7 +3968,7 @@ pub unsafe fn luaV_execute(
                             }) != 0
                         {
                             pc = pc.offset(1);
-                            let mut io_39: *mut TValue = &mut (*ra_43).val;
+                            let io_39: *mut TValue = &raw mut (*ra_43).val;
                             (*io_39).value_.i = luaV_shiftl(i1_16, i2_16);
                             (*io_39).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -3998,14 +3976,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     46 => {
-                        let mut ra_44: StkId = base.offset(
+                        let ra_44: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut pi: u32 = *pc.offset(-(2 as libc::c_int as isize));
-                        let mut rb_10: *mut TValue = &mut (*base.offset(
+                        let pi: u32 = *pc.offset(-(2 as libc::c_int as isize));
+                        let rb_10: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4015,7 +3993,7 @@ pub unsafe fn luaV_execute(
                                 as isize,
                         ))
                         .val;
-                        let mut tm: TMS = (i
+                        let tm: TMS = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4023,7 +4001,7 @@ pub unsafe fn luaV_execute(
                                 + 8 as libc::c_int
                             & !(!(0 as libc::c_int as u32) << 8 as libc::c_int) << 0 as libc::c_int)
                             as libc::c_int as TMS;
-                        let mut result: StkId = base.offset(
+                        let result: StkId = base.offset(
                             (pi >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -4036,14 +4014,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     47 => {
-                        let mut ra_45: StkId = base.offset(
+                        let ra_45: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut pi_0: u32 = *pc.offset(-(2 as libc::c_int as isize));
-                        let mut imm_0: libc::c_int = (i
+                        let pi_0: u32 = *pc.offset(-(2 as libc::c_int as isize));
+                        let imm_0: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4052,7 +4030,7 @@ pub unsafe fn luaV_execute(
                             as libc::c_int
                             - (((1 as libc::c_int) << 8 as libc::c_int) - 1 as libc::c_int
                                 >> 1 as libc::c_int);
-                        let mut tm_0: TMS = (i
+                        let tm_0: TMS = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4060,11 +4038,11 @@ pub unsafe fn luaV_execute(
                                 + 8 as libc::c_int
                             & !(!(0 as libc::c_int as u32) << 8 as libc::c_int) << 0 as libc::c_int)
                             as libc::c_int as TMS;
-                        let mut flip: libc::c_int = (i
+                        let flip: libc::c_int = (i
                             >> 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int
                             & !(!(0 as libc::c_int as u32) << 1 as libc::c_int) << 0 as libc::c_int)
                             as libc::c_int;
-                        let mut result_0: StkId = base.offset(
+                        let result_0: StkId = base.offset(
                             (pi_0 >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -4077,14 +4055,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     48 => {
-                        let mut ra_46: StkId = base.offset(
+                        let ra_46: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut pi_1: u32 = *pc.offset(-(2 as libc::c_int as isize));
-                        let mut imm_1: *mut TValue = k.offset(
+                        let pi_1: u32 = *pc.offset(-(2 as libc::c_int as isize));
+                        let imm_1: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4093,7 +4071,7 @@ pub unsafe fn luaV_execute(
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut tm_1: TMS = (i
+                        let tm_1: TMS = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4101,11 +4079,11 @@ pub unsafe fn luaV_execute(
                                 + 8 as libc::c_int
                             & !(!(0 as libc::c_int as u32) << 8 as libc::c_int) << 0 as libc::c_int)
                             as libc::c_int as TMS;
-                        let mut flip_0: libc::c_int = (i
+                        let flip_0: libc::c_int = (i
                             >> 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int
                             & !(!(0 as libc::c_int as u32) << 1 as libc::c_int) << 0 as libc::c_int)
                             as libc::c_int;
-                        let mut result_1: StkId = base.offset(
+                        let result_1: StkId = base.offset(
                             (pi_1 >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -4118,13 +4096,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     49 => {
-                        let mut ra_47: StkId = base.offset(
+                        let ra_47: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut rb_11: *mut TValue = &mut (*base.offset(
+                        let rb_11: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4138,8 +4116,8 @@ pub unsafe fn luaV_execute(
                         if (*rb_11).tt_ as libc::c_int
                             == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut ib_1: i64 = (*rb_11).value_.i;
-                            let mut io_40: *mut TValue = &mut (*ra_47).val;
+                            let ib_1: i64 = (*rb_11).value_.i;
+                            let io_40: *mut TValue = &raw mut (*ra_47).val;
                             (*io_40).value_.i =
                                 (0 as libc::c_int as u64).wrapping_sub(ib_1 as u64) as i64;
                             (*io_40).tt_ =
@@ -4158,7 +4136,7 @@ pub unsafe fn luaV_execute(
                             0 as libc::c_int
                         } != 0
                         {
-                            let mut io_41: *mut TValue = &mut (*ra_47).val;
+                            let io_41: *mut TValue = &raw mut (*ra_47).val;
                             (*io_41).value_.n = -nb_0;
                             (*io_41).tt_ =
                                 (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -4171,13 +4149,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     50 => {
-                        let mut ra_48: StkId = base.offset(
+                        let ra_48: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut rb_12: *mut TValue = &mut (*base.offset(
+                        let rb_12: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4201,7 +4179,7 @@ pub unsafe fn luaV_execute(
                             luaV_tointegerns(rb_12, &mut ib_2, F2Ieq)
                         } != 0
                         {
-                            let mut io_42: *mut TValue = &mut (*ra_48).val;
+                            let io_42: *mut TValue = &raw mut (*ra_48).val;
                             (*io_42).value_.i = (!(0 as libc::c_int as u64) ^ ib_2 as u64) as i64;
                             (*io_42).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -4214,13 +4192,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     51 => {
-                        let mut ra_49: StkId = base.offset(
+                        let ra_49: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut rb_13: *mut TValue = &mut (*base.offset(
+                        let rb_13: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4243,7 +4221,7 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     52 => {
-                        let mut ra_50: StkId = base.offset(
+                        let ra_50: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -4269,13 +4247,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     53 => {
-                        let mut ra_51: StkId = base.offset(
+                        let ra_51: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut n_1: libc::c_int = (i
+                        let n_1: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4297,7 +4275,7 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     54 => {
-                        let mut ra_52: StkId = base.offset(
+                        let ra_52: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -4310,7 +4288,7 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     55 => {
-                        let mut ra_53: StkId = base.offset(
+                        let ra_53: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -4344,14 +4322,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     57 => {
-                        let mut ra_54: StkId = base.offset(
+                        let ra_54: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut cond: libc::c_int = 0;
-                        let mut rb_14: *mut TValue = &mut (*base.offset(
+                        let rb_14: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4373,7 +4351,7 @@ pub unsafe fn luaV_execute(
                         {
                             pc = pc.offset(1);
                         } else {
-                            let mut ni: u32 = *pc;
+                            let ni: u32 = *pc;
                             pc = pc.offset(
                                 ((ni >> 0 as libc::c_int + 7 as libc::c_int
                                     & !(!(0 as libc::c_int as u32)
@@ -4397,14 +4375,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     58 => {
-                        let mut ra_55: StkId = base.offset(
+                        let ra_55: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut cond_0: libc::c_int = 0;
-                        let mut rb_15: *mut TValue = &mut (*base.offset(
+                        let rb_15: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4419,8 +4397,8 @@ pub unsafe fn luaV_execute(
                             && (*rb_15).tt_ as libc::c_int
                                 == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut ia: i64 = (*ra_55).val.value_.i;
-                            let mut ib_3: i64 = (*rb_15).value_.i;
+                            let ia: i64 = (*ra_55).val.value_.i;
+                            let ib_3: i64 = (*rb_15).value_.i;
                             cond_0 = (ia < ib_3) as libc::c_int;
                         } else if (*ra_55).val.tt_ as libc::c_int & 0xf as libc::c_int
                             == 3 as libc::c_int
@@ -4441,7 +4419,7 @@ pub unsafe fn luaV_execute(
                         {
                             pc = pc.offset(1);
                         } else {
-                            let mut ni_0: u32 = *pc;
+                            let ni_0: u32 = *pc;
                             pc = pc.offset(
                                 ((ni_0 >> 0 as libc::c_int + 7 as libc::c_int
                                     & !(!(0 as libc::c_int as u32)
@@ -4465,14 +4443,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     59 => {
-                        let mut ra_56: StkId = base.offset(
+                        let ra_56: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut cond_1: libc::c_int = 0;
-                        let mut rb_16: *mut TValue = &mut (*base.offset(
+                        let rb_16: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4487,8 +4465,8 @@ pub unsafe fn luaV_execute(
                             && (*rb_16).tt_ as libc::c_int
                                 == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut ia_0: i64 = (*ra_56).val.value_.i;
-                            let mut ib_4: i64 = (*rb_16).value_.i;
+                            let ia_0: i64 = (*ra_56).val.value_.i;
+                            let ib_4: i64 = (*rb_16).value_.i;
                             cond_1 = (ia_0 <= ib_4) as libc::c_int;
                         } else if (*ra_56).val.tt_ as libc::c_int & 0xf as libc::c_int
                             == 3 as libc::c_int
@@ -4509,7 +4487,7 @@ pub unsafe fn luaV_execute(
                         {
                             pc = pc.offset(1);
                         } else {
-                            let mut ni_1: u32 = *pc;
+                            let ni_1: u32 = *pc;
                             pc = pc.offset(
                                 ((ni_1 >> 0 as libc::c_int + 7 as libc::c_int
                                     & !(!(0 as libc::c_int as u32)
@@ -4533,13 +4511,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     60 => {
-                        let mut ra_57: StkId = base.offset(
+                        let ra_57: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut rb_17: *mut TValue = k.offset(
+                        let rb_17: *mut TValue = k.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4548,7 +4526,7 @@ pub unsafe fn luaV_execute(
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut cond_2: libc::c_int =
+                        let cond_2: libc::c_int =
                             luaV_equalobj(0 as *mut Thread, &mut (*ra_57).val, rb_17)?;
                         if cond_2
                             != (i >> 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int
@@ -4558,7 +4536,7 @@ pub unsafe fn luaV_execute(
                         {
                             pc = pc.offset(1);
                         } else {
-                            let mut ni_2: u32 = *pc;
+                            let ni_2: u32 = *pc;
                             pc = pc.offset(
                                 ((ni_2 >> 0 as libc::c_int + 7 as libc::c_int
                                     & !(!(0 as libc::c_int as u32)
@@ -4582,14 +4560,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     61 => {
-                        let mut ra_58: StkId = base.offset(
+                        let ra_58: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut cond_3: libc::c_int = 0;
-                        let mut im: libc::c_int = (i
+                        let im: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4617,7 +4595,7 @@ pub unsafe fn luaV_execute(
                         {
                             pc = pc.offset(1);
                         } else {
-                            let mut ni_3: u32 = *pc;
+                            let ni_3: u32 = *pc;
                             pc = pc.offset(
                                 ((ni_3 >> 0 as libc::c_int + 7 as libc::c_int
                                     & !(!(0 as libc::c_int as u32)
@@ -4641,14 +4619,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     62 => {
-                        let mut ra_59: StkId = base.offset(
+                        let ra_59: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut cond_4: libc::c_int = 0;
-                        let mut im_0: libc::c_int = (i
+                        let im_0: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4664,11 +4642,11 @@ pub unsafe fn luaV_execute(
                         } else if (*ra_59).val.tt_ as libc::c_int
                             == 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut fa: f64 = (*ra_59).val.value_.n;
-                            let mut fim: f64 = im_0 as f64;
+                            let fa: f64 = (*ra_59).val.value_.n;
+                            let fim: f64 = im_0 as f64;
                             cond_4 = (fa < fim) as libc::c_int;
                         } else {
-                            let mut isf: libc::c_int = (i
+                            let isf: libc::c_int = (i
                                 >> 0 as libc::c_int
                                     + 7 as libc::c_int
                                     + 8 as libc::c_int
@@ -4697,7 +4675,7 @@ pub unsafe fn luaV_execute(
                         {
                             pc = pc.offset(1);
                         } else {
-                            let mut ni_4: u32 = *pc;
+                            let ni_4: u32 = *pc;
                             pc = pc.offset(
                                 ((ni_4 >> 0 as libc::c_int + 7 as libc::c_int
                                     & !(!(0 as libc::c_int as u32)
@@ -4721,14 +4699,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     63 => {
-                        let mut ra_60: StkId = base.offset(
+                        let ra_60: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut cond_5: libc::c_int = 0;
-                        let mut im_1: libc::c_int = (i
+                        let im_1: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4744,11 +4722,11 @@ pub unsafe fn luaV_execute(
                         } else if (*ra_60).val.tt_ as libc::c_int
                             == 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut fa_0: f64 = (*ra_60).val.value_.n;
-                            let mut fim_0: f64 = im_1 as f64;
+                            let fa_0: f64 = (*ra_60).val.value_.n;
+                            let fim_0: f64 = im_1 as f64;
                             cond_5 = (fa_0 <= fim_0) as libc::c_int;
                         } else {
-                            let mut isf_0: libc::c_int = (i
+                            let isf_0: libc::c_int = (i
                                 >> 0 as libc::c_int
                                     + 7 as libc::c_int
                                     + 8 as libc::c_int
@@ -4777,7 +4755,7 @@ pub unsafe fn luaV_execute(
                         {
                             pc = pc.offset(1);
                         } else {
-                            let mut ni_5: u32 = *pc;
+                            let ni_5: u32 = *pc;
                             pc = pc.offset(
                                 ((ni_5 >> 0 as libc::c_int + 7 as libc::c_int
                                     & !(!(0 as libc::c_int as u32)
@@ -4801,14 +4779,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     64 => {
-                        let mut ra_61: StkId = base.offset(
+                        let ra_61: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut cond_6: libc::c_int = 0;
-                        let mut im_2: libc::c_int = (i
+                        let im_2: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4824,11 +4802,11 @@ pub unsafe fn luaV_execute(
                         } else if (*ra_61).val.tt_ as libc::c_int
                             == 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut fa_1: f64 = (*ra_61).val.value_.n;
-                            let mut fim_1: f64 = im_2 as f64;
+                            let fa_1: f64 = (*ra_61).val.value_.n;
+                            let fim_1: f64 = im_2 as f64;
                             cond_6 = (fa_1 > fim_1) as libc::c_int;
                         } else {
-                            let mut isf_1: libc::c_int = (i
+                            let isf_1: libc::c_int = (i
                                 >> 0 as libc::c_int
                                     + 7 as libc::c_int
                                     + 8 as libc::c_int
@@ -4857,7 +4835,7 @@ pub unsafe fn luaV_execute(
                         {
                             pc = pc.offset(1);
                         } else {
-                            let mut ni_6: u32 = *pc;
+                            let ni_6: u32 = *pc;
                             pc = pc.offset(
                                 ((ni_6 >> 0 as libc::c_int + 7 as libc::c_int
                                     & !(!(0 as libc::c_int as u32)
@@ -4881,14 +4859,14 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     65 => {
-                        let mut ra_62: StkId = base.offset(
+                        let ra_62: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
                         let mut cond_7: libc::c_int = 0;
-                        let mut im_3: libc::c_int = (i
+                        let im_3: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -4904,11 +4882,11 @@ pub unsafe fn luaV_execute(
                         } else if (*ra_62).val.tt_ as libc::c_int
                             == 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut fa_2: f64 = (*ra_62).val.value_.n;
-                            let mut fim_2: f64 = im_3 as f64;
+                            let fa_2: f64 = (*ra_62).val.value_.n;
+                            let fim_2: f64 = im_3 as f64;
                             cond_7 = (fa_2 >= fim_2) as libc::c_int;
                         } else {
-                            let mut isf_2: libc::c_int = (i
+                            let isf_2: libc::c_int = (i
                                 >> 0 as libc::c_int
                                     + 7 as libc::c_int
                                     + 8 as libc::c_int
@@ -4937,7 +4915,7 @@ pub unsafe fn luaV_execute(
                         {
                             pc = pc.offset(1);
                         } else {
-                            let mut ni_7: u32 = *pc;
+                            let ni_7: u32 = *pc;
                             pc = pc.offset(
                                 ((ni_7 >> 0 as libc::c_int + 7 as libc::c_int
                                     & !(!(0 as libc::c_int as u32)
@@ -4961,13 +4939,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     66 => {
-                        let mut ra_63: StkId = base.offset(
+                        let ra_63: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut cond_8: libc::c_int = !((*ra_63).val.tt_ as libc::c_int
+                        let cond_8: libc::c_int = !((*ra_63).val.tt_ as libc::c_int
                             == 1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                             || (*ra_63).val.tt_ as libc::c_int & 0xf as libc::c_int
                                 == 0 as libc::c_int)
@@ -4980,7 +4958,7 @@ pub unsafe fn luaV_execute(
                         {
                             pc = pc.offset(1);
                         } else {
-                            let mut ni_8: u32 = *pc;
+                            let ni_8: u32 = *pc;
                             pc = pc.offset(
                                 ((ni_8 >> 0 as libc::c_int + 7 as libc::c_int
                                     & !(!(0 as libc::c_int as u32)
@@ -5004,13 +4982,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     67 => {
-                        let mut ra_64: StkId = base.offset(
+                        let ra_64: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut rb_18: *mut TValue = &mut (*base.offset(
+                        let rb_18: *mut TValue = &raw mut (*base.offset(
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -5031,11 +5009,11 @@ pub unsafe fn luaV_execute(
                         {
                             pc = pc.offset(1);
                         } else {
-                            let mut io1_14: *mut TValue = &mut (*ra_64).val;
-                            let mut io2_14: *const TValue = rb_18;
+                            let io1_14: *mut TValue = &raw mut (*ra_64).val;
+                            let io2_14: *const TValue = rb_18;
                             (*io1_14).value_ = (*io2_14).value_;
                             (*io1_14).tt_ = (*io2_14).tt_;
-                            let mut ni_9: u32 = *pc;
+                            let ni_9: u32 = *pc;
                             pc = pc.offset(
                                 ((ni_9 >> 0 as libc::c_int + 7 as libc::c_int
                                     & !(!(0 as libc::c_int as u32)
@@ -5094,7 +5072,7 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     69 => {
-                        let mut ra_66: StkId = base.offset(
+                        let ra_66: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -5108,7 +5086,7 @@ pub unsafe fn luaV_execute(
                             & !(!(0 as libc::c_int as u32) << 8 as libc::c_int) << 0 as libc::c_int)
                             as libc::c_int;
                         let mut n_2: libc::c_int = 0;
-                        let mut nparams1: libc::c_int = (i
+                        let nparams1: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -5116,7 +5094,7 @@ pub unsafe fn luaV_execute(
                                 + 8 as libc::c_int
                             & !(!(0 as libc::c_int as u32) << 8 as libc::c_int) << 0 as libc::c_int)
                             as libc::c_int;
-                        let mut delta: libc::c_int = if nparams1 != 0 {
+                        let delta: libc::c_int = if nparams1 != 0 {
                             (*ci).u.nextraargs + nparams1
                         } else {
                             0 as libc::c_int
@@ -5160,7 +5138,7 @@ pub unsafe fn luaV_execute(
                             & !(!(0 as libc::c_int as u32) << 8 as libc::c_int) << 0 as libc::c_int)
                             as libc::c_int
                             - 1 as libc::c_int;
-                        let mut nparams1_0: libc::c_int = (i
+                        let nparams1_0: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -5206,7 +5184,7 @@ pub unsafe fn luaV_execute(
                     }
                     71 => {
                         if ((*L).hookmask.get() != 0) as libc::c_int as libc::c_long != 0 {
-                            let mut ra_68: StkId = base.offset(
+                            let ra_68: StkId = base.offset(
                                 (i >> 0 as libc::c_int + 7 as libc::c_int
                                     & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                         << 0 as libc::c_int)
@@ -5237,7 +5215,7 @@ pub unsafe fn luaV_execute(
                     }
                     72 => {
                         if ((*L).hookmask.get() != 0) as libc::c_int as libc::c_long != 0 {
-                            let mut ra_69: StkId = base.offset(
+                            let ra_69: StkId = base.offset(
                                 (i >> 0 as libc::c_int + 7 as libc::c_int
                                     & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                         << 0 as libc::c_int)
@@ -5253,15 +5231,15 @@ pub unsafe fn luaV_execute(
                             if nres_0 == 0 as libc::c_int {
                                 (*L).top.set(base.offset(-(1 as libc::c_int as isize)));
                             } else {
-                                let mut ra_70: StkId = base.offset(
+                                let ra_70: StkId = base.offset(
                                     (i >> 0 as libc::c_int + 7 as libc::c_int
                                         & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                             << 0 as libc::c_int)
                                         as libc::c_int as isize,
                                 );
-                                let mut io1_15: *mut TValue =
-                                    &mut (*base.offset(-(1 as libc::c_int as isize))).val;
-                                let mut io2_15: *const TValue = &mut (*ra_70).val;
+                                let io1_15: *mut TValue =
+                                    &raw mut (*base.offset(-(1 as libc::c_int as isize))).val;
+                                let io2_15: *const TValue = &raw mut (*ra_70).val;
                                 (*io1_15).value_ = (*io2_15).value_;
                                 (*io1_15).tt_ = (*io2_15).tt_;
                                 (*L).top.set(base);
@@ -5283,7 +5261,7 @@ pub unsafe fn luaV_execute(
                         break;
                     }
                     73 => {
-                        let mut ra_71: StkId = base.offset(
+                        let ra_71: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -5292,21 +5270,21 @@ pub unsafe fn luaV_execute(
                         if (*ra_71.offset(2 as libc::c_int as isize)).val.tt_ as libc::c_int
                             == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
                         {
-                            let mut count: u64 =
+                            let count: u64 =
                                 (*ra_71.offset(1 as libc::c_int as isize)).val.value_.i as u64;
                             if count > 0 as libc::c_int as u64 {
-                                let mut step: i64 =
+                                let step: i64 =
                                     (*ra_71.offset(2 as libc::c_int as isize)).val.value_.i;
                                 let mut idx: i64 = (*ra_71).val.value_.i;
-                                let mut io_43: *mut TValue =
-                                    &mut (*ra_71.offset(1 as libc::c_int as isize)).val;
+                                let io_43: *mut TValue =
+                                    &raw mut (*ra_71.offset(1 as libc::c_int as isize)).val;
                                 (*io_43).value_.i =
                                     count.wrapping_sub(1 as libc::c_int as u64) as i64;
                                 idx = (idx as u64).wrapping_add(step as u64) as i64;
-                                let mut io_44: *mut TValue = &mut (*ra_71).val;
+                                let io_44: *mut TValue = &raw mut (*ra_71).val;
                                 (*io_44).value_.i = idx;
-                                let mut io_45: *mut TValue =
-                                    &mut (*ra_71.offset(3 as libc::c_int as isize)).val;
+                                let io_45: *mut TValue =
+                                    &raw mut (*ra_71.offset(3 as libc::c_int as isize)).val;
                                 (*io_45).value_.i = idx;
                                 (*io_45).tt_ = (3 as libc::c_int
                                     | (0 as libc::c_int) << 4 as libc::c_int)
@@ -5335,7 +5313,7 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     74 => {
-                        let mut ra_72: StkId = base.offset(
+                        let ra_72: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -5356,7 +5334,7 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     75 => {
-                        let mut ra_73: StkId = base.offset(
+                        let ra_73: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -5384,7 +5362,7 @@ pub unsafe fn luaV_execute(
                         current_block = 15611964311717037170;
                     }
                     78 => {
-                        let mut ra_76: StkId = base.offset(
+                        let ra_76: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
@@ -5406,7 +5384,7 @@ pub unsafe fn luaV_execute(
                             & !(!(0 as libc::c_int as u32) << 8 as libc::c_int) << 0 as libc::c_int)
                             as libc::c_int
                             as libc::c_uint;
-                        let mut h: *mut Table = (*ra_76).val.value_.gc as *mut Table;
+                        let h: *mut Table = (*ra_76).val.value_.gc as *mut Table;
                         if n_4 == 0 as libc::c_int {
                             n_4 = ((*L).top.get()).offset_from(ra_76) as libc::c_long
                                 as libc::c_int
@@ -5440,12 +5418,12 @@ pub unsafe fn luaV_execute(
                             luaH_resizearray(L, h, last)?;
                         }
                         while n_4 > 0 as libc::c_int {
-                            let mut val: *mut TValue = &mut (*ra_76.offset(n_4 as isize)).val;
-                            let mut io1_17: *mut TValue =
-                                &mut *((*h).array)
+                            let val: *mut TValue = &raw mut (*ra_76.offset(n_4 as isize)).val;
+                            let io1_17: *mut TValue =
+                                &raw mut *((*h).array)
                                     .offset(last.wrapping_sub(1 as libc::c_int as libc::c_uint)
                                         as isize) as *mut TValue;
-                            let mut io2_17: *const TValue = val;
+                            let io2_17: *const TValue = val;
                             (*io1_17).value_ = (*io2_17).value_;
                             (*io1_17).tt_ = (*io2_17).tt_;
                             last = last.wrapping_sub(1);
@@ -5470,13 +5448,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     79 => {
-                        let mut ra_77: StkId = base.offset(
+                        let ra_77: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut p: *mut Proto = *((*(*cl).p.get()).p).offset(
+                        let p: *mut Proto = *((*(*cl).p.get()).p).offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int
                                 & !(!(0 as libc::c_int as u32)
                                     << 8 as libc::c_int + 8 as libc::c_int + 1 as libc::c_int)
@@ -5497,13 +5475,13 @@ pub unsafe fn luaV_execute(
                         continue;
                     }
                     80 => {
-                        let mut ra_78: StkId = base.offset(
+                        let ra_78: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let mut n_5: libc::c_int = (i
+                        let n_5: libc::c_int = (i
                             >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -5586,7 +5564,7 @@ pub unsafe fn luaV_execute(
                     }
                     _ => {}
                 }
-                let mut ra_75: StkId = base.offset(
+                let ra_75: StkId = base.offset(
                     (i >> 0 as libc::c_int + 7 as libc::c_int
                         & !(!(0 as libc::c_int as u32) << 8 as libc::c_int) << 0 as libc::c_int)
                         as libc::c_int as isize,
@@ -5595,10 +5573,10 @@ pub unsafe fn luaV_execute(
                     & 0xf as libc::c_int
                     == 0 as libc::c_int)
                 {
-                    let mut io1_16: *mut TValue =
-                        &mut (*ra_75.offset(2 as libc::c_int as isize)).val;
-                    let mut io2_16: *const TValue =
-                        &mut (*ra_75.offset(4 as libc::c_int as isize)).val;
+                    let io1_16: *mut TValue =
+                        &raw mut (*ra_75.offset(2 as libc::c_int as isize)).val;
+                    let io2_16: *const TValue =
+                        &raw mut (*ra_75.offset(4 as libc::c_int as isize)).val;
                     (*io1_16).value_ = (*io2_16).value_;
                     (*io1_16).tt_ = (*io2_16).tt_;
                     pc = pc.offset(

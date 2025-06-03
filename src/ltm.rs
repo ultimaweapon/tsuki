@@ -10,7 +10,6 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(path_statements)]
 
-use crate::Thread;
 use crate::gc::{Object, luaC_fix, luaC_step};
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
 use crate::ldo::{luaD_call, luaD_growstack};
@@ -18,6 +17,7 @@ use crate::lobject::{Proto, StkId, TString, TValue, Table, Udata, Value};
 use crate::lstate::CallInfo;
 use crate::lstring::luaS_new;
 use crate::ltable::luaH_getshortstr;
+use crate::{Lua, Thread};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
 
@@ -54,7 +54,7 @@ pub const luaT_typenames_: [&str; 12] = [
     "thread", "upvalue", "proto",
 ];
 
-pub unsafe fn luaT_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaT_init(mut g: *const Lua) {
     static mut luaT_eventname: [*const libc::c_char; 25] = [
         b"__index\0" as *const u8 as *const libc::c_char,
         b"__newindex\0" as *const u8 as *const libc::c_char,
@@ -86,16 +86,11 @@ pub unsafe fn luaT_init(mut L: *mut Thread) -> Result<(), Box<dyn std::error::Er
     i = 0 as libc::c_int;
 
     while i < TM_N as libc::c_int {
-        (*(*L).global).tmname[i as usize].set(luaS_new(L, luaT_eventname[i as usize])?);
-        luaC_fix(
-            &*(*L).global,
-            (*(*L).global).tmname[i as usize].get() as *mut Object,
-        );
+        (*g).tmname[i as usize].set(luaS_new(g, luaT_eventname[i as usize]));
+        luaC_fix(&*g, (*g).tmname[i as usize].get() as *mut Object);
         i += 1;
         i;
     }
-
-    Ok(())
 }
 
 #[unsafe(no_mangle)]
@@ -140,10 +135,7 @@ pub unsafe fn luaT_gettmbyobj(
     };
 }
 
-pub unsafe fn luaT_objtypename(
-    mut L: *const Thread,
-    mut o: *const TValue,
-) -> Result<Cow<'static, str>, Box<dyn std::error::Error>> {
+pub unsafe fn luaT_objtypename(mut g: *const Lua, mut o: *const TValue) -> Cow<'static, str> {
     let mut mt: *mut Table = 0 as *mut Table;
     if (*o).tt_ as libc::c_int
         == 5 as libc::c_int
@@ -164,21 +156,17 @@ pub unsafe fn luaT_objtypename(
     {
         let mut name: *const TValue = luaH_getshortstr(
             mt,
-            luaS_new(L, b"__name\0" as *const u8 as *const libc::c_char)?,
+            luaS_new(g, b"__name\0" as *const u8 as *const libc::c_char),
         );
         if (*name).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int {
-            return Ok(CStr::from_ptr(
-                ((*((*name).value_.gc as *mut TString)).contents).as_mut_ptr(),
-            )
-            .to_string_lossy()
-            .into_owned()
-            .into());
+            return CStr::from_ptr(((*((*name).value_.gc as *mut TString)).contents).as_mut_ptr())
+                .to_string_lossy()
+                .into_owned()
+                .into();
         }
     }
 
-    return Ok(luaT_typenames_
-        [(((*o).tt_ as libc::c_int & 0xf as libc::c_int) + 1 as libc::c_int) as usize]
-        .into());
+    luaT_typenames_[(((*o).tt_ as libc::c_int & 0xf) + 1 as libc::c_int) as usize].into()
 }
 
 pub unsafe fn luaT_callTM(

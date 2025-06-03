@@ -137,9 +137,9 @@ unsafe fn str_sub(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Err
             end.wrapping_sub(start).wrapping_add(1),
         );
 
-        lua_pushlstring(L, s)?;
+        lua_pushlstring(L, s);
     } else {
-        lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char)?;
+        lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char);
     }
 
     return Ok(1 as libc::c_int);
@@ -152,7 +152,7 @@ unsafe fn str_reverse(mut L: *const Thread) -> Result<c_int, Box<dyn std::error:
     let mut s = std::slice::from_raw_parts(s.cast(), l).to_vec();
 
     s.reverse();
-    lua_pushlstring(L, s)?;
+    lua_pushlstring(L, s);
 
     return Ok(1 as libc::c_int);
 }
@@ -167,7 +167,7 @@ unsafe fn str_lower(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
         b.make_ascii_lowercase();
     }
 
-    lua_pushlstring(L, s)?;
+    lua_pushlstring(L, s);
 
     return Ok(1 as libc::c_int);
 }
@@ -182,7 +182,7 @@ unsafe fn str_upper(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
         b.make_ascii_uppercase();
     }
 
-    lua_pushlstring(L, s)?;
+    lua_pushlstring(L, s);
 
     return Ok(1 as libc::c_int);
 }
@@ -199,7 +199,7 @@ unsafe fn str_rep(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Err
         &mut lsep,
     )?;
     if n <= 0 as libc::c_int as i64 {
-        lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char)?;
+        lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char);
     } else if ((l.wrapping_add(lsep) < l
         || l.wrapping_add(lsep) as libc::c_ulonglong
             > ((if (::core::mem::size_of::<usize>() as libc::c_ulong)
@@ -235,7 +235,7 @@ unsafe fn str_rep(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Err
         }
 
         b.extend_from_slice(s);
-        lua_pushlstring(L, b)?;
+        lua_pushlstring(L, b);
     }
     return Ok(1 as libc::c_int);
 }
@@ -290,7 +290,7 @@ unsafe fn str_char(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Er
         i += 1;
     }
 
-    lua_pushlstring(L, b)?;
+    lua_pushlstring(L, b);
 
     return Ok(1 as libc::c_int);
 }
@@ -325,7 +325,7 @@ unsafe fn str_dump(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Er
         return luaL_error(L, "unable to dump given function");
     }
 
-    lua_pushlstring(L, b)?;
+    lua_pushlstring(L, b);
 
     return Ok(1 as libc::c_int);
 }
@@ -339,7 +339,7 @@ unsafe fn tonum(
         return Ok(1 as libc::c_int);
     } else {
         let mut len: usize = 0;
-        let mut s: *const libc::c_char = lua_tolstring(L, arg, &mut len)?;
+        let mut s: *const libc::c_char = lua_tolstring(L, arg, &mut len);
         return Ok((!s.is_null()
             && lua_stringtonumber(L, s) == len.wrapping_add(1 as libc::c_int as usize))
             as libc::c_int);
@@ -1224,7 +1224,7 @@ unsafe fn push_onecapture(
     let mut l: isize = get_onecapture(ms, i, s, e, &mut cap)? as isize;
 
     if l != -(2 as libc::c_int) as isize {
-        lua_pushlstring((*ms).L, std::slice::from_raw_parts(cap.cast(), l as usize))?;
+        lua_pushlstring((*ms).L, std::slice::from_raw_parts(cap.cast(), l as usize));
     }
 
     Ok(())
@@ -1438,7 +1438,7 @@ unsafe fn add_s(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut l: usize = 0;
     let mut L = (*ms).L;
-    let mut news: *const libc::c_char = lua_tolstring(L, 3 as libc::c_int, &mut l)?;
+    let mut news: *const libc::c_char = lua_tolstring(L, 3 as libc::c_int, &mut l);
     let mut p: *const libc::c_char = 0 as *const libc::c_char;
     loop {
         p = memchr(news as *const libc::c_void, '%' as i32, l) as *mut libc::c_char;
@@ -1463,7 +1463,7 @@ unsafe fn add_s(
                 get_onecapture(ms, *p as libc::c_int - '1' as i32, s, e, &mut cap)? as isize;
             if resl == -(2 as libc::c_int) as isize {
                 let mut l = 0;
-                let s = lua_tolstring(L, -1, &mut l)?;
+                let s = lua_tolstring(L, -1, &mut l);
                 b.extend_from_slice(std::slice::from_raw_parts(s.cast(), l));
                 lua_pop(L, 1)?;
             } else {
@@ -1527,7 +1527,7 @@ unsafe fn add_value(
         );
     } else {
         let mut l = 0;
-        let s = lua_tolstring(L, -1, &mut l)?;
+        let s = lua_tolstring(L, -1, &mut l);
         b.extend_from_slice(std::slice::from_raw_parts(s.cast(), l));
         lua_pop(L, 1)?;
         return Ok(1 as libc::c_int);
@@ -1604,7 +1604,7 @@ unsafe fn str_gsub(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Er
             src.cast(),
             (ms.src_end).offset_from(src) as libc::c_long as usize,
         ));
-        lua_pushlstring(L, b)?;
+        lua_pushlstring(L, b);
     }
     lua_pushinteger(L, n);
     return Ok(2 as libc::c_int);
@@ -1682,7 +1682,7 @@ unsafe fn addliteral(
     match lua_type(L, arg) {
         4 => {
             let mut len: usize = 0;
-            let mut s: *const libc::c_char = lua_tolstring(L, arg, &mut len)?;
+            let mut s: *const libc::c_char = lua_tolstring(L, arg, &mut len);
             addquoted(b, s, len)?;
         }
         3 => {
@@ -1975,7 +1975,7 @@ unsafe fn str_format(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::
         }
     }
 
-    lua_pushlstring(L, b)?;
+    lua_pushlstring(L, b);
 
     return Ok(1 as libc::c_int);
 }
@@ -2425,7 +2425,7 @@ unsafe fn str_pack(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Er
         }
     }
 
-    lua_pushlstring(L, b)?;
+    lua_pushlstring(L, b);
 
     return Ok(1 as libc::c_int);
 }
@@ -2613,7 +2613,7 @@ unsafe fn str_unpack(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::
                 lua_pushlstring(
                     L,
                     std::slice::from_raw_parts(data.offset(pos as isize).cast(), size as usize),
-                )?;
+                );
             }
             6 => {
                 let mut len: usize = unpackint(
@@ -2634,7 +2634,7 @@ unsafe fn str_unpack(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::
                         data.offset(pos as isize).offset(size as isize).cast(),
                         len,
                     ),
-                )?;
+                );
                 pos = pos.wrapping_add(len);
             }
             7 => {
@@ -2647,7 +2647,7 @@ unsafe fn str_unpack(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::
                 lua_pushlstring(
                     L,
                     std::slice::from_raw_parts(data.offset(pos as isize).cast(), len_0),
-                )?;
+                );
                 pos = pos.wrapping_add(len_0.wrapping_add(1 as libc::c_int as usize));
             }
             9 | 8 | 10 => {
@@ -2803,7 +2803,7 @@ unsafe fn createmetatable(mut L: *const Thread) -> Result<(), Box<dyn std::error
         &raw const stringmetamethods as *const luaL_Reg,
         0 as libc::c_int,
     )?;
-    lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char)?;
+    lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char);
     lua_pushvalue(L, -(2 as libc::c_int));
     lua_setmetatable(L, -(2 as libc::c_int))?;
     lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;

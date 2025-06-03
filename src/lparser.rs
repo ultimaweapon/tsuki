@@ -899,7 +899,7 @@ unsafe fn createlabel(
     return Ok(0 as libc::c_int);
 }
 
-unsafe extern "C" fn movegotosout(mut fs: *mut FuncState, mut bl: *mut BlockCnt) {
+unsafe fn movegotosout(mut fs: *mut FuncState, mut bl: *mut BlockCnt) {
     let mut i: libc::c_int = 0;
     let mut gl: *mut Labellist = &mut (*(*(*fs).ls).dyd).gt;
     i = (*bl).firstgoto;
@@ -914,7 +914,7 @@ unsafe extern "C" fn movegotosout(mut fs: *mut FuncState, mut bl: *mut BlockCnt)
     }
 }
 
-unsafe extern "C" fn enterblock(mut fs: *mut FuncState, mut bl: *mut BlockCnt, mut isloop: u8) {
+unsafe fn enterblock(mut fs: *mut FuncState, mut bl: *mut BlockCnt, mut isloop: u8) {
     (*bl).isloop = isloop;
     (*bl).nactvar = (*fs).nactvar;
     (*bl).firstlabel = (*(*(*fs).ls).dyd).label.n;
@@ -932,12 +932,12 @@ unsafe fn undefgoto(
 ) -> Result<(), Box<dyn std::error::Error>> {
     if (*gt).name
         == luaS_newlstr(
-            (*ls).L,
+            (*(*ls).L).global,
             b"break\0" as *const u8 as *const libc::c_char,
             ::core::mem::size_of::<[libc::c_char; 6]>()
                 .wrapping_div(::core::mem::size_of::<libc::c_char>())
                 .wrapping_sub(1),
-        )?
+        )
     {
         luaK_semerror(
             ls,
@@ -965,12 +965,12 @@ unsafe fn leaveblock(mut fs: *mut FuncState) -> Result<(), Box<dyn std::error::E
         hasclose = createlabel(
             ls,
             luaS_newlstr(
-                (*ls).L,
+                (*(*ls).L).global,
                 b"break\0" as *const u8 as *const libc::c_char,
                 ::core::mem::size_of::<[libc::c_char; 6]>()
                     .wrapping_div(::core::mem::size_of::<libc::c_char>())
                     .wrapping_sub(1),
-            )?,
+            ),
             0 as libc::c_int,
             0 as libc::c_int,
         )?;
@@ -1065,11 +1065,7 @@ unsafe fn codeclosure(
     luaK_exp2nextreg(fs, v)
 }
 
-unsafe extern "C" fn open_func(
-    mut ls: *mut LexState,
-    mut fs: *mut FuncState,
-    mut bl: *mut BlockCnt,
-) {
+unsafe fn open_func(mut ls: *mut LexState, mut fs: *mut FuncState, mut bl: *mut BlockCnt) {
     let mut f: *mut Proto = (*fs).f;
     (*fs).prev = (*ls).fs;
     (*fs).ls = ls;
@@ -1110,49 +1106,49 @@ unsafe fn close_func(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Er
     leaveblock(fs)?;
     luaK_finish(fs)?;
     (*f).code = luaM_shrinkvector_(
-        L,
+        (*L).global,
         (*f).code as *mut libc::c_void,
         &mut (*f).sizecode,
         (*fs).pc,
         ::core::mem::size_of::<u32>() as libc::c_ulong as libc::c_int,
     ) as *mut u32;
     (*f).lineinfo = luaM_shrinkvector_(
-        L,
+        (*L).global,
         (*f).lineinfo as *mut libc::c_void,
         &mut (*f).sizelineinfo,
         (*fs).pc,
         ::core::mem::size_of::<i8>() as libc::c_ulong as libc::c_int,
     ) as *mut i8;
     (*f).abslineinfo = luaM_shrinkvector_(
-        L,
+        (*L).global,
         (*f).abslineinfo as *mut libc::c_void,
         &mut (*f).sizeabslineinfo,
         (*fs).nabslineinfo,
         ::core::mem::size_of::<AbsLineInfo>() as libc::c_ulong as libc::c_int,
     ) as *mut AbsLineInfo;
     (*f).k = luaM_shrinkvector_(
-        L,
+        (*L).global,
         (*f).k as *mut libc::c_void,
         &mut (*f).sizek,
         (*fs).nk,
         ::core::mem::size_of::<TValue>() as libc::c_ulong as libc::c_int,
     ) as *mut TValue;
     (*f).p = luaM_shrinkvector_(
-        L,
+        (*L).global,
         (*f).p as *mut libc::c_void,
         &mut (*f).sizep,
         (*fs).np,
         ::core::mem::size_of::<*mut Proto>() as libc::c_ulong as libc::c_int,
     ) as *mut *mut Proto;
     (*f).locvars = luaM_shrinkvector_(
-        L,
+        (*L).global,
         (*f).locvars as *mut libc::c_void,
         &mut (*f).sizelocvars,
         (*fs).ndebugvars as libc::c_int,
         ::core::mem::size_of::<LocVar>() as libc::c_ulong as libc::c_int,
     ) as *mut LocVar;
     (*f).upvalues = luaM_shrinkvector_(
-        L,
+        (*L).global,
         (*f).upvalues as *mut libc::c_void,
         &mut (*f).sizeupvalues,
         (*fs).nups as libc::c_int,
@@ -2109,12 +2105,12 @@ unsafe fn breakstat(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Err
     newgotoentry(
         ls,
         luaS_newlstr(
-            (*ls).L,
+            (*(*ls).L).global,
             b"break\0" as *const u8 as *const libc::c_char,
             ::core::mem::size_of::<[libc::c_char; 6]>()
                 .wrapping_div(::core::mem::size_of::<libc::c_char>())
                 .wrapping_sub(1),
-        )?,
+        ),
         line,
         luaK_jump((*ls).fs)?,
     )?;
@@ -2517,12 +2513,12 @@ unsafe fn test_then_block(
         newgotoentry(
             ls,
             luaS_newlstr(
-                (*ls).L,
+                (*(*ls).L).global,
                 b"break\0" as *const u8 as *const libc::c_char,
                 ::core::mem::size_of::<[libc::c_char; 6]>()
                     .wrapping_div(::core::mem::size_of::<libc::c_char>())
                     .wrapping_sub(1),
-            )?,
+            ),
             line,
             v.t,
         )?;
@@ -2955,7 +2951,7 @@ pub unsafe fn luaY_parser(
     } else {
     };
 
-    (*funcstate.f).source = luaS_new(L, name)?;
+    (*funcstate.f).source = luaS_new((*L).global, name);
 
     if (*funcstate.f).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
         && (*(*funcstate.f).source).hdr.marked.get() as libc::c_int
@@ -2974,7 +2970,7 @@ pub unsafe fn luaY_parser(
     (*dyd).label.n = 0 as libc::c_int;
     (*dyd).gt.n = (*dyd).label.n;
     (*dyd).actvar.n = (*dyd).gt.n;
-    luaX_setinput(L, &mut lexstate, z, (*funcstate.f).source, firstchar)?;
+    luaX_setinput(L, &mut lexstate, z, (*funcstate.f).source, firstchar);
     mainfunc(&mut lexstate, &mut funcstate)?;
     (*L).top.sub(1);
 

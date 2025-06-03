@@ -130,9 +130,9 @@ unsafe fn loadStringN(
                 buff.as_mut_ptr() as *mut libc::c_void,
                 size.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
             )?;
-            ts = luaS_newlstr(L, buff.as_mut_ptr(), size)?;
+            ts = luaS_newlstr((*L).global, buff.as_mut_ptr(), size);
         } else {
-            ts = luaS_createlngstrobj(L, size);
+            ts = luaS_createlngstrobj((*L).global, size);
             let mut io: *mut TValue = &raw mut (*(*L).top.get()).val;
             let mut x_: *mut TString = ts;
             (*io).value_.gc = x_ as *mut Object;

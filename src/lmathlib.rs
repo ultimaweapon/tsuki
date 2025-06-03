@@ -267,7 +267,7 @@ unsafe fn math_type(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
             } else {
                 b"float\0" as *const u8 as *const libc::c_char
             },
-        )?;
+        );
     } else {
         luaL_checkany(L, 1 as libc::c_int)?;
         lua_pushnil(L);

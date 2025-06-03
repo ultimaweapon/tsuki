@@ -981,7 +981,7 @@ unsafe fn typeerror(
     op: impl Display,
     extra: impl Display,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let t = luaT_objtypename(L, o)?;
+    let t = luaT_objtypename((*L).global, o);
 
     luaG_runerror(L, format_args!("attempt to {op} a {t} value{extra}"))
 }
@@ -1020,7 +1020,7 @@ pub unsafe fn luaG_forerror(
         format_args!(
             "bad 'for' {} (number expected, got {})",
             what,
-            luaT_objtypename(L, o)?
+            luaT_objtypename((*L).global, o)
         ),
     )
 }
@@ -1074,8 +1074,8 @@ pub unsafe fn luaG_ordererror(
     p1: *const TValue,
     p2: *const TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let t1 = luaT_objtypename(L, p1)?;
-    let t2 = luaT_objtypename(L, p2)?;
+    let t1 = luaT_objtypename((*L).global, p1);
+    let t2 = luaT_objtypename((*L).global, p2);
 
     if t1 == t2 {
         luaG_runerror(L, format_args!("attempt to compare two {t1} values"))
@@ -1128,7 +1128,7 @@ pub unsafe fn luaG_runerror(
     Err(msg.into())
 }
 
-unsafe extern "C" fn changedline(
+unsafe fn changedline(
     mut p: *const Proto,
     mut oldpc: libc::c_int,
     mut newpc: libc::c_int,

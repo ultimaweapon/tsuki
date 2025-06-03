@@ -125,8 +125,8 @@ impl Builder {
 
         // Initialize internal module.
         unsafe { luaS_init(th) };
-        unsafe { luaT_init(th).unwrap() };
-        unsafe { luaX_init(th).unwrap() };
+        unsafe { luaT_init(g.deref()) };
+        unsafe { luaX_init(g.deref()) };
 
         g.gcstp.set(0);
 

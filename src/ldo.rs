@@ -131,6 +131,7 @@ pub unsafe fn luaD_reallocstack(th: *const Thread, newsize: usize) {
     }
 }
 
+#[inline(never)]
 pub unsafe fn luaD_growstack(L: *const Thread, n: usize) -> Result<(), Box<dyn std::error::Error>> {
     let size = ((*L).stack_last.get()).offset_from_unsigned((*L).stack.get());
 
@@ -199,12 +200,9 @@ pub unsafe fn luaD_shrinkstack(L: *const Thread) {
     luaE_shrinkCI(L);
 }
 
+#[inline(always)]
 pub unsafe fn luaD_inctop(L: *const Thread) -> Result<(), Box<dyn std::error::Error>> {
-    if ((((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
-        <= 1 as libc::c_int as libc::c_long) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
-        != 0
-    {
+    if (*L).stack_last.get().offset_from((*L).top.get()) <= 1 {
         luaD_growstack(L, 1)?;
     }
 
@@ -704,7 +702,7 @@ pub unsafe fn luaD_call(
 
 pub unsafe fn luaD_closeprotected(
     L: *const Thread,
-    level: isize,
+    level: usize,
     mut status: Result<(), Box<dyn std::error::Error>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let old_ci: *mut CallInfo = (*L).ci.get();
@@ -712,7 +710,7 @@ pub unsafe fn luaD_closeprotected(
 
     loop {
         let pcl = CloseP {
-            level: ((*L).stack.get() as *mut c_char).offset(level) as StkId,
+            level: (*L).stack.get().byte_add(level),
             status,
         };
 
@@ -729,7 +727,7 @@ pub unsafe fn luaD_closeprotected(
 
 pub unsafe fn luaD_pcall<F>(
     L: *const Thread,
-    old_top: isize,
+    old_top: usize,
     f: F,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
@@ -743,8 +741,7 @@ where
         (*L).ci.set(old_ci);
         (*L).allowhook.set(old_allowhooks);
         status = luaD_closeprotected(L, old_top, status);
-        (*L).top
-            .set(((*L).stack.get() as *mut libc::c_char).offset(old_top) as StkId);
+        (*L).top.set((*L).stack.get().byte_add(old_top));
         luaD_shrinkstack(L);
     }
 
@@ -816,7 +813,7 @@ pub unsafe fn luaD_protectedparser(
     // Parse.
     let status = luaD_pcall(
         L,
-        ((*L).top.get() as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char),
+        (*L).top.get().byte_offset_from_unsigned((*L).stack.get()),
         |L| {
             let mut cl: *mut LuaClosure = 0 as *mut LuaClosure;
             let fresh3 = (*p.z).n;
@@ -845,7 +842,7 @@ pub unsafe fn luaD_protectedparser(
     );
 
     p.buff.buffer = luaM_saferealloc_(
-        L,
+        (*L).global,
         p.buff.buffer as *mut libc::c_void,
         (p.buff.buffsize).wrapping_mul(::core::mem::size_of::<libc::c_char>()),
         0usize.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
