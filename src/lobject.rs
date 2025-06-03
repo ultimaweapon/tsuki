@@ -94,7 +94,7 @@ pub struct Table {
     pub hdr: Object,
     pub flags: Cell<u8>,
     pub lsizenode: Cell<u8>,
-    pub alimit: libc::c_uint,
+    pub alimit: Cell<libc::c_uint>,
     pub array: *mut TValue,
     pub node: *mut Node,
     pub lastfree: *mut Node,

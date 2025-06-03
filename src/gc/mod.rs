@@ -252,7 +252,7 @@ unsafe fn traverseweakvalue(g: *const Lua, h: *const Table) {
         .offset(((1 as libc::c_int) << (*h).lsizenode.get() as libc::c_int) as usize as isize)
         as *mut Node;
     let mut hasclears: libc::c_int =
-        ((*h).alimit > 0 as libc::c_int as libc::c_uint) as libc::c_int;
+        ((*h).alimit.get() > 0 as libc::c_int as libc::c_uint) as libc::c_int;
     n = ((*h).node).offset(0 as libc::c_int as isize) as *mut Node;
     while n < limit {
         if (*n).i_val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
@@ -478,7 +478,7 @@ unsafe fn traversetable(g: *const Lua, h: *const Table) -> usize {
     }
 
     return (1 as libc::c_int as libc::c_uint)
-        .wrapping_add((*h).alimit)
+        .wrapping_add((*h).alimit.get())
         .wrapping_add(
             (2 as libc::c_int
                 * (if ((*h).lastfree).is_null() {

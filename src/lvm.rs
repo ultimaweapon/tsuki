@@ -1537,7 +1537,7 @@ pub unsafe fn luaV_execute(
                                 0 as libc::c_int
                             } else {
                                 slot_0 = if n.wrapping_sub(1 as libc::c_uint as u64)
-                                    < (*((*rb_1).value_.gc as *mut Table)).alimit as u64
+                                    < (*((*rb_1).value_.gc as *mut Table)).alimit.get() as u64
                                 {
                                     &mut *((*((*rb_1).value_.gc as *mut Table)).array)
                                         .offset(n.wrapping_sub(1 as libc::c_int as u64) as isize)
@@ -1610,7 +1610,7 @@ pub unsafe fn luaV_execute(
                             0 as libc::c_int
                         } else {
                             slot_1 = if (c as u64).wrapping_sub(1 as libc::c_uint as u64)
-                                < (*((*rb_2).value_.gc as *mut Table)).alimit as u64
+                                < (*((*rb_2).value_.gc as *mut Table)).alimit.get() as u64
                             {
                                 &mut *((*((*rb_2).value_.gc as *mut Table)).array)
                                     .offset((c - 1 as libc::c_int) as isize)
@@ -1849,7 +1849,7 @@ pub unsafe fn luaV_execute(
                                 0 as libc::c_int
                             } else {
                                 slot_4 = if n_0.wrapping_sub(1 as libc::c_uint as u64)
-                                    < (*((*ra_14).val.value_.gc as *mut Table)).alimit as u64
+                                    < (*((*ra_14).val.value_.gc as *mut Table)).alimit.get() as u64
                                 {
                                     &mut *((*((*ra_14).val.value_.gc as *mut Table)).array)
                                         .offset(n_0.wrapping_sub(1 as libc::c_int as u64) as isize)
@@ -1956,7 +1956,7 @@ pub unsafe fn luaV_execute(
                             0 as libc::c_int
                         } else {
                             slot_5 = if (c_0 as u64).wrapping_sub(1 as libc::c_uint as u64)
-                                < (*((*ra_15).val.value_.gc as *mut Table)).alimit as u64
+                                < (*((*ra_15).val.value_.gc as *mut Table)).alimit.get() as u64
                             {
                                 &mut *((*((*ra_15).val.value_.gc as *mut Table)).array)
                                     .offset((c_0 - 1 as libc::c_int) as isize)

@@ -199,12 +199,12 @@ unsafe fn equalkey(k1: *const TValue, n2: *const Node, deadok: libc::c_int) -> c
 
 pub unsafe fn luaH_realasize(t: *const Table) -> libc::c_uint {
     if (*t).flags.get() as libc::c_int & (1 as libc::c_int) << 7 as libc::c_int == 0
-        || (*t).alimit & ((*t).alimit).wrapping_sub(1 as libc::c_int as libc::c_uint)
+        || (*t).alimit.get() & ((*t).alimit.get()).wrapping_sub(1 as libc::c_int as libc::c_uint)
             == 0 as libc::c_int as libc::c_uint
     {
-        return (*t).alimit;
+        return (*t).alimit.get();
     } else {
-        let mut size: libc::c_uint = (*t).alimit;
+        let mut size: libc::c_uint = (*t).alimit.get();
         size |= size >> 1 as libc::c_int;
         size |= size >> 2 as libc::c_int;
         size |= size >> 4 as libc::c_int;
@@ -217,16 +217,16 @@ pub unsafe fn luaH_realasize(t: *const Table) -> libc::c_uint {
 
 unsafe fn ispow2realasize(t: *const Table) -> libc::c_int {
     return ((*t).flags.get() as libc::c_int & (1 as libc::c_int) << 7 as libc::c_int != 0
-        || (*t).alimit & ((*t).alimit).wrapping_sub(1 as libc::c_int as libc::c_uint)
+        || (*t).alimit.get() & ((*t).alimit.get()).wrapping_sub(1 as libc::c_int as libc::c_uint)
             == 0 as libc::c_int as libc::c_uint) as libc::c_int;
 }
 
 unsafe fn setlimittosize(t: *mut Table) -> libc::c_uint {
-    (*t).alimit = luaH_realasize(t);
+    (*t).alimit.set(luaH_realasize(t));
     (*t).flags.set(
         ((*t).flags.get() as libc::c_int & !((1 as libc::c_int) << 7) as u8 as libc::c_int) as u8,
     );
-    return (*t).alimit;
+    return (*t).alimit.get();
 }
 
 unsafe fn getgeneric(t: *mut Table, key: *const TValue, deadok: libc::c_int) -> *const TValue {
@@ -396,7 +396,7 @@ unsafe fn numusearray(t: *const Table, nums: *mut libc::c_uint) -> libc::c_uint 
     let mut ttlg: libc::c_uint = 0;
     let mut ause: libc::c_uint = 0 as libc::c_int as libc::c_uint;
     let mut i: libc::c_uint = 1 as libc::c_int as libc::c_uint;
-    let asize: libc::c_uint = (*t).alimit;
+    let asize: libc::c_uint = (*t).alimit.get();
     lg = 0 as libc::c_int;
     ttlg = 1 as libc::c_int as libc::c_uint;
     while lg
@@ -560,7 +560,7 @@ pub unsafe fn luaH_resize(
         hdr: Object::default(),
         flags: Cell::new(0),
         lsizenode: Cell::new(0),
-        alimit: 0,
+        alimit: Cell::new(0),
         array: 0 as *mut TValue,
         node: 0 as *mut Node,
         lastfree: 0 as *mut Node,
@@ -570,7 +570,7 @@ pub unsafe fn luaH_resize(
     let mut newarray: *mut TValue = 0 as *mut TValue;
     setnodevector((*L).global, &raw mut newt, nhsize);
     if newasize < oldasize {
-        (*t).alimit = newasize;
+        (*t).alimit.set(newasize);
         exchangehashpart(t, &mut newt);
         i = newasize;
         while i < oldasize {
@@ -586,7 +586,7 @@ pub unsafe fn luaH_resize(
             }
             i = i.wrapping_add(1);
         }
-        (*t).alimit = oldasize;
+        (*t).alimit.set(oldasize);
         exchangehashpart(t, &mut newt);
     }
 
@@ -607,7 +607,7 @@ pub unsafe fn luaH_resize(
 
     exchangehashpart(t, &raw mut newt);
     (*t).array = newarray;
-    (*t).alimit = newasize;
+    (*t).alimit.set(newasize);
     i = oldasize;
 
     while i < newasize {
@@ -661,10 +661,11 @@ pub unsafe fn luaH_new(g: *const Lua) -> *mut Table {
     let layout = Layout::new::<Table>();
     let o = Object::new(g, 5 | 0 << 4, layout).cast::<Table>();
 
-    (*o).metatable = 0 as *mut Table;
     addr_of_mut!((*o).flags).write(Cell::new(!(!(0 as libc::c_uint) << TM_EQ + 1) as u8));
+    addr_of_mut!((*o).lsizenode).write(Cell::new(0));
+    addr_of_mut!((*o).alimit).write(Cell::new(0 as libc::c_int as libc::c_uint));
+    (*o).metatable = 0 as *mut Table;
     (*o).array = 0 as *mut TValue;
-    (*o).alimit = 0 as libc::c_int as libc::c_uint;
 
     setnodevector(g, o, 0);
     o
@@ -786,7 +787,7 @@ unsafe fn luaH_newkey(
 }
 
 pub unsafe fn luaH_getint(t: *mut Table, key: i64) -> *const TValue {
-    let alimit: u64 = (*t).alimit as u64;
+    let alimit: u64 = (*t).alimit.get() as u64;
     if (key as u64).wrapping_sub(1 as libc::c_uint as u64) < alimit {
         return &mut *((*t).array).offset((key - 1 as libc::c_int as i64) as isize) as *mut TValue;
     } else if (*t).flags.get() as libc::c_int & (1 as libc::c_int) << 7 as libc::c_int != 0
@@ -794,7 +795,7 @@ pub unsafe fn luaH_getint(t: *mut Table, key: i64) -> *const TValue {
             & !alimit.wrapping_sub(1 as libc::c_uint as u64)
             < alimit
     {
-        (*t).alimit = key as libc::c_uint;
+        (*t).alimit.set(key as libc::c_uint);
         return &mut *((*t).array).offset((key - 1 as libc::c_int as i64) as isize) as *mut TValue;
     } else {
         let mut n: *mut Node = hashint(t, key);
@@ -981,7 +982,7 @@ unsafe fn binsearch(
 }
 
 pub unsafe fn luaH_getn(t: *mut Table) -> u64 {
-    let mut limit: libc::c_uint = (*t).alimit;
+    let mut limit: libc::c_uint = (*t).alimit.get();
     if limit > 0 as libc::c_int as libc::c_uint
         && (*((*t).array).offset(limit.wrapping_sub(1 as libc::c_int as libc::c_uint) as isize)).tt_
             as libc::c_int
@@ -1002,7 +1003,8 @@ pub unsafe fn luaH_getn(t: *mut Table) -> u64 {
                         .wrapping_sub(1 as libc::c_int as libc::c_uint)
                     == 0 as libc::c_int as libc::c_uint)
             {
-                (*t).alimit = limit.wrapping_sub(1 as libc::c_int as libc::c_uint);
+                (*t).alimit
+                    .set(limit.wrapping_sub(1 as libc::c_int as libc::c_uint));
                 (*t).flags
                     .set(((*t).flags.get() as libc::c_int | (1 as libc::c_int) << 7) as u8);
             }
@@ -1013,7 +1015,7 @@ pub unsafe fn luaH_getn(t: *mut Table) -> u64 {
             if ispow2realasize(t) != 0
                 && boundary > (luaH_realasize(t)).wrapping_div(2 as libc::c_int as libc::c_uint)
             {
-                (*t).alimit = boundary;
+                (*t).alimit.set(boundary);
                 (*t).flags
                     .set(((*t).flags.get() as libc::c_int | (1 as libc::c_int) << 7) as u8);
             }
@@ -1021,7 +1023,11 @@ pub unsafe fn luaH_getn(t: *mut Table) -> u64 {
         }
     }
     if !((*t).flags.get() as libc::c_int & (1 as libc::c_int) << 7 as libc::c_int == 0
-        || (*t).alimit & ((*t).alimit).wrapping_sub(1 as libc::c_int as libc::c_uint)
+        || (*t).alimit.get()
+            & (*t)
+                .alimit
+                .get()
+                .wrapping_sub(1 as libc::c_int as libc::c_uint)
             == 0 as libc::c_int as libc::c_uint)
     {
         if (*((*t).array).offset(limit as isize)).tt_ as libc::c_int & 0xf as libc::c_int
@@ -1035,8 +1041,8 @@ pub unsafe fn luaH_getn(t: *mut Table) -> u64 {
             & 0xf as libc::c_int
             == 0 as libc::c_int
         {
-            let boundary_0: libc::c_uint = binsearch((*t).array, (*t).alimit, limit);
-            (*t).alimit = boundary_0;
+            let boundary_0: libc::c_uint = binsearch((*t).array, (*t).alimit.get(), limit);
+            (*t).alimit.set(boundary_0);
             return boundary_0 as u64;
         }
     }

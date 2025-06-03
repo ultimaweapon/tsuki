@@ -790,7 +790,7 @@ pub unsafe fn lua_geti(
         0 as libc::c_int
     } else {
         slot = if (n as u64).wrapping_sub(1 as libc::c_uint as u64)
-            < (*((*t).value_.gc as *mut Table)).alimit as u64
+            < (*((*t).value_.gc as *mut Table)).alimit.get() as u64
         {
             &mut *((*((*t).value_.gc as *mut Table)).array)
                 .offset((n - 1 as libc::c_int as i64) as isize) as *mut TValue
@@ -1105,7 +1105,7 @@ pub unsafe fn lua_seti(
         0 as libc::c_int
     } else {
         slot = if (n as u64).wrapping_sub(1 as libc::c_uint as u64)
-            < (*((*t).value_.gc as *mut Table)).alimit as u64
+            < (*((*t).value_.gc as *mut Table)).alimit.get() as u64
         {
             &mut *((*((*t).value_.gc as *mut Table)).array)
                 .offset((n - 1 as libc::c_int as i64) as isize) as *mut TValue
