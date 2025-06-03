@@ -56,7 +56,6 @@ mod lstrlib;
 mod ltable;
 mod ltablib;
 mod ltm;
-mod lundump;
 mod lvm;
 mod lzio;
 mod thread;

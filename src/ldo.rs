@@ -1,5 +1,4 @@
 #![allow(
-    mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -15,7 +14,6 @@ use crate::lobject::{CClosure, Proto, StackValue, StkId, TValue, UpVal};
 use crate::lparser::{C2RustUnnamed_9, Dyndata, Labeldesc, Labellist, Vardesc, luaY_parser};
 use crate::lstate::{CallInfo, lua_CFunction, lua_Debug, lua_Hook, luaE_extendCI, luaE_shrinkCI};
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
-use crate::lundump::luaU_undump;
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, Zio};
 use crate::{LuaClosure, Thread};
@@ -826,15 +824,8 @@ pub unsafe fn luaD_protectedparser(
                 -1
             };
 
-            if c == (*::core::mem::transmute::<&[u8; 5], &[libc::c_char; 5]>(b"\x1BLua\0"))[0]
-                as libc::c_int
-            {
-                checkmode(p.mode, b"binary\0" as *const u8 as *const libc::c_char)?;
-                cl = luaU_undump(L, p.z, p.name)?;
-            } else {
-                checkmode(p.mode, b"text\0" as *const u8 as *const libc::c_char)?;
-                cl = luaY_parser(L, p.z, &raw mut p.buff, &raw mut p.dyd, p.name, c)?;
-            }
+            checkmode(p.mode, b"text\0" as *const u8 as *const libc::c_char)?;
+            cl = luaY_parser(L, p.z, &raw mut p.buff, &raw mut p.dyd, p.name, c)?;
 
             luaF_initupvals(L, cl);
             Ok(())

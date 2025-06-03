@@ -1,9 +1,4 @@
-#![allow(
-    mutable_transmutes,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals
-)]
+#![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::ldebug::luaG_runerror;
@@ -67,10 +62,6 @@ pub unsafe fn luaM_shrinkvector_(
     let newblock = luaM_saferealloc_(g, block, oldsize, newsize);
     *size = final_n;
     return newblock;
-}
-
-pub unsafe fn luaM_toobig(L: *const Thread) -> Result<(), Box<dyn std::error::Error>> {
-    luaG_runerror(L, "memory allocation error: block too big")
 }
 
 pub unsafe fn luaM_free_(g: *const Lua, block: *mut libc::c_void, osize: usize) {
