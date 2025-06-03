@@ -21,12 +21,12 @@ use std::ffi::CStr;
 use std::mem::offset_of;
 use std::ptr::{addr_of_mut, null_mut};
 
-pub unsafe fn luaF_newCclosure(L: *const Thread, nupvals: libc::c_int) -> *mut CClosure {
+pub unsafe fn luaF_newCclosure(g: *const Lua, nupvals: libc::c_int) -> *mut CClosure {
     let nupvals = u8::try_from(nupvals).unwrap();
     let size = offset_of!(CClosure, upvalue) + size_of::<TValue>() * usize::from(nupvals);
     let align = align_of::<CClosure>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = Object::new((*L).global, 6 | 2 << 4, layout).cast::<CClosure>();
+    let o = Object::new(g, 6 | 2 << 4, layout).cast::<CClosure>();
 
     (*o).nupvalues = nupvals;
 

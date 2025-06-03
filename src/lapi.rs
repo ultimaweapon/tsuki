@@ -613,10 +613,11 @@ pub unsafe fn lua_pushcclosure(L: *const Thread, fn_0: lua_CFunction, mut n: lib
         (*io).tt_ = (6 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
         api_incr_top(L);
     } else {
-        let mut cl: *mut CClosure = 0 as *mut CClosure;
-        cl = luaF_newCclosure(L, n);
+        let cl = luaF_newCclosure((*L).global, n);
+
         (*cl).f = fn_0;
         (*L).top.sub(n.try_into().unwrap());
+
         loop {
             let fresh2 = n;
             n = n - 1;

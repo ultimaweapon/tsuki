@@ -8,7 +8,6 @@
     unused_mut
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
-#![allow(path_statements)]
 
 use crate::gc::{Object, luaC_fix, luaC_step};
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
@@ -89,12 +88,10 @@ pub unsafe fn luaT_init(mut g: *const Lua) {
         (*g).tmname[i as usize].set(luaS_new(g, luaT_eventname[i as usize]));
         luaC_fix(&*g, (*g).tmname[i as usize].get() as *mut Object);
         i += 1;
-        i;
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaT_gettm(
+pub unsafe fn luaT_gettm(
     mut events: *mut Table,
     mut event: TMS,
     mut ename: *mut TString,
@@ -424,7 +421,6 @@ pub unsafe fn luaT_adjustvarargs(
         (*((*ci).func).offset(i as isize)).val.tt_ =
             (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
         i += 1;
-        i;
     }
     (*ci).func = ((*ci).func).offset((actual + 1 as libc::c_int) as isize);
     (*ci).top = ((*ci).top).offset((actual + 1 as libc::c_int) as isize);
@@ -466,14 +462,12 @@ pub unsafe fn luaT_getvarargs(
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
         i += 1;
-        i;
     }
 
     while i < wanted {
         (*where_0.offset(i as isize)).val.tt_ =
             (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
         i += 1;
-        i;
     }
 
     Ok(())
