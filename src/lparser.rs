@@ -7,7 +7,7 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::gc::{luaC_barrier_, luaC_step};
+use crate::gc::luaC_barrier_;
 use crate::lcode::{
     BinOpr, OPR_ADD, OPR_AND, OPR_BAND, OPR_BNOT, OPR_BOR, OPR_BXOR, OPR_CONCAT, OPR_DIV, OPR_EQ,
     OPR_GE, OPR_GT, OPR_IDIV, OPR_LE, OPR_LEN, OPR_LT, OPR_MINUS, OPR_MOD, OPR_MUL, OPR_NE,
@@ -35,7 +35,7 @@ use crate::lopcodes::{
 use crate::lstring::{luaS_new, luaS_newlstr};
 use crate::ltable::luaH_new;
 use crate::lzio::{Mbuffer, ZIO};
-use crate::{LuaClosure, Object, Thread};
+use crate::{GcContext, LuaClosure, Object, Thread};
 use libc::strcmp;
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
@@ -1151,9 +1151,11 @@ unsafe fn close_func(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Er
         ::core::mem::size_of::<Upvaldesc>() as libc::c_ulong as libc::c_int,
     ) as *mut Upvaldesc;
     (*ls).fs = (*fs).prev;
+
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-        luaC_step(L);
+        crate::gc::step(GcContext::Thread(&*L));
     }
+
     Ok(())
 }
 

@@ -10,9 +10,8 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(unused_variables)]
 #![allow(unused_parens)]
-#![allow(path_statements)]
 
-use crate::gc::{luaC_fix, luaC_step};
+use crate::gc::luaC_fix;
 use crate::lctype::luai_ctype_;
 use crate::ldebug::luaG_addinfo;
 use crate::lmem::luaM_saferealloc_;
@@ -23,7 +22,7 @@ use crate::lparser::{Dyndata, FuncState};
 use crate::lstring::luaS_newlstr;
 use crate::ltable::{luaH_finishset, luaH_getstr};
 use crate::lzio::{Mbuffer, ZIO};
-use crate::{Lua, Object, Thread};
+use crate::{GcContext, Lua, Object, Thread};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
 use std::fmt::Display;
@@ -191,7 +190,6 @@ pub unsafe fn luaX_init(mut g: *const Lua) {
         luaC_fix(&*g, (ts as *mut Object));
         (*ts).extra.set((i + 1 as libc::c_int) as u8);
         i += 1;
-        i;
     }
 }
 
@@ -269,12 +267,16 @@ pub unsafe fn luaX_newstring(
         let mut stv: *mut TValue = &mut (*fresh1).val;
         let mut io: *mut TValue = stv;
         let mut x_: *mut TString = ts;
+
         (*io).value_.gc = (x_ as *mut Object);
         (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+
         luaH_finishset(L, (*ls).h, stv, o, stv)?;
+
         if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-            luaC_step(L);
+            crate::gc::step(GcContext::Thread(&*L));
         }
+
         (*L).top.sub(1);
     }
     return Ok(ts);
@@ -485,7 +487,6 @@ unsafe fn skip_sep(mut ls: *mut LexState) -> Result<usize, Box<dyn std::error::E
             -1
         });
         count = count.wrapping_add(1);
-        count;
     }
     return if (*ls).current == s {
         Ok(count.wrapping_add(2 as libc::c_int as usize))
@@ -679,7 +680,6 @@ unsafe fn readutf8esc(mut ls: *mut LexState) -> Result<libc::c_ulong, Box<dyn st
             break;
         }
         i += 1;
-        i;
         esccheck(
             ls,
             (r <= (0x7fffffff as libc::c_uint >> 4 as libc::c_int) as libc::c_ulong) as libc::c_int,
@@ -711,7 +711,6 @@ unsafe fn utf8esc(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error
     while n > 0 as libc::c_int {
         save(ls, buff[(8 as libc::c_int - n) as usize] as libc::c_int)?;
         n -= 1;
-        n;
     }
     Ok(())
 }
@@ -737,7 +736,6 @@ unsafe fn readdecesc(mut ls: *mut LexState) -> Result<c_int, Box<dyn std::error:
             -1
         });
         i += 1;
-        i;
     }
     esccheck(
         ls,

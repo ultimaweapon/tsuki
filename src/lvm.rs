@@ -6,7 +6,7 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::gc::{Object, luaC_barrier_, luaC_barrierback_, luaC_step};
+use crate::gc::{Object, luaC_barrier_, luaC_barrierback_};
 use crate::ldebug::{luaG_forerror, luaG_runerror, luaG_tracecall, luaG_traceexec, luaG_typeerror};
 use crate::ldo::{luaD_call, luaD_hookcall, luaD_poscall, luaD_precall, luaD_pretailcall};
 use crate::lfunc::{
@@ -28,7 +28,7 @@ use crate::ltm::{
     luaT_callTM, luaT_callTMres, luaT_callorderTM, luaT_callorderiTM, luaT_gettm, luaT_gettmbyobj,
     luaT_getvarargs, luaT_trybinTM, luaT_trybinassocTM, luaT_trybiniTM, luaT_tryconcatTM,
 };
-use crate::{LuaClosure, Thread};
+use crate::{GcContext, LuaClosure, Thread};
 use libc::{memcpy, strcoll, strlen};
 use libm::{floor, fmod, pow};
 use std::cell::Cell;
@@ -2153,7 +2153,7 @@ pub unsafe fn luaV_execute(
                         if (*(*L).global).gc.debt() > 0 {
                             (*ci).u.savedpc = pc;
                             (*L).top.set(ra_17.offset(1 as libc::c_int as isize));
-                            luaC_step(L);
+                            crate::gc::step(GcContext::Thread(&*L));
                             trap = (*ci).u.trap;
                         }
 
@@ -4269,7 +4269,7 @@ pub unsafe fn luaV_execute(
 
                         if (*(*L).global).gc.debt() > 0 {
                             (*ci).u.savedpc = pc;
-                            luaC_step(L);
+                            crate::gc::step(GcContext::Thread(&*L));
                             trap = (*ci).u.trap;
                         }
 
@@ -5469,7 +5469,7 @@ pub unsafe fn luaV_execute(
                         if (*(*L).global).gc.debt() > 0 {
                             (*ci).u.savedpc = pc;
                             (*L).top.set(ra_77.offset(1 as libc::c_int as isize));
-                            luaC_step(L);
+                            crate::gc::step(GcContext::Thread(&*L));
                             trap = (*ci).u.trap;
                         }
 

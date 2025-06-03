@@ -31,7 +31,7 @@ impl Object {
         o.write(Object {
             next: Cell::new(g.all.get()),
             tt,
-            marked: Mark::new(g.gc.currentwhite.get() & (1 << 3 | 1 << 4)),
+            marked: Mark::new(g.currentwhite.get() & (1 << 3 | 1 << 4)),
             refs: Cell::new(0),
             refn: Cell::new(null()),
             refp: Cell::new(null()),

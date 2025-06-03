@@ -80,6 +80,7 @@ unsafe fn api_incr_top(th: *const Thread) {
 ///
 /// Use [`Builder`] to get the instance of this type.
 pub struct Lua {
+    currentwhite: Cell<u8>,
     all: Cell<*const Object>,
     refs: Cell<*const Object>,
     gc: Gc,

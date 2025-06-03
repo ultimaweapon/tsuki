@@ -6,7 +6,7 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::gc::{luaC_barrier_, luaC_barrierback_, luaC_step};
+use crate::gc::{luaC_barrier_, luaC_barrierback_};
 use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall, luaD_protectedparser};
 use crate::ldump::luaU_dump;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
@@ -26,7 +26,7 @@ use crate::lvm::{
     luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
 };
 use crate::lzio::Zio;
-use crate::{LuaClosure, Object, Thread, api_incr_top};
+use crate::{GcContext, LuaClosure, Object, Thread, api_incr_top};
 use std::ffi::{c_int, c_void};
 use std::mem::offset_of;
 use std::ptr::null_mut;
@@ -452,7 +452,7 @@ pub unsafe fn lua_tolstring(
         }
         luaO_tostring((*L).global, o);
         if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-            luaC_step(L);
+            crate::gc::step(GcContext::Thread(&*L));
         }
         o = index2value(L, idx);
     }
@@ -578,7 +578,7 @@ pub unsafe fn lua_pushlstring(L: *const Thread, s: impl AsRef<[u8]>) -> *const l
     api_incr_top(L);
 
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-        luaC_step(L);
+        crate::gc::step(GcContext::Thread(&*L));
     }
 
     ((*ts).contents).as_mut_ptr()
@@ -600,7 +600,7 @@ pub unsafe fn lua_pushstring(L: *const Thread, mut s: *const libc::c_char) -> *c
     api_incr_top(L);
 
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-        luaC_step(L);
+        crate::gc::step(GcContext::Thread(&*L));
     }
 
     s
@@ -630,15 +630,19 @@ pub unsafe fn lua_pushcclosure(L: *const Thread, fn_0: lua_CFunction, mut n: lib
             (*io1).value_ = (*io2).value_;
             (*io1).tt_ = (*io2).tt_;
         }
+
         let io_0: *mut TValue = &raw mut (*(*L).top.get()).val;
         let x_: *mut CClosure = cl;
+
         (*io_0).value_.gc = x_ as *mut Object;
         (*io_0).tt_ = (6 as libc::c_int
             | (2 as libc::c_int) << 4 as libc::c_int
             | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+
         api_incr_top(L);
+
         if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-            luaC_step(L);
+            crate::gc::step(GcContext::Thread(&*L));
         }
     };
 }
@@ -879,7 +883,7 @@ pub unsafe fn lua_createtable(L: *const Thread, narray: libc::c_int, nrec: libc:
     }
 
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-        luaC_step(L);
+        crate::gc::step(GcContext::Thread(&*L));
     }
 }
 
@@ -1524,9 +1528,11 @@ pub unsafe fn lua_concat(L: *const Thread, n: c_int) -> Result<(), Box<dyn std::
         (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         api_incr_top(L);
     }
+
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-        luaC_step(L);
+        crate::gc::step(GcContext::Thread(&*L));
     }
+
     Ok(())
 }
 
@@ -1553,7 +1559,7 @@ pub unsafe fn lua_newuserdatauv(
     api_incr_top(L);
 
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-        luaC_step(L);
+        crate::gc::step(GcContext::Thread(&*L));
     }
 
     u.byte_add(offset_of!(Udata, uv) + size_of::<UValue>() * usize::from((*u).nuvalue))

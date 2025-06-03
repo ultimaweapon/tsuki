@@ -28,6 +28,20 @@ mod mark;
 mod object;
 mod r#ref;
 
+/// # Safety
+/// After this function return any unreachable objects may be freed. The calling thread is
+/// considered unreachable if `cx` is not [`GcContext::Thread`] and it does not have other reference
+/// to it.
+pub(crate) unsafe fn step(cx: GcContext) {
+    let g = cx.global();
+
+    if !(g.gcstp.get() == 0) {
+        g.gc.set_debt(-2000);
+    } else {
+        incstep(cx);
+    }
+}
+
 #[inline(always)]
 unsafe fn getgclist(o: *const Object) -> *mut *const Object {
     match (*o).tt {
@@ -76,7 +90,7 @@ pub(crate) unsafe fn luaC_barrier_(g: *const Lua, o: *const Object, v: *const Ob
     } else {
         (*o).marked.set(
             (*o).marked.get() & !(1 << 5 | (1 << 3 | 1 << 4))
-                | ((*g).gc.currentwhite() & (1 << 3 | 1 << 4)),
+                | ((*g).currentwhite.get() & (1 << 3 | 1 << 4)),
         );
     }
 }
@@ -872,15 +886,14 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
 }
 
 unsafe fn sweeplist(
-    L: *const Thread,
+    g: &Lua,
     mut p: *mut *const Object,
     countin: libc::c_int,
     countout: *mut libc::c_int,
 ) -> *mut *const Object {
-    let g = &*(*L).global;
-    let ow = g.gc.currentwhite() ^ (1 << 3 | 1 << 4);
+    let ow = g.currentwhite.get() ^ (1 << 3 | 1 << 4);
     let mut i = 0;
-    let white = g.gc.currentwhite() & (1 << 3 | 1 << 4);
+    let white = g.currentwhite.get() & (1 << 3 | 1 << 4);
 
     while !(*p).is_null() && i < countin {
         let curr = *p;
@@ -907,11 +920,11 @@ unsafe fn sweeplist(
 }
 
 /// Sweep a list until a live object (or end of list).
-unsafe fn sweeptolive(L: *const Thread, mut p: *mut *const Object) -> *mut *const Object {
+unsafe fn sweeptolive(g: &Lua, mut p: *mut *const Object) -> *mut *const Object {
     let old = p;
 
     loop {
-        p = sweeplist(L, p, 1, 0 as *mut libc::c_int);
+        p = sweeplist(g, p, 1, 0 as *mut libc::c_int);
         if p != old {
             break;
         }
@@ -944,10 +957,9 @@ unsafe fn setpause(g: *const Lua) {
     (*g).gc.set_debt(debt);
 }
 
-unsafe fn entersweep(L: *const Thread) {
-    let g = (*L).global;
-    (*g).gcstate.set(3);
-    (*g).sweepgc.set(sweeptolive(L, (*g).all.as_ptr()));
+unsafe fn entersweep(g: &Lua) {
+    g.gcstate.set(3);
+    g.sweepgc.set(sweeptolive(g, g.all.as_ptr()));
 }
 
 unsafe fn deletelist(g: &Lua, mut p: *const Object) {
@@ -966,8 +978,8 @@ pub(crate) unsafe fn luaC_freeallobjects(g: &Lua) {
     deletelist(g, (*g).fixedgc.get());
 }
 
-unsafe fn atomic(L: *const Thread) -> usize {
-    let g = &*(*L).global;
+unsafe fn atomic(cx: GcContext) -> usize {
+    let g = cx.global();
     let mut work: usize = 0 as libc::c_int as usize;
     let grayagain = g.grayagain.get();
 
@@ -975,8 +987,10 @@ unsafe fn atomic(L: *const Thread) -> usize {
     g.gcstate.set(2);
 
     // Mark current thread.
-    if (*L).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
-        reallymarkobject(g, L.cast());
+    if let GcContext::Thread(th) = cx {
+        if th.hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
+            reallymarkobject(g, &th.hdr);
+        }
     }
 
     // Mark registry.
@@ -1016,39 +1030,31 @@ unsafe fn atomic(L: *const Thread) -> usize {
     clearbyvalues(g, g.weak.get(), origweak);
     clearbyvalues(g, g.allweak.get(), origall);
 
-    g.gc.currentwhite
-        .set(g.gc.currentwhite() ^ (1 << 3 | 1 << 4));
+    g.currentwhite.set(g.currentwhite.get() ^ (1 << 3 | 1 << 4));
 
     work
 }
 
-unsafe fn sweepstep(
-    L: *const Thread,
-    g: *const Lua,
-    nextstate: libc::c_int,
-    nextlist: *mut *const Object,
-) -> libc::c_int {
-    if !((*g).sweepgc.get()).is_null() {
+unsafe fn sweepstep(g: &Lua, nextstate: libc::c_int, nextlist: *mut *const Object) -> libc::c_int {
+    if !(*g).sweepgc.get().is_null() {
         let olddebt: isize = (*g).gc.debt.get();
         let mut count: libc::c_int = 0;
-        (*g).sweepgc.set(sweeplist(
-            L,
-            (*g).sweepgc.get(),
-            100 as libc::c_int,
-            &mut count,
-        ));
-        (*g).GCestimate
-            .set(((*g).GCestimate.get()).wrapping_add(((*g).gc.debt.get() - olddebt) as usize));
-        return count;
+
+        g.sweepgc
+            .set(sweeplist(g, g.sweepgc.get(), 100, &mut count));
+        g.GCestimate
+            .set((g.GCestimate.get()).wrapping_add((g.gc.debt.get() - olddebt) as usize));
+
+        count
     } else {
         (*g).gcstate.set(nextstate as u8);
         (*g).sweepgc.set(nextlist);
         return 0 as libc::c_int;
-    };
+    }
 }
 
-unsafe fn singlestep(L: *const Thread) -> usize {
-    let g = &*(*L).global;
+unsafe fn singlestep(cx: GcContext) -> usize {
+    let g = cx.global();
     let mut work: usize = 0;
 
     g.gcstopem.set(1);
@@ -1068,12 +1074,12 @@ unsafe fn singlestep(L: *const Thread) -> usize {
             }
         }
         1 => {
-            work = atomic(L);
-            entersweep(L);
+            work = atomic(cx);
+            entersweep(g);
             g.GCestimate
                 .set((g.gc.totalbytes.get() + g.gc.debt.get()) as usize);
         }
-        3 => work = sweepstep(L, g, 6, null_mut()) as usize,
+        3 => work = sweepstep(g, 6, null_mut()) as usize,
         6 => {
             g.gcstate.set(7);
             work = 0;
@@ -1090,11 +1096,11 @@ unsafe fn singlestep(L: *const Thread) -> usize {
     work
 }
 
-unsafe fn incstep(L: *const Thread, g: *const Lua) {
-    let stepmul: libc::c_int =
-        (*g).gcstepmul.get() as libc::c_int * 4 as libc::c_int | 1 as libc::c_int;
-    let mut debt: isize = ((*g).gc.debt.get() as libc::c_ulong)
-        .wrapping_div(::core::mem::size_of::<TValue>() as libc::c_ulong)
+unsafe fn incstep(cx: GcContext) {
+    let g = cx.global();
+    let stepmul = g.gcstepmul.get() * 4 | 1;
+    let mut debt: isize = (g.gc.debt.get() as libc::c_ulong)
+        .wrapping_div(size_of::<TValue>() as libc::c_ulong)
         .wrapping_mul(stepmul as libc::c_ulong) as isize;
     let stepsize: isize = (if (*g).gcstepsize.get() as libc::c_ulong
         <= (::core::mem::size_of::<isize>() as libc::c_ulong)
@@ -1108,7 +1114,7 @@ unsafe fn incstep(L: *const Thread, g: *const Lua) {
         (!(0 as libc::c_int as usize) >> 1 as libc::c_int) as isize as libc::c_ulong
     }) as isize;
     loop {
-        let work: usize = singlestep(L);
+        let work: usize = singlestep(cx);
         debt = (debt as usize).wrapping_sub(work) as isize as isize;
 
         if !(debt > -stepsize && (*g).gcstate.get() != 8) {
@@ -1126,19 +1132,8 @@ unsafe fn incstep(L: *const Thread, g: *const Lua) {
     };
 }
 
-pub(crate) unsafe fn luaC_step(L: *const Thread) {
-    let g = (*L).global;
-
-    if !((*g).gcstp.get() == 0) {
-        (*g).gc.set_debt(-2000);
-    } else {
-        incstep(L, g);
-    };
-}
-
 /// Garbage Collector for Lua objects.
 pub struct Gc {
-    currentwhite: Cell<u8>,
     totalbytes: Cell<isize>,
     debt: Cell<isize>,
 }
@@ -1146,15 +1141,9 @@ pub struct Gc {
 impl Gc {
     pub(super) fn new(totalbytes: usize) -> Self {
         Self {
-            currentwhite: Cell::new(1 << 3),
             totalbytes: Cell::new(totalbytes.try_into().unwrap()),
             debt: Cell::new(0),
         }
-    }
-
-    #[inline(always)]
-    pub(crate) fn currentwhite(&self) -> u8 {
-        self.currentwhite.get()
     }
 
     #[inline(always)]
@@ -1186,5 +1175,22 @@ impl Gc {
     pub(crate) fn decrease_debt(&self, bytes: usize) {
         self.debt
             .set(self.debt.get().checked_sub_unsigned(bytes).unwrap());
+    }
+}
+
+/// Context to run Garbage Collector.
+#[derive(Clone, Copy)]
+pub(crate) enum GcContext<'a> {
+    Global(&'a Lua),
+    Thread(&'a Thread),
+}
+
+impl<'a> GcContext<'a> {
+    #[inline(always)]
+    fn global(self) -> &'a Lua {
+        match self {
+            Self::Global(v) => v,
+            Self::Thread(v) => unsafe { &*v.global },
+        }
     }
 }

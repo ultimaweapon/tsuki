@@ -27,6 +27,7 @@ impl Builder {
     /// selected library with `enable_*` (e.g. [`Self::enable_base()`]).
     pub fn new() -> Self {
         let g = Rc::pin(Lua {
+            currentwhite: Cell::new(1 << 3),
             all: Cell::new(null()),
             refs: Cell::new(null()),
             gc: Gc::new(size_of::<Self>()),

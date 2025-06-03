@@ -194,7 +194,7 @@ unsafe fn internshrstr(g: *const Lua, str: *const libc::c_char, l: usize) -> *mu
                 l.wrapping_mul(::core::mem::size_of::<libc::c_char>()) as _,
             ) == 0 as libc::c_int
         {
-            if (*ts).hdr.marked.is_dead((*g).gc.currentwhite()) {
+            if (*ts).hdr.marked.is_dead((*g).currentwhite.get()) {
                 (*ts)
                     .hdr
                     .marked
@@ -208,7 +208,9 @@ unsafe fn internshrstr(g: *const Lua, str: *const libc::c_char, l: usize) -> *mu
 
     if (*tb).nuse >= (*tb).size {
         growstrtab(g, tb);
-        list = &mut *((*tb).hash)
+
+        list = (*tb)
+            .hash
             .offset((h & ((*tb).size - 1) as libc::c_uint) as libc::c_int as isize)
             as *mut *mut TString;
     }
