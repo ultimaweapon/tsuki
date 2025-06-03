@@ -96,7 +96,7 @@ pub struct Table {
     pub lsizenode: Cell<u8>,
     pub alimit: Cell<libc::c_uint>,
     pub array: Cell<*mut TValue>,
-    pub node: *mut Node,
+    pub node: Cell<*mut Node>,
     pub lastfree: *mut Node,
     pub metatable: *mut Table,
 }

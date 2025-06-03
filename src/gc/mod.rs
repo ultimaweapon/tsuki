@@ -248,12 +248,12 @@ unsafe fn genlink(g: *const Lua, o: *const Object) {
 
 unsafe fn traverseweakvalue(g: *const Lua, h: *const Table) {
     let mut n: *mut Node = 0 as *mut Node;
-    let limit: *mut Node = ((*h).node)
+    let limit: *mut Node = ((*h).node.get())
         .offset(((1 as libc::c_int) << (*h).lsizenode.get() as libc::c_int) as usize as isize)
         as *mut Node;
     let mut hasclears: libc::c_int =
         ((*h).alimit.get() > 0 as libc::c_int as libc::c_uint) as libc::c_int;
-    n = ((*h).node).offset(0 as libc::c_int as isize) as *mut Node;
+    n = ((*h).node.get()).offset(0 as libc::c_int as isize) as *mut Node;
     while n < limit {
         if (*n).i_val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
             clearkey(n);
@@ -323,13 +323,13 @@ unsafe fn traverseephemeron(g: *const Lua, h: *const Table, inv: libc::c_int) ->
     i = 0 as libc::c_int as libc::c_uint;
     while i < nsize {
         let n: *mut Node = if inv != 0 {
-            ((*h).node).offset(
+            ((*h).node.get()).offset(
                 nsize
                     .wrapping_sub(1 as libc::c_int as libc::c_uint)
                     .wrapping_sub(i) as isize,
             ) as *mut Node
         } else {
-            ((*h).node).offset(i as isize) as *mut Node
+            ((*h).node.get()).offset(i as isize) as *mut Node
         };
         if (*n).i_val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
             clearkey(n);
@@ -387,7 +387,7 @@ unsafe fn traverseephemeron(g: *const Lua, h: *const Table, inv: libc::c_int) ->
 
 unsafe fn traversestrongtable(g: *const Lua, h: *const Table) {
     let mut n: *mut Node = 0 as *mut Node;
-    let limit: *mut Node = ((*h).node)
+    let limit: *mut Node = ((*h).node.get())
         .offset(((1 as libc::c_int) << (*h).lsizenode.get() as libc::c_int) as usize as isize)
         as *mut Node;
     let mut i: libc::c_uint = 0;
@@ -407,7 +407,7 @@ unsafe fn traversestrongtable(g: *const Lua, h: *const Table) {
         }
         i = i.wrapping_add(1);
     }
-    n = ((*h).node).offset(0 as libc::c_int as isize) as *mut Node;
+    n = ((*h).node.get()).offset(0 as libc::c_int as isize) as *mut Node;
     while n < limit {
         if (*n).i_val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
             clearkey(n);
@@ -746,11 +746,11 @@ unsafe fn convergeephemerons(g: *const Lua) {
 unsafe fn clearbykeys(g: *const Lua, mut l: *const Object) {
     while !l.is_null() {
         let h: *mut Table = l as *mut Table;
-        let limit: *mut Node = &mut *((*h).node)
+        let limit: *mut Node = ((*h).node.get())
             .offset(((1 as libc::c_int) << (*h).lsizenode.get() as libc::c_int) as usize as isize)
             as *mut Node;
         let mut n: *mut Node = 0 as *mut Node;
-        n = &mut *((*h).node).offset(0 as libc::c_int as isize) as *mut Node;
+        n = ((*h).node.get()).offset(0 as libc::c_int as isize) as *mut Node;
         while n < limit {
             if iscleared(
                 g,
@@ -776,7 +776,7 @@ unsafe fn clearbyvalues(g: *const Lua, mut l: *const Object, f: *const Object) {
     while l != f {
         let h: *mut Table = l as *mut Table;
         let mut n: *mut Node = 0 as *mut Node;
-        let limit: *mut Node = &mut *((*h).node)
+        let limit: *mut Node = ((*h).node.get())
             .offset(((1 as libc::c_int) << (*h).lsizenode.get() as libc::c_int) as usize as isize)
             as *mut Node;
         let mut i: libc::c_uint = 0;
@@ -797,7 +797,7 @@ unsafe fn clearbyvalues(g: *const Lua, mut l: *const Object, f: *const Object) {
             }
             i = i.wrapping_add(1);
         }
-        n = &mut *((*h).node).offset(0 as libc::c_int as isize) as *mut Node;
+        n = ((*h).node.get()).offset(0 as libc::c_int as isize) as *mut Node;
         while n < limit {
             if iscleared(
                 g,
