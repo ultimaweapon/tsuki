@@ -29,16 +29,12 @@ mod object;
 mod r#ref;
 
 /// # Safety
-/// After this function return any unreachable objects may be freed. The calling thread is
-/// considered unreachable if `cx` is not [`GcContext::Thread`] and it does not have other reference
-/// to it.
-pub(crate) unsafe fn step(cx: GcContext) {
-    let g = cx.global();
-
-    if !(g.gcstp.get() == 0) {
-        g.gc.set_debt(-2000);
+/// After this function return any unreachable objects may be freed.
+pub(crate) unsafe fn step(g: *const Lua) {
+    if !((*g).gcstp.get() == 0) {
+        (*g).gc.set_debt(-2000);
     } else {
-        incstep(cx);
+        incstep(&*g);
     }
 }
 
@@ -986,29 +982,14 @@ pub(crate) unsafe fn luaC_freeallobjects(g: &Lua) {
     deletelist(g, (*g).fixedgc.get());
 }
 
-unsafe fn atomic(cx: GcContext) -> usize {
-    let g = cx.global();
+unsafe fn atomic(g: &Lua) -> usize {
     let mut work: usize = 0 as libc::c_int as usize;
     let grayagain = g.grayagain.get();
 
     g.grayagain.set(null_mut());
     g.gcstate.set(2);
 
-    // Mark current thread.
-    if let GcContext::Thread(th) = cx {
-        if th.hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
-            reallymarkobject(g, &th.hdr);
-        }
-    }
-
-    // Mark registry.
-    if (*g.l_registry.get()).tt_ & 1 << 6 != 0
-        && (*(*g.l_registry.get()).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
-    {
-        reallymarkobject(g, (*g.l_registry.get()).value_.gc);
-    }
-
-    // Mark object with Rust references.
+    // Mark object with strong references.
     let mut o = g.refs.get();
 
     while !o.is_null() {
@@ -1017,6 +998,13 @@ unsafe fn atomic(cx: GcContext) -> usize {
         }
 
         o = (*o).refp.get();
+    }
+
+    // Mark registry.
+    if (*g.l_registry.get()).tt_ & 1 << 6 != 0
+        && (*(*g.l_registry.get()).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
+    {
+        reallymarkobject(g, (*g.l_registry.get()).value_.gc);
     }
 
     markmt(g);
@@ -1061,8 +1049,7 @@ unsafe fn sweepstep(g: &Lua, nextstate: libc::c_int, nextlist: *mut *const Objec
     }
 }
 
-unsafe fn singlestep(cx: GcContext) -> usize {
-    let g = cx.global();
+unsafe fn singlestep(g: &Lua) -> usize {
     let mut work: usize = 0;
 
     g.gcstopem.set(1);
@@ -1082,7 +1069,7 @@ unsafe fn singlestep(cx: GcContext) -> usize {
             }
         }
         1 => {
-            work = atomic(cx);
+            work = atomic(g);
             entersweep(g);
             g.GCestimate
                 .set((g.gc.totalbytes.get() + g.gc.debt.get()) as usize);
@@ -1104,8 +1091,9 @@ unsafe fn singlestep(cx: GcContext) -> usize {
     work
 }
 
-unsafe fn incstep(cx: GcContext) {
-    let g = cx.global();
+/// # Safety
+/// After this function return any unreachable objects may be freed.
+unsafe fn incstep(g: &Lua) {
     let stepmul = g.gcstepmul.get() * 4 | 1;
     let mut debt: isize = (g.gc.debt.get() as libc::c_ulong)
         .wrapping_div(size_of::<TValue>() as libc::c_ulong)
@@ -1122,7 +1110,7 @@ unsafe fn incstep(cx: GcContext) {
         (!(0 as libc::c_int as usize) >> 1 as libc::c_int) as isize as libc::c_ulong
     }) as isize;
     loop {
-        let work: usize = singlestep(cx);
+        let work: usize = singlestep(g);
         debt = (debt as usize).wrapping_sub(work) as isize as isize;
 
         if !(debt > -stepsize && (*g).gcstate.get() != 8) {
@@ -1183,22 +1171,5 @@ impl Gc {
     pub(crate) fn decrease_debt(&self, bytes: usize) {
         self.debt
             .set(self.debt.get().checked_sub_unsigned(bytes).unwrap());
-    }
-}
-
-/// Context to run Garbage Collector.
-#[derive(Clone, Copy)]
-pub(crate) enum GcContext<'a> {
-    Global(&'a Lua),
-    Thread(&'a Thread),
-}
-
-impl<'a> GcContext<'a> {
-    #[inline(always)]
-    pub fn global(self) -> &'a Lua {
-        match self {
-            Self::Global(v) => v,
-            Self::Thread(v) => unsafe { &*v.global },
-        }
     }
 }

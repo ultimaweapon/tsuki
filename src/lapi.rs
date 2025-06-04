@@ -26,7 +26,7 @@ use crate::lvm::{
     luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
 };
 use crate::lzio::Zio;
-use crate::{GcContext, LuaClosure, Object, TableError, Thread, api_incr_top};
+use crate::{LuaClosure, Object, TableError, Thread, api_incr_top};
 use std::ffi::{c_int, c_void};
 use std::mem::offset_of;
 use std::ptr::null_mut;
@@ -452,7 +452,7 @@ pub unsafe fn lua_tolstring(
         }
         luaO_tostring((*L).global, o);
         if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-            crate::gc::step(GcContext::Thread(&*L));
+            crate::gc::step((*L).global);
         }
         o = index2value(L, idx);
     }
@@ -578,7 +578,7 @@ pub unsafe fn lua_pushlstring(L: *const Thread, s: impl AsRef<[u8]>) -> *const l
     api_incr_top(L);
 
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-        crate::gc::step(GcContext::Thread(&*L));
+        crate::gc::step((*L).global);
     }
 
     ((*ts).contents).as_mut_ptr()
@@ -600,7 +600,7 @@ pub unsafe fn lua_pushstring(L: *const Thread, mut s: *const libc::c_char) -> *c
     api_incr_top(L);
 
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-        crate::gc::step(GcContext::Thread(&*L));
+        crate::gc::step((*L).global);
     }
 
     s
@@ -642,7 +642,7 @@ pub unsafe fn lua_pushcclosure(L: *const Thread, fn_0: lua_CFunction, mut n: lib
         api_incr_top(L);
 
         if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-            crate::gc::step(GcContext::Thread(&*L));
+            crate::gc::step((*L).global);
         }
     };
 }
@@ -887,7 +887,7 @@ pub unsafe fn lua_createtable(L: *const Thread, narray: libc::c_int, nrec: libc:
     }
 
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-        crate::gc::step(GcContext::Thread(&*L));
+        crate::gc::step((*L).global);
     }
 }
 
@@ -1511,7 +1511,7 @@ pub unsafe fn lua_concat(L: *const Thread, n: c_int) -> Result<(), Box<dyn std::
     }
 
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-        crate::gc::step(GcContext::Thread(&*L));
+        crate::gc::step((*L).global);
     }
 
     Ok(())
@@ -1540,7 +1540,7 @@ pub unsafe fn lua_newuserdatauv(
     api_incr_top(L);
 
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-        crate::gc::step(GcContext::Thread(&*L));
+        crate::gc::step((*L).global);
     }
 
     u.byte_add(offset_of!(Udata, uv) + size_of::<UValue>() * usize::from((*u).nuvalue))

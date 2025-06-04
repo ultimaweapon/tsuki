@@ -15,7 +15,7 @@ use crate::lstate::{CallInfo, lua_CFunction, lua_Debug, lua_Hook, luaE_extendCI,
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, Zio};
-use crate::{GcContext, LuaClosure, Thread};
+use crate::{LuaClosure, Thread};
 use std::alloc::{Layout, handle_alloc_error};
 use std::ffi::c_int;
 
@@ -355,7 +355,7 @@ unsafe fn tryfuncTM(
         let t__: isize =
             (func as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
         if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-            crate::gc::step(GcContext::Thread(&*L));
+            crate::gc::step((*L).global);
         }
         luaD_growstack(L, 1)?;
         func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
@@ -512,7 +512,7 @@ unsafe fn precallC(
         let t__: isize =
             (func as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
         if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-            crate::gc::step(GcContext::Thread(&*L));
+            crate::gc::step((*L).global);
         }
         luaD_growstack(L, 20)?;
         func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
@@ -578,7 +578,7 @@ pub unsafe fn luaD_pretailcall(
                     let t__: isize = (func as *mut libc::c_char)
                         .offset_from((*L).stack.get() as *mut libc::c_char);
                     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-                        crate::gc::step(GcContext::Thread(&*L));
+                        crate::gc::step((*L).global);
                     }
                     luaD_growstack(L, (fsize - delta).try_into().unwrap())?;
                     func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
@@ -650,7 +650,7 @@ pub unsafe fn luaD_precall(
                     let t__: isize = (func as *mut libc::c_char)
                         .offset_from((*L).stack.get() as *mut libc::c_char);
                     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-                        crate::gc::step(GcContext::Thread(&*L));
+                        crate::gc::step((*L).global);
                     }
                     luaD_growstack(L, fsize)?;
                     func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;

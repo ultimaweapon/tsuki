@@ -16,7 +16,7 @@ use crate::lobject::{Proto, StkId, TString, TValue, Table, Udata, Value};
 use crate::lstate::CallInfo;
 use crate::lstring::luaS_new;
 use crate::ltable::luaH_getshortstr;
-use crate::{GcContext, Lua, Thread};
+use crate::{Lua, Thread};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
 
@@ -441,7 +441,7 @@ pub unsafe fn luaT_getvarargs(
                 (where_0 as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
 
             if (*(*L).global).gc.debt() > 0 {
-                crate::gc::step(GcContext::Thread(&*L));
+                crate::gc::step((*L).global);
             }
 
             luaD_growstack(L, nextra.try_into().unwrap())?;

@@ -1,6 +1,5 @@
 #![allow(
     dead_code,
-    mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -8,7 +7,6 @@
     unused_mut
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
-#![allow(unused_variables)]
 #![allow(unused_parens)]
 
 use crate::gc::luaC_fix;
@@ -22,7 +20,7 @@ use crate::lparser::{Dyndata, FuncState};
 use crate::lstring::luaS_newlstr;
 use crate::ltable::{luaH_finishset, luaH_getstr};
 use crate::lzio::{Mbuffer, ZIO};
-use crate::{GcContext, Lua, Object, Thread};
+use crate::{Lua, Object, Thread};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
 use std::fmt::Display;
@@ -193,7 +191,7 @@ pub unsafe fn luaX_init(mut g: *const Lua) {
     }
 }
 
-pub unsafe fn luaX_token2str(mut ls: *mut LexState, mut token: libc::c_int) -> Cow<'static, str> {
+pub unsafe fn luaX_token2str(mut token: libc::c_int) -> Cow<'static, str> {
     if token < 255 as libc::c_int + 1 as libc::c_int {
         if luai_ctype_[(token + 1 as libc::c_int) as usize] as libc::c_int
             & (1 as libc::c_int) << 2 as libc::c_int
@@ -212,6 +210,7 @@ pub unsafe fn luaX_token2str(mut ls: *mut LexState, mut token: libc::c_int) -> C
         }
     };
 }
+
 unsafe fn txtToken(
     mut ls: *mut LexState,
     mut token: libc::c_int,
@@ -225,7 +224,7 @@ unsafe fn txtToken(
             )
             .into());
         }
-        _ => return Ok(luaX_token2str(ls, token)),
+        _ => return Ok(luaX_token2str(token)),
     };
 }
 
@@ -274,7 +273,7 @@ pub unsafe fn luaX_newstring(
         luaH_finishset((*L).global, (*ls).h, stv, o, stv).unwrap(); // This should never fails.
 
         if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-            crate::gc::step(GcContext::Thread(&*L));
+            crate::gc::step((*L).global);
         }
 
         (*L).top.sub(1);
