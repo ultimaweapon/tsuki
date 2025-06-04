@@ -762,7 +762,7 @@ unsafe fn addk(
     let mut io: *mut TValue = &mut val;
     (*io).value_.i = k as i64;
     (*io).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
-    luaH_finishset(L, (*(*fs).ls).h, key, idx, &mut val).unwrap(); // This should never fails.
+    luaH_finishset((*L).global, (*(*fs).ls).h, key, idx, &mut val).unwrap(); // This should never fails.
     (*f).k = luaM_growaux_(
         L,
         (*f).k as *mut libc::c_void,

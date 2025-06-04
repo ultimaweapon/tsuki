@@ -395,7 +395,7 @@ pub unsafe fn luaV_finishset(
             };
 
             if tm.is_null() {
-                if let Err(e) = luaH_finishset(L, h, key, slot, val) {
+                if let Err(e) = luaH_finishset((*L).global, h, key, slot, val) {
                     luaG_runerror(L, e)?;
                 }
 
@@ -410,7 +410,7 @@ pub unsafe fn luaV_finishset(
                                 | (1 as libc::c_int) << 4 as libc::c_int)
                             != 0
                     {
-                        luaC_barrierback_(L, h as *mut Object);
+                        luaC_barrierback_((*L).global, h as *mut Object);
                     } else {
                     };
                 } else {
@@ -456,7 +456,7 @@ pub unsafe fn luaV_finishset(
                             | (1 as libc::c_int) << 4 as libc::c_int)
                         != 0
                 {
-                    luaC_barrierback_(L, (*t).value_.gc);
+                    luaC_barrierback_((*L).global, (*t).value_.gc);
                 } else {
                 };
             } else {
@@ -1780,7 +1780,7 @@ pub unsafe fn luaV_execute(
                                             | (1 as libc::c_int) << 4 as libc::c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_(L, (*upval_0).value_.gc);
+                                    luaC_barrierback_((*L).global, (*upval_0).value_.gc);
                                 } else {
                                 };
                             } else {
@@ -1895,11 +1895,9 @@ pub unsafe fn luaV_execute(
                                             | (1 as libc::c_int) << 4 as libc::c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_(L, (*ra_14).val.value_.gc);
-                                } else {
-                                };
-                            } else {
-                            };
+                                    luaC_barrierback_((*L).global, (*ra_14).val.value_.gc);
+                                }
+                            }
                         } else {
                             (*ci).u.savedpc = pc;
                             (*L).top.set((*ci).top);
@@ -1989,11 +1987,9 @@ pub unsafe fn luaV_execute(
                                             | (1 as libc::c_int) << 4 as libc::c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_(L, (*ra_15).val.value_.gc);
-                                } else {
-                                };
-                            } else {
-                            };
+                                    luaC_barrierback_((*L).global, (*ra_15).val.value_.gc);
+                                }
+                            }
                         } else {
                             let mut key_3: TValue = TValue {
                                 value_: Value {
@@ -2087,11 +2083,9 @@ pub unsafe fn luaV_execute(
                                             | (1 as libc::c_int) << 4 as libc::c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_(L, (*ra_16).val.value_.gc);
-                                } else {
-                                };
-                            } else {
-                            };
+                                    luaC_barrierback_((*L).global, (*ra_16).val.value_.gc);
+                                }
+                            }
                         } else {
                             (*ci).u.savedpc = pc;
                             (*L).top.set((*ci).top);
@@ -2155,7 +2149,7 @@ pub unsafe fn luaV_execute(
                             as u8;
 
                         if b_3 != 0 as libc::c_int || c_1 != 0 as libc::c_int {
-                            luaH_resize(L, t, c_1 as libc::c_uint, b_3 as libc::c_uint);
+                            luaH_resize((*L).global, t, c_1 as libc::c_uint, b_3 as libc::c_uint);
                         }
 
                         if (*(*L).global).gc.debt() > 0 {
@@ -5423,9 +5417,11 @@ pub unsafe fn luaV_execute(
                             );
                             pc = pc.offset(1);
                         }
+
                         if last > luaH_realasize(h) {
-                            luaH_resizearray(L, h, last);
+                            luaH_resizearray((*L).global, h, last);
                         }
+
                         while n_4 > 0 as libc::c_int {
                             let val: *mut TValue = &raw mut (*ra_76.offset(n_4 as isize)).val;
                             let io1_17 = (*h).array.get().offset(last.wrapping_sub(1) as isize);
@@ -5444,11 +5440,9 @@ pub unsafe fn luaV_execute(
                                             | (1 as libc::c_int) << 4 as libc::c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_(L, h as *mut Object);
-                                } else {
-                                };
-                            } else {
-                            };
+                                    luaC_barrierback_((*L).global, h as *mut Object);
+                                }
+                            }
                             n_4 -= 1;
                         }
                         continue;

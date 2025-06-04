@@ -271,7 +271,7 @@ pub unsafe fn luaX_newstring(
         (*io).value_.gc = (x_ as *mut Object);
         (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
 
-        luaH_finishset(L, (*ls).h, stv, o, stv).unwrap(); // This should never fails.
+        luaH_finishset((*L).global, (*ls).h, stv, o, stv).unwrap(); // This should never fails.
 
         if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
             crate::gc::step(GcContext::Thread(&*L));

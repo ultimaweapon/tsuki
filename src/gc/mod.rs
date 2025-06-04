@@ -95,8 +95,7 @@ pub(crate) unsafe fn luaC_barrier_(g: *const Lua, o: *const Object, v: *const Ob
     }
 }
 
-pub(crate) unsafe fn luaC_barrierback_(L: *const Thread, o: *const Object) {
-    let g = (*L).global;
+pub(crate) unsafe fn luaC_barrierback_(g: *const Lua, o: *const Object) {
     if (*o).marked.get() as libc::c_int & 7 as libc::c_int == 6 as libc::c_int {
         (*o).marked
             .set((*o).marked.get() & !(1 << 5 | (1 << 3 | 1 << 4)));

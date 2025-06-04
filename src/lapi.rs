@@ -883,7 +883,7 @@ pub unsafe fn lua_createtable(L: *const Thread, narray: libc::c_int, nrec: libc:
     api_incr_top(L);
 
     if narray > 0 as libc::c_int || nrec > 0 as libc::c_int {
-        luaH_resize(L, t, narray as libc::c_uint, nrec as libc::c_uint);
+        luaH_resize((*L).global, t, narray as libc::c_uint, nrec as libc::c_uint);
     }
 
     if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
@@ -981,11 +981,9 @@ unsafe fn auxsetstr(
                         | (1 as libc::c_int) << 4 as libc::c_int)
                     != 0
             {
-                luaC_barrierback_(L, (*t).value_.gc);
-            } else {
-            };
-        } else {
-        };
+                luaC_barrierback_((*L).global, (*t).value_.gc);
+            }
+        }
 
         (*L).top.sub(1);
     } else {
@@ -1064,11 +1062,9 @@ pub unsafe fn lua_settable(
                         | (1 as libc::c_int) << 4 as libc::c_int)
                     != 0
             {
-                luaC_barrierback_(L, (*t).value_.gc);
-            } else {
-            };
-        } else {
-        };
+                luaC_barrierback_((*L).global, (*t).value_.gc);
+            }
+        }
     } else {
         luaV_finishset(
             L,
@@ -1144,11 +1140,9 @@ pub unsafe fn lua_seti(
                         | (1 as libc::c_int) << 4 as libc::c_int)
                     != 0
             {
-                luaC_barrierback_(L, (*t).value_.gc);
-            } else {
-            };
-        } else {
-        };
+                luaC_barrierback_((*L).global, (*t).value_.gc);
+            }
+        }
     } else {
         let mut aux: TValue = TValue {
             value_: Value {
@@ -1178,7 +1172,7 @@ pub unsafe fn lua_rawset(L: *const Thread, idx: libc::c_int) -> Result<(), Table
     let t = gettable(L, idx);
 
     luaH_set(
-        L,
+        (*L).global,
         t,
         key,
         &raw mut (*((*L).top.get()).offset(-(1 as libc::c_int as isize))).val,
@@ -1203,9 +1197,8 @@ pub unsafe fn lua_rawset(L: *const Thread, idx: libc::c_int) -> Result<(), Table
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            luaC_barrierback_(L, t as *mut Object);
-        } else {
-        };
+            luaC_barrierback_((*L).global, t as *mut Object);
+        }
     }
 
     (*L).top.sub(2);
@@ -1216,7 +1209,7 @@ pub unsafe fn lua_rawseti(L: *mut Thread, idx: libc::c_int, n: i64) {
     let t = gettable(L, idx);
 
     luaH_setint(
-        L,
+        (*L).global,
         t,
         n,
         &raw mut (*((*L).top.get()).offset(-(1 as libc::c_int as isize))).val,
@@ -1238,9 +1231,8 @@ pub unsafe fn lua_rawseti(L: *mut Thread, idx: libc::c_int, n: i64) {
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            luaC_barrierback_(L, t as *mut Object);
-        } else {
-        };
+            luaC_barrierback_((*L).global, t as *mut Object);
+        }
     }
 
     (*L).top.sub(1);
@@ -1354,11 +1346,10 @@ pub unsafe fn lua_setiuservalue(L: *mut Thread, idx: libc::c_int, n: libc::c_int
                         | (1 as libc::c_int) << 4 as libc::c_int)
                     != 0
             {
-                luaC_barrierback_(L, (*o).value_.gc);
-            } else {
-            };
-        } else {
-        };
+                luaC_barrierback_((*L).global, (*o).value_.gc);
+            }
+        }
+
         res = 1 as libc::c_int;
     }
 

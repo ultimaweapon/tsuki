@@ -364,7 +364,7 @@ unsafe fn collectvalidlines(mut L: *const Thread, mut f: *const Object) {
             }
             while i < (*p).sizelineinfo {
                 currentline = nextline(p, currentline, i);
-                luaH_setint(L, t, currentline as i64, &raw mut v);
+                luaH_setint((*L).global, t, currentline as i64, &raw mut v);
                 i += 1;
             }
         }
