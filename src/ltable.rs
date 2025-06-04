@@ -707,7 +707,7 @@ unsafe fn luaH_newkey(
     g: *const Lua,
     t: *const Table,
     mut key: *const TValue,
-    value: *mut TValue,
+    value: *const TValue,
 ) -> Result<(), TableError> {
     let mut mp: *mut Node = 0 as *mut Node;
     let mut aux: TValue = TValue {
@@ -884,7 +884,7 @@ pub unsafe fn luaH_finishset(
     t: *const Table,
     key: *const TValue,
     slot: *const TValue,
-    value: *mut TValue,
+    value: *const TValue,
 ) -> Result<(), TableError> {
     if (*slot).tt_ as libc::c_int == 0 as libc::c_int | (2 as libc::c_int) << 4 as libc::c_int {
         luaH_newkey(g, t, key, value)?;
@@ -901,7 +901,7 @@ pub unsafe fn luaH_set(
     g: *const Lua,
     t: *const Table,
     key: *const TValue,
-    value: *mut TValue,
+    value: *const TValue,
 ) -> Result<(), TableError> {
     let slot: *const TValue = luaH_get(t, key);
 

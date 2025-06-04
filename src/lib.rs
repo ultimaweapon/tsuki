@@ -22,14 +22,12 @@ pub use self::table::*;
 pub use self::thread::*;
 
 use self::lmem::luaM_free_;
-use self::lobject::{StackValue, TString, TValue, Table};
-use std::alloc::{Layout, handle_alloc_error};
+use self::lobject::{TString, TValue, Table};
 use std::cell::{Cell, UnsafeCell};
 use std::ffi::c_int;
 use std::marker::PhantomPinned;
-use std::ops::Deref;
 use std::pin::Pin;
-use std::ptr::{addr_of_mut, null, null_mut};
+use std::ptr::null_mut;
 use std::rc::Rc;
 
 mod builder;
@@ -110,56 +108,10 @@ pub struct Lua {
 }
 
 impl Lua {
-    pub fn spawn(self: &Pin<Rc<Self>>) -> *mut Thread {
-        // Create new thread.
-        let layout = Layout::new::<Thread>();
-        let th = unsafe { Object::new(self.deref(), 8, layout).cast::<Thread>() };
-
-        unsafe { addr_of_mut!((*th).global).write(self.deref()) };
-        unsafe { addr_of_mut!((*th).stack).write(Cell::new(null_mut())) };
-        unsafe { addr_of_mut!((*th).ci).write(Cell::new(null_mut())) };
-        unsafe { addr_of_mut!((*th).nci).write(Cell::new(0)) };
-        unsafe { addr_of_mut!((*th).twups).write(Cell::new(th)) };
-        unsafe { addr_of_mut!((*th).hook).write(Cell::new(None)) };
-        unsafe { addr_of_mut!((*th).hookmask).write(Cell::new(0)) };
-        unsafe { addr_of_mut!((*th).basehookcount).write(Cell::new(0)) };
-        unsafe { addr_of_mut!((*th).allowhook).write(Cell::new(1)) };
-        unsafe { addr_of_mut!((*th).hookcount).write(Cell::new(0)) };
-        unsafe { addr_of_mut!((*th).openupval).write(Cell::new(null_mut())) };
-        unsafe { addr_of_mut!((*th).oldpc).write(Cell::new(0)) };
-
-        // Allocate stack.
-        let layout = Layout::array::<StackValue>(2 * 20 + 5).unwrap();
-        let stack = unsafe { std::alloc::alloc(layout) as *mut StackValue };
-
-        if stack.is_null() {
-            handle_alloc_error(layout);
-        }
-
-        for i in 0..(2 * 20 + 5) {
-            unsafe { (*stack.offset(i)).val.tt_ = 0 | 0 << 4 };
-        }
-
-        unsafe { (*th).stack.set(stack) };
-        unsafe { addr_of_mut!((*th).top).write(StackPtr::new((*th).stack.get())) };
-        unsafe { addr_of_mut!((*th).stack_last).write(Cell::new((*th).stack.get().add(2 * 20))) };
-        unsafe { addr_of_mut!((*th).tbclist).write(Cell::new((*th).stack.get())) };
-
-        // Setup base CI.
-        let ci = unsafe { (*th).base_ci.get() };
-
-        unsafe { (*ci).previous = null_mut() };
-        unsafe { (*ci).next = (*ci).previous };
-        unsafe { (*ci).callstatus = 1 << 1 };
-        unsafe { (*ci).func = (*th).top.get() };
-        unsafe { (*ci).u.savedpc = null() };
-        unsafe { (*ci).nresults = 0 };
-        unsafe { (*th).top.write_nil() };
-        unsafe { (*th).top.add(1) };
-        unsafe { (*ci).top = ((*th).top.get()).offset(20) };
-        unsafe { (*th).ci.set(ci) };
-
-        th
+    /// Create a new Lua thread (AKA coroutine).
+    #[inline(always)]
+    pub fn spawn(self: &Pin<Rc<Self>>) -> Ref<Thread> {
+        Thread::new(self)
     }
 
     fn reset_gray(&self) {

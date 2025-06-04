@@ -9,18 +9,18 @@ use std::ptr::null;
 /// All object must have this struct at the beginning of its memory block.
 pub(crate) struct Object {
     pub(super) next: Cell<*const Object>,
-    pub tt: u8,
-    pub marked: Mark,
-    pub refs: Cell<usize>,
-    pub refn: Cell<*const Object>,
-    pub refp: Cell<*const Object>,
-    pub gclist: Cell<*const Object>,
+    pub(crate) tt: u8,
+    pub(crate) marked: Mark,
+    pub(super) refs: Cell<usize>,
+    pub(super) refn: Cell<*const Object>,
+    pub(super) refp: Cell<*const Object>,
+    pub(super) gclist: Cell<*const Object>,
 }
 
 impl Object {
     /// # Safety
     /// `layout` must have the layout of [`Object`] at the beginning.
-    pub unsafe fn new(g: *const Lua, tt: u8, layout: Layout) -> *mut Object {
+    pub(crate) unsafe fn new(g: *const Lua, tt: u8, layout: Layout) -> *mut Object {
         let g = &*g;
         let o = unsafe { std::alloc::alloc(layout) as *mut Object };
 

@@ -103,7 +103,6 @@ impl Builder {
         });
 
         // Setup registry.
-        let th = g.spawn();
         let registry: *mut Table = unsafe { luaH_new(g.deref()) };
         let io: *mut TValue = g.l_registry.get();
 
@@ -132,7 +131,7 @@ impl Builder {
         g.gcstp.set(0);
 
         Self {
-            th: unsafe { Ref::new(g.clone(), th) },
+            th: Thread::new(&g),
             g,
         }
     }

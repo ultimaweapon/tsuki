@@ -1,6 +1,7 @@
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::LazyLock;
-use tsuki::{Builder, lua_closethread, lua_load, lua_pcall};
+use tsuki::{Builder, lua_load, lua_pcall};
 
 #[test]
 fn badkey() {
@@ -67,13 +68,12 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     name.push('\0');
 
     // Run.
-    let mut r = unsafe { lua_load(lua, name.as_ptr().cast(), content) };
+    let mut r = unsafe { lua_load(lua.deref(), name.as_ptr().cast(), content) };
 
     if r.is_ok() {
-        r = unsafe { lua_pcall(lua, 0, 0) };
+        r = unsafe { lua_pcall(lua.deref(), 0, 0) };
     }
 
-    unsafe { lua_closethread(lua).unwrap() };
     r
 }
 
