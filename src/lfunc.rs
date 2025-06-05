@@ -11,10 +11,10 @@ use crate::ldebug::{luaG_findlocal, luaG_runerror};
 use crate::ldo::luaD_call;
 use crate::lmem::luaM_free_;
 use crate::lobject::{
-    AbsLineInfo, CClosure, LocVar, Proto, StackValue, StkId, TString, TValue, UpVal, Upvaldesc,
+    AbsLineInfo, CClosure, LocVar, Proto, StackValue, StkId, TValue, UpVal, Upvaldesc,
 };
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
-use crate::{Lua, LuaClosure, Object, Thread};
+use crate::{ChunkInfo, Lua, LuaClosure, Object, Thread};
 use std::alloc::Layout;
 use std::cell::Cell;
 use std::ffi::CStr;
@@ -278,7 +278,7 @@ pub unsafe fn luaF_close(
     return Ok(level);
 }
 
-pub unsafe fn luaF_newproto(g: *const Lua) -> *mut Proto {
+pub unsafe fn luaF_newproto(g: *const Lua, chunk: ChunkInfo) -> *mut Proto {
     let layout = Layout::new::<Proto>();
     let f = Object::new(g, 9 + 1 | 0 << 4, layout).cast::<Proto>();
 
@@ -301,7 +301,8 @@ pub unsafe fn luaF_newproto(g: *const Lua) -> *mut Proto {
     (*f).sizelocvars = 0 as libc::c_int;
     (*f).linedefined = 0 as libc::c_int;
     (*f).lastlinedefined = 0 as libc::c_int;
-    (*f).source = 0 as *mut TString;
+    addr_of_mut!((*f).chunk).write(chunk);
+
     return f;
 }
 
@@ -345,6 +346,7 @@ pub unsafe fn luaF_freeproto(g: *const Lua, f: *mut Proto) {
     // Free proto.
     let layout = Layout::new::<Proto>();
 
+    std::ptr::drop_in_place(f);
     (*g).gc.dealloc(f.cast(), layout);
 }
 

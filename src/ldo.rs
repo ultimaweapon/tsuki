@@ -15,7 +15,7 @@ use crate::lstate::{CallInfo, lua_CFunction, lua_Debug, lua_Hook, luaE_extendCI,
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, Zio};
-use crate::{LuaClosure, Thread};
+use crate::{ChunkInfo, LuaClosure, Thread};
 use std::alloc::{Layout, handle_alloc_error};
 use std::ffi::c_int;
 
@@ -24,7 +24,6 @@ struct SParser {
     z: *mut ZIO,
     buff: Mbuffer,
     dyd: Dyndata,
-    name: *const libc::c_char,
 }
 
 #[repr(C)]
@@ -226,8 +225,7 @@ pub unsafe fn luaD_hook(
             name: 0 as *const libc::c_char,
             namewhat: 0 as *const libc::c_char,
             what: 0 as *const libc::c_char,
-            source: 0 as *const libc::c_char,
-            srclen: 0,
+            source: ChunkInfo::default(),
             currentline: 0,
             linedefined: 0,
             lastlinedefined: 0,
@@ -237,7 +235,6 @@ pub unsafe fn luaD_hook(
             istailcall: 0,
             ftransfer: 0,
             ntransfer: 0,
-            short_src: [0; 60],
             i_ci: 0 as *mut CallInfo,
         };
         ar.event = event;
@@ -746,7 +743,7 @@ where
 pub unsafe fn luaD_protectedparser(
     L: *const Thread,
     mut z: Zio,
-    name: *const libc::c_char,
+    info: ChunkInfo,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut p = SParser {
         z: 0 as *mut ZIO,
@@ -772,11 +769,9 @@ pub unsafe fn luaD_protectedparser(
                 size: 0,
             },
         },
-        name: 0 as *const libc::c_char,
     };
 
     p.z = &mut z;
-    p.name = name;
     p.dyd.actvar.arr = 0 as *mut Vardesc;
     p.dyd.actvar.size = 0 as libc::c_int;
     p.dyd.gt.arr = 0 as *mut Labeldesc;
@@ -790,7 +785,7 @@ pub unsafe fn luaD_protectedparser(
     let status = luaD_pcall(
         L,
         (*L).top.get().byte_offset_from_unsigned((*L).stack.get()),
-        |L| {
+        move |L| {
             let mut cl: *mut LuaClosure = 0 as *mut LuaClosure;
             let fresh3 = (*p.z).n;
             (*p.z).n = ((*p.z).n).wrapping_sub(1);
@@ -802,7 +797,7 @@ pub unsafe fn luaD_protectedparser(
                 -1
             };
 
-            cl = luaY_parser(L, p.z, &raw mut p.buff, &raw mut p.dyd, p.name, c)?;
+            cl = luaY_parser(L, p.z, &raw mut p.buff, &raw mut p.dyd, info, c)?;
 
             luaF_initupvals((*L).global, cl);
             Ok(())

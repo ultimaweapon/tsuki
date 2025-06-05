@@ -13,8 +13,8 @@ use crate::lstate::lua_CFunction;
 use crate::lstring::luaS_newlstr;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
-use crate::{Lua, Thread};
-use libc::{c_char, c_int, memcpy, sprintf, strchr, strpbrk, strspn, strtod};
+use crate::{ChunkInfo, Lua, Thread};
+use libc::{c_char, c_int, sprintf, strpbrk, strspn, strtod};
 use libm::{floor, pow};
 use std::cell::{Cell, UnsafeCell};
 
@@ -184,7 +184,7 @@ pub struct Proto {
     pub lineinfo: *mut i8,
     pub abslineinfo: *mut AbsLineInfo,
     pub locvars: *mut LocVar,
-    pub source: *mut TString,
+    pub chunk: ChunkInfo,
 }
 
 #[repr(C)]
@@ -840,126 +840,4 @@ pub unsafe fn luaO_tostring(g: *const Lua, obj: *mut TValue) {
     let x_: *mut TString = luaS_newlstr(g, buff.as_mut_ptr(), len as usize);
     (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
-}
-
-pub unsafe fn luaO_chunkid(mut out: *mut c_char, source: *const c_char, mut srclen: usize) {
-    let mut bufflen: usize = 60 as c_int as usize;
-    if *source as c_int == '=' as i32 {
-        if srclen <= bufflen {
-            memcpy(
-                out as *mut libc::c_void,
-                source.offset(1 as c_int as isize) as *const libc::c_void,
-                srclen.wrapping_mul(::core::mem::size_of::<c_char>()),
-            );
-        } else {
-            memcpy(
-                out as *mut libc::c_void,
-                source.offset(1 as c_int as isize) as *const libc::c_void,
-                bufflen
-                    .wrapping_sub(1 as c_int as usize)
-                    .wrapping_mul(::core::mem::size_of::<c_char>()),
-            );
-            out = out.offset(bufflen.wrapping_sub(1 as c_int as usize) as isize);
-            *out = '\0' as i32 as c_char;
-        }
-    } else if *source as c_int == '@' as i32 {
-        if srclen <= bufflen {
-            memcpy(
-                out as *mut libc::c_void,
-                source.offset(1 as c_int as isize) as *const libc::c_void,
-                srclen.wrapping_mul(::core::mem::size_of::<c_char>()),
-            );
-        } else {
-            memcpy(
-                out as *mut libc::c_void,
-                b"...\0" as *const u8 as *const c_char as *const libc::c_void,
-                ::core::mem::size_of::<[c_char; 4]>()
-                    .wrapping_div(::core::mem::size_of::<c_char>())
-                    .wrapping_sub(1)
-                    .wrapping_mul(::core::mem::size_of::<c_char>()),
-            );
-            out = out.offset(
-                (::core::mem::size_of::<[c_char; 4]>() as libc::c_ulong)
-                    .wrapping_div(::core::mem::size_of::<c_char>() as libc::c_ulong)
-                    .wrapping_sub(1 as c_int as libc::c_ulong) as isize,
-            );
-            bufflen = (bufflen as libc::c_ulong).wrapping_sub(
-                (::core::mem::size_of::<[c_char; 4]>() as libc::c_ulong)
-                    .wrapping_div(::core::mem::size_of::<c_char>() as libc::c_ulong)
-                    .wrapping_sub(1 as c_int as libc::c_ulong),
-            ) as usize as usize;
-            memcpy(
-                out as *mut libc::c_void,
-                source
-                    .offset(1 as c_int as isize)
-                    .offset(srclen as isize)
-                    .offset(-(bufflen as isize)) as *const libc::c_void,
-                bufflen.wrapping_mul(::core::mem::size_of::<c_char>()),
-            );
-        }
-    } else {
-        let nl: *const c_char = strchr(source, '\n' as i32);
-        memcpy(
-            out as *mut libc::c_void,
-            b"[string \"\0" as *const u8 as *const c_char as *const libc::c_void,
-            ::core::mem::size_of::<[c_char; 10]>()
-                .wrapping_div(::core::mem::size_of::<c_char>())
-                .wrapping_sub(1)
-                .wrapping_mul(::core::mem::size_of::<c_char>()),
-        );
-        out = out.offset(
-            (::core::mem::size_of::<[c_char; 10]>() as libc::c_ulong)
-                .wrapping_div(::core::mem::size_of::<c_char>() as libc::c_ulong)
-                .wrapping_sub(1 as c_int as libc::c_ulong) as isize,
-        );
-        bufflen = (bufflen as libc::c_ulong).wrapping_sub(
-            (::core::mem::size_of::<[c_char; 15]>() as libc::c_ulong)
-                .wrapping_div(::core::mem::size_of::<c_char>() as libc::c_ulong)
-                .wrapping_sub(1 as c_int as libc::c_ulong)
-                .wrapping_add(1 as c_int as libc::c_ulong),
-        ) as usize as usize;
-        if srclen < bufflen && nl.is_null() {
-            memcpy(
-                out as *mut libc::c_void,
-                source as *const libc::c_void,
-                srclen.wrapping_mul(::core::mem::size_of::<c_char>()),
-            );
-            out = out.offset(srclen as isize);
-        } else {
-            if !nl.is_null() {
-                srclen = nl.offset_from(source) as libc::c_long as usize;
-            }
-            if srclen > bufflen {
-                srclen = bufflen;
-            }
-            memcpy(
-                out as *mut libc::c_void,
-                source as *const libc::c_void,
-                srclen.wrapping_mul(::core::mem::size_of::<c_char>()),
-            );
-            out = out.offset(srclen as isize);
-            memcpy(
-                out as *mut libc::c_void,
-                b"...\0" as *const u8 as *const c_char as *const libc::c_void,
-                ::core::mem::size_of::<[c_char; 4]>()
-                    .wrapping_div(::core::mem::size_of::<c_char>())
-                    .wrapping_sub(1)
-                    .wrapping_mul(::core::mem::size_of::<c_char>()),
-            );
-            out = out.offset(
-                (::core::mem::size_of::<[c_char; 4]>() as libc::c_ulong)
-                    .wrapping_div(::core::mem::size_of::<c_char>() as libc::c_ulong)
-                    .wrapping_sub(1 as c_int as libc::c_ulong) as isize,
-            );
-        }
-        memcpy(
-            out as *mut libc::c_void,
-            b"\"]\0" as *const u8 as *const c_char as *const libc::c_void,
-            ::core::mem::size_of::<[c_char; 3]>()
-                .wrapping_div(::core::mem::size_of::<c_char>())
-                .wrapping_sub(1)
-                .wrapping_add(1)
-                .wrapping_mul(::core::mem::size_of::<c_char>()),
-        );
-    };
 }

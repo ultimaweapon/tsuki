@@ -11,14 +11,13 @@
 
 use crate::lapi::{lua_call, lua_topointer};
 use crate::{
-    Thread, lua_arith, lua_createtable, lua_dump, lua_gettable, lua_gettop, lua_isinteger,
-    lua_isstring, lua_newuserdatauv, lua_pop, lua_pushcclosure, lua_pushinteger, lua_pushlstring,
-    lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rotate, lua_setfield,
-    lua_setmetatable, lua_settop, lua_stringtonumber, lua_toboolean, lua_tointegerx, lua_tolstring,
-    lua_tonumberx, lua_touserdata, lua_type, lua_typename, luaL_Reg, luaL_argerror,
-    luaL_checkinteger, luaL_checklstring, luaL_checknumber, luaL_checkstack, luaL_checktype,
-    luaL_error, luaL_getmetafield, luaL_optinteger, luaL_optlstring, luaL_setfuncs, luaL_tolstring,
-    luaL_typeerror,
+    Thread, lua_arith, lua_createtable, lua_gettable, lua_gettop, lua_isinteger, lua_isstring,
+    lua_newuserdatauv, lua_pop, lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil,
+    lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rotate, lua_setfield, lua_setmetatable,
+    lua_settop, lua_stringtonumber, lua_toboolean, lua_tointegerx, lua_tolstring, lua_tonumberx,
+    lua_touserdata, lua_type, lua_typename, luaL_Reg, luaL_argerror, luaL_checkinteger,
+    luaL_checklstring, luaL_checknumber, luaL_checkstack, luaL_error, luaL_getmetafield,
+    luaL_optinteger, luaL_optlstring, luaL_setfuncs, luaL_tolstring, luaL_typeerror,
 };
 use libc::{
     isalnum, isalpha, iscntrl, isdigit, isgraph, islower, ispunct, isspace, isupper, isxdigit,
@@ -288,41 +287,6 @@ unsafe fn str_char(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Er
             as libc::c_int;
         b.push(c as u8);
         i += 1;
-    }
-
-    lua_pushlstring(L, b);
-
-    return Ok(1 as libc::c_int);
-}
-
-unsafe fn writer(
-    mut L: *const Thread,
-    mut b: *const libc::c_void,
-    mut size: usize,
-    mut ud: *mut libc::c_void,
-) -> Result<c_int, Box<dyn std::error::Error>> {
-    let b = std::slice::from_raw_parts(b.cast(), size);
-    (*(ud as *mut Vec<u8>)).extend_from_slice(b);
-    Ok(0)
-}
-
-unsafe fn str_dump(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut strip: libc::c_int = lua_toboolean(L, 2 as libc::c_int);
-    let mut b = Vec::new();
-
-    luaL_checktype(L, 1 as libc::c_int, 6 as libc::c_int)?;
-    lua_settop(L, 1 as libc::c_int)?;
-
-    if ((lua_dump(
-        L,
-        writer,
-        &mut b as *mut Vec<u8> as *mut libc::c_void,
-        strip,
-    )? != 0 as libc::c_int) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
-        != 0
-    {
-        return luaL_error(L, "unable to dump given function");
     }
 
     lua_pushlstring(L, b);
@@ -2661,7 +2625,7 @@ unsafe fn str_unpack(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::
     return Ok(n + 1 as libc::c_int);
 }
 
-static mut strlib: [luaL_Reg; 18] = [
+static mut strlib: [luaL_Reg; 17] = [
     {
         let mut init = luaL_Reg {
             name: b"byte\0" as *const u8 as *const libc::c_char,
@@ -2673,13 +2637,6 @@ static mut strlib: [luaL_Reg; 18] = [
         let mut init = luaL_Reg {
             name: b"char\0" as *const u8 as *const libc::c_char,
             func: Some(str_char),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"dump\0" as *const u8 as *const libc::c_char,
-            func: Some(str_dump),
         };
         init
     },

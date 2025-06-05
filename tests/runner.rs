@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::LazyLock;
-use tsuki::{Builder, lua_load, lua_pcall};
+use tsuki::{Builder, ChunkInfo, lua_load, lua_pcall};
 
 #[test]
 fn badkey() {
@@ -59,16 +59,12 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     let content = std::fs::read(&path).unwrap();
     let lua = Builder::new().enable_all().build();
     let lua = lua.spawn();
-
-    // Build chunk name.
-    let mut name = String::with_capacity(1 + path.as_os_str().len() + 1);
-
-    name.push('@');
-    name.push_str(path.to_str().unwrap());
-    name.push('\0');
+    let info = ChunkInfo {
+        name: path.to_string_lossy().into_owned(),
+    };
 
     // Run.
-    let mut r = unsafe { lua_load(lua.deref(), name.as_ptr().cast(), content) };
+    let mut r = unsafe { lua_load(lua.deref(), info, content) };
 
     if r.is_ok() {
         r = unsafe { lua_pcall(lua.deref(), 0, 0) };

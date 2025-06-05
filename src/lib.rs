@@ -3,12 +3,12 @@ pub use self::error::*;
 pub use self::function::*;
 pub use self::gc::*;
 pub use self::lapi::{
-    lua_arith, lua_call, lua_closeslot, lua_createtable, lua_dump, lua_getglobal,
-    lua_getiuservalue, lua_gettable, lua_gettop, lua_getupvalue, lua_iscfunction, lua_isinteger,
-    lua_isstring, lua_isuserdata, lua_load, lua_newuserdatauv, lua_pcall, lua_pushcclosure,
-    lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushthread,
-    lua_pushvalue, lua_rotate, lua_setfield, lua_setiuservalue, lua_setmetatable, lua_settable,
-    lua_settop, lua_stringtonumber, lua_toboolean, lua_tocfunction, lua_tointegerx, lua_tolstring,
+    lua_arith, lua_call, lua_closeslot, lua_createtable, lua_getglobal, lua_getiuservalue,
+    lua_gettable, lua_gettop, lua_getupvalue, lua_iscfunction, lua_isinteger, lua_isstring,
+    lua_isuserdata, lua_load, lua_newuserdatauv, lua_pcall, lua_pushcclosure, lua_pushinteger,
+    lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushthread, lua_pushvalue,
+    lua_rotate, lua_setfield, lua_setiuservalue, lua_setmetatable, lua_settable, lua_settop,
+    lua_stringtonumber, lua_toboolean, lua_tocfunction, lua_tointegerx, lua_tolstring,
     lua_tonumberx, lua_tothread, lua_touserdata, lua_type, lua_typename, lua_upvalueid,
     lua_upvaluejoin, lua_xmove,
 };
@@ -18,6 +18,7 @@ pub use self::lauxlib::{
     luaL_optlstring, luaL_setfuncs, luaL_tolstring, luaL_typeerror,
 };
 pub use self::lstate::lua_closethread;
+pub use self::parser::*;
 pub use self::table::*;
 pub use self::thread::*;
 
@@ -41,7 +42,6 @@ mod lcode;
 mod lctype;
 mod ldebug;
 mod ldo;
-mod ldump;
 mod lfunc;
 mod llex;
 mod lmathlib;
@@ -57,6 +57,7 @@ mod ltablib;
 mod ltm;
 mod lvm;
 mod lzio;
+mod parser;
 mod table;
 mod thread;
 

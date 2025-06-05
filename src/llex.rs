@@ -20,7 +20,7 @@ use crate::lparser::{Dyndata, FuncState};
 use crate::lstring::luaS_newlstr;
 use crate::ltable::{luaH_finishset, luaH_getstr};
 use crate::lzio::{Mbuffer, ZIO};
-use crate::{Lua, Object, Thread};
+use crate::{ChunkInfo, Lua, Object, Thread};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
 use std::fmt::Display;
@@ -91,7 +91,7 @@ pub struct LexState {
     pub buff: *mut Mbuffer,
     pub h: *mut Table,
     pub dyd: *mut Dyndata,
-    pub source: *mut TString,
+    pub source: ChunkInfo,
     pub envn: *mut TString,
 }
 
@@ -233,7 +233,7 @@ unsafe fn lexerror(
     msg: impl Display,
     mut token: c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let msg = luaG_addinfo(msg, (*ls).source, (*ls).linenumber);
+    let msg = luaG_addinfo(msg, &(*ls).source, (*ls).linenumber);
     let msg = if token != 0 {
         format!("{} near {}", msg, txtToken(ls, token)?)
     } else {
@@ -315,7 +315,6 @@ pub unsafe fn luaX_setinput(
     mut L: *const Thread,
     mut ls: *mut LexState,
     mut z: *mut ZIO,
-    mut source: *mut TString,
     mut firstchar: libc::c_int,
 ) {
     (*ls).t.token = 0 as libc::c_int;
@@ -326,7 +325,6 @@ pub unsafe fn luaX_setinput(
     (*ls).fs = 0 as *mut FuncState;
     (*ls).linenumber = 1 as libc::c_int;
     (*ls).lastline = 1 as libc::c_int;
-    (*ls).source = source;
     (*ls).envn = luaS_newlstr(
         (*L).global,
         b"_ENV\0" as *const u8 as *const libc::c_char,

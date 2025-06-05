@@ -8,10 +8,10 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::Thread;
 use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
 use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::lobject::StkId;
+use crate::{ChunkInfo, Thread};
 use std::ffi::{c_int, c_void};
 
 pub type lua_Hook = Option<unsafe extern "C" fn(*const Thread, *mut lua_Debug) -> ()>;
@@ -22,15 +22,13 @@ pub type lua_Writer = unsafe fn(
     *mut c_void,
 ) -> Result<c_int, Box<dyn std::error::Error>>;
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct lua_Debug {
     pub event: libc::c_int,
     pub name: *const libc::c_char,
     pub namewhat: *const libc::c_char,
     pub what: *const libc::c_char,
-    pub source: *const libc::c_char,
-    pub srclen: usize,
+    pub source: ChunkInfo,
     pub currentline: libc::c_int,
     pub linedefined: libc::c_int,
     pub lastlinedefined: libc::c_int,
@@ -40,7 +38,6 @@ pub struct lua_Debug {
     pub istailcall: libc::c_char,
     pub ftransfer: libc::c_ushort,
     pub ntransfer: libc::c_ushort,
-    pub short_src: [libc::c_char; 60],
     pub(crate) i_ci: *mut CallInfo,
 }
 

@@ -11,7 +11,7 @@
 
 use crate::ldo::{luaD_hook, luaD_hookcall};
 use crate::lfunc::luaF_getlocalname;
-use crate::lobject::{CClosure, Proto, StkId, TString, TValue, Table, Value, luaO_chunkid};
+use crate::lobject::{CClosure, Proto, StkId, TString, TValue, Table, Value};
 use crate::lopcodes::{OpCode, luaP_opmodes};
 use crate::lstate::{CallInfo, lua_Debug, lua_Hook};
 use crate::ltable::{luaH_new, luaH_setint};
@@ -20,7 +20,7 @@ use crate::ltm::{
     luaT_objtypename,
 };
 use crate::lvm::{F2Ieq, luaV_tointegerns};
-use crate::{LuaClosure, Object, Thread, api_incr_top};
+use crate::{ChunkInfo, LuaClosure, Object, Thread, api_incr_top};
 use libc::{strchr, strcmp};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
@@ -283,32 +283,15 @@ pub unsafe fn lua_setlocal(
 }
 
 unsafe fn funcinfo(mut ar: *mut lua_Debug, mut cl: *const Object) {
-    if !(!cl.is_null()
-        && (*cl).tt as libc::c_int == 6 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int)
-    {
-        (*ar).source = b"=[C]\0" as *const u8 as *const libc::c_char;
-        (*ar).srclen = ::core::mem::size_of::<[libc::c_char; 5]>()
-            .wrapping_div(::core::mem::size_of::<libc::c_char>())
-            .wrapping_sub(1);
+    if !(!cl.is_null() && (*cl).tt as libc::c_int == 6 as libc::c_int | (0 as libc::c_int) << 4) {
+        (*ar).source.name.clear();
         (*ar).linedefined = -(1 as libc::c_int);
         (*ar).lastlinedefined = -(1 as libc::c_int);
         (*ar).what = b"C\0" as *const u8 as *const libc::c_char;
     } else {
         let mut p: *const Proto = (*cl.cast::<LuaClosure>()).p.get();
 
-        if !((*p).source).is_null() {
-            (*ar).source = ((*(*p).source).contents).as_mut_ptr();
-            (*ar).srclen = if (*(*p).source).shrlen.get() as libc::c_int != 0xff as libc::c_int {
-                (*(*p).source).shrlen.get() as usize
-            } else {
-                (*(*(*p).source).u.get()).lnglen
-            };
-        } else {
-            (*ar).source = b"=?\0" as *const u8 as *const libc::c_char;
-            (*ar).srclen = ::core::mem::size_of::<[libc::c_char; 3]>()
-                .wrapping_div(::core::mem::size_of::<libc::c_char>())
-                .wrapping_sub(1);
-        }
+        (*ar).source = (*p).chunk.clone();
         (*ar).linedefined = (*p).linedefined;
         (*ar).lastlinedefined = (*p).lastlinedefined;
         (*ar).what = if (*ar).linedefined == 0 as libc::c_int {
@@ -317,7 +300,6 @@ unsafe fn funcinfo(mut ar: *mut lua_Debug, mut cl: *const Object) {
             b"Lua\0" as *const u8 as *const libc::c_char
         };
     }
-    luaO_chunkid(((*ar).short_src).as_mut_ptr(), (*ar).source, (*ar).srclen);
 }
 
 unsafe fn nextline(
@@ -1078,30 +1060,8 @@ pub unsafe fn luaG_ordererror(
     }
 }
 
-pub unsafe fn luaG_addinfo(msg: impl Display, mut src: *mut TString, line: libc::c_int) -> String {
-    let mut buff: [libc::c_char; 60] = [0; 60];
-
-    if !src.is_null() {
-        luaO_chunkid(
-            buff.as_mut_ptr(),
-            ((*src).contents).as_mut_ptr(),
-            if (*src).shrlen.get() as libc::c_int != 0xff as libc::c_int {
-                (*src).shrlen.get() as usize
-            } else {
-                (*(*src).u.get()).lnglen
-            },
-        );
-    } else {
-        buff[0 as libc::c_int as usize] = '?' as i32 as libc::c_char;
-        buff[1 as libc::c_int as usize] = '\0' as i32 as libc::c_char;
-    }
-
-    format!(
-        "{}:{}: {}",
-        CStr::from_ptr(buff.as_ptr()).to_string_lossy(),
-        line,
-        msg,
-    )
+pub unsafe fn luaG_addinfo(msg: impl Display, src: &ChunkInfo, line: libc::c_int) -> String {
+    format!("{}:{}: {}", src.name, line, msg)
 }
 
 pub unsafe fn luaG_runerror(
@@ -1112,7 +1072,7 @@ pub unsafe fn luaG_runerror(
     let msg = if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
         luaG_addinfo(
             fmt,
-            (*(*(*(*ci).func).val.value_.gc.cast::<LuaClosure>()).p.get()).source,
+            &(*(*(*(*ci).func).val.value_.gc.cast::<LuaClosure>()).p.get()).chunk,
             getcurrentline(ci),
         )
     } else {

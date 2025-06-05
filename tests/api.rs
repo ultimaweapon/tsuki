@@ -1,7 +1,6 @@
 use std::ops::Deref;
 use std::path::PathBuf;
-use std::ptr::null;
-use tsuki::{Builder, lua_load};
+use tsuki::{Builder, ChunkInfo, lua_load};
 
 #[test]
 fn dump() {
@@ -10,6 +9,7 @@ fn dump() {
     let chunk = std::fs::read(path).unwrap();
     let lua = Builder::new().build();
     let th = lua.spawn();
+    let info = ChunkInfo::default();
 
-    unsafe { lua_load(th.deref(), null(), chunk).unwrap() };
+    unsafe { lua_load(th.deref(), info, chunk).unwrap() };
 }

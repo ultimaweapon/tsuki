@@ -20,7 +20,7 @@ use crate::lapi::{
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::{CallInfo, lua_CFunction, lua_Debug};
-use crate::{Thread, lua_pop};
+use crate::{ChunkInfo, Thread, lua_pop};
 use libc::{FILE, strcmp, strlen, strncmp};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -139,7 +139,7 @@ unsafe fn pushfuncname(
         write!(
             dst,
             "function <{}:{}>",
-            CStr::from_ptr(((*ar).short_src).as_mut_ptr()).to_string_lossy(),
+            (*ar).source.name,
             (*ar).linedefined
         )
         .unwrap();
@@ -156,8 +156,7 @@ unsafe fn lastlevel(mut L: *mut Thread) -> libc::c_int {
         name: 0 as *const libc::c_char,
         namewhat: 0 as *const libc::c_char,
         what: 0 as *const libc::c_char,
-        source: 0 as *const libc::c_char,
-        srclen: 0,
+        source: ChunkInfo::default(),
         currentline: 0,
         linedefined: 0,
         lastlinedefined: 0,
@@ -167,7 +166,6 @@ unsafe fn lastlevel(mut L: *mut Thread) -> libc::c_int {
         istailcall: 0,
         ftransfer: 0,
         ntransfer: 0,
-        short_src: [0; 60],
         i_ci: 0 as *mut CallInfo,
     };
     let mut li: libc::c_int = 1 as libc::c_int;
@@ -199,8 +197,7 @@ pub unsafe fn luaL_traceback(
         name: 0 as *const libc::c_char,
         namewhat: 0 as *const libc::c_char,
         what: 0 as *const libc::c_char,
-        source: 0 as *const libc::c_char,
-        srclen: 0,
+        source: ChunkInfo::default(),
         currentline: 0,
         linedefined: 0,
         lastlinedefined: 0,
@@ -210,7 +207,6 @@ pub unsafe fn luaL_traceback(
         istailcall: 0,
         ftransfer: 0,
         ntransfer: 0,
-        short_src: [0; 60],
         i_ci: 0 as *mut CallInfo,
     };
     let mut last: libc::c_int = lastlevel(L1);
@@ -245,20 +241,9 @@ pub unsafe fn luaL_traceback(
             lua_getinfo(L1, b"Slnt\0" as *const u8 as *const libc::c_char, &mut ar);
 
             if ar.currentline <= 0 {
-                write!(
-                    b,
-                    "\n\t{}: in ",
-                    CStr::from_ptr((ar.short_src).as_ptr()).to_string_lossy()
-                )
-                .unwrap();
+                write!(b, "\n\t{}: in ", ar.source.name).unwrap();
             } else {
-                write!(
-                    b,
-                    "\n\t{}:{}: in ",
-                    CStr::from_ptr((ar.short_src).as_ptr()).to_string_lossy(),
-                    ar.currentline,
-                )
-                .unwrap();
+                write!(b, "\n\t{}:{}: in ", ar.source.name, ar.currentline,).unwrap();
             }
 
             pushfuncname(L, &mut b, &mut ar)?;
@@ -283,8 +268,7 @@ pub unsafe fn luaL_argerror(
         name: 0 as *const libc::c_char,
         namewhat: 0 as *const libc::c_char,
         what: 0 as *const libc::c_char,
-        source: 0 as *const libc::c_char,
-        srclen: 0,
+        source: ChunkInfo::default(),
         currentline: 0,
         linedefined: 0,
         lastlinedefined: 0,
@@ -294,7 +278,6 @@ pub unsafe fn luaL_argerror(
         istailcall: 0,
         ftransfer: 0,
         ntransfer: 0,
-        short_src: [0; 60],
         i_ci: 0 as *mut CallInfo,
     };
     if lua_getstack(L, 0 as libc::c_int, &mut ar) == 0 {
@@ -361,8 +344,7 @@ pub unsafe fn luaL_where(mut L: *const Thread, level: c_int) -> Cow<'static, str
         name: 0 as *const libc::c_char,
         namewhat: 0 as *const libc::c_char,
         what: 0 as *const libc::c_char,
-        source: 0 as *const libc::c_char,
-        srclen: 0,
+        source: ChunkInfo::default(),
         currentline: 0,
         linedefined: 0,
         lastlinedefined: 0,
@@ -372,7 +354,6 @@ pub unsafe fn luaL_where(mut L: *const Thread, level: c_int) -> Cow<'static, str
         istailcall: 0,
         ftransfer: 0,
         ntransfer: 0,
-        short_src: [0; 60],
         i_ci: 0 as *mut CallInfo,
     };
 
@@ -380,12 +361,7 @@ pub unsafe fn luaL_where(mut L: *const Thread, level: c_int) -> Cow<'static, str
         lua_getinfo(L, b"Sl\0" as *const u8 as *const libc::c_char, &mut ar);
 
         if ar.currentline > 0 {
-            return format!(
-                "{}:{}: ",
-                CStr::from_ptr(ar.short_src.as_ptr()).to_string_lossy(),
-                ar.currentline,
-            )
-            .into();
+            return format!("{}:{}: ", ar.source.name, ar.currentline,).into();
         }
     }
 

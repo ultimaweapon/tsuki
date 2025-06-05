@@ -8,13 +8,12 @@
 
 use crate::gc::{luaC_barrier_, luaC_barrierback_};
 use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall, luaD_protectedparser};
-use crate::ldump::luaU_dump;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::{
     CClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata, UpVal, Value,
     luaO_arith, luaO_str2num, luaO_tostring,
 };
-use crate::lstate::{CallInfo, lua_CFunction, lua_Writer};
+use crate::lstate::{CallInfo, lua_CFunction};
 use crate::lstring::{luaS_new, luaS_newlstr, luaS_newudata};
 use crate::ltable::{
     luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_new, luaH_next, luaH_resize, luaH_set,
@@ -26,7 +25,7 @@ use crate::lvm::{
     luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
 };
 use crate::lzio::Zio;
-use crate::{LuaClosure, Object, TableError, Thread, api_incr_top};
+use crate::{ChunkInfo, LuaClosure, Object, TableError, Thread, api_incr_top};
 use std::ffi::{c_int, c_void};
 use std::mem::offset_of;
 use std::ptr::null_mut;
@@ -1396,7 +1395,7 @@ pub unsafe fn lua_pcall(
 
 pub unsafe fn lua_load(
     L: *const Thread,
-    mut name: *const libc::c_char,
+    info: ChunkInfo,
     chunk: impl AsRef<[u8]>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load.
@@ -1406,11 +1405,7 @@ pub unsafe fn lua_load(
         p: chunk.as_ptr().cast(),
     };
 
-    if name.is_null() {
-        name = b"?\0" as *const u8 as *const libc::c_char;
-    }
-
-    luaD_protectedparser(L, z, name)?;
+    luaD_protectedparser(L, z, info)?;
 
     let f = (*((*L).top.get()).offset(-(1 as libc::c_int as isize)))
         .val
@@ -1437,31 +1432,6 @@ pub unsafe fn lua_load(
     }
 
     Ok(())
-}
-
-pub unsafe fn lua_dump(
-    L: *const Thread,
-    writer: lua_Writer,
-    data: *mut c_void,
-    strip: c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
-    let o = &raw mut (*((*L).top.get()).offset(-1)).val;
-
-    if (*o).tt_ as libc::c_int
-        == 6 as libc::c_int
-            | (0 as libc::c_int) << 4 as libc::c_int
-            | (1 as libc::c_int) << 6 as libc::c_int
-    {
-        luaU_dump(
-            L,
-            (*(*o).value_.gc.cast::<LuaClosure>()).p.get(),
-            writer,
-            data,
-            strip,
-        )
-    } else {
-        Ok(1)
-    }
 }
 
 pub unsafe fn lua_next(

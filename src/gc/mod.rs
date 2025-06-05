@@ -522,16 +522,8 @@ unsafe fn traverseudata(g: *const Lua, u: *const Udata) -> libc::c_int {
 }
 
 unsafe fn traverseproto(g: *const Lua, f: *const Proto) -> libc::c_int {
-    let mut i: libc::c_int = 0;
-    if !((*f).source).is_null() {
-        if (*(*f).source).hdr.marked.get() as libc::c_int
-            & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
-            != 0
-        {
-            reallymarkobject(g, (*f).source as *const Object);
-        }
-    }
-    i = 0 as libc::c_int;
+    let mut i = 0 as libc::c_int;
+
     while i < (*f).sizek {
         if (*((*f).k).offset(i as isize)).tt_ as libc::c_int
             & (1 as libc::c_int) << 6 as libc::c_int
@@ -544,6 +536,7 @@ unsafe fn traverseproto(g: *const Lua, f: *const Proto) -> libc::c_int {
         }
         i += 1;
     }
+
     i = 0 as libc::c_int;
     while i < (*f).sizeupvalues {
         if !((*((*f).upvalues).offset(i as isize)).name).is_null() {

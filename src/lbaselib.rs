@@ -10,7 +10,6 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(unused_variables)]
 
-use crate::Thread;
 use crate::lapi::{
     lua_call, lua_copy, lua_geti, lua_getmetatable, lua_gettop, lua_isstring, lua_load, lua_next,
     lua_pcall, lua_pushboolean, lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil,
@@ -24,8 +23,9 @@ use crate::lauxlib::{
     luaL_tolstring, luaL_typeerror, luaL_where,
 };
 use crate::ldebug::luaG_runerror;
+use crate::{ChunkInfo, Thread};
 use libc::{isalnum, isdigit, strspn, toupper};
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
 use std::ptr::{null, null_mut};
 
@@ -372,9 +372,19 @@ unsafe fn luaB_load(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
         return luaL_argerror(L, 3, "mode is not supported");
     }
 
-    let name = luaL_optlstring(L, 2, s, null_mut())?;
+    let name = luaL_optlstring(L, 2, null(), null_mut())?;
     let s = std::slice::from_raw_parts(s.cast(), l);
-    let status = lua_load(L, name, s);
+    let status = lua_load(
+        L,
+        ChunkInfo {
+            name: if name.is_null() {
+                String::new()
+            } else {
+                CStr::from_ptr(name).to_string_lossy().into_owned()
+            },
+        },
+        s,
+    );
 
     load_aux(L, status, env)
 }

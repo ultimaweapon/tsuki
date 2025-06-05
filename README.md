@@ -14,9 +14,9 @@ Tsuki is a port of vanilla Lua 5.4 to Rust. This is porting, not binding; which 
 
 - Binary chunk is not supported and third argument of `load` must be `nil`.
 - Panic when memory allocation is failed without retry.
-- GC has only one mode and no `collectgarbage` in basic library.
 - First argument of `error` and `load` accept only a string.
-- No `_VERSION`, `dofile`, `loadfile` and `xpcall`.
+- Chunk name does not have a prefix (e.g. `@`) and second argument of `load` will be empty when absent.
+- No `_VERSION`, `collectgarbage`, `dofile`, `loadfile`, `xpcall` and `string.dump`.
 - `warn` is enabled by default without message prefixes and does not support control message.
 - Second argument to `__close` metamethod always `nil`.
 - `__gc` metamethod is not supported.

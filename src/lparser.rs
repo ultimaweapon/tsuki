@@ -31,10 +31,10 @@ use crate::lopcodes::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_FORLOOP, OP_FORPREP, OP_GETUPVAL, OP_MOVE, OP_NEWTABLE,
     OP_TAILCALL, OP_TBC, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_VARARG, OP_VARARGPREP, OpCode,
 };
-use crate::lstring::{luaS_new, luaS_newlstr};
+use crate::lstring::luaS_newlstr;
 use crate::ltable::luaH_new;
 use crate::lzio::{Mbuffer, ZIO};
-use crate::{LuaClosure, Object, Thread};
+use crate::{ChunkInfo, LuaClosure, Object, Thread};
 use libc::strcmp;
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
@@ -1000,7 +1000,7 @@ unsafe fn addprototype(ls: *mut LexState) -> Result<*mut Proto, Box<dyn std::err
             *fresh13 = 0 as *mut Proto;
         }
     }
-    clp = luaF_newproto(g);
+    clp = luaF_newproto(g, ChunkInfo::default());
     let fresh14 = (*fs).np;
     (*fs).np = (*fs).np + 1;
     let ref mut fresh15 = *((*f).p).offset(fresh14 as isize);
@@ -1054,19 +1054,7 @@ unsafe fn open_func(ls: *mut LexState, fs: *mut FuncState, bl: *mut BlockCnt) {
     (*fs).firstlocal = (*(*ls).dyd).actvar.n;
     (*fs).firstlabel = (*(*ls).dyd).label.n;
     (*fs).bl = 0 as *mut BlockCnt;
-    (*f).source = (*ls).source;
-    if (*f).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-        && (*(*f).source).hdr.marked.get() as libc::c_int
-            & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
-            != 0
-    {
-        luaC_barrier_(
-            (*(*ls).L).global,
-            f as *mut Object,
-            (*f).source as *mut Object,
-        );
-    } else {
-    };
+    (*f).chunk = (*ls).source.clone();
     (*f).maxstacksize = 2 as libc::c_int as u8;
     enterblock(fs, bl, 0 as libc::c_int as u8);
 }
@@ -2818,7 +2806,7 @@ pub unsafe fn luaY_parser(
     z: *mut ZIO,
     buff: *mut Mbuffer,
     dyd: *mut Dyndata,
-    name: *const libc::c_char,
+    info: ChunkInfo,
     firstchar: libc::c_int,
 ) -> Result<*mut LuaClosure, Box<dyn std::error::Error>> {
     let mut lexstate: LexState = LexState {
@@ -2839,7 +2827,7 @@ pub unsafe fn luaY_parser(
         buff: 0 as *mut Mbuffer,
         h: 0 as *mut Table,
         dyd: 0 as *mut Dyndata,
-        source: 0 as *mut TString,
+        source: info.clone(),
         envn: 0 as *mut TString,
     };
     let mut funcstate: FuncState = FuncState {
@@ -2881,7 +2869,7 @@ pub unsafe fn luaY_parser(
 
     luaD_inctop(L)?;
 
-    (*cl).p.set(luaF_newproto((*L).global));
+    (*cl).p.set(luaF_newproto((*L).global, info));
     funcstate.f = (*cl).p.get();
 
     if (*cl).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
@@ -2890,29 +2878,14 @@ pub unsafe fn luaY_parser(
             != 0
     {
         luaC_barrier_((*L).global, cl.cast(), (*cl).p.get().cast());
-    } else {
-    };
+    }
 
-    (*funcstate.f).source = luaS_new((*L).global, name);
-
-    if (*funcstate.f).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
-        && (*(*funcstate.f).source).hdr.marked.get() as libc::c_int
-            & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
-            != 0
-    {
-        luaC_barrier_(
-            (*L).global,
-            funcstate.f as *mut Object,
-            (*funcstate.f).source as *mut Object,
-        );
-    } else {
-    };
     lexstate.buff = buff;
     lexstate.dyd = dyd;
     (*dyd).label.n = 0 as libc::c_int;
     (*dyd).gt.n = (*dyd).label.n;
     (*dyd).actvar.n = (*dyd).gt.n;
-    luaX_setinput(L, &mut lexstate, z, (*funcstate.f).source, firstchar);
+    luaX_setinput(L, &mut lexstate, z, firstchar);
     mainfunc(&mut lexstate, &mut funcstate)?;
     (*L).top.sub(1);
 
