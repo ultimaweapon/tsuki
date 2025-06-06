@@ -73,6 +73,10 @@ impl<T> Drop for Ref<T> {
         if !p.is_null() {
             unsafe { (*p).refn.set(n) };
         }
+
+        if self.g.refs.get() == h {
+            self.g.refs.set(p);
+        }
     }
 }
 
