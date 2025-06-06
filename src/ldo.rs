@@ -15,9 +15,12 @@ use crate::lstate::{CallInfo, lua_CFunction, lua_Debug, lua_Hook, luaE_extendCI,
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, Zio};
-use crate::{ChunkInfo, LuaClosure, Thread};
+use crate::{ChunkInfo, Lua, LuaClosure, ParseError, Ref, Thread};
 use std::alloc::{Layout, handle_alloc_error};
 use std::ffi::c_int;
+use std::ops::Deref;
+use std::pin::Pin;
+use std::rc::Rc;
 
 #[repr(C)]
 struct SParser {
@@ -741,10 +744,10 @@ where
 }
 
 pub unsafe fn luaD_protectedparser(
-    L: *const Thread,
+    g: &Pin<Rc<Lua>>,
     mut z: Zio,
     info: ChunkInfo,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<Ref<LuaClosure>, ParseError> {
     let mut p = SParser {
         z: 0 as *mut ZIO,
         buff: Mbuffer {
@@ -782,47 +785,41 @@ pub unsafe fn luaD_protectedparser(
     p.buff.buffsize = 0 as libc::c_int as usize;
 
     // Parse.
-    let status = luaD_pcall(
-        L,
-        (*L).top.get().byte_offset_from_unsigned((*L).stack.get()),
-        move |L| {
-            let mut cl: *mut LuaClosure = 0 as *mut LuaClosure;
-            let fresh3 = (*p.z).n;
-            (*p.z).n = ((*p.z).n).wrapping_sub(1);
-            let c: libc::c_int = if fresh3 > 0 {
-                let fresh4 = (*p.z).p;
-                (*p.z).p = ((*p.z).p).offset(1);
-                *fresh4 as libc::c_uchar as libc::c_int
-            } else {
-                -1
-            };
+    let fresh3 = (*p.z).n;
+    (*p.z).n = ((*p.z).n).wrapping_sub(1);
+    let c: libc::c_int = if fresh3 > 0 {
+        let fresh4 = (*p.z).p;
+        (*p.z).p = ((*p.z).p).offset(1);
+        *fresh4 as libc::c_uchar as libc::c_int
+    } else {
+        -1
+    };
 
-            cl = luaY_parser(L, p.z, &raw mut p.buff, &raw mut p.dyd, info, c)?;
+    let status = luaY_parser(g, p.z, &raw mut p.buff, &raw mut p.dyd, info, c);
 
-            luaF_initupvals((*L).global, cl);
-            Ok(())
-        },
-    );
+    if let Ok(cl) = &status {
+        luaF_initupvals(g.deref(), cl.deref());
+    }
 
     p.buff.buffer = luaM_saferealloc_(
-        (*L).global,
+        g.deref(),
         p.buff.buffer as *mut libc::c_void,
         (p.buff.buffsize).wrapping_mul(::core::mem::size_of::<libc::c_char>()),
         0usize.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
     ) as *mut libc::c_char;
     p.buff.buffsize = 0 as libc::c_int as usize;
     luaM_free_(
-        (*L).global,
+        g.deref(),
         p.dyd.actvar.arr as *mut libc::c_void,
         (p.dyd.actvar.size as usize).wrapping_mul(::core::mem::size_of::<Vardesc>()),
     );
     luaM_free_(
-        (*L).global,
+        g.deref(),
         p.dyd.gt.arr as *mut libc::c_void,
         (p.dyd.gt.size as usize).wrapping_mul(::core::mem::size_of::<Labeldesc>()),
     );
     luaM_free_(
-        (*L).global,
+        g.deref(),
         p.dyd.label.arr as *mut libc::c_void,
         (p.dyd.label.size as usize).wrapping_mul(::core::mem::size_of::<Labeldesc>()),
     );

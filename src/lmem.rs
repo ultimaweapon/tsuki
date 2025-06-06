@@ -1,36 +1,27 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::ldebug::luaG_runerror;
-use crate::{Lua, Thread};
+use crate::{Lua, ParseError};
 use libc::{free, realloc};
-use std::ffi::{CStr, c_void};
+use std::ffi::c_void;
 use std::ptr::null_mut;
 
 pub unsafe fn luaM_growaux_(
-    L: *const Thread,
+    g: &Lua,
     block: *mut libc::c_void,
     nelems: libc::c_int,
     psize: *mut libc::c_int,
     size_elems: libc::c_int,
     limit: libc::c_int,
-    what: *const libc::c_char,
-) -> Result<*mut c_void, Box<dyn std::error::Error>> {
+    what: &'static str,
+) -> Result<*mut c_void, ParseError> {
     let mut size: libc::c_int = *psize;
     if nelems + 1 as libc::c_int <= size {
         return Ok(block);
     }
     if size >= limit / 2 as libc::c_int {
-        if ((size >= limit) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long != 0
-        {
-            luaG_runerror(
-                L,
-                format!(
-                    "too many {} (limit is {})",
-                    CStr::from_ptr(what).to_string_lossy(),
-                    limit
-                ),
-            )?;
+        if size >= limit {
+            return Err(ParseError::ItemLimit(what, limit));
         }
         size = limit;
     } else {
@@ -41,7 +32,7 @@ pub unsafe fn luaM_growaux_(
     }
 
     let newblock = luaM_saferealloc_(
-        (*L).global,
+        g,
         block,
         *psize as usize * size_elems as usize,
         size as usize * size_elems as usize,

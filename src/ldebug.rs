@@ -495,7 +495,8 @@ unsafe fn filterpc(mut pc: libc::c_int, mut jmptarget: libc::c_int) -> libc::c_i
         return pc;
     };
 }
-unsafe extern "C" fn findsetreg(
+
+unsafe fn findsetreg(
     mut p: *const Proto,
     mut lastpc: libc::c_int,
     mut reg: libc::c_int,
@@ -571,7 +572,8 @@ unsafe extern "C" fn findsetreg(
     }
     return setreg;
 }
-unsafe extern "C" fn kname(
+
+unsafe fn kname(
     mut p: *const Proto,
     mut index: libc::c_int,
     mut name: *mut *const libc::c_char,
@@ -585,7 +587,8 @@ unsafe extern "C" fn kname(
         return 0 as *const libc::c_char;
     };
 }
-unsafe extern "C" fn basicgetobjname(
+
+unsafe fn basicgetobjname(
     mut p: *const Proto,
     mut ppc: *mut libc::c_int,
     mut reg: libc::c_int,
@@ -658,7 +661,8 @@ unsafe extern "C" fn basicgetobjname(
     }
     return 0 as *const libc::c_char;
 }
-unsafe extern "C" fn rname(
+
+unsafe fn rname(
     mut p: *const Proto,
     mut pc: libc::c_int,
     mut c: libc::c_int,
@@ -669,7 +673,8 @@ unsafe extern "C" fn rname(
         *name = b"?\0" as *const u8 as *const libc::c_char;
     }
 }
-unsafe extern "C" fn rkname(
+
+unsafe fn rkname(
     mut p: *const Proto,
     mut pc: libc::c_int,
     mut i: u32,
@@ -693,7 +698,8 @@ unsafe extern "C" fn rkname(
         rname(p, pc, c, name);
     };
 }
-unsafe extern "C" fn isEnv(
+
+unsafe fn isEnv(
     mut p: *const Proto,
     mut pc: libc::c_int,
     mut i: u32,
@@ -719,7 +725,7 @@ unsafe extern "C" fn isEnv(
         b"field\0" as *const u8 as *const libc::c_char
     };
 }
-unsafe extern "C" fn getobjname(
+unsafe fn getobjname(
     mut p: *const Proto,
     mut lastpc: libc::c_int,
     mut reg: libc::c_int,

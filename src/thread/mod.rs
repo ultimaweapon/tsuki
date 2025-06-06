@@ -1,10 +1,11 @@
 pub(crate) use self::stack::*;
 
+use crate::ldo::luaD_inctop;
 use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
 use crate::lobject::{StackValue, StkId, UpVal};
 use crate::lstate::{CallInfo, lua_Hook};
-use crate::{Lua, Object, Ref};
+use crate::{Lua, LuaClosure, Object, Ref, lua_pcall};
 use std::alloc::{Layout, handle_alloc_error};
 use std::cell::{Cell, UnsafeCell};
 use std::marker::PhantomPinned;
@@ -90,6 +91,33 @@ impl Thread {
         unsafe { (*th).ci.set(ci) };
 
         unsafe { Ref::new(g.clone(), th) }
+    }
+
+    /// Call a Lua function.
+    pub fn call(
+        &self,
+        f: &LuaClosure,
+        args: impl IntoIterator<Item = ()>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // Push function and its arguments.
+        let mut nargs = 0;
+
+        self.top.write_lua(f);
+        unsafe { luaD_inctop(self) }?;
+
+        for _ in args {
+            self.top.write_nil();
+            unsafe { luaD_inctop(self) }?;
+            nargs += 1;
+        }
+
+        // Call.
+        unsafe { lua_pcall(self, nargs, 0) }
+    }
+
+    pub(crate) fn global(&self) -> Pin<Rc<Lua>> {
+        unsafe { Rc::increment_strong_count(self.global) };
+        unsafe { Pin::new_unchecked(Rc::from_raw(self.global)) }
     }
 }
 

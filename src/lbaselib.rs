@@ -11,8 +11,8 @@
 #![allow(unused_variables)]
 
 use crate::lapi::{
-    lua_call, lua_copy, lua_geti, lua_getmetatable, lua_gettop, lua_isstring, lua_load, lua_next,
-    lua_pcall, lua_pushboolean, lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil,
+    lua_call, lua_copy, lua_geti, lua_getmetatable, lua_gettop, lua_isstring, lua_next, lua_pcall,
+    lua_pushboolean, lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil,
     lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawget, lua_rawgeti, lua_rawlen, lua_rawset,
     lua_rotate, lua_setfield, lua_setmetatable, lua_settop, lua_setupvalue, lua_stringtonumber,
     lua_toboolean, lua_tolstring, lua_type, lua_typename,
@@ -23,7 +23,7 @@ use crate::lauxlib::{
     luaL_tolstring, luaL_typeerror, luaL_where,
 };
 use crate::ldebug::luaG_runerror;
-use crate::{ChunkInfo, Thread};
+use crate::{ChunkInfo, Thread, api_incr_top};
 use libc::{isalnum, isdigit, strspn, toupper};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
@@ -304,31 +304,6 @@ unsafe fn luaB_ipairs(mut L: *const Thread) -> Result<c_int, Box<dyn std::error:
     return Ok(3 as libc::c_int);
 }
 
-unsafe fn load_aux(
-    mut L: *const Thread,
-    status: Result<(), Box<dyn std::error::Error>>,
-    envidx: c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
-    match status {
-        Ok(_) => {
-            if envidx != 0 as libc::c_int {
-                lua_pushvalue(L, envidx);
-                if (lua_setupvalue(L, -(2 as libc::c_int), 1 as libc::c_int)).is_null() {
-                    lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-                }
-            }
-
-            Ok(1)
-        }
-        Err(e) => {
-            lua_pushnil(L);
-            lua_pushlstring(L, e.to_string());
-
-            Ok(2)
-        }
-    }
-}
-
 unsafe fn generic_reader(
     ud: *mut c_void,
     mut size: *mut usize,
@@ -374,22 +349,40 @@ unsafe fn luaB_load(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
 
     let name = luaL_optlstring(L, 2, null(), null_mut())?;
     let s = std::slice::from_raw_parts(s.cast(), l);
-    let status = lua_load(
-        L,
-        ChunkInfo {
-            name: if name.is_null() {
-                String::new()
-            } else {
-                CStr::from_ptr(name).to_string_lossy().into_owned()
-            },
-        },
-        s,
-    );
+    let name = if name.is_null() {
+        String::new()
+    } else {
+        CStr::from_ptr(name).to_string_lossy().into_owned()
+    };
 
-    load_aux(L, status, env)
+    match (*L).global().load(ChunkInfo { name: name.clone() }, s) {
+        Ok(f) => {
+            if env != 0 as libc::c_int {
+                lua_pushvalue(L, env);
+                if (lua_setupvalue(L, -(2 as libc::c_int), 1 as libc::c_int)).is_null() {
+                    lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
+                }
+            }
+
+            let io = &raw mut (*(*L).top.get()).val;
+
+            (*io).value_.gc = &f.hdr;
+            (*io).tt_ = f.hdr.tt | 1 << 6;
+
+            api_incr_top(L);
+
+            Ok(1)
+        }
+        Err(e) => {
+            lua_pushnil(L);
+            lua_pushlstring(L, format!("{name}:{e}"));
+
+            Ok(2)
+        }
+    }
 }
 
-unsafe extern "C" fn dofilecont(mut L: *mut Thread, mut d1: libc::c_int) -> libc::c_int {
+unsafe fn dofilecont(mut L: *mut Thread, mut d1: libc::c_int) -> libc::c_int {
     return lua_gettop(L) - 1 as libc::c_int;
 }
 

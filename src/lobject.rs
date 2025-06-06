@@ -9,11 +9,12 @@
 
 use crate::gc::Object;
 use crate::lctype::luai_ctype_;
+use crate::ldebug::luaG_runerror;
 use crate::lstate::lua_CFunction;
 use crate::lstring::luaS_newlstr;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
-use crate::{ChunkInfo, Lua, Thread};
+use crate::{ArithError, ChunkInfo, Lua, Thread};
 use libc::{c_char, c_int, sprintf, strpbrk, strspn, strtod};
 use libm::{floor, pow};
 use std::cell::{Cell, UnsafeCell};
@@ -465,18 +466,13 @@ pub unsafe fn luaO_ceillog2(mut x: libc::c_uint) -> c_int {
     return l + log_2[x as usize] as c_int;
 }
 
-unsafe fn intarith(
-    L: *const Thread,
-    op: c_int,
-    v1: i64,
-    v2: i64,
-) -> Result<i64, Box<dyn std::error::Error>> {
+unsafe fn intarith(op: c_int, v1: i64, v2: i64) -> Result<i64, ArithError> {
     let r = match op {
         0 => (v1 as u64).wrapping_add(v2 as u64) as i64,
         1 => (v1 as u64).wrapping_sub(v2 as u64) as i64,
         2 => (v1 as u64).wrapping_mul(v2 as u64) as i64,
-        3 => luaV_mod(L, v1, v2)?,
-        6 => luaV_idiv(L, v1, v2)?,
+        3 => luaV_mod(v1, v2).ok_or(ArithError::ModZero)?,
+        6 => luaV_idiv(v1, v2).ok_or(ArithError::DivZero)?,
         7 => (v1 as u64 & v2 as u64) as i64,
         8 => (v1 as u64 | v2 as u64) as i64,
         9 => (v1 as u64 ^ v2 as u64) as i64,
@@ -511,12 +507,11 @@ unsafe fn numarith(op: c_int, v1: f64, v2: f64) -> f64 {
 }
 
 pub unsafe fn luaO_rawarith(
-    L: *const Thread,
     op: c_int,
     p1: *const TValue,
     p2: *const TValue,
     res: *mut TValue,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<c_int, ArithError> {
     match op {
         7 | 8 | 9 | 10 | 11 | 13 => {
             let mut i1: i64 = 0;
@@ -541,7 +536,7 @@ pub unsafe fn luaO_rawarith(
                 }) != 0
             {
                 let io: *mut TValue = res;
-                (*io).value_.i = intarith(L, op, i1, i2)?;
+                (*io).value_.i = intarith(op, i1, i2)?;
                 (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                 return Ok(1 as c_int);
             } else {
@@ -589,7 +584,7 @@ pub unsafe fn luaO_rawarith(
                 && (*p2).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int
             {
                 let io_1: *mut TValue = res;
-                (*io_1).value_.i = intarith(L, op, (*p1).value_.i, (*p2).value_.i)?;
+                (*io_1).value_.i = intarith(op, (*p1).value_.i, (*p2).value_.i)?;
                 (*io_1).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                 return Ok(1 as c_int);
             } else if (if (*p1).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
@@ -633,9 +628,15 @@ pub unsafe fn luaO_arith(
     p2: *const TValue,
     res: StkId,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if luaO_rawarith(L, op, p1, p2, &mut (*res).val)? == 0 {
+    let r = match luaO_rawarith(op, p1, p2, &mut (*res).val) {
+        Ok(v) => v,
+        Err(e) => return luaG_runerror(L, e),
+    };
+
+    if r == 0 {
         luaT_trybinTM(L, p1, p2, res, (op - 0 as c_int + TM_ADD as c_int) as TMS)?;
     }
+
     Ok(())
 }
 

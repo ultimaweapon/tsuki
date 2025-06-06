@@ -49,7 +49,7 @@ pub unsafe fn luaF_newLclosure(g: *const Lua, nupvals: libc::c_int) -> *mut LuaC
     o
 }
 
-pub unsafe fn luaF_initupvals(g: *const Lua, cl: *mut LuaClosure) {
+pub unsafe fn luaF_initupvals(g: *const Lua, cl: *const LuaClosure) {
     for v in &(*cl).upvals {
         let layout = Layout::new::<UpVal>();
         let uv = Object::new(g, 9 | 0 << 4, layout).cast::<UpVal>();

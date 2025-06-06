@@ -7,7 +7,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::gc::{luaC_barrier_, luaC_barrierback_};
-use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall, luaD_protectedparser};
+use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall};
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::{
     CClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata, UpVal, Value,
@@ -24,8 +24,7 @@ use crate::lvm::{
     F2Ieq, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_lessequal,
     luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
 };
-use crate::lzio::Zio;
-use crate::{ChunkInfo, LuaClosure, Object, TableError, Thread, api_incr_top};
+use crate::{LuaClosure, Object, TableError, Thread, api_incr_top};
 use std::ffi::{c_int, c_void};
 use std::mem::offset_of;
 use std::ptr::null_mut;
@@ -1391,47 +1390,6 @@ pub unsafe fn lua_pcall(
     }
 
     status
-}
-
-pub unsafe fn lua_load(
-    L: *const Thread,
-    info: ChunkInfo,
-    chunk: impl AsRef<[u8]>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // Load.
-    let chunk = chunk.as_ref();
-    let z = Zio {
-        n: chunk.len(),
-        p: chunk.as_ptr().cast(),
-    };
-
-    luaD_protectedparser(L, z, info)?;
-
-    let f = (*((*L).top.get()).offset(-(1 as libc::c_int as isize)))
-        .val
-        .value_
-        .gc as *mut LuaClosure;
-
-    if !(*f).upvals.is_empty() {
-        let gt: *const TValue = (*((*(*(*L).global).l_registry.get()).value_.gc as *mut Table))
-            .array
-            .get()
-            .offset(2 - 1);
-        let io1: *mut TValue = (*(*f).upvals[0].get()).v.get();
-        let io2: *const TValue = gt;
-        (*io1).value_ = (*io2).value_;
-        (*io1).tt_ = (*io2).tt_;
-
-        if (*gt).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
-            if (*(*f).upvals[0].get()).hdr.marked.get() & 1 << 5 != 0
-                && (*(*gt).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
-            {
-                luaC_barrier_((*L).global, (*f).upvals[0].get().cast(), (*gt).value_.gc);
-            }
-        }
-    }
-
-    Ok(())
 }
 
 pub unsafe fn lua_next(

@@ -5,7 +5,7 @@ pub use self::gc::*;
 pub use self::lapi::{
     lua_arith, lua_call, lua_closeslot, lua_createtable, lua_getglobal, lua_getiuservalue,
     lua_gettable, lua_gettop, lua_getupvalue, lua_iscfunction, lua_isinteger, lua_isstring,
-    lua_isuserdata, lua_load, lua_newuserdatauv, lua_pcall, lua_pushcclosure, lua_pushinteger,
+    lua_isuserdata, lua_newuserdatauv, lua_pcall, lua_pushcclosure, lua_pushinteger,
     lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushthread, lua_pushvalue,
     lua_rotate, lua_setfield, lua_setiuservalue, lua_setmetatable, lua_settable, lua_settop,
     lua_stringtonumber, lua_toboolean, lua_tocfunction, lua_tointegerx, lua_tolstring,
@@ -22,11 +22,15 @@ pub use self::parser::*;
 pub use self::table::*;
 pub use self::thread::*;
 
+use self::ldo::luaD_protectedparser;
 use self::lmem::luaM_free_;
 use self::lobject::{TString, TValue, Table};
+use self::lzio::Zio;
 use std::cell::{Cell, UnsafeCell};
 use std::ffi::c_int;
+use std::fmt::{Display, Formatter};
 use std::marker::PhantomPinned;
+use std::ops::Deref;
 use std::pin::Pin;
 use std::ptr::null_mut;
 use std::rc::Rc;
@@ -109,6 +113,48 @@ pub struct Lua {
 }
 
 impl Lua {
+    pub fn load(
+        self: &Pin<Rc<Self>>,
+        info: ChunkInfo,
+        chunk: impl AsRef<[u8]>,
+    ) -> Result<Ref<LuaClosure>, ParseError> {
+        let chunk = chunk.as_ref();
+        let z = Zio {
+            n: chunk.len(),
+            p: chunk.as_ptr().cast(),
+        };
+
+        // Load.
+        let f = unsafe { luaD_protectedparser(self, z, info)? };
+
+        if !(*f).upvals.is_empty() {
+            let gt = unsafe {
+                (*((*self.l_registry.get()).value_.gc.cast::<Table>()))
+                    .array
+                    .get()
+                    .offset(2 - 1)
+            };
+
+            let io1: *mut TValue = unsafe { (*(*f).upvals[0].get()).v.get() };
+
+            unsafe { (*io1).value_ = (*gt).value_ };
+            unsafe { (*io1).tt_ = (*gt).tt_ };
+
+            if unsafe { (*gt).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 } {
+                if unsafe {
+                    (*(*f).upvals[0].get()).hdr.marked.get() & 1 << 5 != 0
+                        && (*(*gt).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
+                } {
+                    unsafe {
+                        luaC_barrier_(self.deref(), (*f).upvals[0].get().cast(), (*gt).value_.gc)
+                    };
+                }
+            }
+        }
+
+        Ok(f)
+    }
+
     /// Create a new Lua thread (AKA coroutine).
     #[inline(always)]
     pub fn spawn(self: &Pin<Rc<Self>>) -> Ref<Thread> {
@@ -142,4 +188,22 @@ struct StringTable {
     hash: *mut *mut TString,
     nuse: libc::c_int,
     size: libc::c_int,
+}
+
+/// Represents an error when arithmetic operation fails.
+#[derive(Debug)]
+pub enum ArithError {
+    ModZero,
+    DivZero,
+}
+
+impl Display for ArithError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let v = match self {
+            Self::ModZero => "attempt to perform 'n%0'",
+            Self::DivZero => "attempt to divide by zero",
+        };
+
+        f.write_str(v)
+    }
 }

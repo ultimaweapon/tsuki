@@ -13,9 +13,7 @@
 use crate::gc::luaC_barrier_;
 use crate::llex::{LexState, luaX_syntaxerror};
 use crate::lmem::luaM_growaux_;
-use crate::lobject::{
-    AbsLineInfo, Proto, TString, TValue, Table, Value, luaO_ceillog2, luaO_rawarith,
-};
+use crate::lobject::{AbsLineInfo, Proto, TString, TValue, Value, luaO_ceillog2, luaO_rawarith};
 use crate::lopcodes::{
     OP_ADD, OP_ADDI, OP_ADDK, OP_CONCAT, OP_EQ, OP_EQI, OP_EQK, OP_EXTRAARG, OP_GETFIELD, OP_GETI,
     OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI, OP_JMP, OP_LFALSESKIP, OP_LOADF, OP_LOADFALSE,
@@ -32,11 +30,12 @@ use crate::lparser::{
 use crate::ltable::{luaH_finishset, luaH_get};
 use crate::ltm::{TM_ADD, TM_SHL, TM_SHR, TM_SUB, TMS};
 use crate::lvm::{F2Ieq, luaV_equalobj, luaV_flttointeger, luaV_tointegerns};
-use crate::{Object, Thread};
+use crate::{ArithError, Object, ParseError, Thread};
 use libc::abs;
 use libm::ldexp;
 use std::ffi::c_int;
 use std::fmt::Display;
+use std::ops::Deref;
 
 pub type BinOpr = libc::c_uint;
 pub type UnOpr = libc::c_uint;
@@ -70,16 +69,13 @@ pub const OPR_NOT: UnOpr = 2;
 pub const OPR_BNOT: UnOpr = 1;
 pub const OPR_MINUS: UnOpr = 0;
 
-pub unsafe fn luaK_semerror(
-    mut ls: *mut LexState,
-    msg: impl Display,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaK_semerror(mut ls: *mut LexState, msg: impl Display) -> ParseError {
     (*ls).t.token = 0 as libc::c_int;
 
     luaX_syntaxerror(ls, msg)
 }
 
-unsafe extern "C" fn tonumeral(mut e: *const expdesc, mut v: *mut TValue) -> libc::c_int {
+unsafe fn tonumeral(mut e: *const expdesc, mut v: *mut TValue) -> libc::c_int {
     if (*e).t != (*e).f {
         return 0 as libc::c_int;
     }
@@ -104,12 +100,11 @@ unsafe extern "C" fn tonumeral(mut e: *const expdesc, mut v: *mut TValue) -> lib
     };
 }
 
-unsafe extern "C" fn const2val(mut fs: *mut FuncState, mut e: *const expdesc) -> *mut TValue {
+unsafe fn const2val(mut fs: *mut FuncState, mut e: *const expdesc) -> *mut TValue {
     return &mut (*((*(*(*fs).ls).dyd).actvar.arr).offset((*e).u.info as isize)).k;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaK_exp2const(
+pub unsafe fn luaK_exp2const(
     mut fs: *mut FuncState,
     mut e: *const expdesc,
     mut v: *mut TValue,
@@ -149,7 +144,7 @@ pub unsafe extern "C" fn luaK_exp2const(
     };
 }
 
-unsafe extern "C" fn previousinstruction(mut fs: *mut FuncState) -> *mut u32 {
+unsafe fn previousinstruction(mut fs: *mut FuncState) -> *mut u32 {
     static mut invalidinstruction: u32 = !(0 as libc::c_int as u32);
     if (*fs).pc > (*fs).lasttarget {
         return &mut *((*(*fs).f).code).offset(((*fs).pc - 1 as libc::c_int) as isize) as *mut u32;
@@ -162,7 +157,7 @@ pub unsafe fn luaK_nil(
     mut fs: *mut FuncState,
     mut from: libc::c_int,
     mut n: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut l: libc::c_int = from + n - 1 as libc::c_int;
     let mut previous: *mut u32 = previousinstruction(fs);
     if (*previous >> 0 as libc::c_int
@@ -217,7 +212,7 @@ pub unsafe fn luaK_nil(
     Ok(())
 }
 
-unsafe extern "C" fn getjump(mut fs: *mut FuncState, mut pc: libc::c_int) -> libc::c_int {
+unsafe fn getjump(mut fs: *mut FuncState, mut pc: libc::c_int) -> libc::c_int {
     let mut offset: libc::c_int = (*((*(*fs).f).code).offset(pc as isize)
         >> 0 as libc::c_int + 7 as libc::c_int
         & !(!(0 as libc::c_int as u32)
@@ -238,7 +233,7 @@ unsafe fn fixjump(
     mut fs: *mut FuncState,
     mut pc: libc::c_int,
     mut dest: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut jmp: *mut u32 = &mut *((*(*fs).f).code).offset(pc as isize) as *mut u32;
     let mut offset: libc::c_int = dest - (pc + 1 as libc::c_int);
     if !(-(((1 as libc::c_int)
@@ -255,7 +250,7 @@ unsafe fn fixjump(
                     - 1 as libc::c_int
                     >> 1 as libc::c_int))
     {
-        luaX_syntaxerror((*fs).ls, "control structure too long")?;
+        return Err(luaX_syntaxerror((*fs).ls, "control structure too long"));
     }
     *jmp = *jmp
         & !(!(!(0 as libc::c_int as u32)
@@ -277,7 +272,7 @@ pub unsafe fn luaK_concat(
     mut fs: *mut FuncState,
     mut l1: *mut libc::c_int,
     mut l2: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     if l2 == -(1 as libc::c_int) {
         return Ok(());
     } else if *l1 == -(1 as libc::c_int) {
@@ -297,7 +292,7 @@ pub unsafe fn luaK_concat(
     Ok(())
 }
 
-pub unsafe fn luaK_jump(mut fs: *mut FuncState) -> Result<c_int, Box<dyn std::error::Error>> {
+pub unsafe fn luaK_jump(mut fs: *mut FuncState) -> Result<c_int, ParseError> {
     return codesJ(fs, OP_JMP, -(1 as libc::c_int), 0 as libc::c_int);
 }
 
@@ -305,7 +300,7 @@ pub unsafe fn luaK_ret(
     mut fs: *mut FuncState,
     mut first: libc::c_int,
     mut nret: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut op: OpCode = OP_MOVE;
     match nret {
         0 => {
@@ -336,18 +331,17 @@ unsafe fn condjump(
     mut B: libc::c_int,
     mut C: libc::c_int,
     mut k: libc::c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<c_int, ParseError> {
     luaK_codeABCk(fs, op, A, B, C, k)?;
     return luaK_jump(fs);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaK_getlabel(mut fs: *mut FuncState) -> libc::c_int {
+pub unsafe fn luaK_getlabel(mut fs: *mut FuncState) -> libc::c_int {
     (*fs).lasttarget = (*fs).pc;
     return (*fs).pc;
 }
 
-unsafe extern "C" fn getjumpcontrol(mut fs: *mut FuncState, mut pc: libc::c_int) -> *mut u32 {
+unsafe fn getjumpcontrol(mut fs: *mut FuncState, mut pc: libc::c_int) -> *mut u32 {
     let mut pi: *mut u32 = &mut *((*(*fs).f).code).offset(pc as isize) as *mut u32;
     if pc >= 1 as libc::c_int
         && luaP_opmodes[(*pi.offset(-(1 as libc::c_int as isize)) >> 0 as libc::c_int
@@ -409,7 +403,7 @@ unsafe extern "C" fn patchtestreg(
     return 1 as libc::c_int;
 }
 
-unsafe extern "C" fn removevalues(mut fs: *mut FuncState, mut list: libc::c_int) {
+unsafe fn removevalues(mut fs: *mut FuncState, mut list: libc::c_int) {
     while list != -(1 as libc::c_int) {
         patchtestreg(
             fs,
@@ -426,7 +420,7 @@ unsafe fn patchlistaux(
     mut vtarget: libc::c_int,
     mut reg: libc::c_int,
     mut dtarget: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     while list != -(1 as libc::c_int) {
         let mut next: libc::c_int = getjump(fs, list);
         if patchtestreg(fs, list, reg) != 0 {
@@ -443,7 +437,7 @@ pub unsafe fn luaK_patchlist(
     mut fs: *mut FuncState,
     mut list: libc::c_int,
     mut target: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     patchlistaux(
         fs,
         list,
@@ -456,7 +450,7 @@ pub unsafe fn luaK_patchlist(
 pub unsafe fn luaK_patchtohere(
     mut fs: *mut FuncState,
     mut list: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut hr: libc::c_int = luaK_getlabel(fs);
     luaK_patchlist(fs, list, hr)
 }
@@ -465,7 +459,7 @@ unsafe fn savelineinfo(
     mut fs: *mut FuncState,
     mut f: *mut Proto,
     mut line: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut linedif: libc::c_int = line - (*fs).previousline;
     let mut pc: libc::c_int = (*fs).pc - 1 as libc::c_int;
     if abs(linedif) >= 0x80 as libc::c_int || {
@@ -474,7 +468,7 @@ unsafe fn savelineinfo(
         fresh0 as libc::c_int >= 128 as libc::c_int
     } {
         (*f).abslineinfo = luaM_growaux_(
-            (*(*fs).ls).L,
+            &(*(*fs).ls).g,
             (*f).abslineinfo as *mut libc::c_void,
             (*fs).nabslineinfo,
             &mut (*f).sizeabslineinfo,
@@ -488,7 +482,7 @@ unsafe fn savelineinfo(
                 (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<AbsLineInfo>())
                     as libc::c_uint
             }) as libc::c_int,
-            b"lines\0" as *const u8 as *const libc::c_char,
+            "lines",
         )? as *mut AbsLineInfo;
         (*((*f).abslineinfo).offset((*fs).nabslineinfo as isize)).pc = pc;
         let fresh1 = (*fs).nabslineinfo;
@@ -498,7 +492,7 @@ unsafe fn savelineinfo(
         (*fs).iwthabs = 1 as libc::c_int as u8;
     }
     (*f).lineinfo = luaM_growaux_(
-        (*(*fs).ls).L,
+        &(*(*fs).ls).g,
         (*f).lineinfo as *mut libc::c_void,
         pc,
         &mut (*f).sizelineinfo,
@@ -511,7 +505,7 @@ unsafe fn savelineinfo(
             (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<i8>())
                 as libc::c_uint
         }) as libc::c_int,
-        b"opcodes\0" as *const u8 as *const libc::c_char,
+        "opcodes",
     )? as *mut i8;
     *((*f).lineinfo).offset(pc as isize) = linedif as i8;
     (*fs).previousline = line;
@@ -538,13 +532,10 @@ unsafe extern "C" fn removelastinstruction(mut fs: *mut FuncState) {
     (*fs).pc;
 }
 
-pub unsafe fn luaK_code(
-    mut fs: *mut FuncState,
-    mut i: u32,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+pub unsafe fn luaK_code(mut fs: *mut FuncState, mut i: u32) -> Result<c_int, ParseError> {
     let mut f: *mut Proto = (*fs).f;
     (*f).code = luaM_growaux_(
-        (*(*fs).ls).L,
+        &(*(*fs).ls).g,
         (*f).code as *mut libc::c_void,
         (*fs).pc,
         &mut (*f).sizecode,
@@ -557,7 +548,7 @@ pub unsafe fn luaK_code(
             (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<u32>())
                 as libc::c_uint
         }) as libc::c_int,
-        b"opcodes\0" as *const u8 as *const libc::c_char,
+        "opcodes",
     )? as *mut u32;
     let fresh2 = (*fs).pc;
     (*fs).pc = (*fs).pc + 1;
@@ -573,8 +564,8 @@ pub unsafe fn luaK_codeABCk(
     mut b: libc::c_int,
     mut c: libc::c_int,
     mut k: libc::c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
-    return luaK_code(
+) -> Result<c_int, ParseError> {
+    luaK_code(
         fs,
         (o as u32) << 0 as libc::c_int
             | (a as u32) << 0 as libc::c_int + 7 as libc::c_int
@@ -587,7 +578,7 @@ pub unsafe fn luaK_codeABCk(
                     + 1 as libc::c_int
                     + 8 as libc::c_int
             | (k as u32) << 0 as libc::c_int + 7 as libc::c_int + 8 as libc::c_int,
-    );
+    )
 }
 
 pub unsafe fn luaK_codeABx(
@@ -595,7 +586,7 @@ pub unsafe fn luaK_codeABx(
     mut o: OpCode,
     mut a: libc::c_int,
     mut bc: libc::c_uint,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<c_int, ParseError> {
     return luaK_code(
         fs,
         (o as u32) << 0 as libc::c_int
@@ -609,7 +600,7 @@ unsafe fn codeAsBx(
     mut o: OpCode,
     mut a: libc::c_int,
     mut bc: libc::c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<c_int, ParseError> {
     let mut b: libc::c_uint = (bc
         + (((1 as libc::c_int) << 8 as libc::c_int + 8 as libc::c_int + 1 as libc::c_int)
             - 1 as libc::c_int
@@ -627,7 +618,7 @@ unsafe fn codesJ(
     mut o: OpCode,
     mut sj: libc::c_int,
     mut k: libc::c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<c_int, ParseError> {
     let mut j: libc::c_uint = (sj
         + (((1 as libc::c_int)
             << 8 as libc::c_int + 8 as libc::c_int + 1 as libc::c_int + 8 as libc::c_int)
@@ -641,10 +632,7 @@ unsafe fn codesJ(
     );
 }
 
-unsafe fn codeextraarg(
-    mut fs: *mut FuncState,
-    mut a: libc::c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn codeextraarg(mut fs: *mut FuncState, mut a: libc::c_int) -> Result<c_int, ParseError> {
     return luaK_code(
         fs,
         (OP_EXTRAARG as libc::c_int as u32) << 0 as libc::c_int
@@ -656,7 +644,7 @@ unsafe fn luaK_codek(
     mut fs: *mut FuncState,
     mut reg: libc::c_int,
     mut k: libc::c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<c_int, ParseError> {
     if k <= ((1 as libc::c_int) << 8 as libc::c_int + 8 as libc::c_int + 1 as libc::c_int)
         - 1 as libc::c_int
     {
@@ -672,11 +660,14 @@ unsafe fn luaK_codek(
 pub unsafe fn luaK_checkstack(
     mut fs: *mut FuncState,
     mut n: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut newstack: libc::c_int = (*fs).freereg as libc::c_int + n;
     if newstack > (*(*fs).f).maxstacksize as libc::c_int {
         if newstack >= 255 as libc::c_int {
-            luaX_syntaxerror((*fs).ls, "function or expression needs too many registers")?;
+            return Err(luaX_syntaxerror(
+                (*fs).ls,
+                "function or expression needs too many registers",
+            ));
         }
         (*(*fs).f).maxstacksize = newstack as u8;
     }
@@ -686,7 +677,7 @@ pub unsafe fn luaK_checkstack(
 pub unsafe fn luaK_reserveregs(
     mut fs: *mut FuncState,
     mut n: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     luaK_checkstack(fs, n)?;
     (*fs).freereg = ((*fs).freereg as libc::c_int + n) as u8;
     Ok(())
@@ -735,16 +726,16 @@ unsafe fn addk(
     mut fs: *mut FuncState,
     mut key: *mut TValue,
     mut v: *mut TValue,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<c_int, ParseError> {
     let mut val: TValue = TValue {
         value_: Value {
             gc: 0 as *mut Object,
         },
         tt_: 0,
     };
-    let mut L = (*(*fs).ls).L;
+
     let mut f: *mut Proto = (*fs).f;
-    let mut idx: *const TValue = luaH_get((*(*fs).ls).h, key);
+    let mut idx: *const TValue = luaH_get((*(*fs).ls).h.deref(), key);
     let mut k: libc::c_int = 0;
     let mut oldsize: libc::c_int = 0;
     if (*idx).tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
@@ -752,7 +743,7 @@ unsafe fn addk(
         if k < (*fs).nk
             && (*((*f).k).offset(k as isize)).tt_ as libc::c_int & 0x3f as libc::c_int
                 == (*v).tt_ as libc::c_int & 0x3f as libc::c_int
-            && luaV_equalobj(0 as *mut Thread, &mut *((*f).k).offset(k as isize), v)? != 0
+            && luaV_equalobj(0 as *mut Thread, &mut *((*f).k).offset(k as isize), v).unwrap() != 0
         {
             return Ok(k);
         }
@@ -762,9 +753,16 @@ unsafe fn addk(
     let mut io: *mut TValue = &mut val;
     (*io).value_.i = k as i64;
     (*io).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
-    luaH_finishset((*L).global, (*(*fs).ls).h, key, idx, &mut val).unwrap(); // This should never fails.
+    luaH_finishset(
+        (*(*fs).ls).g.deref(),
+        (*(*fs).ls).h.deref(),
+        key,
+        idx,
+        &mut val,
+    )
+    .unwrap(); // This should never fails.
     (*f).k = luaM_growaux_(
-        L,
+        &(*(*fs).ls).g,
         (*f).k as *mut libc::c_void,
         k,
         &mut (*f).sizek,
@@ -781,7 +779,7 @@ unsafe fn addk(
             (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<TValue>())
                 as libc::c_uint
         }) as libc::c_int,
-        b"constants\0" as *const u8 as *const libc::c_char,
+        "constants",
     )? as *mut TValue;
     while oldsize < (*f).sizek {
         let fresh3 = oldsize;
@@ -801,7 +799,11 @@ unsafe fn addk(
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            luaC_barrier_((*L).global, f as *mut Object, (*v).value_.gc as *mut Object);
+            luaC_barrier_(
+                (*(*fs).ls).g.deref(),
+                f as *mut Object,
+                (*v).value_.gc as *mut Object,
+            );
         } else {
         };
     } else {
@@ -809,10 +811,7 @@ unsafe fn addk(
     return Ok(k);
 }
 
-unsafe fn stringK(
-    mut fs: *mut FuncState,
-    mut s: *mut TString,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn stringK(mut fs: *mut FuncState, mut s: *mut TString) -> Result<c_int, ParseError> {
     let mut o: TValue = TValue {
         value_: Value {
             gc: 0 as *mut Object,
@@ -826,10 +825,7 @@ unsafe fn stringK(
     return addk(fs, &mut o, &mut o);
 }
 
-unsafe fn luaK_intK(
-    mut fs: *mut FuncState,
-    mut n: i64,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn luaK_intK(mut fs: *mut FuncState, mut n: i64) -> Result<c_int, ParseError> {
     let mut o: TValue = TValue {
         value_: Value {
             gc: 0 as *mut Object,
@@ -842,10 +838,7 @@ unsafe fn luaK_intK(
     return addk(fs, &mut o, &mut o);
 }
 
-unsafe fn luaK_numberK(
-    mut fs: *mut FuncState,
-    mut r: f64,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn luaK_numberK(mut fs: *mut FuncState, mut r: f64) -> Result<c_int, ParseError> {
     let mut o: TValue = TValue {
         value_: Value {
             gc: 0 as *mut Object,
@@ -879,7 +872,7 @@ unsafe fn luaK_numberK(
     };
 }
 
-unsafe fn boolF(mut fs: *mut FuncState) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn boolF(mut fs: *mut FuncState) -> Result<c_int, ParseError> {
     let mut o: TValue = TValue {
         value_: Value {
             gc: 0 as *mut Object,
@@ -890,7 +883,7 @@ unsafe fn boolF(mut fs: *mut FuncState) -> Result<c_int, Box<dyn std::error::Err
     return addk(fs, &mut o, &mut o);
 }
 
-unsafe fn boolT(mut fs: *mut FuncState) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn boolT(mut fs: *mut FuncState) -> Result<c_int, ParseError> {
     let mut o: TValue = TValue {
         value_: Value {
             gc: 0 as *mut Object,
@@ -901,7 +894,7 @@ unsafe fn boolT(mut fs: *mut FuncState) -> Result<c_int, Box<dyn std::error::Err
     return addk(fs, &mut o, &mut o);
 }
 
-unsafe fn nilK(mut fs: *mut FuncState) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn nilK(mut fs: *mut FuncState) -> Result<c_int, ParseError> {
     let mut k: TValue = TValue {
         value_: Value {
             gc: 0 as *mut Object,
@@ -916,22 +909,22 @@ unsafe fn nilK(mut fs: *mut FuncState) -> Result<c_int, Box<dyn std::error::Erro
     };
     v.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     let mut io: *mut TValue = &mut k;
-    let mut x_: *mut Table = (*(*fs).ls).h;
-    (*io).value_.gc = x_ as *mut Object;
+
+    (*io).value_.gc = &(*(*fs).ls).h.hdr;
     (*io).tt_ = (5 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     return addk(fs, &mut k, &mut v);
 }
 
-unsafe extern "C" fn fitsC(mut i: i64) -> libc::c_int {
+unsafe fn fitsC(mut i: i64) -> libc::c_int {
     return ((i as u64).wrapping_add(
         (((1 as libc::c_int) << 8 as libc::c_int) - 1 as libc::c_int >> 1 as libc::c_int) as u64,
     ) <= (((1 as libc::c_int) << 8 as libc::c_int) - 1 as libc::c_int) as libc::c_uint
         as u64) as libc::c_int;
 }
 
-unsafe extern "C" fn fitsBx(mut i: i64) -> libc::c_int {
+unsafe fn fitsBx(mut i: i64) -> libc::c_int {
     return (-(((1 as libc::c_int) << 8 as libc::c_int + 8 as libc::c_int + 1 as libc::c_int)
         - 1 as libc::c_int
         >> 1 as libc::c_int) as i64
@@ -947,7 +940,7 @@ pub unsafe fn luaK_int(
     mut fs: *mut FuncState,
     mut reg: libc::c_int,
     mut i: i64,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     if fitsBx(i) != 0 {
         codeAsBx(fs, OP_LOADI, reg, i as libc::c_int)?;
     } else {
@@ -961,7 +954,7 @@ unsafe fn luaK_float(
     mut fs: *mut FuncState,
     mut reg: libc::c_int,
     mut f: f64,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut fi: i64 = 0;
     if luaV_flttointeger(f, &mut fi, F2Ieq) != 0 && fitsBx(fi) != 0 {
         codeAsBx(fs, OP_LOADF, reg, fi as libc::c_int)?;
@@ -1003,7 +996,7 @@ pub unsafe fn luaK_setreturns(
     mut fs: *mut FuncState,
     mut e: *mut expdesc,
     mut nresults: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut pc: *mut u32 = &mut *((*(*fs).f).code).offset((*e).u.info as isize) as *mut u32;
     if (*e).k as libc::c_uint == VCALL as libc::c_int as libc::c_uint {
         *pc = *pc
@@ -1056,17 +1049,13 @@ pub unsafe fn luaK_setreturns(
     Ok(())
 }
 
-unsafe fn str2K(
-    mut fs: *mut FuncState,
-    mut e: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn str2K(mut fs: *mut FuncState, mut e: *mut expdesc) -> Result<(), ParseError> {
     (*e).u.info = stringK(fs, (*e).u.strval)?;
     (*e).k = VK;
     Ok(())
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaK_setoneret(mut fs: *mut FuncState, mut e: *mut expdesc) {
+pub unsafe fn luaK_setoneret(mut fs: *mut FuncState, mut e: *mut expdesc) {
     if (*e).k as libc::c_uint == VCALL as libc::c_int as libc::c_uint {
         (*e).k = VNONRELOC;
         (*e).u.info = (*((*(*fs).f).code).offset((*e).u.info as isize)
@@ -1101,7 +1090,7 @@ pub unsafe extern "C" fn luaK_setoneret(mut fs: *mut FuncState, mut e: *mut expd
 pub unsafe fn luaK_dischargevars(
     mut fs: *mut FuncState,
     mut e: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     match (*e).k as libc::c_uint {
         11 => {
             const2exp(const2val(fs, e), e);
@@ -1185,7 +1174,7 @@ unsafe fn discharge2reg(
     mut fs: *mut FuncState,
     mut e: *mut expdesc,
     mut reg: c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     luaK_dischargevars(fs, e)?;
     let mut current_block_14: u64;
     match (*e).k as libc::c_uint {
@@ -1266,10 +1255,7 @@ unsafe fn discharge2reg(
     Ok(())
 }
 
-unsafe fn discharge2anyreg(
-    mut fs: *mut FuncState,
-    mut e: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn discharge2anyreg(mut fs: *mut FuncState, mut e: *mut expdesc) -> Result<(), ParseError> {
     if (*e).k as libc::c_uint != VNONRELOC as libc::c_int as libc::c_uint {
         luaK_reserveregs(fs, 1 as libc::c_int)?;
         discharge2reg(fs, e, (*fs).freereg as libc::c_int - 1 as libc::c_int)?;
@@ -1281,7 +1267,7 @@ unsafe fn code_loadbool(
     mut fs: *mut FuncState,
     mut A: libc::c_int,
     mut op: OpCode,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<c_int, ParseError> {
     luaK_getlabel(fs);
     return luaK_codeABCk(
         fs,
@@ -1293,7 +1279,7 @@ unsafe fn code_loadbool(
     );
 }
 
-unsafe extern "C" fn need_value(mut fs: *mut FuncState, mut list: libc::c_int) -> libc::c_int {
+unsafe fn need_value(mut fs: *mut FuncState, mut list: libc::c_int) -> libc::c_int {
     while list != -(1 as libc::c_int) {
         let mut i: u32 = *getjumpcontrol(fs, list);
         if (i >> 0 as libc::c_int
@@ -1312,7 +1298,7 @@ unsafe fn exp2reg(
     mut fs: *mut FuncState,
     mut e: *mut expdesc,
     mut reg: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     discharge2reg(fs, e, reg)?;
     if (*e).k as libc::c_uint == VJMP as libc::c_int as libc::c_uint {
         luaK_concat(fs, &mut (*e).t, (*e).u.info)?;
@@ -1346,7 +1332,7 @@ unsafe fn exp2reg(
 pub unsafe fn luaK_exp2nextreg(
     mut fs: *mut FuncState,
     mut e: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     luaK_dischargevars(fs, e)?;
     freeexp(fs, e);
     luaK_reserveregs(fs, 1 as libc::c_int)?;
@@ -1356,7 +1342,7 @@ pub unsafe fn luaK_exp2nextreg(
 pub unsafe fn luaK_exp2anyreg(
     mut fs: *mut FuncState,
     mut e: *mut expdesc,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<c_int, ParseError> {
     luaK_dischargevars(fs, e)?;
     if (*e).k as libc::c_uint == VNONRELOC as libc::c_int as libc::c_uint {
         if !((*e).t != (*e).f) {
@@ -1374,17 +1360,14 @@ pub unsafe fn luaK_exp2anyreg(
 pub unsafe fn luaK_exp2anyregup(
     mut fs: *mut FuncState,
     mut e: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     if (*e).k as libc::c_uint != VUPVAL as libc::c_int as libc::c_uint || (*e).t != (*e).f {
         luaK_exp2anyreg(fs, e)?;
     }
     Ok(())
 }
 
-pub unsafe fn luaK_exp2val(
-    mut fs: *mut FuncState,
-    mut e: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaK_exp2val(mut fs: *mut FuncState, mut e: *mut expdesc) -> Result<(), ParseError> {
     if (*e).t != (*e).f {
         luaK_exp2anyreg(fs, e)?;
     } else {
@@ -1393,10 +1376,7 @@ pub unsafe fn luaK_exp2val(
     Ok(())
 }
 
-unsafe fn luaK_exp2K(
-    mut fs: *mut FuncState,
-    mut e: *mut expdesc,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn luaK_exp2K(mut fs: *mut FuncState, mut e: *mut expdesc) -> Result<c_int, ParseError> {
     if !((*e).t != (*e).f) {
         let mut info: libc::c_int = 0;
         match (*e).k as libc::c_uint {
@@ -1432,10 +1412,7 @@ unsafe fn luaK_exp2K(
     return Ok(0 as libc::c_int);
 }
 
-unsafe fn exp2RK(
-    mut fs: *mut FuncState,
-    mut e: *mut expdesc,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn exp2RK(mut fs: *mut FuncState, mut e: *mut expdesc) -> Result<c_int, ParseError> {
     if luaK_exp2K(fs, e)? != 0 {
         return Ok(1 as libc::c_int);
     } else {
@@ -1450,7 +1427,7 @@ unsafe fn codeABRK(
     mut a: libc::c_int,
     mut b: libc::c_int,
     mut ec: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut k: libc::c_int = exp2RK(fs, ec)?;
     luaK_codeABCk(fs, o, a, b, (*ec).u.info, k)?;
     Ok(())
@@ -1460,7 +1437,7 @@ pub unsafe fn luaK_storevar(
     mut fs: *mut FuncState,
     mut var: *mut expdesc,
     mut ex: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     match (*var).k as libc::c_uint {
         9 => {
             freeexp(fs, ex);
@@ -1515,7 +1492,7 @@ pub unsafe fn luaK_self(
     mut fs: *mut FuncState,
     mut e: *mut expdesc,
     mut key: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut ereg: libc::c_int = 0;
     luaK_exp2anyreg(fs, e)?;
     ereg = (*e).u.info;
@@ -1546,7 +1523,7 @@ unsafe fn jumponcond(
     mut fs: *mut FuncState,
     mut e: *mut expdesc,
     mut cond: libc::c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<c_int, ParseError> {
     if (*e).k as libc::c_uint == VRELOC as libc::c_int as libc::c_uint {
         let mut ie: u32 = *((*(*fs).f).code).offset((*e).u.info as isize);
         if (ie >> 0 as libc::c_int
@@ -1579,10 +1556,7 @@ unsafe fn jumponcond(
     );
 }
 
-pub unsafe fn luaK_goiftrue(
-    mut fs: *mut FuncState,
-    mut e: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaK_goiftrue(mut fs: *mut FuncState, mut e: *mut expdesc) -> Result<(), ParseError> {
     let mut pc: libc::c_int = 0;
     luaK_dischargevars(fs, e)?;
     match (*e).k as libc::c_uint {
@@ -1606,7 +1580,7 @@ pub unsafe fn luaK_goiftrue(
 pub unsafe fn luaK_goiffalse(
     mut fs: *mut FuncState,
     mut e: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut pc: libc::c_int = 0;
     luaK_dischargevars(fs, e)?;
     match (*e).k as libc::c_uint {
@@ -1626,10 +1600,7 @@ pub unsafe fn luaK_goiffalse(
     Ok(())
 }
 
-unsafe fn codenot(
-    mut fs: *mut FuncState,
-    mut e: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn codenot(mut fs: *mut FuncState, mut e: *mut expdesc) -> Result<(), ParseError> {
     match (*e).k as libc::c_uint {
         1 | 3 => {
             (*e).k = VTRUE;
@@ -1717,7 +1688,7 @@ pub unsafe fn luaK_indexed(
     mut fs: *mut FuncState,
     mut t: *mut expdesc,
     mut k: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     if (*k).k as libc::c_uint == VKSTR as libc::c_int as libc::c_uint {
         str2K(fs, k)?;
     }
@@ -1749,11 +1720,7 @@ pub unsafe fn luaK_indexed(
     Ok(())
 }
 
-unsafe extern "C" fn validop(
-    mut op: libc::c_int,
-    mut v1: *mut TValue,
-    mut v2: *mut TValue,
-) -> libc::c_int {
+unsafe fn validop(mut op: libc::c_int, mut v1: *mut TValue, mut v2: *mut TValue) -> libc::c_int {
     match op {
         7 | 8 | 9 | 10 | 11 | 13 => {
             let mut i: i64 = 0;
@@ -1774,11 +1741,10 @@ unsafe extern "C" fn validop(
 }
 
 unsafe fn constfolding(
-    mut fs: *mut FuncState,
     mut op: libc::c_int,
     mut e1: *mut expdesc,
     mut e2: *const expdesc,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<c_int, ArithError> {
     let mut v1: TValue = TValue {
         value_: Value {
             gc: 0 as *mut Object,
@@ -1803,7 +1769,7 @@ unsafe fn constfolding(
     {
         return Ok(0 as libc::c_int);
     }
-    luaO_rawarith((*(*fs).ls).L, op, &mut v1, &mut v2, &mut res)?;
+    luaO_rawarith(op, &mut v1, &mut v2, &mut res)?;
     if res.tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
         (*e1).k = VKINT;
         (*e1).u.ival = res.value_.i;
@@ -1818,18 +1784,15 @@ unsafe fn constfolding(
     return Ok(1 as libc::c_int);
 }
 
-#[inline]
-unsafe extern "C" fn binopr2op(mut opr: BinOpr, mut baser: BinOpr, mut base: OpCode) -> OpCode {
+unsafe fn binopr2op(mut opr: BinOpr, mut baser: BinOpr, mut base: OpCode) -> OpCode {
     return (opr as libc::c_int - baser as libc::c_int + base as libc::c_int) as OpCode;
 }
 
-#[inline]
-unsafe extern "C" fn unopr2op(mut opr: UnOpr) -> OpCode {
+unsafe fn unopr2op(mut opr: UnOpr) -> OpCode {
     return (opr as libc::c_int - OPR_MINUS as libc::c_int + OP_UNM as libc::c_int) as OpCode;
 }
 
-#[inline]
-unsafe extern "C" fn binopr2TM(mut opr: BinOpr) -> TMS {
+unsafe fn binopr2TM(mut opr: BinOpr) -> TMS {
     return (opr as libc::c_int - OPR_ADD as libc::c_int + TM_ADD as libc::c_int) as TMS;
 }
 
@@ -1838,7 +1801,7 @@ unsafe fn codeunexpval(
     mut op: OpCode,
     mut e: *mut expdesc,
     mut line: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut r: libc::c_int = luaK_exp2anyreg(fs, e)?;
     freeexp(fs, e);
     (*e).u.info = luaK_codeABCk(
@@ -1864,7 +1827,7 @@ unsafe fn finishbinexpval(
     mut line: libc::c_int,
     mut mmop: OpCode,
     mut event: TMS,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut v1: libc::c_int = luaK_exp2anyreg(fs, e1)?;
     let mut pc: libc::c_int = luaK_codeABCk(fs, op, 0 as libc::c_int, v1, v2, 0 as libc::c_int)?;
     freeexps(fs, e1, e2);
@@ -1881,7 +1844,7 @@ unsafe fn codebinexpval(
     mut e1: *mut expdesc,
     mut e2: *mut expdesc,
     mut line: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut op: OpCode = binopr2op(opr, OPR_ADD, OP_ADD);
     let mut v2: libc::c_int = luaK_exp2anyreg(fs, e2)?;
     finishbinexpval(
@@ -1905,7 +1868,7 @@ unsafe fn codebini(
     mut flip: libc::c_int,
     mut line: libc::c_int,
     mut event: TMS,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut v2: libc::c_int = (*e2).u.ival as libc::c_int
         + (((1 as libc::c_int) << 8 as libc::c_int) - 1 as libc::c_int >> 1 as libc::c_int);
     finishbinexpval(fs, e1, e2, op, v2, flip, line, OP_MMBINI, event)
@@ -1918,7 +1881,7 @@ unsafe fn codebinK(
     mut e2: *mut expdesc,
     mut flip: libc::c_int,
     mut line: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut event: TMS = binopr2TM(opr);
     let mut v2: libc::c_int = (*e2).u.info;
     let mut op: OpCode = binopr2op(opr, OPR_ADD, OP_ADDK);
@@ -1932,7 +1895,7 @@ unsafe fn finishbinexpneg(
     mut op: OpCode,
     mut line: libc::c_int,
     mut event: TMS,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<c_int, ParseError> {
     if isKint(e2) == 0 {
         return Ok(0 as libc::c_int);
     } else {
@@ -1971,7 +1934,7 @@ unsafe fn finishbinexpneg(
     };
 }
 
-unsafe extern "C" fn swapexps(mut e1: *mut expdesc, mut e2: *mut expdesc) {
+unsafe fn swapexps(mut e1: *mut expdesc, mut e2: *mut expdesc) {
     let mut temp: expdesc = *e1;
     *e1 = *e2;
     *e2 = temp;
@@ -1984,7 +1947,7 @@ unsafe fn codebinNoK(
     mut e2: *mut expdesc,
     mut flip: libc::c_int,
     mut line: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     if flip != 0 {
         swapexps(e1, e2);
     }
@@ -1998,7 +1961,7 @@ unsafe fn codearith(
     mut e2: *mut expdesc,
     mut flip: libc::c_int,
     mut line: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     if tonumeral(e2, 0 as *mut TValue) != 0 && luaK_exp2K(fs, e2)? != 0 {
         codebinK(fs, opr, e1, e2, flip, line)
     } else {
@@ -2012,7 +1975,7 @@ unsafe fn codecommutative(
     mut e1: *mut expdesc,
     mut e2: *mut expdesc,
     mut line: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut flip: libc::c_int = 0 as libc::c_int;
     if tonumeral(e1, 0 as *mut TValue) != 0 {
         swapexps(e1, e2);
@@ -2032,7 +1995,7 @@ unsafe fn codebitwise(
     mut e1: *mut expdesc,
     mut e2: *mut expdesc,
     mut line: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut flip: libc::c_int = 0 as libc::c_int;
     if (*e1).k as libc::c_uint == VKINT as libc::c_int as libc::c_uint {
         swapexps(e1, e2);
@@ -2051,7 +2014,7 @@ unsafe fn codeorder(
     mut opr: BinOpr,
     mut e1: *mut expdesc,
     mut e2: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut r1: libc::c_int = 0;
     let mut r2: libc::c_int = 0;
     let mut im: libc::c_int = 0;
@@ -2081,7 +2044,7 @@ unsafe fn codeeq(
     mut opr: BinOpr,
     mut e1: *mut expdesc,
     mut e2: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut r1: libc::c_int = 0;
     let mut r2: libc::c_int = 0;
     let mut im: libc::c_int = 0;
@@ -2119,7 +2082,7 @@ pub unsafe fn luaK_prefix(
     mut opr: UnOpr,
     mut e: *mut expdesc,
     mut line: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     static mut ef: expdesc = {
         let mut init = expdesc {
             k: VKINT,
@@ -2136,12 +2099,13 @@ pub unsafe fn luaK_prefix(
     match opr as libc::c_uint {
         0 | 1 => {
             if constfolding(
-                fs,
                 (opr as libc::c_uint).wrapping_add(12 as libc::c_int as libc::c_uint)
                     as libc::c_int,
                 e,
                 &raw mut ef,
-            )? != 0
+            )
+            .map_err(|e| luaK_semerror((*fs).ls, e))?
+                != 0
             {
                 current_block_3 = 7815301370352969686;
             } else {
@@ -2172,7 +2136,7 @@ pub unsafe fn luaK_infix(
     mut fs: *mut FuncState,
     mut op: BinOpr,
     mut v: *mut expdesc,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     luaK_dischargevars(fs, v)?;
     match op as libc::c_uint {
         19 => luaK_goiftrue(fs, v)?,
@@ -2205,7 +2169,7 @@ unsafe fn codeconcat(
     mut e1: *mut expdesc,
     mut e2: *mut expdesc,
     mut line: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut ie2: *mut u32 = previousinstruction(fs);
     if (*ie2 >> 0 as libc::c_int
         & !(!(0 as libc::c_int as u32) << 7 as libc::c_int) << 0 as libc::c_int) as OpCode
@@ -2251,15 +2215,16 @@ pub unsafe fn luaK_posfix(
     mut e1: *mut expdesc,
     mut e2: *mut expdesc,
     mut line: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     luaK_dischargevars(fs, e2)?;
     if opr as libc::c_uint <= OPR_SHR as libc::c_int as libc::c_uint
         && constfolding(
-            fs,
             (opr as libc::c_uint).wrapping_add(0 as libc::c_int as libc::c_uint) as libc::c_int,
             e1,
             e2,
-        )? != 0
+        )
+        .map_err(|e| luaK_semerror((*fs).ls, e))?
+            != 0
     {
         return Ok(());
     }
@@ -2348,7 +2313,7 @@ pub unsafe fn luaK_posfix(
 pub unsafe fn luaK_fixline(
     mut fs: *mut FuncState,
     mut line: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     removelastlineinfo(fs);
     savelineinfo(fs, (*fs).f, line)
 }
@@ -2392,7 +2357,7 @@ pub unsafe fn luaK_setlist(
     mut base: libc::c_int,
     mut nelems: libc::c_int,
     mut tostore: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     if tostore == -(1 as libc::c_int) {
         tostore = 0 as libc::c_int;
     }
@@ -2436,7 +2401,7 @@ unsafe extern "C" fn finaltarget(mut code: *mut u32, mut i: libc::c_int) -> libc
     return i;
 }
 
-pub unsafe fn luaK_finish(mut fs: *mut FuncState) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaK_finish(mut fs: *mut FuncState) -> Result<(), ParseError> {
     let mut i: libc::c_int = 0;
     let mut p: *mut Proto = (*fs).f;
     i = 0 as libc::c_int;

@@ -11,7 +11,6 @@
 
 use crate::gc::luaC_fix;
 use crate::lctype::luai_ctype_;
-use crate::ldebug::luaG_addinfo;
 use crate::lmem::luaM_saferealloc_;
 use crate::lobject::{
     Node, TString, TValue, Table, Value, luaO_hexavalue, luaO_str2num, luaO_utf8esc,
@@ -20,10 +19,13 @@ use crate::lparser::{Dyndata, FuncState};
 use crate::lstring::luaS_newlstr;
 use crate::ltable::{luaH_finishset, luaH_getstr};
 use crate::lzio::{Mbuffer, ZIO};
-use crate::{ChunkInfo, Lua, Object, Thread};
+use crate::{ChunkInfo, Lua, Object, ParseError, Ref};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
 use std::fmt::Display;
+use std::ops::Deref;
+use std::pin::Pin;
+use std::rc::Rc;
 
 pub type RESERVED = libc::c_uint;
 pub const TK_STRING: RESERVED = 292;
@@ -86,10 +88,10 @@ pub struct LexState {
     pub t: Token,
     pub lookahead: Token,
     pub fs: *mut FuncState,
-    pub L: *const Thread,
+    pub g: Pin<Rc<Lua>>,
     pub z: *mut ZIO,
     pub buff: *mut Mbuffer,
-    pub h: *mut Table,
+    pub h: Ref<Table>,
     pub dyd: *mut Dyndata,
     pub source: ChunkInfo,
     pub envn: *mut TString,
@@ -135,37 +137,23 @@ const luaX_tokens: [&str; 37] = [
     "<string>",
 ];
 
-unsafe fn save(
-    mut ls: *mut LexState,
-    mut c: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn save(mut ls: *mut LexState, mut c: libc::c_int) {
     let mut b: *mut Mbuffer = (*ls).buff;
     if ((*b).n).wrapping_add(1 as libc::c_int as usize) > (*b).buffsize {
-        let mut newsize: usize = 0;
-        if (*b).buffsize
-            >= (if (::core::mem::size_of::<usize>() as libc::c_ulong)
-                < ::core::mem::size_of::<i64>() as libc::c_ulong
-            {
-                !(0 as libc::c_int as usize)
-            } else {
-                0x7fffffffffffffff as libc::c_longlong as usize
-            }) / 2 as libc::c_int as usize
-        {
-            lexerror(ls, "lexical element too long", 0 as libc::c_int)?;
-        }
-        newsize = (*b).buffsize * 2 as libc::c_int as usize;
+        let newsize = (*b).buffsize * 2 as libc::c_int as usize;
+
         (*b).buffer = luaM_saferealloc_(
-            (*(*ls).L).global,
+            (*ls).g.deref(),
             (*b).buffer as *mut libc::c_void,
             ((*b).buffsize).wrapping_mul(::core::mem::size_of::<libc::c_char>()),
             newsize.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
         ) as *mut libc::c_char;
+
         (*b).buffsize = newsize;
     }
     let fresh0 = (*b).n;
     (*b).n = ((*b).n).wrapping_add(1);
     *((*b).buffer).offset(fresh0 as isize) = c as libc::c_char;
-    Ok(())
 }
 
 pub unsafe fn luaX_init(mut g: *const Lua) {
@@ -211,42 +199,32 @@ pub unsafe fn luaX_token2str(mut token: libc::c_int) -> Cow<'static, str> {
     };
 }
 
-unsafe fn txtToken(
-    mut ls: *mut LexState,
-    mut token: libc::c_int,
-) -> Result<Cow<'static, str>, Box<dyn std::error::Error>> {
+unsafe fn txtToken(mut ls: *mut LexState, mut token: libc::c_int) -> Cow<'static, str> {
     match token {
         291 | 292 | 289 | 290 => {
-            save(ls, '\0' as i32)?;
-            return Ok(format!(
+            save(ls, '\0' as i32);
+
+            format!(
                 "'{}'",
                 CStr::from_ptr((*(*ls).buff).buffer).to_string_lossy()
             )
-            .into());
+            .into()
         }
-        _ => return Ok(luaX_token2str(token)),
-    };
+        _ => luaX_token2str(token),
+    }
 }
 
-unsafe fn lexerror(
-    mut ls: *mut LexState,
-    msg: impl Display,
-    mut token: c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let msg = luaG_addinfo(msg, &(*ls).source, (*ls).linenumber);
-    let msg = if token != 0 {
-        format!("{} near {}", msg, txtToken(ls, token)?)
+unsafe fn lexerror(mut ls: *mut LexState, msg: impl Display, mut token: c_int) -> ParseError {
+    let token = if token != 0 {
+        Some(txtToken(ls, token))
     } else {
-        msg
+        None
     };
 
-    Err(msg.into())
+    ParseError::Source(msg.to_string(), token, (*ls).linenumber)
 }
 
-pub unsafe fn luaX_syntaxerror(
-    mut ls: *mut LexState,
-    msg: impl Display,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaX_syntaxerror(mut ls: *mut LexState, msg: impl Display) -> ParseError {
     lexerror(ls, msg, (*ls).t.token)
 }
 
@@ -255,34 +233,29 @@ pub unsafe fn luaX_newstring(
     mut str: *const libc::c_char,
     mut l: usize,
 ) -> *mut TString {
-    let mut L = (*ls).L;
-    let mut ts: *mut TString = luaS_newlstr((*L).global, str, l);
-    let mut o: *const TValue = luaH_getstr((*ls).h, ts);
+    let mut ts: *mut TString = luaS_newlstr((*ls).g.deref(), str, l);
+    let mut o: *const TValue = luaH_getstr((*ls).h.deref(), ts);
+
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
         ts = ((*(o as *mut Node)).u.key_val.gc as *mut TString);
     } else {
-        let fresh1 = (*L).top.get();
-        (*L).top.add(1);
-        let mut stv: *mut TValue = &raw mut (*fresh1).val;
-        let mut io: *mut TValue = stv;
-        let mut x_: *mut TString = ts;
+        let ts = Ref::new((*ls).g.clone(), ts);
+        let stv = TValue {
+            value_: Value { gc: &ts.hdr },
+            tt_: ((*ts).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8,
+        };
 
-        (*io).value_.gc = (x_ as *mut Object);
-        (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+        luaH_finishset((*ls).g.deref(), (*ls).h.deref(), &stv, o, &stv).unwrap(); // This should never fails.
 
-        luaH_finishset((*L).global, (*ls).h, stv, o, stv).unwrap(); // This should never fails.
-
-        if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-            crate::gc::step((*L).global);
+        if ((*ls).g).gc.debt() > 0 as libc::c_int as isize {
+            crate::gc::step((*ls).g.deref());
         }
-
-        (*L).top.sub(1);
     }
 
     ts
 }
 
-unsafe fn inclinenumber(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn inclinenumber(mut ls: *mut LexState) {
     let mut old: libc::c_int = (*ls).current;
     let fresh2 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -304,21 +277,11 @@ unsafe fn inclinenumber(mut ls: *mut LexState) -> Result<(), Box<dyn std::error:
             -1
         };
     }
-    (*ls).linenumber += 1;
-    if (*ls).linenumber >= 2147483647 as libc::c_int {
-        lexerror(ls, "chunk has too many lines", 0 as libc::c_int)?;
-    }
-    Ok(())
+    (*ls).linenumber = (*ls).linenumber.checked_add(1).unwrap();
 }
 
-pub unsafe fn luaX_setinput(
-    mut L: *const Thread,
-    mut ls: *mut LexState,
-    mut z: *mut ZIO,
-    mut firstchar: libc::c_int,
-) {
+pub unsafe fn luaX_setinput(mut ls: *mut LexState, mut z: *mut ZIO, mut firstchar: libc::c_int) {
     (*ls).t.token = 0 as libc::c_int;
-    (*ls).L = L;
     (*ls).current = firstchar;
     (*ls).lookahead.token = TK_EOS as libc::c_int;
     (*ls).z = z;
@@ -326,14 +289,14 @@ pub unsafe fn luaX_setinput(
     (*ls).linenumber = 1 as libc::c_int;
     (*ls).lastline = 1 as libc::c_int;
     (*ls).envn = luaS_newlstr(
-        (*L).global,
+        (*ls).g.deref(),
         b"_ENV\0" as *const u8 as *const libc::c_char,
         ::core::mem::size_of::<[libc::c_char; 5]>()
             .wrapping_div(::core::mem::size_of::<libc::c_char>())
             .wrapping_sub(1),
     );
     (*(*ls).buff).buffer = luaM_saferealloc_(
-        (*(*ls).L).global,
+        (*ls).g.deref(),
         (*(*ls).buff).buffer as *mut libc::c_void,
         ((*(*ls).buff).buffsize).wrapping_mul(::core::mem::size_of::<libc::c_char>()),
         32usize.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
@@ -341,10 +304,7 @@ pub unsafe fn luaX_setinput(
     (*(*ls).buff).buffsize = 32 as libc::c_int as usize;
 }
 
-unsafe fn check_next1(
-    mut ls: *mut LexState,
-    mut c: libc::c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn check_next1(mut ls: *mut LexState, mut c: libc::c_int) -> c_int {
     if (*ls).current == c {
         let fresh6 = (*(*ls).z).n;
         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -355,20 +315,17 @@ unsafe fn check_next1(
         } else {
             -1
         };
-        return Ok(1 as libc::c_int);
+        return 1 as libc::c_int;
     } else {
-        return Ok(0 as libc::c_int);
+        return 0 as libc::c_int;
     };
 }
 
-unsafe fn check_next2(
-    mut ls: *mut LexState,
-    mut set: *const libc::c_char,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn check_next2(mut ls: *mut LexState, mut set: *const libc::c_char) -> c_int {
     if (*ls).current == *set.offset(0 as libc::c_int as isize) as libc::c_int
         || (*ls).current == *set.offset(1 as libc::c_int as isize) as libc::c_int
     {
-        save(ls, (*ls).current)?;
+        save(ls, (*ls).current);
         let fresh8 = (*(*ls).z).n;
         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
         (*ls).current = (if fresh8 > 0 as libc::c_int as usize {
@@ -378,16 +335,16 @@ unsafe fn check_next2(
         } else {
             -1
         });
-        return Ok(1 as libc::c_int);
+        return 1 as libc::c_int;
     } else {
-        return Ok(0 as libc::c_int);
+        return 0 as libc::c_int;
     };
 }
 
 unsafe fn read_numeral(
     mut ls: *mut LexState,
     mut seminfo: *mut SemInfo,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<c_int, ParseError> {
     let mut obj: TValue = TValue {
         value_: Value {
             gc: 0 as *mut Object,
@@ -396,7 +353,7 @@ unsafe fn read_numeral(
     };
     let mut expo: *const libc::c_char = b"Ee\0" as *const u8 as *const libc::c_char;
     let mut first: libc::c_int = (*ls).current;
-    save(ls, (*ls).current)?;
+    save(ls, (*ls).current);
     let fresh10 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
     (*ls).current = (if fresh10 > 0 as libc::c_int as usize {
@@ -406,12 +363,12 @@ unsafe fn read_numeral(
     } else {
         -1
     });
-    if first == '0' as i32 && check_next2(ls, b"xX\0" as *const u8 as *const libc::c_char)? != 0 {
+    if first == '0' as i32 && check_next2(ls, b"xX\0" as *const u8 as *const libc::c_char) != 0 {
         expo = b"Pp\0" as *const u8 as *const libc::c_char;
     }
     loop {
-        if check_next2(ls, expo)? != 0 {
-            check_next2(ls, b"-+\0" as *const u8 as *const libc::c_char)?;
+        if check_next2(ls, expo) != 0 {
+            check_next2(ls, b"-+\0" as *const u8 as *const libc::c_char);
         } else {
             if !(luai_ctype_[((*ls).current + 1 as libc::c_int) as usize] as libc::c_int
                 & (1 as libc::c_int) << 4 as libc::c_int
@@ -420,7 +377,7 @@ unsafe fn read_numeral(
             {
                 break;
             }
-            save(ls, (*ls).current)?;
+            save(ls, (*ls).current);
             let fresh12 = (*(*ls).z).n;
             (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
             (*ls).current = (if fresh12 > 0 as libc::c_int as usize {
@@ -436,7 +393,7 @@ unsafe fn read_numeral(
         & (1 as libc::c_int) << 0 as libc::c_int
         != 0
     {
-        save(ls, (*ls).current)?;
+        save(ls, (*ls).current);
         let fresh14 = (*(*ls).z).n;
         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
         (*ls).current = (if fresh14 > 0 as libc::c_int as usize {
@@ -447,9 +404,9 @@ unsafe fn read_numeral(
             -1
         });
     }
-    save(ls, '\0' as i32)?;
+    save(ls, '\0' as i32);
     if luaO_str2num((*(*ls).buff).buffer, &mut obj) == 0 as libc::c_int as usize {
-        lexerror(ls, "malformed number", TK_FLT as libc::c_int)?;
+        return Err(lexerror(ls, "malformed number", TK_FLT as libc::c_int));
     }
     if obj.tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
         (*seminfo).i = obj.value_.i;
@@ -460,10 +417,10 @@ unsafe fn read_numeral(
     };
 }
 
-unsafe fn skip_sep(mut ls: *mut LexState) -> Result<usize, Box<dyn std::error::Error>> {
+unsafe fn skip_sep(mut ls: *mut LexState) -> usize {
     let mut count: usize = 0 as libc::c_int as usize;
     let mut s: libc::c_int = (*ls).current;
-    save(ls, (*ls).current)?;
+    save(ls, (*ls).current);
     let fresh16 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
     (*ls).current = (if fresh16 > 0 as libc::c_int as usize {
@@ -474,7 +431,7 @@ unsafe fn skip_sep(mut ls: *mut LexState) -> Result<usize, Box<dyn std::error::E
         -1
     });
     while (*ls).current == '=' as i32 {
-        save(ls, (*ls).current)?;
+        save(ls, (*ls).current);
         let fresh18 = (*(*ls).z).n;
         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
         (*ls).current = (if fresh18 > 0 as libc::c_int as usize {
@@ -487,13 +444,13 @@ unsafe fn skip_sep(mut ls: *mut LexState) -> Result<usize, Box<dyn std::error::E
         count = count.wrapping_add(1);
     }
     return if (*ls).current == s {
-        Ok(count.wrapping_add(2 as libc::c_int as usize))
+        count.wrapping_add(2 as libc::c_int as usize)
     } else {
-        Ok((if count == 0 as libc::c_int as usize {
+        (if count == 0 as libc::c_int as usize {
             1 as libc::c_int
         } else {
             0 as libc::c_int
-        }) as usize)
+        }) as usize
     };
 }
 
@@ -501,9 +458,9 @@ unsafe fn read_long_string(
     mut ls: *mut LexState,
     mut seminfo: *mut SemInfo,
     mut sep: usize,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut line: libc::c_int = (*ls).linenumber;
-    save(ls, (*ls).current)?;
+    save(ls, (*ls).current);
     let fresh20 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
     (*ls).current = (if fresh20 > 0 as libc::c_int as usize {
@@ -514,7 +471,7 @@ unsafe fn read_long_string(
         -1
     });
     if (*ls).current == '\n' as i32 || (*ls).current == '\r' as i32 {
-        inclinenumber(ls)?;
+        inclinenumber(ls);
     }
     loop {
         match (*ls).current {
@@ -525,17 +482,17 @@ unsafe fn read_long_string(
                     "comment"
                 };
 
-                lexerror(
+                return Err(lexerror(
                     ls,
                     format_args!("unfinished long {what} (starting at line {line})"),
                     TK_EOS as libc::c_int,
-                )?;
+                ));
             }
             93 => {
-                if !(skip_sep(ls)? == sep) {
+                if !(skip_sep(ls) == sep) {
                     continue;
                 }
-                save(ls, (*ls).current)?;
+                save(ls, (*ls).current);
                 let fresh22 = (*(*ls).z).n;
                 (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
                 (*ls).current = (if fresh22 > 0 as libc::c_int as usize {
@@ -548,15 +505,15 @@ unsafe fn read_long_string(
                 break;
             }
             10 | 13 => {
-                save(ls, '\n' as i32)?;
-                inclinenumber(ls)?;
+                save(ls, '\n' as i32);
+                inclinenumber(ls);
                 if seminfo.is_null() {
                     (*(*ls).buff).n = 0 as libc::c_int as usize;
                 }
             }
             _ => {
                 if !seminfo.is_null() {
-                    save(ls, (*ls).current)?;
+                    save(ls, (*ls).current);
                     let fresh24 = (*(*ls).z).n;
                     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
                     (*ls).current = (if fresh24 > 0 as libc::c_int as usize {
@@ -595,10 +552,10 @@ unsafe fn esccheck(
     mut ls: *mut LexState,
     mut c: libc::c_int,
     msg: impl Display,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     if c == 0 {
         if (*ls).current != -(1 as libc::c_int) {
-            save(ls, (*ls).current)?;
+            save(ls, (*ls).current);
             let fresh28 = (*(*ls).z).n;
             (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
             (*ls).current = (if fresh28 > 0 as libc::c_int as usize {
@@ -609,13 +566,14 @@ unsafe fn esccheck(
                 -1
             });
         }
-        lexerror(ls, msg, TK_STRING as libc::c_int)?;
+
+        return Err(lexerror(ls, msg, TK_STRING as libc::c_int));
     }
     Ok(())
 }
 
-unsafe fn gethexa(mut ls: *mut LexState) -> Result<c_int, Box<dyn std::error::Error>> {
-    save(ls, (*ls).current)?;
+unsafe fn gethexa(mut ls: *mut LexState) -> Result<c_int, ParseError> {
+    save(ls, (*ls).current);
     let fresh30 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
     (*ls).current = (if fresh30 > 0 as libc::c_int as usize {
@@ -634,17 +592,17 @@ unsafe fn gethexa(mut ls: *mut LexState) -> Result<c_int, Box<dyn std::error::Er
     return Ok(luaO_hexavalue((*ls).current));
 }
 
-unsafe fn readhexaesc(mut ls: *mut LexState) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn readhexaesc(mut ls: *mut LexState) -> Result<c_int, ParseError> {
     let mut r: libc::c_int = gethexa(ls)?;
     r = (r << 4 as libc::c_int) + gethexa(ls)?;
     (*(*ls).buff).n = ((*(*ls).buff).n).wrapping_sub(2 as libc::c_int as usize);
     return Ok(r);
 }
 
-unsafe fn readutf8esc(mut ls: *mut LexState) -> Result<libc::c_ulong, Box<dyn std::error::Error>> {
+unsafe fn readutf8esc(mut ls: *mut LexState) -> Result<libc::c_ulong, ParseError> {
     let mut r: libc::c_ulong = 0;
     let mut i: libc::c_int = 4 as libc::c_int;
-    save(ls, (*ls).current)?;
+    save(ls, (*ls).current);
     let fresh32 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
     (*ls).current = (if fresh32 > 0 as libc::c_int as usize {
@@ -661,7 +619,7 @@ unsafe fn readutf8esc(mut ls: *mut LexState) -> Result<libc::c_ulong, Box<dyn st
     )?;
     r = gethexa(ls)? as libc::c_ulong;
     loop {
-        save(ls, (*ls).current)?;
+        save(ls, (*ls).current);
         let fresh34 = (*(*ls).z).n;
         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
         (*ls).current = (if fresh34 > 0 as libc::c_int as usize {
@@ -703,17 +661,17 @@ unsafe fn readutf8esc(mut ls: *mut LexState) -> Result<libc::c_ulong, Box<dyn st
     return Ok(r);
 }
 
-unsafe fn utf8esc(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn utf8esc(mut ls: *mut LexState) -> Result<(), ParseError> {
     let mut buff: [libc::c_char; 8] = [0; 8];
     let mut n: libc::c_int = luaO_utf8esc(buff.as_mut_ptr(), readutf8esc(ls)?);
     while n > 0 as libc::c_int {
-        save(ls, buff[(8 as libc::c_int - n) as usize] as libc::c_int)?;
+        save(ls, buff[(8 as libc::c_int - n) as usize] as libc::c_int);
         n -= 1;
     }
     Ok(())
 }
 
-unsafe fn readdecesc(mut ls: *mut LexState) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn readdecesc(mut ls: *mut LexState) -> Result<c_int, ParseError> {
     let mut i: libc::c_int = 0;
     let mut r: libc::c_int = 0 as libc::c_int;
     i = 0 as libc::c_int;
@@ -723,7 +681,7 @@ unsafe fn readdecesc(mut ls: *mut LexState) -> Result<c_int, Box<dyn std::error:
             != 0
     {
         r = 10 as libc::c_int * r + (*ls).current - '0' as i32;
-        save(ls, (*ls).current)?;
+        save(ls, (*ls).current);
         let fresh38 = (*(*ls).z).n;
         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
         (*ls).current = (if fresh38 > 0 as libc::c_int as usize {
@@ -748,9 +706,9 @@ unsafe fn read_string(
     mut ls: *mut LexState,
     mut del: libc::c_int,
     mut seminfo: *mut SemInfo,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ParseError> {
     let mut current_block: u64;
-    save(ls, (*ls).current)?;
+    save(ls, (*ls).current);
     let fresh40 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
     (*ls).current = (if fresh40 > 0 as libc::c_int as usize {
@@ -762,11 +720,11 @@ unsafe fn read_string(
     });
     while (*ls).current != del {
         match (*ls).current {
-            -1 => lexerror(ls, "unfinished string", TK_EOS as libc::c_int)?,
-            10 | 13 => lexerror(ls, "unfinished string", TK_STRING as libc::c_int)?,
+            -1 => return Err(lexerror(ls, "unfinished string", TK_EOS as libc::c_int)),
+            10 | 13 => return Err(lexerror(ls, "unfinished string", TK_STRING as libc::c_int)),
             92 => {
                 let mut c: libc::c_int = 0;
-                save(ls, (*ls).current)?;
+                save(ls, (*ls).current);
                 let fresh42 = (*(*ls).z).n;
                 (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
                 (*ls).current = (if fresh42 > 0 as libc::c_int as usize {
@@ -814,7 +772,7 @@ unsafe fn read_string(
                         continue;
                     }
                     10 | 13 => {
-                        inclinenumber(ls)?;
+                        inclinenumber(ls);
                         c = '\n' as i32;
                         current_block = 1600088076184679856;
                     }
@@ -842,7 +800,7 @@ unsafe fn read_string(
                             != 0
                         {
                             if (*ls).current == '\n' as i32 || (*ls).current == '\r' as i32 {
-                                inclinenumber(ls)?;
+                                inclinenumber(ls);
                             } else {
                                 let fresh46 = (*(*ls).z).n;
                                 (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -883,10 +841,10 @@ unsafe fn read_string(
                     _ => {}
                 }
                 (*(*ls).buff).n = ((*(*ls).buff).n).wrapping_sub(1 as libc::c_int as usize);
-                save(ls, c)?;
+                save(ls, c);
             }
             _ => {
-                save(ls, (*ls).current)?;
+                save(ls, (*ls).current);
                 let fresh50 = (*(*ls).z).n;
                 (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
                 (*ls).current = (if fresh50 > 0 as libc::c_int as usize {
@@ -899,7 +857,7 @@ unsafe fn read_string(
             }
         }
     }
-    save(ls, (*ls).current)?;
+    save(ls, (*ls).current);
     let fresh52 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
     (*ls).current = (if fresh52 > 0 as libc::c_int as usize {
@@ -917,15 +875,12 @@ unsafe fn read_string(
     Ok(())
 }
 
-unsafe fn llex(
-    mut ls: *mut LexState,
-    mut seminfo: *mut SemInfo,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn llex(mut ls: *mut LexState, mut seminfo: *mut SemInfo) -> Result<c_int, ParseError> {
     (*(*ls).buff).n = 0 as libc::c_int as usize;
     loop {
         let mut current_block_85: u64;
         match (*ls).current {
-            10 | 13 => inclinenumber(ls)?,
+            10 | 13 => inclinenumber(ls),
             32 | 12 | 9 | 11 => {
                 let fresh54 = (*(*ls).z).n;
                 (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -960,7 +915,7 @@ unsafe fn llex(
                     -1
                 };
                 if (*ls).current == '[' as i32 {
-                    let mut sep: usize = skip_sep(ls)?;
+                    let mut sep: usize = skip_sep(ls);
                     (*(*ls).buff).n = 0 as libc::c_int as usize;
                     if sep >= 2 as libc::c_int as usize {
                         read_long_string(ls, 0 as *mut SemInfo, sep)?;
@@ -992,16 +947,16 @@ unsafe fn llex(
                 }
             }
             91 => {
-                let mut sep_0: usize = skip_sep(ls)?;
+                let mut sep_0: usize = skip_sep(ls);
                 if sep_0 >= 2 as libc::c_int as usize {
                     read_long_string(ls, seminfo, sep_0)?;
                     return Ok(TK_STRING as libc::c_int);
                 } else if sep_0 == 0 as libc::c_int as usize {
-                    lexerror(
+                    return Err(lexerror(
                         ls,
                         "invalid long string delimiter",
                         TK_STRING as libc::c_int,
-                    )?;
+                    ));
                 }
                 return Ok('[' as i32);
             }
@@ -1015,7 +970,7 @@ unsafe fn llex(
                 } else {
                     -1
                 };
-                if check_next1(ls, '=' as i32)? != 0 {
+                if check_next1(ls, '=' as i32) != 0 {
                     return Ok(TK_EQ as libc::c_int);
                 } else {
                     return Ok('=' as i32);
@@ -1031,9 +986,9 @@ unsafe fn llex(
                 } else {
                     -1
                 };
-                if check_next1(ls, '=' as i32)? != 0 {
+                if check_next1(ls, '=' as i32) != 0 {
                     return Ok(TK_LE as libc::c_int);
-                } else if check_next1(ls, '<' as i32)? != 0 {
+                } else if check_next1(ls, '<' as i32) != 0 {
                     return Ok(TK_SHL as libc::c_int);
                 } else {
                     return Ok('<' as i32);
@@ -1049,9 +1004,9 @@ unsafe fn llex(
                 } else {
                     -1
                 };
-                if check_next1(ls, '=' as i32)? != 0 {
+                if check_next1(ls, '=' as i32) != 0 {
                     return Ok(TK_GE as libc::c_int);
-                } else if check_next1(ls, '>' as i32)? != 0 {
+                } else if check_next1(ls, '>' as i32) != 0 {
                     return Ok(TK_SHR as libc::c_int);
                 } else {
                     return Ok('>' as i32);
@@ -1067,7 +1022,7 @@ unsafe fn llex(
                 } else {
                     -1
                 };
-                if check_next1(ls, '/' as i32)? != 0 {
+                if check_next1(ls, '/' as i32) != 0 {
                     return Ok(TK_IDIV as libc::c_int);
                 } else {
                     return Ok('/' as i32);
@@ -1083,7 +1038,7 @@ unsafe fn llex(
                 } else {
                     -1
                 };
-                if check_next1(ls, '=' as i32)? != 0 {
+                if check_next1(ls, '=' as i32) != 0 {
                     return Ok(TK_NE as libc::c_int);
                 } else {
                     return Ok('~' as i32);
@@ -1099,7 +1054,7 @@ unsafe fn llex(
                 } else {
                     -1
                 };
-                if check_next1(ls, ':' as i32)? != 0 {
+                if check_next1(ls, ':' as i32) != 0 {
                     return Ok(TK_DBCOLON as libc::c_int);
                 } else {
                     return Ok(':' as i32);
@@ -1110,7 +1065,7 @@ unsafe fn llex(
                 return Ok(TK_STRING as libc::c_int);
             }
             46 => {
-                save(ls, (*ls).current)?;
+                save(ls, (*ls).current);
                 let fresh74 = (*(*ls).z).n;
                 (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
                 (*ls).current = (if fresh74 > 0 as libc::c_int as usize {
@@ -1120,8 +1075,8 @@ unsafe fn llex(
                 } else {
                     -1
                 });
-                if check_next1(ls, '.' as i32)? != 0 {
-                    if check_next1(ls, '.' as i32)? != 0 {
+                if check_next1(ls, '.' as i32) != 0 {
+                    if check_next1(ls, '.' as i32) != 0 {
                         return Ok(TK_DOTS as libc::c_int);
                     } else {
                         return Ok(TK_CONCAT as libc::c_int);
@@ -1146,7 +1101,7 @@ unsafe fn llex(
                 {
                     let mut ts: *mut TString = 0 as *mut TString;
                     loop {
-                        save(ls, (*ls).current)?;
+                        save(ls, (*ls).current);
                         let fresh76 = (*(*ls).z).n;
                         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
                         (*ls).current = (if fresh76 > 0 as libc::c_int as usize {
@@ -1194,7 +1149,7 @@ unsafe fn llex(
     }
 }
 
-pub unsafe fn luaX_next(mut ls: *mut LexState) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaX_next(mut ls: *mut LexState) -> Result<(), ParseError> {
     (*ls).lastline = (*ls).linenumber;
     if (*ls).lookahead.token != TK_EOS as libc::c_int {
         (*ls).t = (*ls).lookahead;
@@ -1205,7 +1160,7 @@ pub unsafe fn luaX_next(mut ls: *mut LexState) -> Result<(), Box<dyn std::error:
     Ok(())
 }
 
-pub unsafe fn luaX_lookahead(mut ls: *mut LexState) -> Result<c_int, Box<dyn std::error::Error>> {
+pub unsafe fn luaX_lookahead(mut ls: *mut LexState) -> Result<c_int, ParseError> {
     (*ls).lookahead.token = llex(ls, &mut (*ls).lookahead.seminfo)?;
     return Ok((*ls).lookahead.token);
 }
