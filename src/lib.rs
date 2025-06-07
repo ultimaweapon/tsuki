@@ -13,12 +13,12 @@ use self::lobject::{TString, TValue, Table};
 use self::lzio::Zio;
 use std::cell::{Cell, UnsafeCell};
 use std::ffi::c_int;
-use std::fmt::{Display, Formatter};
 use std::marker::PhantomPinned;
 use std::ops::Deref;
 use std::pin::Pin;
 use std::ptr::null_mut;
 use std::rc::Rc;
+use thiserror::Error;
 
 mod builder;
 mod error;
@@ -175,20 +175,15 @@ struct StringTable {
     size: libc::c_int,
 }
 
+/// Lua value.
+pub enum Value {}
+
 /// Represents an error when arithmetic operation fails.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ArithError {
+    #[error("attempt to perform 'n%0'")]
     ModZero,
+
+    #[error("attempt to divide by zero")]
     DivZero,
-}
-
-impl Display for ArithError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let v = match self {
-            Self::ModZero => "attempt to perform 'n%0'",
-            Self::DivZero => "attempt to divide by zero",
-        };
-
-        f.write_str(v)
-    }
 }

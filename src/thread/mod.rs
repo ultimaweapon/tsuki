@@ -8,7 +8,7 @@ use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
 use crate::lobject::{StackValue, StkId, UpVal};
 use crate::lstate::{CallInfo, lua_Hook};
-use crate::{Lua, LuaClosure, Object, Ref};
+use crate::{Lua, LuaClosure, Object, Ref, Value};
 use std::alloc::{Layout, handle_alloc_error};
 use std::cell::{Cell, UnsafeCell};
 use std::marker::PhantomPinned;
@@ -98,7 +98,11 @@ impl Thread {
     }
 
     /// Call a Lua function.
-    pub fn call(&self, f: &LuaClosure, args: impl Args) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn call(
+        &self,
+        f: &LuaClosure,
+        args: impl Args,
+    ) -> Result<Vec<Value>, Box<dyn std::error::Error>> {
         // Push function and its arguments.
         let nargs = args.len();
 
@@ -109,7 +113,9 @@ impl Thread {
         unsafe { args.push_to(self) };
 
         // Call.
-        unsafe { lua_pcall(self, nargs, 0) }
+        unsafe { lua_pcall(self, nargs, 0)? };
+
+        Ok(Vec::new())
     }
 
     pub(crate) fn global(&self) -> Pin<Rc<Lua>> {
