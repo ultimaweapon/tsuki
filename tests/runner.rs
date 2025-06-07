@@ -71,7 +71,7 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     // Setup Lua.
     let content = std::fs::read(&path).unwrap();
-    let lua = Builder::new().enable_all().build();
+    let lua = Builder::default().enable_all().build();
     let chunk = lua.load(
         ChunkInfo {
             name: path.to_string_lossy().into_owned(),

@@ -79,7 +79,7 @@ pub struct Lua {
     strt: UnsafeCell<StringTable>,
     l_registry: UnsafeCell<TValue>,
     nilvalue: UnsafeCell<TValue>,
-    seed: libc::c_uint,
+    seed: u32,
     gcstate: Cell<u8>,
     gcstopem: Cell<u8>,
     gcstp: Cell<u8>,

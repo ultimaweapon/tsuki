@@ -23,9 +23,16 @@ pub struct Builder {
 }
 
 impl Builder {
+    /// Create a new [`Builder`] with a seed to hash Lua string.
+    ///
+    /// You can use [`Builder::default()`] instead if `rand` feature is enabled (which is default)
+    /// or you can pass `0` as a seed if
+    /// [HashDoS](https://en.wikipedia.org/wiki/Collision_attack#Hash_flooding) attack is not
+    /// possible for your application.
+    ///
     /// Use [`Self::enable_all()`] to enable all Lua built-in libraries. You can also enable only
     /// selected library with `enable_*` (e.g. [`Self::enable_base()`]).
-    pub fn new() -> Self {
+    pub fn new(seed: u32) -> Self {
         let g = Rc::pin(Lua {
             currentwhite: Cell::new(1 << 3),
             all: Cell::new(null()),
@@ -46,7 +53,7 @@ impl Builder {
                 value_: UntaggedValue { i: 0 },
                 tt_: (0 | 0 << 4),
             }),
-            seed: rand::random(),
+            seed,
             gcstate: Cell::new(8),
             gcstopem: Cell::new(0),
             gcstp: Cell::new(2),
@@ -183,5 +190,12 @@ impl Builder {
 
     pub fn build(self) -> Pin<Rc<Lua>> {
         self.g
+    }
+}
+
+#[cfg(feature = "rand")]
+impl Default for Builder {
+    fn default() -> Self {
+        Self::new(rand::random())
     }
 }
