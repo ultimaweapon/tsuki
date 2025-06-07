@@ -364,26 +364,21 @@ unsafe fn new_localvar(ls: *mut LexState, name: *mut TString) -> Result<c_int, P
     let fs: *mut FuncState = (*ls).fs;
     let dyd: *mut Dyndata = (*ls).dyd;
     let mut var: *mut Vardesc = 0 as *mut Vardesc;
+
     checklimit(
         fs,
         (*dyd).actvar.n + 1 as libc::c_int - (*fs).firstlocal,
         200 as libc::c_int,
         "local variables",
     )?;
+
     (*dyd).actvar.arr = luaM_growaux_(
         &(*ls).g,
         (*dyd).actvar.arr as *mut libc::c_void,
         (*dyd).actvar.n + 1 as libc::c_int,
-        &mut (*dyd).actvar.size,
-        ::core::mem::size_of::<Vardesc>() as libc::c_ulong as libc::c_int,
-        (if 65535 as libc::c_int as usize
-            <= (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<Vardesc>())
-        {
-            65535 as libc::c_int as libc::c_uint
-        } else {
-            (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<Vardesc>())
-                as libc::c_uint
-        }) as libc::c_int,
+        &raw mut (*dyd).actvar.size,
+        size_of::<Vardesc>() as libc::c_ulong as libc::c_int,
+        i16::MAX.into(),
         "local variables",
     )? as *mut Vardesc;
     let fresh4 = (*dyd).actvar.n;

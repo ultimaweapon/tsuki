@@ -28,7 +28,7 @@ use crate::ltm::{
     luaT_callTM, luaT_callTMres, luaT_callorderTM, luaT_callorderiTM, luaT_gettm, luaT_gettmbyobj,
     luaT_getvarargs, luaT_trybinTM, luaT_trybinassocTM, luaT_trybiniTM, luaT_tryconcatTM,
 };
-use crate::{LuaClosure, Thread};
+use crate::{ArithError, LuaClosure, Thread};
 use libc::{memcpy, strcoll, strlen};
 use libm::{floor, fmod, pow};
 use std::cell::Cell;
@@ -2571,7 +2571,7 @@ pub unsafe fn luaV_execute(
                             let io_12: *mut TValue = &raw mut (*ra_23).val;
                             (*io_12).value_.i = match luaV_mod(i1_2, i2_2) {
                                 Some(v) => v,
-                                None => return luaG_runerror(L, "attempt to perform 'n%0'"),
+                                None => return luaG_runerror(L, ArithError::ModZero),
                             };
                             (*io_12).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -2799,7 +2799,7 @@ pub unsafe fn luaV_execute(
                             let io_16: *mut TValue = &raw mut (*ra_26).val;
                             (*io_16).value_.i = match luaV_idiv(i1_3, i2_3) {
                                 Some(v) => v,
-                                None => return luaG_runerror(L, "attempt to divide by zero"),
+                                None => return luaG_runerror(L, ArithError::DivZero),
                             };
                             (*io_16).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -3387,7 +3387,7 @@ pub unsafe fn luaV_execute(
                             let io_29: *mut TValue = &raw mut (*ra_35).val;
                             (*io_29).value_.i = match luaV_mod(i1_10, i2_10) {
                                 Some(v) => v,
-                                None => return luaG_runerror(L, "attempt to perform 'n%0'"),
+                                None => return luaG_runerror(L, ArithError::ModZero),
                             };
                             (*io_29).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -3618,7 +3618,7 @@ pub unsafe fn luaV_execute(
                             let io_33: *mut TValue = &raw mut (*ra_38).val;
                             (*io_33).value_.i = match luaV_idiv(i1_11, i2_11) {
                                 Some(v) => v,
-                                None => return luaG_runerror(L, "attempt to divide by zero"),
+                                None => return luaG_runerror(L, ArithError::DivZero),
                             };
                             (*io_33).tt_ =
                                 (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;

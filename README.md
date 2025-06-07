@@ -30,6 +30,7 @@ Tsuki is a port of vanilla Lua 5.4 to Rust. This is porting, not binding; which 
 - Becoming a superset of Lua (e.g. Luau).
 - C API compatibility.
 - Stand-alone mode.
+- 16-bit systems.
 
 ## License
 
