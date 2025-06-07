@@ -17,7 +17,9 @@ use crate::lauxlib::{
     luaL_optinteger, luaL_optlstring, luaL_setfuncs,
 };
 use crate::{Thread, lua_pop, lua_settop};
+use std::boxed::Box;
 use std::ffi::c_int;
+use std::vec::Vec;
 
 type IdxT = libc::c_uint;
 

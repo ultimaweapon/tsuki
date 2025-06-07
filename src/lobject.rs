@@ -14,9 +14,10 @@ use crate::lstring::luaS_newlstr;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
 use crate::{ArithError, ChunkInfo, Lua, Table, Thread};
+use alloc::boxed::Box;
+use core::cell::{Cell, UnsafeCell};
 use libc::{c_char, c_int, sprintf, strpbrk, strspn, strtod};
 use libm::{floor, pow};
-use std::cell::{Cell, UnsafeCell};
 
 pub type StkId = *mut StackValue;
 
@@ -597,7 +598,7 @@ pub unsafe fn luaO_arith(
     p1: *const TValue,
     p2: *const TValue,
     res: StkId,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let r = match luaO_rawarith(op, p1, p2, &mut (*res).val) {
         Ok(v) => v,
         Err(e) => return luaG_runerror(L, e),

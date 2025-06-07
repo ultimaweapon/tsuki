@@ -1,9 +1,9 @@
 use super::Object;
 use crate::Lua;
-use std::ops::Deref;
-use std::pin::Pin;
-use std::ptr::null;
-use std::rc::Rc;
+use alloc::rc::Rc;
+use core::ops::Deref;
+use core::pin::Pin;
+use core::ptr::null;
 
 /// Strong reference to Lua object.
 ///

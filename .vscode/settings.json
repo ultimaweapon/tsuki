@@ -11,5 +11,6 @@
   "files.trimTrailingWhitespace": true,
   "rust-analyzer.imports.granularity.group": "module",
   "rust-analyzer.imports.group.enable": false,
+  "rust-analyzer.imports.preferNoStd": true,
   "rust-analyzer.imports.prefix": "self"
 }

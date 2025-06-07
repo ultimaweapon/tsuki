@@ -24,7 +24,10 @@ use libc::{
     isalnum, isalpha, iscntrl, isdigit, isgraph, islower, ispunct, isspace, isupper, isxdigit,
     memchr, memcmp, memcpy, snprintf, strchr, strcpy, strlen, strpbrk, strspn, tolower,
 };
+use std::boxed::Box;
 use std::ffi::{CStr, c_int};
+use std::format;
+use std::vec::Vec;
 
 pub const Knop: KOption = 10;
 pub const Kpadding: KOption = 8;

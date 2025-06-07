@@ -1,7 +1,8 @@
 use super::Thread;
 use crate::Object;
 use crate::lobject::TValue;
-use std::marker::PhantomData;
+use alloc::vec::Vec;
+use core::marker::PhantomData;
 
 /// Implementation of [`Args`] which size does not known at compile time.
 pub struct DynamicArgs<'a> {

@@ -9,13 +9,16 @@ use crate::lmem::luaM_free_;
 use crate::lobject::{StackValue, StkId, UpVal};
 use crate::lstate::{CallInfo, lua_Hook};
 use crate::{Lua, LuaFn, Object, Ref, Value};
-use std::alloc::{Layout, handle_alloc_error};
-use std::cell::{Cell, UnsafeCell};
-use std::marker::PhantomPinned;
-use std::ops::Deref;
-use std::pin::Pin;
-use std::ptr::{addr_of_mut, null, null_mut};
-use std::rc::Rc;
+use alloc::alloc::handle_alloc_error;
+use alloc::boxed::Box;
+use alloc::rc::Rc;
+use alloc::vec::Vec;
+use core::alloc::Layout;
+use core::cell::{Cell, UnsafeCell};
+use core::marker::PhantomPinned;
+use core::ops::Deref;
+use core::pin::Pin;
+use core::ptr::{addr_of_mut, null, null_mut};
 
 mod args;
 mod stack;
@@ -65,7 +68,7 @@ impl Thread {
 
         // Allocate stack.
         let layout = Layout::array::<StackValue>(2 * 20 + 5).unwrap();
-        let stack = unsafe { std::alloc::alloc(layout) as *mut StackValue };
+        let stack = unsafe { alloc::alloc::alloc(layout) as *mut StackValue };
 
         if stack.is_null() {
             handle_alloc_error(layout);
@@ -102,7 +105,7 @@ impl Thread {
         &self,
         f: &LuaFn,
         args: impl Args,
-    ) -> Result<Vec<Value>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<Value>, Box<dyn core::error::Error>> {
         // Push function and its arguments.
         let nargs = args.len();
 
@@ -159,6 +162,6 @@ impl Drop for Thread {
         })
         .unwrap();
 
-        unsafe { std::alloc::dealloc(self.stack.get().cast(), layout) };
+        unsafe { alloc::alloc::dealloc(self.stack.get().cast(), layout) };
     }
 }

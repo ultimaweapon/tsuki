@@ -14,8 +14,9 @@ use crate::lstate::CallInfo;
 use crate::lstring::luaS_new;
 use crate::ltable::luaH_getshortstr;
 use crate::{Lua, Table, Thread};
-use std::borrow::Cow;
-use std::ffi::{CStr, c_int};
+use alloc::borrow::Cow;
+use alloc::boxed::Box;
+use core::ffi::CStr;
 
 pub type TMS = libc::c_uint;
 
@@ -160,7 +161,7 @@ pub unsafe fn luaT_callTM(
     p1: *const TValue,
     p2: *const TValue,
     p3: *const TValue,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let func: StkId = (*L).top.get();
     let io1: *mut TValue = &mut (*func).val;
     let io2: *const TValue = f;
@@ -189,7 +190,7 @@ pub unsafe fn luaT_callTMres(
     p1: *const TValue,
     p2: *const TValue,
     mut res: StkId,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let result: isize =
         (res as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
     let func: StkId = (*L).top.get();
@@ -225,7 +226,7 @@ unsafe fn callbinTM(
     p2: *const TValue,
     res: StkId,
     event: TMS,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     let mut tm: *const TValue = luaT_gettmbyobj(L, p1, event);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         tm = luaT_gettmbyobj(L, p2, event);
@@ -243,7 +244,7 @@ pub unsafe fn luaT_trybinTM(
     p2: *const TValue,
     res: StkId,
     event: TMS,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     if callbinTM(L, p1, p2, res, event)? == 0 {
         match event as libc::c_uint {
             TM_BAND | TM_BOR | TM_BXOR | 16 | 17 | 19 => {
@@ -262,7 +263,7 @@ pub unsafe fn luaT_trybinTM(
     Ok(())
 }
 
-pub unsafe fn luaT_tryconcatTM(L: *const Thread) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaT_tryconcatTM(L: *const Thread) -> Result<(), Box<dyn core::error::Error>> {
     let top: StkId = (*L).top.get();
     if ((callbinTM(
         L,
@@ -291,7 +292,7 @@ pub unsafe fn luaT_trybinassocTM(
     flip: libc::c_int,
     res: StkId,
     event: TMS,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     if flip != 0 {
         luaT_trybinTM(L, p2, p1, res, event)
     } else {
@@ -306,7 +307,7 @@ pub unsafe fn luaT_trybiniTM(
     flip: libc::c_int,
     res: StkId,
     event: TMS,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let mut aux: TValue = TValue {
         value_: UntaggedValue {
             gc: 0 as *mut Object,
@@ -324,7 +325,7 @@ pub unsafe fn luaT_callorderTM(
     p1: *const TValue,
     p2: *const TValue,
     event: TMS,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     if callbinTM(L, p1, p2, (*L).top.get(), event)? != 0 {
         return Ok(!((*(*L).top.get()).val.tt_ as libc::c_int
             == 1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
@@ -342,7 +343,7 @@ pub unsafe fn luaT_callorderiTM(
     flip: libc::c_int,
     isfloat: libc::c_int,
     event: TMS,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     let mut aux: TValue = TValue {
         value_: UntaggedValue {
             gc: 0 as *mut Object,
@@ -373,7 +374,7 @@ pub unsafe fn luaT_adjustvarargs(
     nfixparams: libc::c_int,
     ci: *mut CallInfo,
     p: *const Proto,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let mut i: libc::c_int = 0;
     let actual: libc::c_int =
         ((*L).top.get()).offset_from((*ci).func) as libc::c_long as libc::c_int - 1 as libc::c_int;
@@ -417,7 +418,7 @@ pub unsafe fn luaT_getvarargs(
     ci: *mut CallInfo,
     mut where_0: StkId,
     mut wanted: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let mut i: libc::c_int = 0;
     let nextra: libc::c_int = (*ci).u.nextraargs;
 

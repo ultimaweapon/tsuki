@@ -1,7 +1,7 @@
 use crate::lobject::{StackValue, TValue, UntaggedValue};
 use crate::{LuaFn, Table};
-use std::cell::Cell;
-use std::mem::zeroed;
+use core::cell::Cell;
+use core::mem::zeroed;
 
 /// Pointer to an item in the stack.
 pub(crate) struct StackPtr(Cell<*mut StackValue>);

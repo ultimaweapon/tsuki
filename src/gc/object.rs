@@ -1,8 +1,9 @@
 use super::Mark;
 use crate::Lua;
-use std::alloc::{Layout, handle_alloc_error};
-use std::cell::Cell;
-use std::ptr::null;
+use alloc::alloc::handle_alloc_error;
+use core::alloc::Layout;
+use core::cell::Cell;
+use core::ptr::null;
 
 /// Header of all object managed by Garbage Collector.
 ///
@@ -22,7 +23,7 @@ impl Object {
     /// `layout` must have the layout of [`Object`] at the beginning.
     pub(crate) unsafe fn new(g: *const Lua, tt: u8, layout: Layout) -> *mut Object {
         let g = &*g;
-        let o = unsafe { std::alloc::alloc(layout) as *mut Object };
+        let o = unsafe { alloc::alloc::alloc(layout) as *mut Object };
 
         if o.is_null() {
             handle_alloc_error(layout);

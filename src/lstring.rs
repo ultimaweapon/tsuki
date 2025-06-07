@@ -9,11 +9,11 @@
 use crate::lmem::{luaM_malloc_, luaM_realloc_};
 use crate::lobject::{TString, UValue, Udata};
 use crate::{Lua, Object, StringTable};
+use core::alloc::Layout;
+use core::cell::Cell;
+use core::mem::offset_of;
+use core::ptr::{addr_of_mut, null};
 use libc::{memcmp, memcpy, strlen};
-use std::alloc::Layout;
-use std::cell::Cell;
-use std::mem::offset_of;
-use std::ptr::{addr_of_mut, null};
 
 pub unsafe fn luaS_eqlngstr(a: *mut TString, b: *mut TString) -> libc::c_int {
     let len: usize = (*(*a).u.get()).lnglen;

@@ -1,6 +1,7 @@
 use crate::Object;
 use crate::lobject::{Proto, UpVal};
-use std::cell::Cell;
+use alloc::boxed::Box;
+use core::cell::Cell;
 
 /// Lua function.
 #[repr(C)]

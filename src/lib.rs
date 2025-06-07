@@ -1,3 +1,5 @@
+#![no_std]
+
 pub use self::builder::*;
 pub use self::error::*;
 pub use self::function::*;
@@ -12,13 +14,14 @@ use self::ldo::luaD_protectedparser;
 use self::lmem::luaM_free_;
 use self::lobject::{TString, TValue};
 use self::lzio::Zio;
-use std::cell::{Cell, UnsafeCell};
-use std::ffi::c_int;
-use std::marker::PhantomPinned;
-use std::ops::Deref;
-use std::pin::Pin;
-use std::ptr::null_mut;
-use std::rc::Rc;
+use alloc::boxed::Box;
+use alloc::rc::Rc;
+use core::cell::{Cell, UnsafeCell};
+use core::ffi::c_int;
+use core::marker::PhantomPinned;
+use core::ops::Deref;
+use core::pin::Pin;
+use core::ptr::null_mut;
 use thiserror::Error;
 
 mod builder;
@@ -52,8 +55,12 @@ mod parser;
 mod table;
 mod thread;
 
+extern crate alloc;
+#[cfg(feature = "std")]
+extern crate std;
+
 #[inline(always)]
-unsafe fn lua_pop(th: *const Thread, n: c_int) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn lua_pop(th: *const Thread, n: c_int) -> Result<(), Box<dyn core::error::Error>> {
     unsafe { lua_settop(th, -(n) - 1) }
 }
 

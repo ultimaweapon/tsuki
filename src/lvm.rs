@@ -29,10 +29,10 @@ use crate::ltm::{
     luaT_getvarargs, luaT_trybinTM, luaT_trybinassocTM, luaT_trybiniTM, luaT_tryconcatTM,
 };
 use crate::{ArithError, LuaFn, Table, Thread};
+use alloc::boxed::Box;
+use core::cell::Cell;
 use libc::{memcpy, strcoll, strlen};
 use libm::{floor, fmod, pow};
-use std::cell::Cell;
-use std::ffi::c_int;
 
 pub type F2Imod = libc::c_uint;
 
@@ -128,7 +128,7 @@ unsafe fn forlimit(
     lim: *const TValue,
     p: *mut i64,
     step: i64,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     if luaV_tointeger(
         lim,
         p,
@@ -169,7 +169,7 @@ unsafe fn forlimit(
     };
 }
 
-unsafe fn forprep(L: *const Thread, ra: StkId) -> Result<c_int, Box<dyn std::error::Error>> {
+unsafe fn forprep(L: *const Thread, ra: StkId) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     let pinit: *mut TValue = &mut (*ra).val;
     let plimit: *mut TValue = &mut (*ra.offset(1 as libc::c_int as isize)).val;
     let pstep: *mut TValue = &mut (*ra.offset(2 as libc::c_int as isize)).val;
@@ -303,7 +303,7 @@ pub unsafe fn luaV_finishget(
     key: *mut TValue,
     val: StkId,
     mut slot: *const TValue,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let mut loop_0: libc::c_int = 0;
     let mut tm: *const TValue = 0 as *const TValue;
     loop_0 = 0 as libc::c_int;
@@ -372,7 +372,7 @@ pub unsafe fn luaV_finishset(
     key: *mut TValue,
     val: *mut TValue,
     mut slot: *const TValue,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let mut loop_0: libc::c_int = 0;
     loop_0 = 0 as libc::c_int;
     while loop_0 < 2000 as libc::c_int {
@@ -608,7 +608,7 @@ unsafe fn lessthanothers(
     L: *const Thread,
     l: *const TValue,
     r: *const TValue,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     if (*l).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
         && (*r).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
     {
@@ -625,7 +625,7 @@ pub unsafe fn luaV_lessthan(
     L: *const Thread,
     l: *const TValue,
     r: *const TValue,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     if (*l).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
         && (*r).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
     {
@@ -639,7 +639,7 @@ unsafe fn lessequalothers(
     L: *const Thread,
     l: *const TValue,
     r: *const TValue,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     if (*l).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
         && (*r).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
     {
@@ -656,7 +656,7 @@ pub unsafe fn luaV_lessequal(
     L: *const Thread,
     l: *const TValue,
     r: *const TValue,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     if (*l).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
         && (*r).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
     {
@@ -670,7 +670,7 @@ pub unsafe fn luaV_equalobj(
     L: *const Thread,
     t1: *const TValue,
     t2: *const TValue,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     let mut tm: *const TValue = 0 as *const TValue;
     if (*t1).tt_ as libc::c_int & 0x3f as libc::c_int
         != (*t2).tt_ as libc::c_int & 0x3f as libc::c_int
@@ -824,8 +824,8 @@ unsafe fn copy2buff(top: StkId, mut n: libc::c_int, buff: *mut libc::c_char) {
 
 pub unsafe fn luaV_concat(
     L: *const Thread,
-    mut total: c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+    mut total: libc::c_int,
+) -> Result<(), Box<dyn core::error::Error>> {
     if total == 1 {
         return Ok(());
     }
@@ -994,7 +994,7 @@ pub unsafe fn luaV_objlen(
     L: *const Thread,
     ra: StkId,
     rb: *const TValue,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let mut tm: *const TValue = 0 as *const TValue;
     match (*rb).tt_ as libc::c_int & 0x3f as libc::c_int {
         5 => {
@@ -1164,7 +1164,7 @@ unsafe fn pushclosure(
 pub unsafe fn luaV_execute(
     L: *const Thread,
     mut ci: *mut CallInfo,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let mut i: u32 = 0;
     let mut ra_65: StkId = 0 as *mut StackValue;
     let mut newci: *mut CallInfo = 0 as *mut CallInfo;

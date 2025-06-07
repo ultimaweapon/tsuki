@@ -9,12 +9,12 @@ use crate::ltable::{luaH_new, luaH_resize};
 use crate::ltablib::luaopen_table;
 use crate::ltm::luaT_init;
 use crate::{Gc, Lua, Module, Object, Ref, StringTable, Thread, lua_pop};
-use std::cell::{Cell, UnsafeCell};
-use std::marker::PhantomPinned;
-use std::ops::Deref;
-use std::pin::Pin;
-use std::ptr::{null, null_mut};
-use std::rc::Rc;
+use alloc::rc::Rc;
+use core::cell::{Cell, UnsafeCell};
+use core::marker::PhantomPinned;
+use core::ops::Deref;
+use core::pin::Pin;
+use core::ptr::{null, null_mut};
 
 /// Struct to build the instance of [`Lua`].
 pub struct Builder {

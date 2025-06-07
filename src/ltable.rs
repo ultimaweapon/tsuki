@@ -15,11 +15,11 @@ use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::ltm::TM_EQ;
 use crate::lvm::{F2Ieq, luaV_flttointeger};
 use crate::{Lua, Node, NodeKey, Table, TableError, Thread};
+use alloc::boxed::Box;
+use core::alloc::Layout;
+use core::cell::Cell;
+use core::ptr::{addr_of_mut, null_mut};
 use libm::frexp;
-use std::alloc::Layout;
-use std::cell::Cell;
-use std::ffi::{c_int, c_uint};
-use std::ptr::{addr_of_mut, null_mut};
 
 static mut dummynode_: Node = Node {
     u: {
@@ -175,7 +175,7 @@ unsafe fn mainpositionfromnode(t: *const Table, nd: *mut Node) -> *mut Node {
     return mainpositionTV(t, &mut key);
 }
 
-unsafe fn equalkey(k1: *const TValue, n2: *const Node, deadok: libc::c_int) -> c_int {
+unsafe fn equalkey(k1: *const TValue, n2: *const Node, deadok: libc::c_int) -> libc::c_int {
     if (*k1).tt_ != (*n2).u.key_tt
         && !(deadok != 0
             && (*n2).u.key_tt as libc::c_int == 9 as libc::c_int + 2 as libc::c_int
@@ -274,7 +274,7 @@ unsafe fn findindex(
     t: *mut Table,
     key: *mut TValue,
     asize: libc::c_uint,
-) -> Result<c_uint, Box<dyn std::error::Error>> {
+) -> Result<libc::c_uint, Box<dyn core::error::Error>> {
     let mut i: libc::c_uint = 0;
     if (*key).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         return Ok(0 as libc::c_int as libc::c_uint);
@@ -308,7 +308,7 @@ pub unsafe fn luaH_next(
     L: *const Thread,
     t: *mut Table,
     key: StkId,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     let asize: libc::c_uint = luaH_realasize(t);
     let mut i: libc::c_uint = findindex(L, t, &mut (*key).val, asize)?;
     while i < asize {

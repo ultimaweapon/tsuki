@@ -1,6 +1,6 @@
 use crate::TValue;
 use crate::lobject::UntaggedValue;
-use std::ffi::c_int;
+use core::ffi::c_int;
 
 #[derive(Copy, Clone)]
 #[repr(C)]

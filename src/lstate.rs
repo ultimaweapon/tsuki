@@ -11,7 +11,7 @@ use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
 use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::lobject::StkId;
 use crate::{ChunkInfo, Thread};
-use std::ffi::c_int;
+use alloc::boxed::Box;
 
 pub type lua_Hook = Option<unsafe extern "C" fn(*const Thread, *mut lua_Debug) -> ()>;
 
@@ -50,8 +50,8 @@ pub struct CallInfo {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed {
-    pub funcidx: c_int,
-    pub nres: c_int,
+    pub funcidx: libc::c_int,
+    pub nres: libc::c_int,
     pub transferinfo: C2RustUnnamed_0,
 }
 
@@ -70,7 +70,8 @@ pub struct C2RustUnnamed_3 {
     pub nextraargs: libc::c_int,
 }
 
-pub type lua_CFunction = unsafe fn(*const Thread) -> Result<c_int, Box<dyn std::error::Error>>;
+pub type lua_CFunction =
+    unsafe fn(*const Thread) -> Result<libc::c_int, Box<dyn core::error::Error>>;
 
 pub unsafe fn luaE_extendCI(mut L: *const Thread) -> *mut CallInfo {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
@@ -112,7 +113,7 @@ pub unsafe fn luaE_shrinkCI(mut L: *const Thread) {
     }
 }
 
-pub unsafe fn lua_closethread(L: *mut Thread) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn lua_closethread(L: *mut Thread) -> Result<(), Box<dyn core::error::Error>> {
     (*L).ci.set((*L).base_ci.get());
     let mut ci: *mut CallInfo = (*L).ci.get();
 

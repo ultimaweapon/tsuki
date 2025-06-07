@@ -20,11 +20,14 @@ use crate::ltm::{
 };
 use crate::lvm::{F2Ieq, luaV_tointegerns};
 use crate::{ChunkInfo, LuaFn, Object, Thread, api_incr_top};
+use alloc::borrow::Cow;
+use alloc::boxed::Box;
+use alloc::format;
+use alloc::string::{String, ToString};
+use core::ffi::CStr;
+use core::fmt::Display;
+use core::ptr::null;
 use libc::{strchr, strcmp};
-use std::borrow::Cow;
-use std::ffi::{CStr, c_int};
-use std::fmt::Display;
-use std::ptr::null;
 
 unsafe fn currentpc(ci: *mut CallInfo) -> libc::c_int {
     return ((*ci).u.savedpc)
@@ -428,7 +431,7 @@ pub unsafe fn lua_getinfo(
     L: *const Thread,
     mut what: *const libc::c_char,
     ar: *mut lua_Debug,
-) -> c_int {
+) -> libc::c_int {
     let mut status: libc::c_int = 0;
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     let mut func: *mut TValue = 0 as *mut TValue;
@@ -939,7 +942,7 @@ unsafe fn typeerror(
     o: *const TValue,
     op: impl Display,
     extra: impl Display,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let t = luaT_objtypename((*L).global, o);
 
     luaG_runerror(L, format_args!("attempt to {op} a {t} value{extra}"))
@@ -949,14 +952,14 @@ pub unsafe fn luaG_typeerror(
     L: *const Thread,
     o: *const TValue,
     op: impl Display,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     typeerror(L, o, op, varinfo(L, o))
 }
 
 pub unsafe fn luaG_callerror(
     L: *const Thread,
     o: *const TValue,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let ci: *mut CallInfo = (*L).ci.get();
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
     let kind: *const libc::c_char = funcnamefromcall(L, ci, &mut name);
@@ -973,7 +976,7 @@ pub unsafe fn luaG_forerror(
     L: *const Thread,
     o: *const TValue,
     what: impl Display,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     luaG_runerror(
         L,
         format_args!(
@@ -988,7 +991,7 @@ pub unsafe fn luaG_concaterror(
     L: *const Thread,
     mut p1: *const TValue,
     p2: *const TValue,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     if (*p1).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
         || (*p1).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
     {
@@ -1003,7 +1006,7 @@ pub unsafe fn luaG_opinterror(
     p1: *const TValue,
     mut p2: *const TValue,
     msg: impl Display,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     if !((*p1).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int) {
         p2 = p1;
     }
@@ -1015,7 +1018,7 @@ pub unsafe fn luaG_tointerror(
     L: *const Thread,
     p1: *const TValue,
     mut p2: *const TValue,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let mut temp: i64 = 0;
 
     if luaV_tointegerns(p1, &mut temp, F2Ieq) == 0 {
@@ -1032,7 +1035,7 @@ pub unsafe fn luaG_ordererror(
     L: *const Thread,
     p1: *const TValue,
     p2: *const TValue,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let t1 = luaT_objtypename((*L).global, p1);
     let t2 = luaT_objtypename((*L).global, p2);
 
@@ -1050,7 +1053,7 @@ pub unsafe fn luaG_addinfo(msg: impl Display, src: &ChunkInfo, line: libc::c_int
 pub unsafe fn luaG_runerror(
     L: *const Thread,
     fmt: impl Display,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let ci = (*L).ci.get();
     let msg = if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
         luaG_addinfo(
@@ -1087,7 +1090,7 @@ unsafe fn changedline(p: *const Proto, oldpc: libc::c_int, newpc: libc::c_int) -
     return (luaG_getfuncline(p, oldpc) != luaG_getfuncline(p, newpc)) as libc::c_int;
 }
 
-pub unsafe fn luaG_tracecall(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
+pub unsafe fn luaG_tracecall(L: *const Thread) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     let ci: *mut CallInfo = (*L).ci.get();
     let p: *mut Proto = (*(*(*ci).func).val.value_.gc.cast::<LuaFn>()).p.get();
     ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 1 as libc::c_int);
@@ -1104,7 +1107,7 @@ pub unsafe fn luaG_tracecall(L: *const Thread) -> Result<c_int, Box<dyn std::err
 pub unsafe fn luaG_traceexec(
     L: *const Thread,
     mut pc: *const u32,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     let ci: *mut CallInfo = (*L).ci.get();
     let mask: u8 = (*L).hookmask.get() as u8;
     let p: *const Proto = (*(*(*ci).func).val.value_.gc.cast::<LuaFn>()).p.get();

@@ -25,9 +25,12 @@ use crate::lauxlib::{
 use crate::ldebug::luaG_runerror;
 use crate::{ChunkInfo, Thread, api_incr_top};
 use libc::{isalnum, isdigit, strspn, toupper};
+use std::boxed::Box;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
 use std::ptr::{null, null_mut};
+use std::string::{String, ToString};
+use std::{format, print, println};
 
 unsafe fn luaB_print(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut n: libc::c_int = lua_gettop(L);

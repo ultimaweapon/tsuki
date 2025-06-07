@@ -15,11 +15,14 @@ use crate::lobject::{
 };
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
 use crate::{ChunkInfo, Lua, LuaFn, Object, Thread};
-use std::alloc::Layout;
-use std::cell::Cell;
-use std::ffi::CStr;
-use std::mem::offset_of;
-use std::ptr::{addr_of_mut, null_mut};
+use alloc::boxed::Box;
+use alloc::format;
+use alloc::vec::Vec;
+use core::alloc::Layout;
+use core::cell::Cell;
+use core::ffi::CStr;
+use core::mem::offset_of;
+use core::ptr::{addr_of_mut, null_mut};
 
 pub unsafe fn luaF_newCclosure(g: *const Lua, nupvals: libc::c_int) -> *mut CClosure {
     let nupvals = u8::try_from(nupvals).unwrap();
@@ -106,7 +109,7 @@ unsafe fn callclosemethod(
     L: *const Thread,
     obj: *mut TValue,
     err: *mut TValue,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let top: StkId = (*L).top.get();
     let tm: *const TValue = luaT_gettmbyobj(L, obj, TM_CLOSE);
     let io1: *mut TValue = &mut (*top).val;
@@ -126,7 +129,7 @@ unsafe fn callclosemethod(
     luaD_call(L, top, 0 as libc::c_int)
 }
 
-unsafe fn checkclosemth(L: *const Thread, level: StkId) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn checkclosemth(L: *const Thread, level: StkId) -> Result<(), Box<dyn core::error::Error>> {
     let tm: *const TValue = luaT_gettmbyobj(L, &mut (*level).val, TM_CLOSE);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         let idx: libc::c_int =
@@ -150,7 +153,7 @@ unsafe fn checkclosemth(L: *const Thread, level: StkId) -> Result<(), Box<dyn st
 unsafe fn prepcallclosemth(
     L: *const Thread,
     level: StkId,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let uv: *mut TValue = &mut (*level).val;
     let errobj = (*(*L).global).nilvalue.get();
 
@@ -160,7 +163,7 @@ unsafe fn prepcallclosemth(
 pub unsafe fn luaF_newtbcupval(
     L: *const Thread,
     level: StkId,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     if (*level).val.tt_ as libc::c_int == 1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
         || (*level).val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int
     {
@@ -263,7 +266,7 @@ unsafe fn poptbclist(L: *const Thread) {
 pub unsafe fn luaF_close(
     L: *const Thread,
     mut level: StkId,
-) -> Result<StkId, Box<dyn std::error::Error>> {
+) -> Result<StkId, Box<dyn core::error::Error>> {
     let levelrel = (level as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
 
     luaF_closeupval(L, level);
@@ -346,7 +349,7 @@ pub unsafe fn luaF_freeproto(g: *const Lua, f: *mut Proto) {
     // Free proto.
     let layout = Layout::new::<Proto>();
 
-    std::ptr::drop_in_place(f);
+    core::ptr::drop_in_place(f);
     (*g).gc.dealloc(f.cast(), layout);
 }
 

@@ -16,11 +16,12 @@ use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, Zio};
 use crate::{ChunkInfo, Lua, LuaFn, ParseError, Ref, Thread};
-use std::alloc::{Layout, handle_alloc_error};
-use std::ffi::c_int;
-use std::ops::Deref;
-use std::pin::Pin;
-use std::rc::Rc;
+use alloc::alloc::handle_alloc_error;
+use alloc::boxed::Box;
+use alloc::rc::Rc;
+use core::alloc::Layout;
+use core::ops::Deref;
+use core::pin::Pin;
 
 #[repr(C)]
 struct SParser {
@@ -32,7 +33,7 @@ struct SParser {
 #[repr(C)]
 pub struct CloseP {
     pub level: StkId,
-    pub status: Result<(), Box<dyn std::error::Error>>,
+    pub status: Result<(), Box<dyn core::error::Error>>,
 }
 
 unsafe fn relstack(L: *const Thread) {
@@ -103,7 +104,7 @@ pub unsafe fn luaD_reallocstack(th: *const Thread, newsize: usize) {
     (*lua).gcstopem.set(1 as libc::c_int as u8);
 
     // Re-allocate the stack.
-    let newstack = std::alloc::realloc(
+    let newstack = alloc::alloc::realloc(
         (*th).stack.get().cast(),
         Layout::array::<StackValue>(oldsize + 5).unwrap(),
         (newsize + 5) * size_of::<StackValue>(),
@@ -129,7 +130,10 @@ pub unsafe fn luaD_reallocstack(th: *const Thread, newsize: usize) {
 }
 
 #[inline(never)]
-pub unsafe fn luaD_growstack(L: *const Thread, n: usize) -> Result<(), Box<dyn std::error::Error>> {
+pub unsafe fn luaD_growstack(
+    L: *const Thread,
+    n: usize,
+) -> Result<(), Box<dyn core::error::Error>> {
     let size = ((*L).stack_last.get()).offset_from_unsigned((*L).stack.get());
 
     if size > 1000000 {
@@ -203,7 +207,7 @@ pub unsafe fn luaD_hook(
     line: libc::c_int,
     ftransfer: libc::c_int,
     ntransfer: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let hook: lua_Hook = (*L).hook.get();
     if hook.is_some() && (*L).allowhook.get() != 0 {
         let mut mask: libc::c_int = (1 as libc::c_int) << 3 as libc::c_int;
@@ -269,7 +273,7 @@ pub unsafe fn luaD_hook(
 pub unsafe fn luaD_hookcall(
     L: *const Thread,
     ci: *mut CallInfo,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     (*L).oldpc.set(0);
 
     if (*L).hookmask.get() & 1 << 0 != 0 {
@@ -299,7 +303,7 @@ unsafe fn rethook(
     L: *const Thread,
     mut ci: *mut CallInfo,
     nres: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     if (*L).hookmask.get() & 1 << 1 != 0 {
         let firstres: StkId = ((*L).top.get()).offset(-(nres as isize));
         let mut delta: libc::c_int = 0 as libc::c_int;
@@ -333,7 +337,7 @@ unsafe fn rethook(
 unsafe fn tryfuncTM(
     L: *const Thread,
     mut func: StkId,
-) -> Result<StkId, Box<dyn std::error::Error>> {
+) -> Result<StkId, Box<dyn core::error::Error>> {
     let mut tm: *const TValue = 0 as *const TValue;
     let mut p: StkId = 0 as *mut StackValue;
     if ((((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
@@ -379,7 +383,7 @@ unsafe fn moveresults(
     mut res: StkId,
     mut nres: libc::c_int,
     mut wanted: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let mut firstresult: StkId = 0 as *mut StackValue;
     let mut i: libc::c_int = 0;
     match wanted {
@@ -450,8 +454,8 @@ unsafe fn moveresults(
 pub unsafe fn luaD_poscall(
     L: *const Thread,
     ci: *mut CallInfo,
-    nres: c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+    nres: libc::c_int,
+) -> Result<(), Box<dyn core::error::Error>> {
     let wanted: libc::c_int = (*ci).nresults as libc::c_int;
     if (((*L).hookmask.get() != 0 && !(wanted < -(1 as libc::c_int))) as libc::c_int
         != 0 as libc::c_int) as libc::c_int as libc::c_long
@@ -489,7 +493,7 @@ unsafe fn precallC(
     mut func: StkId,
     nresults: libc::c_int,
     f: lua_CFunction,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     let mut n: libc::c_int = 0;
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
 
@@ -541,7 +545,7 @@ pub unsafe fn luaD_pretailcall(
     mut func: StkId,
     mut narg1: libc::c_int,
     delta: libc::c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
+) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     loop {
         match (*func).val.tt_ as libc::c_int & 0x3f as libc::c_int {
             38 => {
@@ -610,7 +614,7 @@ pub unsafe fn luaD_precall(
     L: *const Thread,
     mut func: StkId,
     nresults: libc::c_int,
-) -> Result<*mut CallInfo, Box<dyn std::error::Error>> {
+) -> Result<*mut CallInfo, Box<dyn core::error::Error>> {
     loop {
         match (*func).val.tt_ as libc::c_int & 0x3f as libc::c_int {
             38 => {
@@ -672,8 +676,8 @@ pub unsafe fn luaD_precall(
 pub unsafe fn luaD_call(
     L: *const Thread,
     func: StkId,
-    nResults: c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
+    nResults: libc::c_int,
+) -> Result<(), Box<dyn core::error::Error>> {
     let ci = luaD_precall(L, func, nResults)?;
 
     if !ci.is_null() {
@@ -687,8 +691,8 @@ pub unsafe fn luaD_call(
 pub unsafe fn luaD_closeprotected(
     L: *const Thread,
     level: usize,
-    mut status: Result<(), Box<dyn std::error::Error>>,
-) -> Result<(), Box<dyn std::error::Error>> {
+    mut status: Result<(), Box<dyn core::error::Error>>,
+) -> Result<(), Box<dyn core::error::Error>> {
     let old_ci: *mut CallInfo = (*L).ci.get();
     let old_allowhooks: u8 = (*L).allowhook.get();
 
@@ -713,9 +717,9 @@ pub unsafe fn luaD_pcall<F>(
     L: *const Thread,
     old_top: usize,
     f: F,
-) -> Result<(), Box<dyn std::error::Error>>
+) -> Result<(), Box<dyn core::error::Error>>
 where
-    F: FnOnce(*const Thread) -> Result<(), Box<dyn std::error::Error>>,
+    F: FnOnce(*const Thread) -> Result<(), Box<dyn core::error::Error>>,
 {
     let old_ci = (*L).ci.get();
     let old_allowhooks: u8 = (*L).allowhook.get();

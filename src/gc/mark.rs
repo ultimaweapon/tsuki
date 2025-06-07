@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use core::cell::Cell;
 
 /// Mark on each GC object for identify its collectable state.
 #[derive(Default)]

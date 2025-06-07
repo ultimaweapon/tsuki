@@ -1,7 +1,7 @@
 pub(crate) use self::node::*;
 
 use crate::{Object, TValue};
-use std::cell::Cell;
+use core::cell::Cell;
 use thiserror::Error;
 
 mod node;

@@ -17,11 +17,11 @@ use crate::lstring::luaS_remove;
 use crate::ltable::{luaH_free, luaH_realasize};
 use crate::ltm::{TM_MODE, luaT_gettm};
 use crate::{Lua, LuaFn, Node, Table, Thread};
+use core::alloc::Layout;
+use core::cell::Cell;
+use core::mem::offset_of;
+use core::ptr::null_mut;
 use libc::strchr;
-use std::alloc::Layout;
-use std::cell::Cell;
-use std::mem::offset_of;
-use std::ptr::null_mut;
 
 mod mark;
 mod object;
@@ -827,7 +827,7 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
         10 => luaF_freeproto(g, o as *mut Proto),
         9 => freeupval(g, o as *mut UpVal),
         6 => {
-            std::ptr::drop_in_place(o.cast::<LuaFn>());
+            core::ptr::drop_in_place(o.cast::<LuaFn>());
             (*g).gc.dealloc(o.cast(), Layout::new::<LuaFn>());
         }
         38 => {
@@ -841,7 +841,7 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
         }
         5 => luaH_free(g, o as *mut Table),
         8 => {
-            std::ptr::drop_in_place(o.cast::<Thread>());
+            core::ptr::drop_in_place(o.cast::<Thread>());
             (*g).gc.dealloc(o.cast(), Layout::new::<Thread>());
         }
         7 => {
@@ -1151,7 +1151,7 @@ impl Gc {
     }
 
     pub(crate) unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        unsafe { std::alloc::dealloc(ptr, layout) };
+        unsafe { alloc::alloc::dealloc(ptr, layout) };
         self.decrease_debt(layout.size());
     }
 

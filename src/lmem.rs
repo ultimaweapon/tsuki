@@ -2,9 +2,9 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::{Lua, ParseError};
+use core::ffi::c_void;
+use core::ptr::null_mut;
 use libc::{free, realloc};
-use std::ffi::c_void;
-use std::ptr::null_mut;
 
 pub unsafe fn luaM_growaux_(
     g: &Lua,

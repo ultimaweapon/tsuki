@@ -23,6 +23,7 @@ use libc::time;
 use libm::{
     acos, asin, atan2, ceil, cos, exp, fabs, floor, fmod, log, log2, log10, sin, sqrt, tan,
 };
+use std::boxed::Box;
 use std::ffi::c_int;
 use std::ptr::null_mut;
 
