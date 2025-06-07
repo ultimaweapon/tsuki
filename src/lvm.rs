@@ -13,7 +13,7 @@ use crate::lfunc::{
     luaF_close, luaF_closeupval, luaF_findupval, luaF_newLclosure, luaF_newtbcupval,
 };
 use crate::lobject::{
-    Proto, StackValue, StkId, TString, TValue, Table, Udata, UntaggedValue, UpVal, Upvaldesc,
+    Proto, StackValue, StkId, TString, TValue, Udata, UntaggedValue, UpVal, Upvaldesc,
     luaO_str2num, luaO_tostring,
 };
 use crate::lopcodes::OpCode;
@@ -28,7 +28,7 @@ use crate::ltm::{
     luaT_callTM, luaT_callTMres, luaT_callorderTM, luaT_callorderiTM, luaT_gettm, luaT_gettmbyobj,
     luaT_getvarargs, luaT_trybinTM, luaT_trybinassocTM, luaT_trybiniTM, luaT_tryconcatTM,
 };
-use crate::{ArithError, LuaFn, Thread};
+use crate::{ArithError, LuaFn, Table, Thread};
 use libc::{memcpy, strcoll, strlen};
 use libm::{floor, fmod, pow};
 use std::cell::Cell;
@@ -317,9 +317,9 @@ pub unsafe fn luaV_finishget(
                 luaG_typeerror(L, t, "index")?;
             }
         } else {
-            tm = if ((*((*t).value_.gc as *mut Table)).metatable.get()).is_null() {
+            tm = if ((*((*t).value_.gc.cast::<Table>())).metatable.get()).is_null() {
                 0 as *const TValue
-            } else if (*(*((*t).value_.gc as *mut Table)).metatable.get())
+            } else if (*(*((*t).value_.gc.cast::<Table>())).metatable.get())
                 .flags
                 .get() as libc::c_uint
                 & (1 as libc::c_uint) << TM_INDEX as libc::c_int
@@ -328,7 +328,7 @@ pub unsafe fn luaV_finishget(
                 0 as *const TValue
             } else {
                 luaT_gettm(
-                    (*((*t).value_.gc as *mut Table)).metatable.get(),
+                    (*((*t).value_.gc.cast::<Table>())).metatable.get(),
                     TM_INDEX,
                     (*(*L).global).tmname[TM_INDEX as usize].get(),
                 )

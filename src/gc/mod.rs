@@ -12,11 +12,11 @@ pub use self::r#ref::*;
 
 use crate::ldo::luaD_shrinkstack;
 use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
-use crate::lobject::{CClosure, Node, Proto, StkId, TString, TValue, Table, UValue, Udata, UpVal};
+use crate::lobject::{CClosure, Proto, StkId, TString, TValue, UValue, Udata, UpVal};
 use crate::lstring::luaS_remove;
 use crate::ltable::{luaH_free, luaH_realasize};
 use crate::ltm::{TM_MODE, luaT_gettm};
-use crate::{Lua, LuaFn, Thread};
+use crate::{Lua, LuaFn, Node, Table, Thread};
 use libc::strchr;
 use std::alloc::Layout;
 use std::cell::Cell;

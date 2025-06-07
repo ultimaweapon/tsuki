@@ -2,19 +2,18 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
-    unused_mut
+    unused_assignments
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::gc::{Object, luaC_fix};
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
 use crate::ldo::{luaD_call, luaD_growstack};
-use crate::lobject::{Proto, StkId, TString, TValue, Table, Udata, UntaggedValue};
+use crate::lobject::{Proto, StkId, TString, TValue, Udata, UntaggedValue};
 use crate::lstate::CallInfo;
 use crate::lstring::luaS_new;
 use crate::ltable::luaH_getshortstr;
-use crate::{Lua, Thread};
+use crate::{Lua, Table, Thread};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
 
@@ -56,7 +55,7 @@ pub const luaT_typenames_: [&str; 12] = [
     "thread", "upvalue", "proto",
 ];
 
-pub unsafe fn luaT_init(mut g: *const Lua) {
+pub unsafe fn luaT_init(g: *const Lua) {
     static mut luaT_eventname: [*const libc::c_char; 25] = [
         b"__index\0" as *const u8 as *const libc::c_char,
         b"__newindex\0" as *const u8 as *const libc::c_char,
@@ -94,12 +93,8 @@ pub unsafe fn luaT_init(mut g: *const Lua) {
     }
 }
 
-pub unsafe fn luaT_gettm(
-    mut events: *mut Table,
-    mut event: TMS,
-    mut ename: *mut TString,
-) -> *const TValue {
-    let mut tm: *const TValue = luaH_getshortstr(events, ename);
+pub unsafe fn luaT_gettm(events: *const Table, event: TMS, ename: *mut TString) -> *const TValue {
+    let tm: *const TValue = luaH_getshortstr(events, ename);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         (*events)
             .flags
@@ -110,18 +105,12 @@ pub unsafe fn luaT_gettm(
     };
 }
 
-pub unsafe fn luaT_gettmbyobj(
-    mut L: *const Thread,
-    mut o: *const TValue,
-    mut event: TMS,
-) -> *const TValue {
-    let mut mt: *mut Table = 0 as *mut Table;
-
-    match (*o).tt_ as libc::c_int & 0xf as libc::c_int {
-        5 => mt = (*((*o).value_.gc as *mut Table)).metatable.get(),
-        7 => mt = (*((*o).value_.gc as *mut Udata)).metatable,
-        _ => mt = (*(*L).global).mt[((*o).tt_ & 0xf) as usize].get(),
-    }
+pub unsafe fn luaT_gettmbyobj(L: *const Thread, o: *const TValue, event: TMS) -> *const TValue {
+    let mt = match (*o).tt_ as libc::c_int & 0xf as libc::c_int {
+        5 => (*((*o).value_.gc as *mut Table)).metatable.get(),
+        7 => (*((*o).value_.gc as *mut Udata)).metatable,
+        _ => (*(*L).global).mt[((*o).tt_ & 0xf) as usize].get(),
+    };
 
     return if !mt.is_null() {
         luaH_getshortstr(mt, (*(*L).global).tmname[event as usize].get())
@@ -130,8 +119,9 @@ pub unsafe fn luaT_gettmbyobj(
     };
 }
 
-pub unsafe fn luaT_objtypename(mut g: *const Lua, mut o: *const TValue) -> Cow<'static, str> {
-    let mut mt: *mut Table = 0 as *mut Table;
+pub unsafe fn luaT_objtypename(g: *const Lua, o: *const TValue) -> Cow<'static, str> {
+    let mut mt: *const Table;
+
     if (*o).tt_ as libc::c_int
         == 5 as libc::c_int
             | (0 as libc::c_int) << 4 as libc::c_int
@@ -149,7 +139,7 @@ pub unsafe fn luaT_objtypename(mut g: *const Lua, mut o: *const TValue) -> Cow<'
                 !mt.is_null()
             }
     {
-        let mut name: *const TValue = luaH_getshortstr(
+        let name: *const TValue = luaH_getshortstr(
             mt,
             luaS_new(g, b"__name\0" as *const u8 as *const libc::c_char),
         );
@@ -165,27 +155,27 @@ pub unsafe fn luaT_objtypename(mut g: *const Lua, mut o: *const TValue) -> Cow<'
 }
 
 pub unsafe fn luaT_callTM(
-    mut L: *const Thread,
-    mut f: *const TValue,
-    mut p1: *const TValue,
-    mut p2: *const TValue,
-    mut p3: *const TValue,
+    L: *const Thread,
+    f: *const TValue,
+    p1: *const TValue,
+    p2: *const TValue,
+    p3: *const TValue,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut func: StkId = (*L).top.get();
-    let mut io1: *mut TValue = &mut (*func).val;
-    let mut io2: *const TValue = f;
+    let func: StkId = (*L).top.get();
+    let io1: *mut TValue = &mut (*func).val;
+    let io2: *const TValue = f;
     (*io1).value_ = (*io2).value_;
     (*io1).tt_ = (*io2).tt_;
-    let mut io1_0: *mut TValue = &mut (*func.offset(1 as libc::c_int as isize)).val;
-    let mut io2_0: *const TValue = p1;
+    let io1_0: *mut TValue = &mut (*func.offset(1 as libc::c_int as isize)).val;
+    let io2_0: *const TValue = p1;
     (*io1_0).value_ = (*io2_0).value_;
     (*io1_0).tt_ = (*io2_0).tt_;
-    let mut io1_1: *mut TValue = &mut (*func.offset(2 as libc::c_int as isize)).val;
-    let mut io2_1: *const TValue = p2;
+    let io1_1: *mut TValue = &mut (*func.offset(2 as libc::c_int as isize)).val;
+    let io2_1: *const TValue = p2;
     (*io1_1).value_ = (*io2_1).value_;
     (*io1_1).tt_ = (*io2_1).tt_;
-    let mut io1_2: *mut TValue = &mut (*func.offset(3 as libc::c_int as isize)).val;
-    let mut io2_2: *const TValue = p3;
+    let io1_2: *mut TValue = &mut (*func.offset(3 as libc::c_int as isize)).val;
+    let io2_2: *const TValue = p3;
     (*io1_2).value_ = (*io2_2).value_;
     (*io1_2).tt_ = (*io2_2).tt_;
     (*L).top.set(func.offset(4 as libc::c_int as isize));
@@ -194,25 +184,25 @@ pub unsafe fn luaT_callTM(
 }
 
 pub unsafe fn luaT_callTMres(
-    mut L: *const Thread,
-    mut f: *const TValue,
-    mut p1: *const TValue,
-    mut p2: *const TValue,
+    L: *const Thread,
+    f: *const TValue,
+    p1: *const TValue,
+    p2: *const TValue,
     mut res: StkId,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut result: isize =
+    let result: isize =
         (res as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
-    let mut func: StkId = (*L).top.get();
-    let mut io1: *mut TValue = &raw mut (*func).val;
-    let mut io2: *const TValue = f;
+    let func: StkId = (*L).top.get();
+    let io1: *mut TValue = &raw mut (*func).val;
+    let io2: *const TValue = f;
     (*io1).value_ = (*io2).value_;
     (*io1).tt_ = (*io2).tt_;
-    let mut io1_0: *mut TValue = &raw mut (*func.offset(1 as libc::c_int as isize)).val;
-    let mut io2_0: *const TValue = p1;
+    let io1_0: *mut TValue = &raw mut (*func.offset(1 as libc::c_int as isize)).val;
+    let io2_0: *const TValue = p1;
     (*io1_0).value_ = (*io2_0).value_;
     (*io1_0).tt_ = (*io2_0).tt_;
-    let mut io1_1: *mut TValue = &mut (*func.offset(2 as libc::c_int as isize)).val;
-    let mut io2_1: *const TValue = p2;
+    let io1_1: *mut TValue = &mut (*func.offset(2 as libc::c_int as isize)).val;
+    let io2_1: *const TValue = p2;
     (*io1_1).value_ = (*io2_1).value_;
     (*io1_1).tt_ = (*io2_1).tt_;
     (*L).top.add(3);
@@ -220,9 +210,9 @@ pub unsafe fn luaT_callTMres(
     luaD_call(L, func, 1 as libc::c_int)?;
 
     res = ((*L).stack.get() as *mut libc::c_char).offset(result as isize) as StkId;
-    let mut io1_2: *mut TValue = &raw mut (*res).val;
+    let io1_2: *mut TValue = &raw mut (*res).val;
     (*L).top.sub(1);
-    let mut io2_2: *const TValue = &raw mut (*(*L).top.get()).val;
+    let io2_2: *const TValue = &raw mut (*(*L).top.get()).val;
     (*io1_2).value_ = (*io2_2).value_;
     (*io1_2).tt_ = (*io2_2).tt_;
 
@@ -230,11 +220,11 @@ pub unsafe fn luaT_callTMres(
 }
 
 unsafe fn callbinTM(
-    mut L: *const Thread,
-    mut p1: *const TValue,
-    mut p2: *const TValue,
-    mut res: StkId,
-    mut event: TMS,
+    L: *const Thread,
+    p1: *const TValue,
+    p2: *const TValue,
+    res: StkId,
+    event: TMS,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut tm: *const TValue = luaT_gettmbyobj(L, p1, event);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
@@ -248,11 +238,11 @@ unsafe fn callbinTM(
 }
 
 pub unsafe fn luaT_trybinTM(
-    mut L: *const Thread,
-    mut p1: *const TValue,
-    mut p2: *const TValue,
-    mut res: StkId,
-    mut event: TMS,
+    L: *const Thread,
+    p1: *const TValue,
+    p2: *const TValue,
+    res: StkId,
+    event: TMS,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if callbinTM(L, p1, p2, res, event)? == 0 {
         match event as libc::c_uint {
@@ -272,8 +262,8 @@ pub unsafe fn luaT_trybinTM(
     Ok(())
 }
 
-pub unsafe fn luaT_tryconcatTM(mut L: *const Thread) -> Result<(), Box<dyn std::error::Error>> {
-    let mut top: StkId = (*L).top.get();
+pub unsafe fn luaT_tryconcatTM(L: *const Thread) -> Result<(), Box<dyn std::error::Error>> {
+    let top: StkId = (*L).top.get();
     if ((callbinTM(
         L,
         &mut (*top.offset(-(2 as libc::c_int as isize))).val,
@@ -295,12 +285,12 @@ pub unsafe fn luaT_tryconcatTM(mut L: *const Thread) -> Result<(), Box<dyn std::
 }
 
 pub unsafe fn luaT_trybinassocTM(
-    mut L: *const Thread,
-    mut p1: *const TValue,
-    mut p2: *const TValue,
-    mut flip: libc::c_int,
-    mut res: StkId,
-    mut event: TMS,
+    L: *const Thread,
+    p1: *const TValue,
+    p2: *const TValue,
+    flip: libc::c_int,
+    res: StkId,
+    event: TMS,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if flip != 0 {
         luaT_trybinTM(L, p2, p1, res, event)
@@ -310,12 +300,12 @@ pub unsafe fn luaT_trybinassocTM(
 }
 
 pub unsafe fn luaT_trybiniTM(
-    mut L: *const Thread,
-    mut p1: *const TValue,
-    mut i2: i64,
-    mut flip: libc::c_int,
-    mut res: StkId,
-    mut event: TMS,
+    L: *const Thread,
+    p1: *const TValue,
+    i2: i64,
+    flip: libc::c_int,
+    res: StkId,
+    event: TMS,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut aux: TValue = TValue {
         value_: UntaggedValue {
@@ -323,17 +313,17 @@ pub unsafe fn luaT_trybiniTM(
         },
         tt_: 0,
     };
-    let mut io: *mut TValue = &mut aux;
+    let io: *mut TValue = &mut aux;
     (*io).value_.i = i2;
     (*io).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     luaT_trybinassocTM(L, p1, &mut aux, flip, res, event)
 }
 
 pub unsafe fn luaT_callorderTM(
-    mut L: *const Thread,
-    mut p1: *const TValue,
-    mut p2: *const TValue,
-    mut event: TMS,
+    L: *const Thread,
+    p1: *const TValue,
+    p2: *const TValue,
+    event: TMS,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     if callbinTM(L, p1, p2, (*L).top.get(), event)? != 0 {
         return Ok(!((*(*L).top.get()).val.tt_ as libc::c_int
@@ -346,12 +336,12 @@ pub unsafe fn luaT_callorderTM(
 }
 
 pub unsafe fn luaT_callorderiTM(
-    mut L: *const Thread,
+    L: *const Thread,
     mut p1: *const TValue,
-    mut v2: libc::c_int,
-    mut flip: libc::c_int,
-    mut isfloat: libc::c_int,
-    mut event: TMS,
+    v2: libc::c_int,
+    flip: libc::c_int,
+    isfloat: libc::c_int,
+    event: TMS,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut aux: TValue = TValue {
         value_: UntaggedValue {
@@ -361,11 +351,11 @@ pub unsafe fn luaT_callorderiTM(
     };
     let mut p2: *const TValue = 0 as *const TValue;
     if isfloat != 0 {
-        let mut io: *mut TValue = &mut aux;
+        let io: *mut TValue = &mut aux;
         (*io).value_.n = v2 as f64;
         (*io).tt_ = (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
     } else {
-        let mut io_0: *mut TValue = &mut aux;
+        let io_0: *mut TValue = &mut aux;
         (*io_0).value_.i = v2 as i64;
         (*io_0).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     }
@@ -379,15 +369,15 @@ pub unsafe fn luaT_callorderiTM(
 }
 
 pub unsafe fn luaT_adjustvarargs(
-    mut L: *const Thread,
-    mut nfixparams: libc::c_int,
-    mut ci: *mut CallInfo,
-    mut p: *const Proto,
+    L: *const Thread,
+    nfixparams: libc::c_int,
+    ci: *mut CallInfo,
+    p: *const Proto,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
-    let mut actual: libc::c_int =
+    let actual: libc::c_int =
         ((*L).top.get()).offset_from((*ci).func) as libc::c_long as libc::c_int - 1 as libc::c_int;
-    let mut nextra: libc::c_int = actual - nfixparams;
+    let nextra: libc::c_int = actual - nfixparams;
     (*ci).u.nextraargs = nextra;
 
     if ((((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
@@ -401,16 +391,16 @@ pub unsafe fn luaT_adjustvarargs(
 
     let fresh0 = (*L).top.get();
     (*L).top.add(1);
-    let mut io1: *mut TValue = &raw mut (*fresh0).val;
-    let mut io2: *const TValue = &raw mut (*(*ci).func).val;
+    let io1: *mut TValue = &raw mut (*fresh0).val;
+    let io2: *const TValue = &raw mut (*(*ci).func).val;
     (*io1).value_ = (*io2).value_;
     (*io1).tt_ = (*io2).tt_;
     i = 1 as libc::c_int;
     while i <= nfixparams {
         let fresh1 = (*L).top.get();
         (*L).top.add(1);
-        let mut io1_0: *mut TValue = &raw mut (*fresh1).val;
-        let mut io2_0: *const TValue = &raw mut (*((*ci).func).offset(i as isize)).val;
+        let io1_0: *mut TValue = &raw mut (*fresh1).val;
+        let io2_0: *const TValue = &raw mut (*((*ci).func).offset(i as isize)).val;
         (*io1_0).value_ = (*io2_0).value_;
         (*io1_0).tt_ = (*io2_0).tt_;
         (*((*ci).func).offset(i as isize)).val.tt_ =
@@ -423,13 +413,13 @@ pub unsafe fn luaT_adjustvarargs(
 }
 
 pub unsafe fn luaT_getvarargs(
-    mut L: *const Thread,
-    mut ci: *mut CallInfo,
+    L: *const Thread,
+    ci: *mut CallInfo,
     mut where_0: StkId,
     mut wanted: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut i: libc::c_int = 0;
-    let mut nextra: libc::c_int = (*ci).u.nextraargs;
+    let nextra: libc::c_int = (*ci).u.nextraargs;
 
     if wanted < 0 as libc::c_int {
         wanted = nextra;
@@ -437,7 +427,7 @@ pub unsafe fn luaT_getvarargs(
         if ((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
             <= nextra as libc::c_long
         {
-            let mut t__: isize =
+            let t__: isize =
                 (where_0 as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
 
             if (*(*L).global).gc.debt() > 0 {
@@ -451,8 +441,8 @@ pub unsafe fn luaT_getvarargs(
     }
     i = 0 as libc::c_int;
     while i < wanted && i < nextra {
-        let mut io1: *mut TValue = &mut (*where_0.offset(i as isize)).val;
-        let mut io2: *const TValue =
+        let io1: *mut TValue = &mut (*where_0.offset(i as isize)).val;
+        let io2: *const TValue =
             &raw mut (*((*ci).func).offset(-(nextra as isize)).offset(i as isize)).val;
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;

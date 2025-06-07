@@ -13,7 +13,7 @@ use crate::lstate::lua_CFunction;
 use crate::lstring::luaS_newlstr;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
-use crate::{ArithError, ChunkInfo, Lua, Thread};
+use crate::{ArithError, ChunkInfo, Lua, Table, Thread};
 use libc::{c_char, c_int, sprintf, strpbrk, strspn, strtod};
 use libm::{floor, pow};
 use std::cell::{Cell, UnsafeCell};
@@ -89,35 +89,6 @@ pub union C2RustUnnamed_8 {
     pub hnext: *mut TString,
 }
 
-#[repr(C)]
-pub struct Table {
-    pub hdr: Object,
-    pub flags: Cell<u8>,
-    pub lsizenode: Cell<u8>,
-    pub alimit: Cell<libc::c_uint>,
-    pub array: Cell<*mut TValue>,
-    pub node: Cell<*mut Node>,
-    pub lastfree: Cell<*mut Node>,
-    pub metatable: Cell<*mut Table>,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union Node {
-    pub u: NodeKey,
-    pub i_val: TValue,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct NodeKey {
-    pub value_: UntaggedValue,
-    pub tt_: u8,
-    pub key_tt: u8,
-    pub next: c_int,
-    pub key_val: UntaggedValue,
-}
-
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union UValue {
@@ -134,7 +105,7 @@ pub struct Udata {
     pub hdr: Object,
     pub nuvalue: libc::c_ushort,
     pub len: usize,
-    pub metatable: *mut Table,
+    pub metatable: *const Table,
     pub uv: [UValue; 1],
 }
 

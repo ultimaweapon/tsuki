@@ -12,14 +12,12 @@
 use crate::gc::luaC_fix;
 use crate::lctype::luai_ctype_;
 use crate::lmem::luaM_saferealloc_;
-use crate::lobject::{
-    Node, TString, TValue, Table, UntaggedValue, luaO_hexavalue, luaO_str2num, luaO_utf8esc,
-};
+use crate::lobject::{TString, TValue, UntaggedValue, luaO_hexavalue, luaO_str2num, luaO_utf8esc};
 use crate::lparser::{Dyndata, FuncState};
 use crate::lstring::luaS_newlstr;
 use crate::ltable::{luaH_finishset, luaH_getstr};
 use crate::lzio::{Mbuffer, ZIO};
-use crate::{ChunkInfo, Lua, Object, ParseError, Ref};
+use crate::{ChunkInfo, Lua, Node, Object, ParseError, Ref, Table};
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
 use std::fmt::Display;

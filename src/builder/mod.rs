@@ -2,7 +2,7 @@ use crate::lauxlib::luaL_requiref;
 use crate::lbaselib::luaopen_base;
 use crate::llex::luaX_init;
 use crate::lmathlib::luaopen_math;
-use crate::lobject::{TValue, Table, UntaggedValue};
+use crate::lobject::{TValue, UntaggedValue};
 use crate::lstring::luaS_init;
 use crate::lstrlib::luaopen_string;
 use crate::ltable::{luaH_new, luaH_resize};
@@ -103,7 +103,7 @@ impl Builder {
         });
 
         // Setup registry.
-        let registry: *mut Table = unsafe { luaH_new(g.deref()) };
+        let registry = unsafe { luaH_new(g.deref()) };
         let io: *mut TValue = g.l_registry.get();
 
         unsafe { (*io).value_.gc = registry as *mut Object };

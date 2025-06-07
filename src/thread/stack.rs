@@ -1,5 +1,5 @@
-use crate::LuaFn;
-use crate::lobject::{StackValue, TValue, Table, UntaggedValue};
+use crate::lobject::{StackValue, TValue, UntaggedValue};
+use crate::{LuaFn, Table};
 use std::cell::Cell;
 use std::mem::zeroed;
 

@@ -10,7 +10,7 @@ pub use self::thread::*;
 use self::lapi::lua_settop;
 use self::ldo::luaD_protectedparser;
 use self::lmem::luaM_free_;
-use self::lobject::{TString, TValue, Table};
+use self::lobject::{TString, TValue};
 use self::lzio::Zio;
 use std::cell::{Cell, UnsafeCell};
 use std::ffi::c_int;
@@ -68,7 +68,7 @@ unsafe fn api_incr_top(th: *const Thread) {
 
 /// Global states shared with all Lua threads.
 ///
-/// Use [`Builder`] to get the instance of this type.
+/// Use [`Builder`] to get an instance of this type.
 pub struct Lua {
     currentwhite: Cell<u8>,
     all: Cell<*const Object>,
@@ -100,6 +100,17 @@ pub struct Lua {
 }
 
 impl Lua {
+    /// Returns a global table.
+    #[inline(always)]
+    pub fn global(&self) -> &Table {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
+        let tab = unsafe { (*reg).array.get().add(2 - 1) };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
+
+        unsafe { &*tab }
+    }
+
+    /// Load a Lua chunk.
     pub fn load(
         self: &Pin<Rc<Self>>,
         info: ChunkInfo,

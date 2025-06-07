@@ -7,13 +7,13 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::lmem::{luaM_malloc_, luaM_realloc_};
-use crate::lobject::{TString, Table, UValue, Udata};
+use crate::lobject::{TString, UValue, Udata};
 use crate::{Lua, Object, StringTable};
 use libc::{memcmp, memcpy, strlen};
 use std::alloc::Layout;
 use std::cell::Cell;
 use std::mem::offset_of;
-use std::ptr::addr_of_mut;
+use std::ptr::{addr_of_mut, null};
 
 pub unsafe fn luaS_eqlngstr(a: *mut TString, b: *mut TString) -> libc::c_int {
     let len: usize = (*(*a).u.get()).lnglen;
@@ -257,7 +257,7 @@ pub unsafe fn luaS_newudata(g: *const Lua, s: usize, nuvalue: libc::c_int) -> *m
 
     (*o).len = s;
     (*o).nuvalue = nuvalue as libc::c_ushort;
-    (*o).metatable = 0 as *mut Table;
+    (*o).metatable = null();
     i = 0 as libc::c_int;
 
     while i < nuvalue {

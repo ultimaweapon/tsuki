@@ -9,12 +9,12 @@
 use crate::gc::{Object, luaC_barrierback_};
 use crate::ldebug::luaG_runerror;
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
-use crate::lobject::{Node, NodeKey, StkId, TString, TValue, Table, UntaggedValue, luaO_ceillog2};
+use crate::lobject::{StkId, TString, TValue, UntaggedValue, luaO_ceillog2};
 use crate::lstate::lua_CFunction;
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::ltm::TM_EQ;
 use crate::lvm::{F2Ieq, luaV_flttointeger};
-use crate::{Lua, TableError, Thread};
+use crate::{Lua, Node, NodeKey, Table, TableError, Thread};
 use libm::frexp;
 use std::alloc::Layout;
 use std::cell::Cell;
@@ -795,7 +795,7 @@ unsafe fn luaH_newkey(
 pub unsafe fn luaH_getint(t: *const Table, key: i64) -> *const TValue {
     let alimit: u64 = (*t).alimit.get() as u64;
     if (key as u64).wrapping_sub(1 as libc::c_uint as u64) < alimit {
-        return ((*t).array.get()).offset((key - 1 as libc::c_int as i64) as isize) as *mut TValue;
+        return ((*t).array.get()).offset((key - 1) as isize) as *mut TValue;
     } else if (*t).flags.get() as libc::c_int & (1 as libc::c_int) << 7 as libc::c_int != 0
         && (key as u64).wrapping_sub(1 as libc::c_uint as u64)
             & !alimit.wrapping_sub(1 as libc::c_uint as u64)

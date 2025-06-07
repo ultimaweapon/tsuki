@@ -1,6 +1,25 @@
+pub(crate) use self::node::*;
+
+use crate::{Object, TValue};
+use std::cell::Cell;
 use thiserror::Error;
 
-/// Represents an error when the operation on a table is fails.
+mod node;
+
+/// Lua table.
+#[repr(C)]
+pub struct Table {
+    pub(crate) hdr: Object,
+    pub(crate) flags: Cell<u8>,
+    pub(crate) lsizenode: Cell<u8>,
+    pub(crate) alimit: Cell<libc::c_uint>,
+    pub(crate) array: Cell<*mut TValue>,
+    pub(crate) node: Cell<*mut Node>,
+    pub(crate) lastfree: Cell<*mut Node>,
+    pub(crate) metatable: Cell<*mut Table>,
+}
+
+/// Represents an error when the operation on a table fails.
 #[derive(Debug, Error)]
 pub enum TableError {
     #[error("key is nil")]

@@ -10,7 +10,7 @@
 
 use crate::ldo::{luaD_hook, luaD_hookcall};
 use crate::lfunc::luaF_getlocalname;
-use crate::lobject::{CClosure, Proto, StkId, TString, TValue, Table, UntaggedValue};
+use crate::lobject::{CClosure, Proto, StkId, TString, TValue, UntaggedValue};
 use crate::lopcodes::{OpCode, luaP_opmodes};
 use crate::lstate::{CallInfo, lua_Debug, lua_Hook};
 use crate::ltable::{luaH_new, luaH_setint};
@@ -304,14 +304,14 @@ unsafe fn collectvalidlines(L: *const Thread, f: *const Object) {
     } else {
         let p: *const Proto = (*f.cast::<LuaFn>()).p.get();
         let mut currentline: libc::c_int = (*p).linedefined;
-        let t: *mut Table = luaH_new((*L).global);
+        let t = luaH_new((*L).global);
         let io: *mut TValue = &raw mut (*(*L).top.get()).val;
-        let x_: *mut Table = t;
-        (*io).value_.gc = x_ as *mut Object;
-        (*io).tt_ = (5 as libc::c_int
-            | (0 as libc::c_int) << 4 as libc::c_int
-            | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+
+        (*io).value_.gc = t.cast();
+        (*io).tt_ = (5 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int | 1 << 6) as u8;
+
         api_incr_top(L);
+
         if !((*p).lineinfo).is_null() {
             let mut i: libc::c_int = 0;
             let mut v: TValue = TValue {

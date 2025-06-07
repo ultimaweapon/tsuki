@@ -10,8 +10,8 @@ use crate::gc::{luaC_barrier_, luaC_barrierback_};
 use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall};
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::{
-    CClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata, UntaggedValue,
-    UpVal, luaO_arith, luaO_str2num, luaO_tostring,
+    CClosure, Proto, StackValue, StkId, TString, TValue, UValue, Udata, UntaggedValue, UpVal,
+    luaO_arith, luaO_str2num, luaO_tostring,
 };
 use crate::lstate::{CallInfo, lua_CFunction};
 use crate::lstring::{luaS_new, luaS_newlstr, luaS_newudata};
@@ -24,7 +24,7 @@ use crate::lvm::{
     F2Ieq, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_lessequal,
     luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
 };
-use crate::{LuaFn, Object, TableError, Thread, api_incr_top};
+use crate::{LuaFn, Object, Table, TableError, Thread, api_incr_top};
 use std::ffi::{c_int, c_void};
 use std::mem::offset_of;
 use std::ptr::null_mut;
@@ -890,27 +890,24 @@ pub unsafe fn lua_createtable(L: *const Thread, narray: libc::c_int, nrec: libc:
 }
 
 pub unsafe fn lua_getmetatable(L: *const Thread, objindex: libc::c_int) -> libc::c_int {
-    let mut obj: *const TValue = 0 as *const TValue;
-    let mut mt: *mut Table = 0 as *mut Table;
     let mut res: libc::c_int = 0 as libc::c_int;
-    obj = index2value(L, objindex);
-
-    match (*obj).tt_ as libc::c_int & 0xf as libc::c_int {
-        5 => mt = (*((*obj).value_.gc as *mut Table)).metatable.get(),
-        7 => mt = (*((*obj).value_.gc as *mut Udata)).metatable,
-        _ => mt = (*(*L).global).mt[((*obj).tt_ & 0xf) as usize].get(),
-    }
+    let obj = index2value(L, objindex);
+    let mt = match (*obj).tt_ as libc::c_int & 0xf as libc::c_int {
+        5 => (*((*obj).value_.gc as *mut Table)).metatable.get(),
+        7 => (*((*obj).value_.gc as *mut Udata)).metatable,
+        _ => (*(*L).global).mt[((*obj).tt_ & 0xf) as usize].get(),
+    };
 
     if !mt.is_null() {
         let io: *mut TValue = &raw mut (*(*L).top.get()).val;
-        let x_: *mut Table = mt;
-        (*io).value_.gc = x_ as *mut Object;
-        (*io).tt_ = (5 as libc::c_int
-            | (0 as libc::c_int) << 4 as libc::c_int
-            | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+
+        (*io).value_.gc = mt.cast();
+        (*io).tt_ = (5 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int | 1 << 6) as u8;
+
         api_incr_top(L);
         res = 1 as libc::c_int;
     }
+
     return res;
 }
 
