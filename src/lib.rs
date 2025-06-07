@@ -2,6 +2,7 @@ pub use self::builder::*;
 pub use self::error::*;
 pub use self::function::*;
 pub use self::gc::*;
+pub use self::module::*;
 pub use self::parser::*;
 pub use self::table::*;
 pub use self::thread::*;
@@ -46,6 +47,7 @@ mod ltablib;
 mod ltm;
 mod lvm;
 mod lzio;
+mod module;
 mod parser;
 mod table;
 mod thread;
@@ -138,6 +140,10 @@ impl Lua {
         }
 
         Ok(f)
+    }
+
+    pub fn create_table(&self) -> Ref<Table> {
+        todo!()
     }
 
     /// Create a new Lua thread (AKA coroutine).

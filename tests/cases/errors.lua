@@ -199,6 +199,9 @@ do   -- named objects (field '__name')
   _G.XX = nil
 end
 
+-- global functions
+checkmessage("(error or print){}", "error")
+
 -- tests for field accesses after RK limit
 local t = {}
 for i = 1, 1000 do

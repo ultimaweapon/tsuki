@@ -8,7 +8,7 @@ use crate::lstrlib::luaopen_string;
 use crate::ltable::{luaH_new, luaH_resize};
 use crate::ltablib::luaopen_table;
 use crate::ltm::luaT_init;
-use crate::{Gc, Lua, Object, Ref, StringTable, Thread, lua_pop};
+use crate::{Gc, Lua, Module, Object, Ref, StringTable, Thread, lua_pop};
 use std::cell::{Cell, UnsafeCell};
 use std::marker::PhantomPinned;
 use std::ops::Deref;
@@ -173,6 +173,12 @@ impl Builder {
         unsafe { luaL_requiref(self.th.deref(), c"math".as_ptr(), luaopen_math, 1).unwrap() };
         unsafe { lua_pop(self.th.deref(), 1).unwrap() };
         self
+    }
+
+    /// # Panics
+    /// If module with the same name already added.
+    pub fn add_module<T: Module>(self, m: T) -> Self {
+        todo!()
     }
 
     pub fn build(self) -> Pin<Rc<Lua>> {

@@ -449,7 +449,7 @@ unsafe fn luaB_tostring(mut L: *const Thread) -> Result<c_int, Box<dyn std::erro
     return Ok(1 as libc::c_int);
 }
 
-static mut base_funcs: [luaL_Reg; 22] = [
+static mut base_funcs: [luaL_Reg; 21] = [
     {
         let mut init = luaL_Reg {
             name: b"assert\0" as *const u8 as *const libc::c_char,
@@ -586,13 +586,6 @@ static mut base_funcs: [luaL_Reg; 22] = [
     {
         let mut init = luaL_Reg {
             name: b"_G\0" as *const u8 as *const libc::c_char,
-            func: None,
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"_VERSION\0" as *const u8 as *const libc::c_char,
             func: None,
         };
         init
