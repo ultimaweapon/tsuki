@@ -1177,16 +1177,13 @@ unsafe fn recfield(ls: *mut LexState, cc: *mut ConsControl) -> Result<(), ParseE
         f: 0,
     };
     if (*ls).t.token == TK_NAME as libc::c_int {
-        checklimit(
-            fs,
-            (*cc).nh,
-            2147483647 as libc::c_int,
-            "items in a constructor",
-        )?;
         codename(ls, &mut key)?;
     } else {
         yindex(ls, &mut key)?;
     }
+
+    checklimit(fs, (*cc).nh, 2147483647, "items in a constructor")?;
+
     (*cc).nh += 1;
     (*cc).nh;
     checknext(ls, '=' as i32)?;
