@@ -98,7 +98,7 @@ impl Thread {
     }
 
     /// Call a Lua function.
-    pub fn call(
+    pub async fn call(
         &self,
         f: &LuaFn,
         args: impl Args,

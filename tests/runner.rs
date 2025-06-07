@@ -82,7 +82,7 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Run.
     let th = lua.spawn();
 
-    th.call(&chunk, ())?;
+    pollster::block_on(async move { th.call(&chunk, ()).await })?;
 
     Ok(())
 }
