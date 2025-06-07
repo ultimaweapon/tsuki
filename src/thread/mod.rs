@@ -1,11 +1,12 @@
 pub(crate) use self::stack::*;
 
+use crate::lapi::lua_pcall;
 use crate::ldo::luaD_inctop;
 use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
 use crate::lobject::{StackValue, StkId, UpVal};
 use crate::lstate::{CallInfo, lua_Hook};
-use crate::{Lua, LuaClosure, Object, Ref, lua_pcall};
+use crate::{Lua, LuaClosure, Object, Ref};
 use std::alloc::{Layout, handle_alloc_error};
 use std::cell::{Cell, UnsafeCell};
 use std::marker::PhantomPinned;

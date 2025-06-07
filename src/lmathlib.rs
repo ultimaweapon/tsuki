@@ -9,14 +9,16 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::lapi::{lua_compare, lua_pushboolean};
-use crate::lauxlib::{luaL_checkany, luaL_optnumber};
-use crate::{
-    Thread, lua_createtable, lua_gettop, lua_isinteger, lua_newuserdatauv, lua_pushinteger,
-    lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_setfield, lua_settop,
-    lua_tointegerx, lua_touserdata, lua_type, luaL_Reg, luaL_argerror, luaL_checkinteger,
-    luaL_checknumber, luaL_error, luaL_optinteger, luaL_setfuncs,
+use crate::lapi::{
+    lua_compare, lua_createtable, lua_gettop, lua_isinteger, lua_newuserdatauv, lua_pushboolean,
+    lua_pushinteger, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_setfield,
+    lua_tointegerx, lua_touserdata, lua_type,
 };
+use crate::lauxlib::{
+    luaL_Reg, luaL_argerror, luaL_checkany, luaL_checkinteger, luaL_checknumber, luaL_error,
+    luaL_optinteger, luaL_optnumber, luaL_setfuncs,
+};
+use crate::{Thread, lua_settop};
 use libc::time;
 use libm::{
     acos, asin, atan2, ceil, cos, exp, fabs, floor, fmod, log, log2, log10, sin, sqrt, tan,

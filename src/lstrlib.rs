@@ -1,5 +1,4 @@
 #![allow(
-    mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -7,18 +6,20 @@
     unused_mut
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
-#![allow(unused_variables)]
 
-use crate::lapi::{lua_call, lua_topointer};
-use crate::{
-    Thread, lua_arith, lua_createtable, lua_gettable, lua_gettop, lua_isinteger, lua_isstring,
-    lua_newuserdatauv, lua_pop, lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil,
+use crate::lapi::{
+    lua_arith, lua_call, lua_createtable, lua_gettable, lua_gettop, lua_isinteger, lua_isstring,
+    lua_newuserdatauv, lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil,
     lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rotate, lua_setfield, lua_setmetatable,
-    lua_settop, lua_stringtonumber, lua_toboolean, lua_tointegerx, lua_tolstring, lua_tonumberx,
-    lua_touserdata, lua_type, lua_typename, luaL_Reg, luaL_argerror, luaL_checkinteger,
-    luaL_checklstring, luaL_checknumber, luaL_checkstack, luaL_error, luaL_getmetafield,
-    luaL_optinteger, luaL_optlstring, luaL_setfuncs, luaL_tolstring, luaL_typeerror,
+    lua_stringtonumber, lua_toboolean, lua_tointegerx, lua_tolstring, lua_tonumberx, lua_topointer,
+    lua_touserdata, lua_type, lua_typename,
 };
+use crate::lauxlib::{
+    luaL_Reg, luaL_argerror, luaL_checkinteger, luaL_checklstring, luaL_checknumber,
+    luaL_checkstack, luaL_error, luaL_getmetafield, luaL_optinteger, luaL_optlstring,
+    luaL_setfuncs, luaL_tolstring, luaL_typeerror,
+};
+use crate::{Thread, lua_pop, lua_settop};
 use libc::{
     isalnum, isalpha, iscntrl, isdigit, isgraph, islower, ispunct, isspace, isupper, isxdigit,
     memchr, memcmp, memcpy, snprintf, strchr, strcpy, strlen, strpbrk, strspn, tolower,
@@ -90,7 +91,7 @@ unsafe fn str_len(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Err
     return Ok(1 as libc::c_int);
 }
 
-unsafe extern "C" fn posrelatI(mut pos: i64, mut len: usize) -> usize {
+unsafe fn posrelatI(mut pos: i64, mut len: usize) -> usize {
     if pos > 0 as libc::c_int as i64 {
         return pos as usize;
     } else if pos == 0 as libc::c_int as i64 {
@@ -146,7 +147,6 @@ unsafe fn str_sub(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Err
 
 unsafe fn str_reverse(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut l: usize = 0;
-    let mut i: usize = 0;
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
     let mut s = std::slice::from_raw_parts(s.cast(), l).to_vec();
 
@@ -158,7 +158,6 @@ unsafe fn str_reverse(mut L: *const Thread) -> Result<c_int, Box<dyn std::error:
 
 unsafe fn str_lower(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut l: usize = 0;
-    let mut i: usize = 0;
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
     let mut s = std::slice::from_raw_parts(s.cast::<u8>(), l).to_vec();
 
@@ -173,7 +172,6 @@ unsafe fn str_lower(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
 
 unsafe fn str_upper(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut l: usize = 0;
-    let mut i: usize = 0;
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
     let mut s = std::slice::from_raw_parts(s.cast::<u8>(), l).to_vec();
 
@@ -1621,11 +1619,12 @@ unsafe fn addquoted(
     Ok(())
 }
 
-unsafe fn quotefloat(mut L: *const Thread, mut buff: *mut libc::c_char, mut n: f64) -> libc::c_int {
+unsafe fn quotefloat(mut buff: *mut libc::c_char, mut n: f64) -> libc::c_int {
     let mut s: *const libc::c_char = 0 as *const libc::c_char;
-    if n == ::core::f64::INFINITY {
+
+    if n == f64::INFINITY {
         s = b"1e9999\0" as *const u8 as *const libc::c_char;
-    } else if n == -::core::f64::INFINITY {
+    } else if n == -f64::INFINITY {
         s = b"-1e9999\0" as *const u8 as *const libc::c_char;
     } else if n != n {
         s = b"(0/0)\0" as *const u8 as *const libc::c_char;
@@ -1654,7 +1653,6 @@ unsafe fn addliteral(
             let mut nb: libc::c_int = 0;
             if lua_isinteger(L, arg) == 0 {
                 nb = quotefloat(
-                    L,
                     buff.as_mut_ptr().cast(),
                     lua_tonumberx(L, arg, 0 as *mut libc::c_int),
                 );

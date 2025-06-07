@@ -7,15 +7,16 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::lapi::{
-    lua_call, lua_checkstack, lua_compare, lua_geti, lua_getmetatable, lua_rawget, lua_seti,
+    lua_call, lua_checkstack, lua_compare, lua_createtable, lua_geti, lua_getmetatable, lua_gettop,
+    lua_isstring, lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushstring, lua_pushvalue,
+    lua_rawget, lua_rotate, lua_setfield, lua_seti, lua_toboolean, lua_tolstring, lua_type,
+    lua_typename,
 };
-use crate::lauxlib::luaL_len;
-use crate::{
-    Thread, lua_createtable, lua_gettop, lua_isstring, lua_pop, lua_pushinteger, lua_pushlstring,
-    lua_pushnil, lua_pushstring, lua_pushvalue, lua_rotate, lua_setfield, lua_settop,
-    lua_toboolean, lua_tolstring, lua_type, lua_typename, luaL_Reg, luaL_argerror,
-    luaL_checkinteger, luaL_checktype, luaL_error, luaL_optinteger, luaL_optlstring, luaL_setfuncs,
+use crate::lauxlib::{
+    luaL_Reg, luaL_argerror, luaL_checkinteger, luaL_checktype, luaL_error, luaL_len,
+    luaL_optinteger, luaL_optlstring, luaL_setfuncs,
 };
+use crate::{Thread, lua_pop, lua_settop};
 use std::ffi::c_int;
 
 type IdxT = libc::c_uint;
