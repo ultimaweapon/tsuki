@@ -15,7 +15,7 @@ use crate::lstate::{CallInfo, lua_CFunction, lua_Debug, lua_Hook, luaE_extendCI,
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, Zio};
-use crate::{ChunkInfo, Lua, LuaClosure, ParseError, Ref, Thread};
+use crate::{ChunkInfo, Lua, LuaFn, ParseError, Ref, Thread};
 use std::alloc::{Layout, handle_alloc_error};
 use std::ffi::c_int;
 use std::ops::Deref;
@@ -197,17 +197,6 @@ pub unsafe fn luaD_shrinkstack(L: *const Thread) {
     luaE_shrinkCI(L);
 }
 
-#[inline(always)]
-pub unsafe fn luaD_inctop(L: *const Thread) -> Result<(), Box<dyn std::error::Error>> {
-    if (*L).stack_last.get().offset_from((*L).top.get()) <= 1 {
-        luaD_growstack(L, 1)?;
-    }
-
-    (*L).top.add(1);
-
-    Ok(())
-}
-
 pub unsafe fn luaD_hook(
     L: *const Thread,
     event: libc::c_int,
@@ -290,7 +279,7 @@ pub unsafe fn luaD_hookcall(
             } else {
                 0 as libc::c_int
             };
-        let p: *mut Proto = (*(*(*ci).func).val.value_.gc.cast::<LuaClosure>()).p.get();
+        let p: *mut Proto = (*(*(*ci).func).val.value_.gc.cast::<LuaFn>()).p.get();
         (*ci).u.savedpc = ((*ci).u.savedpc).offset(1);
         (*ci).u.savedpc;
         luaD_hook(
@@ -316,7 +305,7 @@ unsafe fn rethook(
         let mut delta: libc::c_int = 0 as libc::c_int;
         let mut ftransfer: libc::c_int = 0;
         if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
-            let p: *mut Proto = (*(*(*ci).func).val.value_.gc.cast::<LuaClosure>()).p.get();
+            let p: *mut Proto = (*(*(*ci).func).val.value_.gc.cast::<LuaFn>()).p.get();
             if (*p).is_vararg != 0 {
                 delta = (*ci).u.nextraargs + (*p).numparams as libc::c_int + 1 as libc::c_int;
             }
@@ -332,7 +321,7 @@ unsafe fn rethook(
     if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
         (*L).oldpc.set(
             ((*ci).u.savedpc)
-                .offset_from((*(*(*(*ci).func).val.value_.gc.cast::<LuaClosure>()).p.get()).code)
+                .offset_from((*(*(*(*ci).func).val.value_.gc.cast::<LuaFn>()).p.get()).code)
                 as libc::c_long as libc::c_int
                 - 1,
         );
@@ -565,7 +554,7 @@ pub unsafe fn luaD_pretailcall(
             }
             22 => return precallC(L, func, -(1 as libc::c_int), (*func).val.value_.f),
             6 => {
-                let p: *mut Proto = (*(*func).val.value_.gc.cast::<LuaClosure>()).p.get();
+                let p: *mut Proto = (*(*func).val.value_.gc.cast::<LuaFn>()).p.get();
                 let fsize: libc::c_int = (*p).maxstacksize as libc::c_int;
                 let nfixparams: libc::c_int = (*p).numparams as libc::c_int;
                 let mut i: libc::c_int = 0;
@@ -639,7 +628,7 @@ pub unsafe fn luaD_precall(
             }
             6 => {
                 let mut ci: *mut CallInfo = 0 as *mut CallInfo;
-                let p: *mut Proto = (*(*func).val.value_.gc.cast::<LuaClosure>()).p.get();
+                let p: *mut Proto = (*(*func).val.value_.gc.cast::<LuaFn>()).p.get();
                 let mut narg: libc::c_int = ((*L).top.get()).offset_from(func) as libc::c_long
                     as libc::c_int
                     - 1 as libc::c_int;
@@ -747,7 +736,7 @@ pub unsafe fn luaD_protectedparser(
     g: &Pin<Rc<Lua>>,
     mut z: Zio,
     info: ChunkInfo,
-) -> Result<Ref<LuaClosure>, ParseError> {
+) -> Result<Ref<LuaFn>, ParseError> {
     let mut p = SParser {
         z: 0 as *mut ZIO,
         buff: Mbuffer {

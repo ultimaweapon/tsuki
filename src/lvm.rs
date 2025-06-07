@@ -28,7 +28,7 @@ use crate::ltm::{
     luaT_callTM, luaT_callTMres, luaT_callorderTM, luaT_callorderiTM, luaT_gettm, luaT_gettmbyobj,
     luaT_getvarargs, luaT_trybinTM, luaT_trybinassocTM, luaT_trybiniTM, luaT_tryconcatTM,
 };
-use crate::{ArithError, LuaClosure, Thread};
+use crate::{ArithError, LuaFn, Thread};
 use libc::{memcpy, strcoll, strlen};
 use libm::{floor, fmod, pow};
 use std::cell::Cell;
@@ -1128,10 +1128,10 @@ unsafe fn pushclosure(
     let nup: libc::c_int = (*p).sizeupvalues;
     let uv: *mut Upvaldesc = (*p).upvalues;
     let mut i: libc::c_int = 0;
-    let ncl: *mut LuaClosure = luaF_newLclosure((*L).global, nup);
+    let ncl: *mut LuaFn = luaF_newLclosure((*L).global, nup);
     (*ncl).p.set(p);
     let io: *mut TValue = &raw mut (*ra).val;
-    let x_: *mut LuaClosure = ncl;
+    let x_: *mut LuaFn = ncl;
 
     (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = (6 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int | 1 << 6) as u8;
@@ -1171,7 +1171,7 @@ pub unsafe fn luaV_execute(
     let mut b_4: libc::c_int = 0;
     let mut nresults: libc::c_int = 0;
     let mut current_block: u64;
-    let mut cl: *mut LuaClosure = 0 as *mut LuaClosure;
+    let mut cl: *mut LuaFn = 0 as *mut LuaFn;
     let mut k: *mut TValue = 0 as *mut TValue;
     let mut base: StkId = 0 as *mut StackValue;
     let mut pc: *const u32 = 0 as *const u32;
@@ -1181,7 +1181,7 @@ pub unsafe fn luaV_execute(
         trap = (*L).hookmask.get();
 
         '_returning: loop {
-            cl = (*(*ci).func).val.value_.gc as *mut LuaClosure;
+            cl = (*(*ci).func).val.value_.gc as *mut LuaFn;
             k = (*(*cl).p.get()).k;
             pc = (*ci).u.savedpc;
 

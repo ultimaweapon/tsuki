@@ -102,7 +102,7 @@ impl Lua {
         self: &Pin<Rc<Self>>,
         info: ChunkInfo,
         chunk: impl AsRef<[u8]>,
-    ) -> Result<Ref<LuaClosure>, ParseError> {
+    ) -> Result<Ref<LuaFn>, ParseError> {
         let chunk = chunk.as_ref();
         let z = Zio {
             n: chunk.len(),

@@ -14,7 +14,7 @@ use crate::lobject::{
     AbsLineInfo, CClosure, LocVar, Proto, StackValue, StkId, TValue, UpVal, Upvaldesc,
 };
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
-use crate::{ChunkInfo, Lua, LuaClosure, Object, Thread};
+use crate::{ChunkInfo, Lua, LuaFn, Object, Thread};
 use std::alloc::Layout;
 use std::cell::Cell;
 use std::ffi::CStr;
@@ -33,10 +33,10 @@ pub unsafe fn luaF_newCclosure(g: *const Lua, nupvals: libc::c_int) -> *mut CClo
     o
 }
 
-pub unsafe fn luaF_newLclosure(g: *const Lua, nupvals: libc::c_int) -> *mut LuaClosure {
+pub unsafe fn luaF_newLclosure(g: *const Lua, nupvals: libc::c_int) -> *mut LuaFn {
     let nupvals = u8::try_from(nupvals).unwrap();
-    let layout = Layout::new::<LuaClosure>();
-    let o = Object::new(g, 6 | 0 << 4, layout).cast::<LuaClosure>();
+    let layout = Layout::new::<LuaFn>();
+    let o = Object::new(g, 6 | 0 << 4, layout).cast::<LuaFn>();
     let mut upvals = Vec::with_capacity(nupvals.into());
 
     for _ in 0..nupvals {
@@ -49,7 +49,7 @@ pub unsafe fn luaF_newLclosure(g: *const Lua, nupvals: libc::c_int) -> *mut LuaC
     o
 }
 
-pub unsafe fn luaF_initupvals(g: *const Lua, cl: *const LuaClosure) {
+pub unsafe fn luaF_initupvals(g: *const Lua, cl: *const LuaFn) {
     for v in &(*cl).upvals {
         let layout = Layout::new::<UpVal>();
         let uv = Object::new(g, 9 | 0 << 4, layout).cast::<UpVal>();

@@ -10,14 +10,13 @@ pub(crate) use self::mark::*;
 pub(crate) use self::object::*;
 pub use self::r#ref::*;
 
-use crate::LuaClosure;
 use crate::ldo::luaD_shrinkstack;
 use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
 use crate::lobject::{CClosure, Node, Proto, StkId, TString, TValue, Table, UValue, Udata, UpVal};
 use crate::lstring::luaS_remove;
 use crate::ltable::{luaH_free, luaH_realasize};
 use crate::ltm::{TM_MODE, luaT_gettm};
-use crate::{Lua, Thread};
+use crate::{Lua, LuaFn, Thread};
 use libc::strchr;
 use std::alloc::Layout;
 use std::cell::Cell;
@@ -608,7 +607,7 @@ unsafe fn traverseCclosure(g: *const Lua, cl: *const CClosure) -> libc::c_int {
     return 1 as libc::c_int + (*cl).nupvalues as libc::c_int;
 }
 
-unsafe fn traverseLclosure(g: &Lua, cl: *const LuaClosure) -> usize {
+unsafe fn traverseLclosure(g: &Lua, cl: *const LuaFn) -> usize {
     let p = (*cl).p.get();
 
     if !p.is_null() && (*p).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
@@ -689,7 +688,7 @@ unsafe fn propagatemark(g: &Lua) -> usize {
     match (*o).tt {
         5 => traversetable(g, o as *const Table),
         7 => traverseudata(g, o as *const Udata) as usize,
-        6 => traverseLclosure(g, o as *const LuaClosure),
+        6 => traverseLclosure(g, o as *const LuaFn),
         38 => traverseCclosure(g, o as *const CClosure) as usize,
         10 => traverseproto(g, o as *const Proto) as usize,
         8 => traversethread(g, o as *const Thread) as usize,
@@ -828,8 +827,8 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
         10 => luaF_freeproto(g, o as *mut Proto),
         9 => freeupval(g, o as *mut UpVal),
         6 => {
-            std::ptr::drop_in_place(o.cast::<LuaClosure>());
-            (*g).gc.dealloc(o.cast(), Layout::new::<LuaClosure>());
+            std::ptr::drop_in_place(o.cast::<LuaFn>());
+            (*g).gc.dealloc(o.cast(), Layout::new::<LuaFn>());
         }
         38 => {
             let cl_0: *mut CClosure = o as *mut CClosure;

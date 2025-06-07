@@ -33,7 +33,7 @@ use crate::lopcodes::{
 use crate::lstring::luaS_newlstr;
 use crate::ltable::luaH_new;
 use crate::lzio::{Mbuffer, ZIO};
-use crate::{ChunkInfo, Lua, LuaClosure, Object, ParseError, Ref};
+use crate::{ChunkInfo, Lua, LuaFn, Object, ParseError, Ref};
 use libc::strcmp;
 use std::borrow::Cow;
 use std::ffi::{CStr, c_int};
@@ -2760,7 +2760,7 @@ pub unsafe fn luaY_parser(
     dyd: *mut Dyndata,
     info: ChunkInfo,
     firstchar: libc::c_int,
-) -> Result<Ref<LuaClosure>, ParseError> {
+) -> Result<Ref<LuaFn>, ParseError> {
     let mut funcstate = FuncState::default();
     let cl = Ref::new(g.clone(), luaF_newLclosure(g.deref(), 1));
     let mut lexstate = LexState {

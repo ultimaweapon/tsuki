@@ -24,7 +24,7 @@ use crate::lvm::{
     F2Ieq, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_lessequal,
     luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
 };
-use crate::{LuaClosure, Object, TableError, Thread, api_incr_top};
+use crate::{LuaFn, Object, TableError, Thread, api_incr_top};
 use std::ffi::{c_int, c_void};
 use std::mem::offset_of;
 use std::ptr::null_mut;
@@ -1498,7 +1498,7 @@ unsafe fn aux_upvalue(
             return b"\0" as *const u8 as *const libc::c_char;
         }
         6 => {
-            let f_0: *mut LuaClosure = (*fi).value_.gc as *mut LuaClosure;
+            let f_0: *mut LuaFn = (*fi).value_.gc as *mut LuaFn;
             let mut name: *mut TString = 0 as *mut TString;
             let p: *mut Proto = (*f_0).p.get();
 
@@ -1590,11 +1590,11 @@ unsafe fn getupvalref(
     L: *mut Thread,
     fidx: libc::c_int,
     n: libc::c_int,
-    pf: *mut *const LuaClosure,
+    pf: *mut *const LuaFn,
 ) -> *mut *mut UpVal {
     static mut nullup: *const UpVal = 0 as *const UpVal;
     let fi: *mut TValue = index2value(L, fidx);
-    let f = (*fi).value_.gc.cast::<LuaClosure>();
+    let f = (*fi).value_.gc.cast::<LuaFn>();
 
     if !pf.is_null() {
         *pf = f;
@@ -1639,7 +1639,7 @@ pub unsafe fn lua_upvaluejoin(
     fidx2: libc::c_int,
     n2: libc::c_int,
 ) {
-    let mut f1 = 0 as *const LuaClosure;
+    let mut f1 = 0 as *const LuaFn;
     let up1: *mut *mut UpVal = getupvalref(L, fidx1, n1, &mut f1);
     let up2: *mut *mut UpVal = getupvalref(L, fidx2, n2, null_mut());
 

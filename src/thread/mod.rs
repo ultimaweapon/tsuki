@@ -8,7 +8,7 @@ use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
 use crate::lobject::{StackValue, StkId, UpVal};
 use crate::lstate::{CallInfo, lua_Hook};
-use crate::{Lua, LuaClosure, Object, Ref, Value};
+use crate::{Lua, LuaFn, Object, Ref, Value};
 use std::alloc::{Layout, handle_alloc_error};
 use std::cell::{Cell, UnsafeCell};
 use std::marker::PhantomPinned;
@@ -100,7 +100,7 @@ impl Thread {
     /// Call a Lua function.
     pub fn call(
         &self,
-        f: &LuaClosure,
+        f: &LuaFn,
         args: impl Args,
     ) -> Result<Vec<Value>, Box<dyn std::error::Error>> {
         // Push function and its arguments.

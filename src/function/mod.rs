@@ -4,7 +4,7 @@ use std::cell::Cell;
 
 /// Lua function.
 #[repr(C)]
-pub struct LuaClosure {
+pub struct LuaFn {
     pub(crate) hdr: Object,
     pub(crate) p: Cell<*mut Proto>,
     pub(crate) upvals: Box<[Cell<*mut UpVal>]>,
