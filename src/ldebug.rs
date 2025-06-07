@@ -11,7 +11,7 @@
 
 use crate::ldo::{luaD_hook, luaD_hookcall};
 use crate::lfunc::luaF_getlocalname;
-use crate::lobject::{CClosure, Proto, StkId, TString, TValue, Table, Value};
+use crate::lobject::{CClosure, Proto, StkId, TString, TValue, Table, UntaggedValue};
 use crate::lopcodes::{OpCode, luaP_opmodes};
 use crate::lstate::{CallInfo, lua_Debug, lua_Hook};
 use crate::ltable::{luaH_new, luaH_setint};
@@ -332,7 +332,7 @@ unsafe fn collectvalidlines(mut L: *const Thread, mut f: *const Object) {
         if !((*p).lineinfo).is_null() {
             let mut i: libc::c_int = 0;
             let mut v: TValue = TValue {
-                value_: Value {
+                value_: UntaggedValue {
                     gc: 0 as *mut Object,
                 },
                 tt_: 0,

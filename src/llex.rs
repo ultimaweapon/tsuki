@@ -13,7 +13,7 @@ use crate::gc::luaC_fix;
 use crate::lctype::luai_ctype_;
 use crate::lmem::luaM_saferealloc_;
 use crate::lobject::{
-    Node, TString, TValue, Table, Value, luaO_hexavalue, luaO_str2num, luaO_utf8esc,
+    Node, TString, TValue, Table, UntaggedValue, luaO_hexavalue, luaO_str2num, luaO_utf8esc,
 };
 use crate::lparser::{Dyndata, FuncState};
 use crate::lstring::luaS_newlstr;
@@ -242,7 +242,7 @@ pub unsafe fn luaX_newstring(
     } else {
         let ts = Ref::new((*ls).g.clone(), ts);
         let stv = TValue {
-            value_: Value { gc: &ts.hdr },
+            value_: UntaggedValue { gc: &ts.hdr },
             tt_: ((*ts).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8,
         };
 
@@ -347,7 +347,7 @@ unsafe fn read_numeral(
     mut seminfo: *mut SemInfo,
 ) -> Result<c_int, ParseError> {
     let mut obj: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,

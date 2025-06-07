@@ -10,8 +10,8 @@ use crate::gc::{luaC_barrier_, luaC_barrierback_};
 use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall};
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::{
-    CClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata, UpVal, Value,
-    luaO_arith, luaO_str2num, luaO_tostring,
+    CClosure, Proto, StackValue, StkId, TString, TValue, Table, UValue, Udata, UntaggedValue,
+    UpVal, luaO_arith, luaO_str2num, luaO_tostring,
 };
 use crate::lstate::{CallInfo, lua_CFunction};
 use crate::lstring::{luaS_new, luaS_newlstr, luaS_newudata};
@@ -169,7 +169,7 @@ pub unsafe fn lua_closeslot(
 unsafe fn reverse(mut from: StkId, mut to: StkId) {
     while from < to {
         let mut temp: TValue = TValue {
-            value_: Value {
+            value_: UntaggedValue {
                 gc: 0 as *mut Object,
             },
             tt_: 0,
@@ -809,7 +809,7 @@ pub unsafe fn lua_geti(
         (*io1).tt_ = (*io2).tt_;
     } else {
         let mut aux: TValue = TValue {
-            value_: Value {
+            value_: UntaggedValue {
                 gc: 0 as *mut Object,
             },
             tt_: 0,
@@ -1143,7 +1143,7 @@ pub unsafe fn lua_seti(
         }
     } else {
         let mut aux: TValue = TValue {
-            value_: Value {
+            value_: UntaggedValue {
                 gc: 0 as *mut Object,
             },
             tt_: 0,

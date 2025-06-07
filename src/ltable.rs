@@ -9,7 +9,7 @@
 use crate::gc::{Object, luaC_barrierback_};
 use crate::ldebug::luaG_runerror;
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
-use crate::lobject::{Node, NodeKey, StkId, TString, TValue, Table, Value, luaO_ceillog2};
+use crate::lobject::{Node, NodeKey, StkId, TString, TValue, Table, UntaggedValue, luaO_ceillog2};
 use crate::lstate::lua_CFunction;
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::ltm::TM_EQ;
@@ -24,13 +24,13 @@ use std::ptr::{addr_of_mut, null_mut};
 static mut dummynode_: Node = Node {
     u: {
         let init = NodeKey {
-            value_: Value {
+            value_: UntaggedValue {
                 gc: 0 as *const Object as *mut Object,
             },
             tt_: (0 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8,
             key_tt: (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8,
             next: 0 as libc::c_int,
-            key_val: Value {
+            key_val: UntaggedValue {
                 gc: 0 as *const Object as *mut Object,
             },
         };
@@ -40,7 +40,7 @@ static mut dummynode_: Node = Node {
 
 static mut absentkey: TValue = {
     let init = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *const Object as *mut Object,
         },
         tt_: (0 as libc::c_int | (2 as libc::c_int) << 4 as libc::c_int) as u8,
@@ -163,7 +163,7 @@ unsafe fn mainpositionTV(t: *const Table, key: *const TValue) -> *mut Node {
 
 unsafe fn mainpositionfromnode(t: *const Table, nd: *mut Node) -> *mut Node {
     let mut key: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
@@ -524,7 +524,7 @@ unsafe fn reinsert(g: *const Lua, ot: *mut Table, t: *const Table) {
         let old: *mut Node = ((*ot).node.get()).offset(j as isize) as *mut Node;
         if !((*old).i_val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
             let mut k: TValue = TValue {
-                value_: Value {
+                value_: UntaggedValue {
                     gc: 0 as *mut Object,
                 },
                 tt_: 0,
@@ -711,7 +711,7 @@ unsafe fn luaH_newkey(
 ) -> Result<(), TableError> {
     let mut mp: *mut Node = 0 as *mut Node;
     let mut aux: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
@@ -850,7 +850,7 @@ pub unsafe fn luaH_getstr(t: *const Table, key: *mut TString) -> *const TValue {
         return luaH_getshortstr(t, key);
     } else {
         let mut ko: TValue = TValue {
-            value_: Value {
+            value_: UntaggedValue {
                 gc: 0 as *mut Object,
             },
             tt_: 0,
@@ -913,7 +913,7 @@ pub unsafe fn luaH_setint(g: *const Lua, t: *const Table, key: i64, value: *mut 
 
     if (*p).tt_ as libc::c_int == 0 as libc::c_int | (2 as libc::c_int) << 4 as libc::c_int {
         let mut k: TValue = TValue {
-            value_: Value {
+            value_: UntaggedValue {
                 gc: 0 as *mut Object,
             },
             tt_: 0,

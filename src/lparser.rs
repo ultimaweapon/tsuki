@@ -25,7 +25,7 @@ use crate::llex::{
     luaX_lookahead, luaX_newstring, luaX_next, luaX_setinput, luaX_syntaxerror, luaX_token2str,
 };
 use crate::lmem::{luaM_growaux_, luaM_shrinkvector_};
-use crate::lobject::{AbsLineInfo, LocVar, Proto, TString, TValue, Upvaldesc, Value};
+use crate::lobject::{AbsLineInfo, LocVar, Proto, TString, TValue, UntaggedValue, Upvaldesc};
 use crate::lopcodes::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_FORLOOP, OP_FORPREP, OP_GETUPVAL, OP_MOVE, OP_NEWTABLE,
     OP_TAILCALL, OP_TBC, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_VARARG, OP_VARARGPREP, OpCode,
@@ -86,7 +86,7 @@ pub union Vardesc {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct C2RustUnnamed_10 {
-    pub value_: Value,
+    pub value_: UntaggedValue,
     pub tt_: u8,
     pub kind: u8,
     pub ridx: u8,

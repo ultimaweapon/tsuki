@@ -1,5 +1,5 @@
 use crate::LuaClosure;
-use crate::lobject::{StackValue, TValue, Table, Value};
+use crate::lobject::{StackValue, TValue, Table, UntaggedValue};
 use std::cell::Cell;
 use std::mem::zeroed;
 
@@ -50,7 +50,7 @@ impl StackPtr {
     #[inline(always)]
     pub fn write_table(&self, t: &Table) {
         let v = TValue {
-            value_: Value { gc: &t.hdr },
+            value_: UntaggedValue { gc: &t.hdr },
             tt_: 5 | 0 << 4 | 1 << 6,
         };
 
@@ -60,7 +60,7 @@ impl StackPtr {
     #[inline(always)]
     pub fn write_lua(&self, f: &LuaClosure) {
         let v = TValue {
-            value_: Value { gc: &f.hdr },
+            value_: UntaggedValue { gc: &f.hdr },
             tt_: 6 | 0 << 4 | 1 << 6,
         };
 

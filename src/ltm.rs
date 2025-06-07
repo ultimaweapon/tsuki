@@ -1,6 +1,4 @@
 #![allow(
-    dead_code,
-    mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -12,7 +10,7 @@
 use crate::gc::{Object, luaC_fix};
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
 use crate::ldo::{luaD_call, luaD_growstack};
-use crate::lobject::{Proto, StkId, TString, TValue, Table, Udata, Value};
+use crate::lobject::{Proto, StkId, TString, TValue, Table, Udata, UntaggedValue};
 use crate::lstate::CallInfo;
 use crate::lstring::luaS_new;
 use crate::ltable::luaH_getshortstr;
@@ -35,10 +33,15 @@ pub const TM_SHL: TMS = 16;
 pub const TM_BXOR: TMS = 15;
 pub const TM_BOR: TMS = 14;
 pub const TM_BAND: TMS = 13;
+#[allow(dead_code)]
 pub const TM_IDIV: TMS = 12;
+#[allow(dead_code)]
 pub const TM_DIV: TMS = 11;
+#[allow(dead_code)]
 pub const TM_POW: TMS = 10;
+#[allow(dead_code)]
 pub const TM_MOD: TMS = 9;
+#[allow(dead_code)]
 pub const TM_MUL: TMS = 8;
 pub const TM_SUB: TMS = 7;
 pub const TM_ADD: TMS = 6;
@@ -251,12 +254,9 @@ pub unsafe fn luaT_trybinTM(
     mut res: StkId,
     mut event: TMS,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if ((callbinTM(L, p1, p2, res, event)? == 0) as libc::c_int != 0 as libc::c_int) as libc::c_int
-        as libc::c_long
-        != 0
-    {
+    if callbinTM(L, p1, p2, res, event)? == 0 {
         match event as libc::c_uint {
-            13 | 14 | 15 | 16 | 17 | 19 => {
+            TM_BAND | TM_BOR | TM_BXOR | 16 | 17 | 19 => {
                 if (*p1).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
                     && (*p2).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
                 {
@@ -318,7 +318,7 @@ pub unsafe fn luaT_trybiniTM(
     mut event: TMS,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut aux: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
@@ -354,7 +354,7 @@ pub unsafe fn luaT_callorderiTM(
     mut event: TMS,
 ) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut aux: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,

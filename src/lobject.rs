@@ -1,5 +1,4 @@
 #![allow(
-    mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -31,14 +30,14 @@ pub union StackValue {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct TbcList {
-    pub value_: Value,
+    pub value_: UntaggedValue,
     pub tt_: u8,
     pub delta: libc::c_ushort,
 }
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union Value {
+pub(crate) union UntaggedValue {
     pub gc: *const Object,
     pub f: lua_CFunction,
     pub i: i64,
@@ -47,8 +46,8 @@ pub union Value {
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct TValue {
-    pub value_: Value,
+pub(crate) struct TValue {
+    pub value_: UntaggedValue,
     pub tt_: u8,
 }
 
@@ -112,11 +111,11 @@ pub union Node {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct NodeKey {
-    pub value_: Value,
+    pub value_: UntaggedValue,
     pub tt_: u8,
     pub key_tt: u8,
     pub next: c_int,
-    pub key_val: Value,
+    pub key_val: UntaggedValue,
 }
 
 #[derive(Copy, Clone)]

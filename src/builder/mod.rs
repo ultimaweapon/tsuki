@@ -2,7 +2,7 @@ use crate::lauxlib::luaL_requiref;
 use crate::lbaselib::luaopen_base;
 use crate::llex::luaX_init;
 use crate::lmathlib::luaopen_math;
-use crate::lobject::{TValue, Table, Value};
+use crate::lobject::{TValue, Table, UntaggedValue};
 use crate::lstring::luaS_init;
 use crate::lstrlib::luaopen_string;
 use crate::ltable::{luaH_new, luaH_resize};
@@ -39,11 +39,11 @@ impl Builder {
                 size: 0,
             }),
             l_registry: UnsafeCell::new(TValue {
-                value_: Value { i: 0 },
+                value_: UntaggedValue { i: 0 },
                 tt_: (0 | 0 << 4),
             }),
             nilvalue: UnsafeCell::new(TValue {
-                value_: Value { i: 0 },
+                value_: UntaggedValue { i: 0 },
                 tt_: (0 | 0 << 4),
             }),
             seed: rand::random(),

@@ -51,7 +51,7 @@ mod table;
 mod thread;
 
 #[inline(always)]
-pub unsafe fn lua_pop(th: *const Thread, n: c_int) -> Result<(), Box<dyn std::error::Error>> {
+unsafe fn lua_pop(th: *const Thread, n: c_int) -> Result<(), Box<dyn std::error::Error>> {
     unsafe { lua_settop(th, -(n) - 1) }
 }
 

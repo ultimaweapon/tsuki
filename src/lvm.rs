@@ -13,8 +13,8 @@ use crate::lfunc::{
     luaF_close, luaF_closeupval, luaF_findupval, luaF_newLclosure, luaF_newtbcupval,
 };
 use crate::lobject::{
-    Proto, StackValue, StkId, TString, TValue, Table, Udata, UpVal, Upvaldesc, Value, luaO_str2num,
-    luaO_tostring,
+    Proto, StackValue, StkId, TString, TValue, Table, Udata, UntaggedValue, UpVal, Upvaldesc,
+    luaO_str2num, luaO_tostring,
 };
 use crate::lopcodes::OpCode;
 use crate::lstate::CallInfo;
@@ -57,7 +57,7 @@ unsafe fn l_strton(obj: *const TValue, result: *mut TValue) -> libc::c_int {
 
 pub unsafe fn luaV_tonumber_(obj: *const TValue, n: *mut f64) -> libc::c_int {
     let mut v: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
@@ -111,7 +111,7 @@ pub unsafe fn luaV_tointegerns(obj: *const TValue, p: *mut i64, mode: F2Imod) ->
 
 pub unsafe fn luaV_tointeger(mut obj: *const TValue, p: *mut i64, mode: F2Imod) -> libc::c_int {
     let mut v: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
@@ -1627,7 +1627,7 @@ pub unsafe fn luaV_execute(
                             (*io1_6).tt_ = (*io2_6).tt_;
                         } else {
                             let mut key_0: TValue = TValue {
-                                value_: Value {
+                                value_: UntaggedValue {
                                     gc: 0 as *mut Object,
                                 },
                                 tt_: 0,
@@ -1986,7 +1986,7 @@ pub unsafe fn luaV_execute(
                             }
                         } else {
                             let mut key_3: TValue = TValue {
-                                value_: Value {
+                                value_: UntaggedValue {
                                     gc: 0 as *mut Object,
                                 },
                                 tt_: 0,

@@ -13,7 +13,9 @@
 use crate::gc::luaC_barrier_;
 use crate::llex::{LexState, luaX_syntaxerror};
 use crate::lmem::luaM_growaux_;
-use crate::lobject::{AbsLineInfo, Proto, TString, TValue, Value, luaO_ceillog2, luaO_rawarith};
+use crate::lobject::{
+    AbsLineInfo, Proto, TString, TValue, UntaggedValue, luaO_ceillog2, luaO_rawarith,
+};
 use crate::lopcodes::{
     OP_ADD, OP_ADDI, OP_ADDK, OP_CONCAT, OP_EQ, OP_EQI, OP_EQK, OP_EXTRAARG, OP_GETFIELD, OP_GETI,
     OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI, OP_JMP, OP_LFALSESKIP, OP_LOADF, OP_LOADFALSE,
@@ -728,7 +730,7 @@ unsafe fn addk(
     mut v: *mut TValue,
 ) -> Result<c_int, ParseError> {
     let mut val: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
@@ -813,7 +815,7 @@ unsafe fn addk(
 
 unsafe fn stringK(mut fs: *mut FuncState, mut s: *mut TString) -> Result<c_int, ParseError> {
     let mut o: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
@@ -827,7 +829,7 @@ unsafe fn stringK(mut fs: *mut FuncState, mut s: *mut TString) -> Result<c_int, 
 
 unsafe fn luaK_intK(mut fs: *mut FuncState, mut n: i64) -> Result<c_int, ParseError> {
     let mut o: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
@@ -840,7 +842,7 @@ unsafe fn luaK_intK(mut fs: *mut FuncState, mut n: i64) -> Result<c_int, ParseEr
 
 unsafe fn luaK_numberK(mut fs: *mut FuncState, mut r: f64) -> Result<c_int, ParseError> {
     let mut o: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
@@ -860,7 +862,7 @@ unsafe fn luaK_numberK(mut fs: *mut FuncState, mut r: f64) -> Result<c_int, Pars
             r + r * q
         };
         let mut kv: TValue = TValue {
-            value_: Value {
+            value_: UntaggedValue {
                 gc: 0 as *mut Object,
             },
             tt_: 0,
@@ -874,7 +876,7 @@ unsafe fn luaK_numberK(mut fs: *mut FuncState, mut r: f64) -> Result<c_int, Pars
 
 unsafe fn boolF(mut fs: *mut FuncState) -> Result<c_int, ParseError> {
     let mut o: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
@@ -885,7 +887,7 @@ unsafe fn boolF(mut fs: *mut FuncState) -> Result<c_int, ParseError> {
 
 unsafe fn boolT(mut fs: *mut FuncState) -> Result<c_int, ParseError> {
     let mut o: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
@@ -896,13 +898,13 @@ unsafe fn boolT(mut fs: *mut FuncState) -> Result<c_int, ParseError> {
 
 unsafe fn nilK(mut fs: *mut FuncState) -> Result<c_int, ParseError> {
     let mut k: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
     };
     let mut v: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
@@ -1746,19 +1748,19 @@ unsafe fn constfolding(
     mut e2: *const expdesc,
 ) -> Result<c_int, ArithError> {
     let mut v1: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
     };
     let mut v2: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
     };
     let mut res: TValue = TValue {
-        value_: Value {
+        value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
