@@ -378,7 +378,8 @@ pub unsafe fn luaV_finishset(
     while loop_0 < 2000 as libc::c_int {
         let mut tm: *const TValue = 0 as *const TValue;
         if !slot.is_null() {
-            let h: *mut Table = (*t).value_.gc as *mut Table;
+            let h = (*t).value_.gc.cast::<Table>();
+
             tm = if ((*h).metatable.get()).is_null() {
                 0 as *const TValue
             } else if (*(*h).metatable.get()).flags.get() as libc::c_uint
@@ -395,26 +396,25 @@ pub unsafe fn luaV_finishset(
             };
 
             if tm.is_null() {
+                (*L).top.write_table(&*h);
+                (*L).top.add(1);
+
                 if let Err(e) = luaH_finishset((*L).global, h, key, slot, val) {
+                    (*L).top.sub(1);
                     luaG_runerror(L, e)?;
                 }
 
+                (*L).top.sub(1);
                 (*h).flags
                     .set(((*h).flags.get() as libc::c_uint & !!(!0 << TM_EQ + 1)) as u8);
 
-                if (*val).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
-                    if (*h).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int
-                        != 0
-                        && (*(*val).value_.gc).marked.get() as libc::c_int
-                            & ((1 as libc::c_int) << 3 as libc::c_int
-                                | (1 as libc::c_int) << 4 as libc::c_int)
-                            != 0
+                if (*val).tt_ & 1 << 6 != 0 {
+                    if (*h).hdr.marked.get() & 1 << 5 != 0
+                        && (*(*val).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
                     {
-                        luaC_barrierback_((*L).global, h as *mut Object);
-                    } else {
-                    };
-                } else {
-                };
+                        luaC_barrierback_((*L).global, h.cast());
+                    }
+                }
 
                 return Ok(());
             }

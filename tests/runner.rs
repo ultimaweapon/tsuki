@@ -28,6 +28,11 @@ fn error() {
 }
 
 #[test]
+fn events() {
+    run("events.lua").unwrap();
+}
+
+#[test]
 fn math() {
     run("math.lua").unwrap();
 }

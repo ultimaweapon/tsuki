@@ -1,5 +1,5 @@
 use crate::LuaClosure;
-use crate::lobject::{StackValue, TValue, Value};
+use crate::lobject::{StackValue, TValue, Table, Value};
 use std::cell::Cell;
 use std::mem::zeroed;
 
@@ -42,6 +42,16 @@ impl StackPtr {
         let v = TValue {
             value_: unsafe { zeroed() },
             tt_: 0 | 0 << 4,
+        };
+
+        unsafe { self.write(v) };
+    }
+
+    #[inline(always)]
+    pub fn write_table(&self, t: &Table) {
+        let v = TValue {
+            value_: Value { gc: &t.hdr },
+            tt_: 5 | 0 << 4 | 1 << 6,
         };
 
         unsafe { self.write(v) };
