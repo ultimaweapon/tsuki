@@ -1368,7 +1368,7 @@ pub unsafe fn luaK_exp2anyregup(
 }
 
 pub unsafe fn luaK_exp2val(mut fs: *mut FuncState, mut e: *mut expdesc) -> Result<(), ParseError> {
-    if (*e).t != (*e).f {
+    if (*e).k == VJMP || (*e).t != (*e).f {
         luaK_exp2anyreg(fs, e)?;
     } else {
         luaK_dischargevars(fs, e)?;

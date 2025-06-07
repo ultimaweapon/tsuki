@@ -13,6 +13,11 @@ fn close() {
 }
 
 #[test]
+fn closure() {
+    run("closure.lua").unwrap();
+}
+
+#[test]
 fn error() {
     assert!(
         run("error.lua")
