@@ -3,6 +3,10 @@ name = "tsuki"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["std"]
+std = []
+
 [dependencies]
 libc = "0.2.172"
 libm = "0.2.15"
