@@ -94,7 +94,6 @@ pub struct C2RustUnnamed_10 {
     pub name: *mut TString,
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct FuncState {
     pub f: *mut Proto,
@@ -115,6 +114,31 @@ pub struct FuncState {
     pub freereg: u8,
     pub iwthabs: u8,
     pub needclose: u8,
+}
+
+impl Default for FuncState {
+    fn default() -> Self {
+        Self {
+            f: 0 as *mut Proto,
+            prev: 0 as *mut FuncState,
+            ls: 0 as *mut LexState,
+            bl: 0 as *mut BlockCnt,
+            pc: 0,
+            lasttarget: 0,
+            previousline: 0,
+            nk: 0,
+            np: 0,
+            nabslineinfo: 0,
+            firstlocal: 0,
+            firstlabel: 0,
+            ndebugvars: 0,
+            nactvar: 0,
+            nups: 0,
+            freereg: 0,
+            iwthabs: 0,
+            needclose: 0,
+        }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -1331,26 +1355,7 @@ unsafe fn body(
     ismethod: libc::c_int,
     line: libc::c_int,
 ) -> Result<(), ParseError> {
-    let mut new_fs: FuncState = FuncState {
-        f: 0 as *mut Proto,
-        prev: 0 as *mut FuncState,
-        ls: 0 as *mut LexState,
-        bl: 0 as *mut BlockCnt,
-        pc: 0,
-        lasttarget: 0,
-        previousline: 0,
-        nk: 0,
-        np: 0,
-        nabslineinfo: 0,
-        firstlocal: 0,
-        firstlabel: 0,
-        ndebugvars: 0,
-        nactvar: 0,
-        nups: 0,
-        freereg: 0,
-        iwthabs: 0,
-        needclose: 0,
-    };
+    let mut new_fs = FuncState::default();
     let mut bl: BlockCnt = BlockCnt {
         previous: 0 as *mut BlockCnt,
         firstlabel: 0,
@@ -1761,6 +1766,13 @@ unsafe fn subexpr(
     v: *mut expdesc,
     limit: libc::c_int,
 ) -> Result<BinOpr, ParseError> {
+    // Check level.
+    (*ls).level += 1;
+
+    if (*ls).level >= 200 {
+        return Err(ParseError::ItemLimit("nested level", 200));
+    }
+
     let mut op: BinOpr = OPR_ADD;
     let mut uop: UnOpr = OPR_MINUS;
 
@@ -1792,6 +1804,8 @@ unsafe fn subexpr(
         luaK_posfix((*ls).fs, op, v, &mut v2, line_0)?;
         op = nextop;
     }
+
+    (*ls).level -= 1;
 
     return Ok(op);
 }
@@ -1915,7 +1929,15 @@ unsafe fn restassign(
             check_conflict(ls, lh, &mut nv.v)?;
         }
 
+        (*ls).level += 1;
+
+        if (*ls).level >= 200 {
+            return Err(ParseError::ItemLimit("nested level", 200));
+        }
+
         restassign(ls, &mut nv, nvars + 1 as libc::c_int)?;
+
+        (*ls).level -= 1;
     } else {
         let mut nexps: libc::c_int = 0;
         checknext(ls, '=' as i32)?;
@@ -2646,6 +2668,12 @@ unsafe fn retstat(ls: *mut LexState) -> Result<(), ParseError> {
 unsafe fn statement(ls: *mut LexState) -> Result<(), ParseError> {
     let line: libc::c_int = (*ls).linenumber;
 
+    (*ls).level += 1;
+
+    if (*ls).level >= 200 {
+        return Err(ParseError::ItemLimit("nested level", 200));
+    }
+
     match (*ls).t.token {
         59 => luaX_next(ls)?,
         266 => ifstat(ls, line)?,
@@ -2685,11 +2713,12 @@ unsafe fn statement(ls: *mut LexState) -> Result<(), ParseError> {
     }
 
     (*(*ls).fs).freereg = luaY_nvarstack((*ls).fs) as u8;
+    (*ls).level -= 1;
 
     Ok(())
 }
 
-unsafe fn mainfunc(ls: *mut LexState, fs: *mut FuncState) -> Result<(), ParseError> {
+unsafe fn mainfunc(ls: &mut LexState, fs: &mut FuncState) -> Result<(), ParseError> {
     let mut bl: BlockCnt = BlockCnt {
         previous: 0 as *mut BlockCnt,
         firstlabel: 0,
@@ -2735,7 +2764,9 @@ pub unsafe fn luaY_parser(
     info: ChunkInfo,
     firstchar: libc::c_int,
 ) -> Result<Ref<LuaClosure>, ParseError> {
-    let mut lexstate: LexState = LexState {
+    let mut funcstate = FuncState::default();
+    let cl = Ref::new(g.clone(), luaF_newLclosure(g.deref(), 1));
+    let mut lexstate = LexState {
         current: 0,
         linenumber: 0,
         lastline: 0,
@@ -2755,28 +2786,8 @@ pub unsafe fn luaY_parser(
         dyd: 0 as *mut Dyndata,
         source: info.clone(),
         envn: 0 as *mut TString,
+        level: 0,
     };
-    let mut funcstate: FuncState = FuncState {
-        f: 0 as *mut Proto,
-        prev: 0 as *mut FuncState,
-        ls: 0 as *mut LexState,
-        bl: 0 as *mut BlockCnt,
-        pc: 0,
-        lasttarget: 0,
-        previousline: 0,
-        nk: 0,
-        np: 0,
-        nabslineinfo: 0,
-        firstlocal: 0,
-        firstlabel: 0,
-        ndebugvars: 0,
-        nactvar: 0,
-        nups: 0,
-        freereg: 0,
-        iwthabs: 0,
-        needclose: 0,
-    };
-    let cl = Ref::new(g.clone(), luaF_newLclosure(g.deref(), 1));
 
     (*cl).p.set(luaF_newproto(g.deref(), info));
     funcstate.f = (*cl).p.get();

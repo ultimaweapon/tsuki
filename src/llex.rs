@@ -95,6 +95,7 @@ pub struct LexState {
     pub dyd: *mut Dyndata,
     pub source: ChunkInfo,
     pub envn: *mut TString,
+    pub level: usize,
 }
 
 const luaX_tokens: [&str; 37] = [
@@ -280,7 +281,7 @@ unsafe fn inclinenumber(mut ls: *mut LexState) {
     (*ls).linenumber = (*ls).linenumber.checked_add(1).unwrap();
 }
 
-pub unsafe fn luaX_setinput(mut ls: *mut LexState, mut z: *mut ZIO, mut firstchar: libc::c_int) {
+pub unsafe fn luaX_setinput(mut ls: &mut LexState, mut z: *mut ZIO, mut firstchar: libc::c_int) {
     (*ls).t.token = 0 as libc::c_int;
     (*ls).current = firstchar;
     (*ls).lookahead.token = TK_EOS as libc::c_int;

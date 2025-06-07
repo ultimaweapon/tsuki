@@ -714,7 +714,14 @@ unsafe fn isEnv(
     if isup != 0 {
         name = upvalname(p, t.try_into().unwrap());
     } else {
-        basicgetobjname(p, &mut pc, t, &mut name);
+        let what = basicgetobjname(p, &raw mut pc, t, &raw mut name);
+
+        if !what.is_null()
+            && strcmp(what, c"local".as_ptr()) != 0
+            && strcmp(what, c"upvalue".as_ptr()) != 0
+        {
+            name = null();
+        }
     }
 
     return if !name.is_null()
