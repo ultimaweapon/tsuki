@@ -82,7 +82,7 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Run.
     let th = lua.spawn();
 
-    th.call(&chunk, [])
+    th.call(&chunk, ())
 }
 
 static ROOT: LazyLock<PathBuf> = LazyLock::new(|| std::env::current_dir().unwrap());

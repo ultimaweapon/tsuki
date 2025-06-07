@@ -1,6 +1,5 @@
 #![allow(
     dead_code,
-    mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -13,10 +12,9 @@ use crate::lapi::{
     lua_absindex, lua_call, lua_checkstack, lua_concat, lua_copy, lua_createtable, lua_getfield,
     lua_getmetatable, lua_gettop, lua_isinteger, lua_isnumber, lua_isstring, lua_len, lua_next,
     lua_pushboolean, lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil,
-    lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawget, lua_rawgeti, lua_rawlen, lua_rawseti,
-    lua_rotate, lua_setfield, lua_setglobal, lua_setmetatable, lua_settop, lua_toboolean,
-    lua_tointegerx, lua_tolstring, lua_tonumberx, lua_topointer, lua_touserdata, lua_type,
-    lua_typename,
+    lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawget, lua_rotate, lua_setfield,
+    lua_setglobal, lua_setmetatable, lua_settop, lua_toboolean, lua_tointegerx, lua_tolstring,
+    lua_tonumberx, lua_topointer, lua_touserdata, lua_type, lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::{CallInfo, lua_CFunction, lua_Debug};
@@ -636,44 +634,6 @@ pub unsafe fn luaL_optinteger(
     } else {
         luaL_checkinteger(L, arg)
     };
-}
-
-pub unsafe fn luaL_ref(
-    mut L: *mut Thread,
-    mut t: libc::c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut ref_0: libc::c_int = 0;
-    if lua_type(L, -(1 as libc::c_int)) == 0 as libc::c_int {
-        lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-        return Ok(-(1 as libc::c_int));
-    }
-    t = lua_absindex(L, t);
-    if lua_rawgeti(L, t, (2 as libc::c_int + 1 as libc::c_int) as i64) == 0 as libc::c_int {
-        ref_0 = 0 as libc::c_int;
-        lua_pushinteger(L, 0 as libc::c_int as i64);
-        lua_rawseti(L, t, (2 as libc::c_int + 1 as libc::c_int) as i64);
-    } else {
-        ref_0 = lua_tointegerx(L, -(1 as libc::c_int), 0 as *mut libc::c_int) as libc::c_int;
-    }
-    lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-    if ref_0 != 0 as libc::c_int {
-        lua_rawgeti(L, t, ref_0 as i64);
-        lua_rawseti(L, t, (2 as libc::c_int + 1 as libc::c_int) as i64);
-    } else {
-        ref_0 = lua_rawlen(L, t) as libc::c_int + 1 as libc::c_int;
-    }
-    lua_rawseti(L, t, ref_0 as i64);
-    return Ok(ref_0);
-}
-
-pub unsafe fn luaL_unref(mut L: *mut Thread, mut t: libc::c_int, mut ref_0: libc::c_int) {
-    if ref_0 >= 0 as libc::c_int {
-        t = lua_absindex(L, t);
-        lua_rawgeti(L, t, (2 as libc::c_int + 1 as libc::c_int) as i64);
-        lua_rawseti(L, t, ref_0 as i64);
-        lua_pushinteger(L, ref_0 as i64);
-        lua_rawseti(L, t, (2 as libc::c_int + 1 as libc::c_int) as i64);
-    }
 }
 
 unsafe fn getS(

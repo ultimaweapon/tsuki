@@ -431,14 +431,16 @@ unsafe fn luaB_pcall(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::
     lua_pushboolean(L, 1 as libc::c_int);
     lua_rotate(L, 1 as libc::c_int, 1 as libc::c_int);
 
-    Ok(match lua_pcall(L, lua_gettop(L) - 2, -1) {
-        Ok(_) => lua_gettop(L),
-        Err(e) => {
-            lua_pushboolean(L, 0 as libc::c_int);
-            lua_pushlstring(L, e.to_string());
-            2
-        }
-    })
+    Ok(
+        match lua_pcall(L, (lua_gettop(L) - 2).try_into().unwrap(), -1) {
+            Ok(_) => lua_gettop(L),
+            Err(e) => {
+                lua_pushboolean(L, 0 as libc::c_int);
+                lua_pushlstring(L, e.to_string());
+                2
+            }
+        },
+    )
 }
 
 unsafe fn luaB_tostring(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {

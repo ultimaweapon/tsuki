@@ -1,7 +1,9 @@
+pub use self::args::DynamicArgs;
 pub(crate) use self::stack::*;
 
+use self::args::Args;
 use crate::lapi::lua_pcall;
-use crate::ldo::luaD_inctop;
+use crate::lauxlib::luaL_checkstack;
 use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
 use crate::lobject::{StackValue, StkId, UpVal};
@@ -15,6 +17,7 @@ use std::pin::Pin;
 use std::ptr::{addr_of_mut, null, null_mut};
 use std::rc::Rc;
 
+mod args;
 mod stack;
 
 /// Lua thread (AKA coroutine).
@@ -95,22 +98,15 @@ impl Thread {
     }
 
     /// Call a Lua function.
-    pub fn call(
-        &self,
-        f: &LuaClosure,
-        args: impl IntoIterator<Item = ()>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn call(&self, f: &LuaClosure, args: impl Args) -> Result<(), Box<dyn std::error::Error>> {
         // Push function and its arguments.
-        let mut nargs = 0;
+        let nargs = args.len();
+
+        unsafe { luaL_checkstack(self, 1 + nargs, null())? };
 
         self.top.write_lua(f);
-        unsafe { luaD_inctop(self) }?;
-
-        for _ in args {
-            self.top.write_nil();
-            unsafe { luaD_inctop(self) }?;
-            nargs += 1;
-        }
+        unsafe { self.top.add(1) };
+        unsafe { args.push_to(self) };
 
         // Call.
         unsafe { lua_pcall(self, nargs, 0) }

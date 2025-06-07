@@ -1374,10 +1374,10 @@ pub unsafe fn lua_call(
 
 pub unsafe fn lua_pcall(
     L: *const Thread,
-    nargs: libc::c_int,
+    nargs: usize,
     nresults: libc::c_int,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let func = ((*L).top.get()).offset(-((nargs + 1) as isize));
+    let func = ((*L).top.get()).sub(nargs + 1);
     let status = luaD_pcall(
         L,
         func.byte_offset_from_unsigned((*L).stack.get()),

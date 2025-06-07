@@ -1,5 +1,4 @@
 #![allow(
-    mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -12,15 +11,9 @@ use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
 use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::lobject::StkId;
 use crate::{ChunkInfo, Thread};
-use std::ffi::{c_int, c_void};
+use std::ffi::c_int;
 
 pub type lua_Hook = Option<unsafe extern "C" fn(*const Thread, *mut lua_Debug) -> ()>;
-pub type lua_Writer = unsafe fn(
-    *const Thread,
-    *const c_void,
-    usize,
-    *mut c_void,
-) -> Result<c_int, Box<dyn std::error::Error>>;
 
 #[repr(C)]
 pub struct lua_Debug {
