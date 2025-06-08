@@ -14,7 +14,7 @@ pub struct ChunkInfo {
 #[non_exhaustive]
 #[derive(Debug)]
 pub enum ParseError {
-    ItemLimit(&'static str, c_int),
+    ItemLimit(&'static str, c_int, c_int),
     Source(String, Option<Cow<'static, str>>, c_int),
 }
 
@@ -23,7 +23,9 @@ impl Error for ParseError {}
 impl Display for ParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::ItemLimit(n, l) => write!(f, "too many {n} (limit is {l})"),
+            Self::ItemLimit(name, limit, ln) => {
+                write!(f, "{ln}: too many {name} (limit is {limit})")
+            }
             Self::Source(r, t, l) => match t {
                 Some(t) => write!(f, "{l}: {r} near {t}"),
                 None => write!(f, "{l}: {r}"),

@@ -362,6 +362,7 @@ unsafe fn registerlocalvar(
                 as libc::c_uint
         }) as libc::c_int,
         "local variables",
+        (*ls).linenumber,
     )? as *mut LocVar;
     while oldsize < (*f).sizelocvars {
         let fresh0 = oldsize;
@@ -406,6 +407,7 @@ unsafe fn new_localvar(ls: *mut LexState, name: *mut TString) -> Result<libc::c_
         size_of::<Vardesc>() as libc::c_ulong as libc::c_int,
         i16::MAX.into(),
         "local variables",
+        (*ls).linenumber,
     )? as *mut Vardesc;
     let fresh4 = (*dyd).actvar.n;
     (*dyd).actvar.n = (*dyd).actvar.n + 1;
@@ -562,6 +564,7 @@ unsafe fn allocupvalue(fs: *mut FuncState) -> Result<*mut Upvaldesc, ParseError>
                 as libc::c_uint
         }) as libc::c_int,
         "upvalues",
+        (*(*fs).ls).linenumber,
     )? as *mut Upvaldesc;
     while oldsize < (*f).sizeupvalues {
         let fresh8 = oldsize;
@@ -806,6 +809,7 @@ unsafe fn newlabelentry(
                 as libc::c_uint
         }) as libc::c_int,
         "labels/gotos",
+        (*ls).linenumber,
     )? as *mut Labeldesc;
     let ref mut fresh11 = (*((*l).arr).offset(n as isize)).name;
     *fresh11 = name;
@@ -987,6 +991,7 @@ unsafe fn addprototype(ls: *mut LexState) -> Result<*mut Proto, ParseError> {
                     as libc::c_uint
             }) as libc::c_int,
             "functions",
+            (*ls).linenumber,
         )? as *mut *mut Proto;
         while oldsize < (*f).sizep {
             let fresh12 = oldsize;
@@ -1763,7 +1768,7 @@ unsafe fn subexpr(
     (*ls).level += 1;
 
     if (*ls).level >= 200 {
-        return Err(ParseError::ItemLimit("nested level", 200));
+        return Err(ParseError::ItemLimit("nested level", 200, (*ls).linenumber));
     }
 
     let mut op: BinOpr = OPR_ADD;
@@ -1925,7 +1930,7 @@ unsafe fn restassign(
         (*ls).level += 1;
 
         if (*ls).level >= 200 {
-            return Err(ParseError::ItemLimit("nested level", 200));
+            return Err(ParseError::ItemLimit("nested level", 200, (*ls).linenumber));
         }
 
         restassign(ls, &mut nv, nvars + 1 as libc::c_int)?;
@@ -2664,7 +2669,7 @@ unsafe fn statement(ls: *mut LexState) -> Result<(), ParseError> {
     (*ls).level += 1;
 
     if (*ls).level >= 200 {
-        return Err(ParseError::ItemLimit("nested level", 200));
+        return Err(ParseError::ItemLimit("nested level", 200, (*ls).linenumber));
     }
 
     match (*ls).t.token as u32 {

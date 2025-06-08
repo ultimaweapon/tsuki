@@ -473,6 +473,7 @@ unsafe fn savelineinfo(
                     as libc::c_uint
             }) as libc::c_int,
             "lines",
+            (*(*fs).ls).linenumber,
         )? as *mut AbsLineInfo;
         (*((*f).abslineinfo).offset((*fs).nabslineinfo as isize)).pc = pc;
         let fresh1 = (*fs).nabslineinfo;
@@ -496,6 +497,7 @@ unsafe fn savelineinfo(
                 as libc::c_uint
         }) as libc::c_int,
         "opcodes",
+        (*(*fs).ls).linenumber,
     )? as *mut i8;
     *((*f).lineinfo).offset(pc as isize) = linedif as i8;
     (*fs).previousline = line;
@@ -539,6 +541,7 @@ pub unsafe fn luaK_code(fs: *mut FuncState, i: u32) -> Result<libc::c_int, Parse
                 as libc::c_uint
         }) as libc::c_int,
         "opcodes",
+        (*(*fs).ls).linenumber,
     )? as *mut u32;
     let fresh2 = (*fs).pc;
     (*fs).pc = (*fs).pc + 1;
@@ -754,6 +757,7 @@ unsafe fn addk(
                 as libc::c_uint
         }) as libc::c_int,
         "constants",
+        (*(*fs).ls).linenumber,
     )? as *mut UnsafeValue;
     while oldsize < (*f).sizek {
         let fresh3 = oldsize;
