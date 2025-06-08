@@ -11,7 +11,7 @@ use crate::lfunc::{luaF_close, luaF_initupvals};
 use crate::lmem::{luaM_free_, luaM_saferealloc_};
 use crate::lobject::{CClosure, Proto, StackValue, StkId, UnsafeValue, UpVal};
 use crate::lparser::{C2RustUnnamed_9, Dyndata, Labeldesc, Labellist, Vardesc, luaY_parser};
-use crate::lstate::{CallInfo, lua_CFunction, lua_Debug, lua_Hook, luaE_extendCI, luaE_shrinkCI};
+use crate::lstate::{CallInfo, Fp, lua_Debug, lua_Hook, luaE_extendCI, luaE_shrinkCI};
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, Zio};
@@ -493,7 +493,7 @@ unsafe fn precallC(
     L: *const Thread,
     mut func: StkId,
     nresults: libc::c_int,
-    f: lua_CFunction,
+    f: Fp,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     let mut n: libc::c_int = 0;
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;

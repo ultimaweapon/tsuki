@@ -17,7 +17,7 @@ use crate::lapi::{
     lua_tonumberx, lua_topointer, lua_touserdata, lua_type, lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
-use crate::lstate::{CallInfo, lua_CFunction, lua_Debug};
+use crate::lstate::{CallInfo, Fp, lua_Debug};
 use crate::{ChunkInfo, Thread, lua_pop};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
@@ -32,7 +32,7 @@ use libc::{FILE, strcmp, strlen, strncmp};
 #[repr(C)]
 pub struct luaL_Reg {
     pub name: *const libc::c_char,
-    pub func: Option<lua_CFunction>,
+    pub func: Option<Fp>,
 }
 
 #[derive(Copy, Clone)]
@@ -821,7 +821,7 @@ pub unsafe fn luaL_getsubtable(
 pub unsafe fn luaL_requiref(
     mut L: *const Thread,
     mut modname: *const libc::c_char,
-    mut openf: lua_CFunction,
+    mut openf: Fp,
     mut glb: libc::c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
     luaL_getsubtable(

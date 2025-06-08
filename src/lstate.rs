@@ -2,8 +2,7 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
-    unused_mut
+    unused_assignments
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
@@ -70,10 +69,9 @@ pub struct C2RustUnnamed_3 {
     pub nextraargs: libc::c_int,
 }
 
-pub type lua_CFunction =
-    unsafe fn(*const Thread) -> Result<libc::c_int, Box<dyn core::error::Error>>;
+pub type Fp = unsafe fn(*const Thread) -> Result<libc::c_int, Box<dyn core::error::Error>>;
 
-pub unsafe fn luaE_extendCI(mut L: *const Thread) -> *mut CallInfo {
+pub unsafe fn luaE_extendCI(L: *const Thread) -> *mut CallInfo {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     ci = luaM_malloc_((*L).hdr.global, ::core::mem::size_of::<CallInfo>()) as *mut CallInfo;
     (*(*L).ci.get()).next = ci;
@@ -85,7 +83,7 @@ pub unsafe fn luaE_extendCI(mut L: *const Thread) -> *mut CallInfo {
     return ci;
 }
 
-pub unsafe fn luaE_shrinkCI(mut L: *const Thread) {
+pub unsafe fn luaE_shrinkCI(L: *const Thread) {
     let mut ci: *mut CallInfo = (*(*L).ci.get()).next;
     let mut next: *mut CallInfo = 0 as *mut CallInfo;
     if ci.is_null() {
@@ -96,7 +94,7 @@ pub unsafe fn luaE_shrinkCI(mut L: *const Thread) {
         if next.is_null() {
             break;
         }
-        let mut next2: *mut CallInfo = (*next).next;
+        let next2: *mut CallInfo = (*next).next;
         (*ci).next = next2;
         (*L).nci.set((*L).nci.get().wrapping_sub(1));
 
@@ -115,7 +113,7 @@ pub unsafe fn luaE_shrinkCI(mut L: *const Thread) {
 
 pub unsafe fn lua_closethread(L: *mut Thread) -> Result<(), Box<dyn core::error::Error>> {
     (*L).ci.set((*L).base_ci.get());
-    let mut ci: *mut CallInfo = (*L).ci.get();
+    let ci: *mut CallInfo = (*L).ci.get();
 
     (*(*L).stack.get()).val.tt_ = 0 | 0 << 4;
     (*ci).func = (*L).stack.get();

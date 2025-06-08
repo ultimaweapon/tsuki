@@ -13,7 +13,7 @@ use crate::lobject::{
     CClosure, Proto, StackValue, StkId, TString, UValue, Udata, UnsafeValue, UntaggedValue, UpVal,
     luaO_arith, luaO_str2num, luaO_tostring,
 };
-use crate::lstate::{CallInfo, lua_CFunction};
+use crate::lstate::{CallInfo, Fp};
 use crate::lstring::{luaS_new, luaS_newlstr, luaS_newudata};
 use crate::ltm::{TM_GC, luaT_gettm, luaT_typenames_};
 use crate::lvm::{
@@ -453,7 +453,7 @@ pub unsafe fn lua_rawlen(L: *const Thread, idx: c_int) -> u64 {
     };
 }
 
-pub unsafe fn lua_tocfunction(L: *mut Thread, idx: c_int) -> Option<lua_CFunction> {
+pub unsafe fn lua_tocfunction(L: *mut Thread, idx: c_int) -> Option<Fp> {
     let o: *const UnsafeValue = index2value(L, idx);
     if (*o).tt_ as c_int == 6 as c_int | (1 as c_int) << 4 as c_int {
         return Some((*o).value_.f);
@@ -501,8 +501,7 @@ pub unsafe fn lua_topointer(L: *const Thread, idx: c_int) -> *const libc::c_void
     let o: *const UnsafeValue = index2value(L, idx);
     match (*o).tt_ as c_int & 0x3f as c_int {
         22 => {
-            return ::core::mem::transmute::<lua_CFunction, usize>((*o).value_.f)
-                as *mut libc::c_void;
+            return ::core::mem::transmute::<Fp, usize>((*o).value_.f) as *mut libc::c_void;
         }
         7 | 2 => return touserdata(o),
         _ => {
@@ -575,7 +574,7 @@ pub unsafe fn lua_pushstring(L: *const Thread, mut s: *const libc::c_char) -> *c
     s
 }
 
-pub unsafe fn lua_pushcclosure(L: *const Thread, fn_0: lua_CFunction, mut n: c_int) {
+pub unsafe fn lua_pushcclosure(L: *const Thread, fn_0: Fp, mut n: c_int) {
     if n == 0 as c_int {
         let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
         (*io).value_.f = fn_0;

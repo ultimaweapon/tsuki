@@ -9,7 +9,7 @@
 use crate::gc::Object;
 use crate::lctype::luai_ctype_;
 use crate::ldebug::luaG_runerror;
-use crate::lstate::lua_CFunction;
+use crate::lstate::Fp;
 use crate::lstring::luaS_newlstr;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
@@ -40,7 +40,7 @@ pub struct TbcList {
 #[derive(Copy, Clone)]
 pub union UntaggedValue {
     pub gc: *const Object,
-    pub f: lua_CFunction,
+    pub f: Fp,
     pub i: i64,
     pub n: f64,
 }
@@ -164,7 +164,7 @@ pub struct Proto {
 pub struct CClosure {
     pub hdr: Object,
     pub nupvalues: u8,
-    pub f: lua_CFunction,
+    pub f: Fp,
     pub upvalue: [UnsafeValue; 1],
 }
 
