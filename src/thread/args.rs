@@ -1,12 +1,12 @@
 use super::Thread;
 use crate::Object;
-use crate::lobject::TValue;
+use crate::lobject::UnsafeValue;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 /// Implementation of [`Args`] which size does not known at compile time.
 pub struct DynamicArgs<'a> {
-    list: Vec<TValue>,
+    list: Vec<UnsafeValue>,
     phantom: PhantomData<&'a Object>,
 }
 
@@ -41,7 +41,7 @@ impl Args for () {
     unsafe fn push_to(self, _: &Thread) {}
 }
 
-impl<T: Into<TValue>> Args for T {
+impl<T: Into<UnsafeValue>> Args for T {
     #[inline(always)]
     fn len(&self) -> usize {
         1

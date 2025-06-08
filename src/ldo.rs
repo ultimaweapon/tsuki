@@ -9,7 +9,7 @@
 use crate::ldebug::{luaG_callerror, luaG_runerror};
 use crate::lfunc::{luaF_close, luaF_initupvals};
 use crate::lmem::{luaM_free_, luaM_saferealloc_};
-use crate::lobject::{CClosure, Proto, StackValue, StkId, TValue, UpVal};
+use crate::lobject::{CClosure, Proto, StackValue, StkId, UnsafeValue, UpVal};
 use crate::lparser::{C2RustUnnamed_9, Dyndata, Labeldesc, Labellist, Vardesc, luaY_parser};
 use crate::lstate::{CallInfo, lua_CFunction, lua_Debug, lua_Hook, luaE_extendCI, luaE_shrinkCI};
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
@@ -338,7 +338,7 @@ unsafe fn tryfuncTM(
     L: *const Thread,
     mut func: StkId,
 ) -> Result<StkId, Box<dyn core::error::Error>> {
-    let mut tm: *const TValue = 0 as *const TValue;
+    let mut tm: *const UnsafeValue = 0 as *const UnsafeValue;
     let mut p: StkId = 0 as *mut StackValue;
     if ((((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
         <= 1 as libc::c_int as libc::c_long) as libc::c_int
@@ -362,8 +362,8 @@ unsafe fn tryfuncTM(
     }
     p = (*L).top.get();
     while p > func {
-        let io1: *mut TValue = &mut (*p).val;
-        let io2: *const TValue = &mut (*p.offset(-(1 as libc::c_int as isize))).val;
+        let io1: *mut UnsafeValue = &mut (*p).val;
+        let io2: *const UnsafeValue = &mut (*p.offset(-(1 as libc::c_int as isize))).val;
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
         p = p.offset(-1);
@@ -371,8 +371,8 @@ unsafe fn tryfuncTM(
 
     (*L).top.add(1);
 
-    let io1_0: *mut TValue = &mut (*func).val;
-    let io2_0: *const TValue = tm;
+    let io1_0: *mut UnsafeValue = &mut (*func).val;
+    let io2_0: *const UnsafeValue = tm;
     (*io1_0).value_ = (*io2_0).value_;
     (*io1_0).tt_ = (*io2_0).tt_;
     return Ok(func);
@@ -395,8 +395,9 @@ unsafe fn moveresults(
             if nres == 0 as libc::c_int {
                 (*res).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
             } else {
-                let io1: *mut TValue = &raw mut (*res).val;
-                let io2: *const TValue = &raw mut (*((*L).top.get()).offset(-(nres as isize))).val;
+                let io1: *mut UnsafeValue = &raw mut (*res).val;
+                let io2: *const UnsafeValue =
+                    &raw mut (*((*L).top.get()).offset(-(nres as isize))).val;
                 (*io1).value_ = (*io2).value_;
                 (*io1).tt_ = (*io2).tt_;
             }
@@ -436,8 +437,8 @@ unsafe fn moveresults(
     }
     i = 0 as libc::c_int;
     while i < nres {
-        let io1_0: *mut TValue = &mut (*res.offset(i as isize)).val;
-        let io2_0: *const TValue = &mut (*firstresult.offset(i as isize)).val;
+        let io1_0: *mut UnsafeValue = &mut (*res.offset(i as isize)).val;
+        let io2_0: *const UnsafeValue = &mut (*firstresult.offset(i as isize)).val;
         (*io1_0).value_ = (*io2_0).value_;
         (*io1_0).tt_ = (*io2_0).tt_;
         i += 1;
@@ -580,8 +581,8 @@ pub unsafe fn luaD_pretailcall(
                 (*ci).func = ((*ci).func).offset(-(delta as isize));
                 i = 0 as libc::c_int;
                 while i < narg1 {
-                    let io1: *mut TValue = &raw mut (*((*ci).func).offset(i as isize)).val;
-                    let io2: *const TValue = &raw mut (*func.offset(i as isize)).val;
+                    let io1: *mut UnsafeValue = &raw mut (*((*ci).func).offset(i as isize)).val;
+                    let io2: *const UnsafeValue = &raw mut (*func.offset(i as isize)).val;
                     (*io1).value_ = (*io2).value_;
                     (*io1).tt_ = (*io2).tt_;
                     i += 1;

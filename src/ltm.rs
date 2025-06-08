@@ -9,7 +9,7 @@
 use crate::gc::{Object, luaC_fix};
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
 use crate::ldo::{luaD_call, luaD_growstack};
-use crate::lobject::{Proto, StkId, TString, TValue, Udata, UntaggedValue};
+use crate::lobject::{Proto, StkId, TString, Udata, UnsafeValue, UntaggedValue};
 use crate::lstate::CallInfo;
 use crate::lstring::luaS_new;
 use crate::ltable::luaH_getshortstr;
@@ -94,19 +94,27 @@ pub unsafe fn luaT_init(g: *const Lua) {
     }
 }
 
-pub unsafe fn luaT_gettm(events: *const Table, event: TMS, ename: *mut TString) -> *const TValue {
-    let tm: *const TValue = luaH_getshortstr(events, ename);
+pub unsafe fn luaT_gettm(
+    events: *const Table,
+    event: TMS,
+    ename: *mut TString,
+) -> *const UnsafeValue {
+    let tm: *const UnsafeValue = luaH_getshortstr(events, ename);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         (*events)
             .flags
             .set(((*events).flags.get() as libc::c_int | (1 << event) as u8 as libc::c_int) as u8);
-        return 0 as *const TValue;
+        return 0 as *const UnsafeValue;
     } else {
         return tm;
     };
 }
 
-pub unsafe fn luaT_gettmbyobj(L: *const Thread, o: *const TValue, event: TMS) -> *const TValue {
+pub unsafe fn luaT_gettmbyobj(
+    L: *const Thread,
+    o: *const UnsafeValue,
+    event: TMS,
+) -> *const UnsafeValue {
     let mt = match (*o).tt_ as libc::c_int & 0xf as libc::c_int {
         5 => (*((*o).value_.gc as *mut Table)).metatable.get(),
         7 => (*((*o).value_.gc as *mut Udata)).metatable,
@@ -120,7 +128,7 @@ pub unsafe fn luaT_gettmbyobj(L: *const Thread, o: *const TValue, event: TMS) ->
     };
 }
 
-pub unsafe fn luaT_objtypename(g: *const Lua, o: *const TValue) -> Cow<'static, str> {
+pub unsafe fn luaT_objtypename(g: *const Lua, o: *const UnsafeValue) -> Cow<'static, str> {
     let mut mt: *const Table;
 
     if (*o).tt_ as libc::c_int
@@ -140,7 +148,7 @@ pub unsafe fn luaT_objtypename(g: *const Lua, o: *const TValue) -> Cow<'static, 
                 !mt.is_null()
             }
     {
-        let name: *const TValue = luaH_getshortstr(
+        let name: *const UnsafeValue = luaH_getshortstr(
             mt,
             luaS_new(g, b"__name\0" as *const u8 as *const libc::c_char),
         );
@@ -157,26 +165,26 @@ pub unsafe fn luaT_objtypename(g: *const Lua, o: *const TValue) -> Cow<'static, 
 
 pub unsafe fn luaT_callTM(
     L: *const Thread,
-    f: *const TValue,
-    p1: *const TValue,
-    p2: *const TValue,
-    p3: *const TValue,
+    f: *const UnsafeValue,
+    p1: *const UnsafeValue,
+    p2: *const UnsafeValue,
+    p3: *const UnsafeValue,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let func: StkId = (*L).top.get();
-    let io1: *mut TValue = &mut (*func).val;
-    let io2: *const TValue = f;
+    let io1: *mut UnsafeValue = &mut (*func).val;
+    let io2: *const UnsafeValue = f;
     (*io1).value_ = (*io2).value_;
     (*io1).tt_ = (*io2).tt_;
-    let io1_0: *mut TValue = &mut (*func.offset(1 as libc::c_int as isize)).val;
-    let io2_0: *const TValue = p1;
+    let io1_0: *mut UnsafeValue = &mut (*func.offset(1 as libc::c_int as isize)).val;
+    let io2_0: *const UnsafeValue = p1;
     (*io1_0).value_ = (*io2_0).value_;
     (*io1_0).tt_ = (*io2_0).tt_;
-    let io1_1: *mut TValue = &mut (*func.offset(2 as libc::c_int as isize)).val;
-    let io2_1: *const TValue = p2;
+    let io1_1: *mut UnsafeValue = &mut (*func.offset(2 as libc::c_int as isize)).val;
+    let io2_1: *const UnsafeValue = p2;
     (*io1_1).value_ = (*io2_1).value_;
     (*io1_1).tt_ = (*io2_1).tt_;
-    let io1_2: *mut TValue = &mut (*func.offset(3 as libc::c_int as isize)).val;
-    let io2_2: *const TValue = p3;
+    let io1_2: *mut UnsafeValue = &mut (*func.offset(3 as libc::c_int as isize)).val;
+    let io2_2: *const UnsafeValue = p3;
     (*io1_2).value_ = (*io2_2).value_;
     (*io1_2).tt_ = (*io2_2).tt_;
     (*L).top.set(func.offset(4 as libc::c_int as isize));
@@ -186,24 +194,24 @@ pub unsafe fn luaT_callTM(
 
 pub unsafe fn luaT_callTMres(
     L: *const Thread,
-    f: *const TValue,
-    p1: *const TValue,
-    p2: *const TValue,
+    f: *const UnsafeValue,
+    p1: *const UnsafeValue,
+    p2: *const UnsafeValue,
     mut res: StkId,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let result: isize =
         (res as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
     let func: StkId = (*L).top.get();
-    let io1: *mut TValue = &raw mut (*func).val;
-    let io2: *const TValue = f;
+    let io1: *mut UnsafeValue = &raw mut (*func).val;
+    let io2: *const UnsafeValue = f;
     (*io1).value_ = (*io2).value_;
     (*io1).tt_ = (*io2).tt_;
-    let io1_0: *mut TValue = &raw mut (*func.offset(1 as libc::c_int as isize)).val;
-    let io2_0: *const TValue = p1;
+    let io1_0: *mut UnsafeValue = &raw mut (*func.offset(1 as libc::c_int as isize)).val;
+    let io2_0: *const UnsafeValue = p1;
     (*io1_0).value_ = (*io2_0).value_;
     (*io1_0).tt_ = (*io2_0).tt_;
-    let io1_1: *mut TValue = &mut (*func.offset(2 as libc::c_int as isize)).val;
-    let io2_1: *const TValue = p2;
+    let io1_1: *mut UnsafeValue = &mut (*func.offset(2 as libc::c_int as isize)).val;
+    let io2_1: *const UnsafeValue = p2;
     (*io1_1).value_ = (*io2_1).value_;
     (*io1_1).tt_ = (*io2_1).tt_;
     (*L).top.add(3);
@@ -211,9 +219,9 @@ pub unsafe fn luaT_callTMres(
     luaD_call(L, func, 1 as libc::c_int)?;
 
     res = ((*L).stack.get() as *mut libc::c_char).offset(result as isize) as StkId;
-    let io1_2: *mut TValue = &raw mut (*res).val;
+    let io1_2: *mut UnsafeValue = &raw mut (*res).val;
     (*L).top.sub(1);
-    let io2_2: *const TValue = &raw mut (*(*L).top.get()).val;
+    let io2_2: *const UnsafeValue = &raw mut (*(*L).top.get()).val;
     (*io1_2).value_ = (*io2_2).value_;
     (*io1_2).tt_ = (*io2_2).tt_;
 
@@ -222,12 +230,12 @@ pub unsafe fn luaT_callTMres(
 
 unsafe fn callbinTM(
     L: *const Thread,
-    p1: *const TValue,
-    p2: *const TValue,
+    p1: *const UnsafeValue,
+    p2: *const UnsafeValue,
     res: StkId,
     event: TMS,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
-    let mut tm: *const TValue = luaT_gettmbyobj(L, p1, event);
+    let mut tm: *const UnsafeValue = luaT_gettmbyobj(L, p1, event);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         tm = luaT_gettmbyobj(L, p2, event);
     }
@@ -240,8 +248,8 @@ unsafe fn callbinTM(
 
 pub unsafe fn luaT_trybinTM(
     L: *const Thread,
-    p1: *const TValue,
-    p2: *const TValue,
+    p1: *const UnsafeValue,
+    p2: *const UnsafeValue,
     res: StkId,
     event: TMS,
 ) -> Result<(), Box<dyn core::error::Error>> {
@@ -287,8 +295,8 @@ pub unsafe fn luaT_tryconcatTM(L: *const Thread) -> Result<(), Box<dyn core::err
 
 pub unsafe fn luaT_trybinassocTM(
     L: *const Thread,
-    p1: *const TValue,
-    p2: *const TValue,
+    p1: *const UnsafeValue,
+    p2: *const UnsafeValue,
     flip: libc::c_int,
     res: StkId,
     event: TMS,
@@ -302,19 +310,19 @@ pub unsafe fn luaT_trybinassocTM(
 
 pub unsafe fn luaT_trybiniTM(
     L: *const Thread,
-    p1: *const TValue,
+    p1: *const UnsafeValue,
     i2: i64,
     flip: libc::c_int,
     res: StkId,
     event: TMS,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    let mut aux: TValue = TValue {
+    let mut aux: UnsafeValue = UnsafeValue {
         value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
     };
-    let io: *mut TValue = &mut aux;
+    let io: *mut UnsafeValue = &mut aux;
     (*io).value_.i = i2;
     (*io).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     luaT_trybinassocTM(L, p1, &mut aux, flip, res, event)
@@ -322,8 +330,8 @@ pub unsafe fn luaT_trybiniTM(
 
 pub unsafe fn luaT_callorderTM(
     L: *const Thread,
-    p1: *const TValue,
-    p2: *const TValue,
+    p1: *const UnsafeValue,
+    p2: *const UnsafeValue,
     event: TMS,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     if callbinTM(L, p1, p2, (*L).top.get(), event)? != 0 {
@@ -338,25 +346,25 @@ pub unsafe fn luaT_callorderTM(
 
 pub unsafe fn luaT_callorderiTM(
     L: *const Thread,
-    mut p1: *const TValue,
+    mut p1: *const UnsafeValue,
     v2: libc::c_int,
     flip: libc::c_int,
     isfloat: libc::c_int,
     event: TMS,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
-    let mut aux: TValue = TValue {
+    let mut aux: UnsafeValue = UnsafeValue {
         value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
     };
-    let mut p2: *const TValue = 0 as *const TValue;
+    let mut p2: *const UnsafeValue = 0 as *const UnsafeValue;
     if isfloat != 0 {
-        let io: *mut TValue = &mut aux;
+        let io: *mut UnsafeValue = &mut aux;
         (*io).value_.n = v2 as f64;
         (*io).tt_ = (3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
     } else {
-        let io_0: *mut TValue = &mut aux;
+        let io_0: *mut UnsafeValue = &mut aux;
         (*io_0).value_.i = v2 as i64;
         (*io_0).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     }
@@ -392,16 +400,16 @@ pub unsafe fn luaT_adjustvarargs(
 
     let fresh0 = (*L).top.get();
     (*L).top.add(1);
-    let io1: *mut TValue = &raw mut (*fresh0).val;
-    let io2: *const TValue = &raw mut (*(*ci).func).val;
+    let io1: *mut UnsafeValue = &raw mut (*fresh0).val;
+    let io2: *const UnsafeValue = &raw mut (*(*ci).func).val;
     (*io1).value_ = (*io2).value_;
     (*io1).tt_ = (*io2).tt_;
     i = 1 as libc::c_int;
     while i <= nfixparams {
         let fresh1 = (*L).top.get();
         (*L).top.add(1);
-        let io1_0: *mut TValue = &raw mut (*fresh1).val;
-        let io2_0: *const TValue = &raw mut (*((*ci).func).offset(i as isize)).val;
+        let io1_0: *mut UnsafeValue = &raw mut (*fresh1).val;
+        let io2_0: *const UnsafeValue = &raw mut (*((*ci).func).offset(i as isize)).val;
         (*io1_0).value_ = (*io2_0).value_;
         (*io1_0).tt_ = (*io2_0).tt_;
         (*((*ci).func).offset(i as isize)).val.tt_ =
@@ -442,8 +450,8 @@ pub unsafe fn luaT_getvarargs(
     }
     i = 0 as libc::c_int;
     while i < wanted && i < nextra {
-        let io1: *mut TValue = &mut (*where_0.offset(i as isize)).val;
-        let io2: *const TValue =
+        let io1: *mut UnsafeValue = &mut (*where_0.offset(i as isize)).val;
+        let io2: *const UnsafeValue =
             &raw mut (*((*ci).func).offset(-(nextra as isize)).offset(i as isize)).val;
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;

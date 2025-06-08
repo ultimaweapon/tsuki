@@ -1,4 +1,4 @@
-use crate::TValue;
+use crate::UnsafeValue;
 use crate::lobject::UntaggedValue;
 use core::ffi::c_int;
 
@@ -6,7 +6,7 @@ use core::ffi::c_int;
 #[repr(C)]
 pub(crate) union Node {
     pub u: NodeKey,
-    pub i_val: TValue,
+    pub i_val: UnsafeValue,
 }
 
 #[derive(Copy, Clone)]

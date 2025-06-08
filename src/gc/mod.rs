@@ -12,7 +12,7 @@ pub use self::r#ref::*;
 
 use crate::ldo::luaD_shrinkstack;
 use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
-use crate::lobject::{CClosure, Proto, StkId, TString, TValue, UValue, Udata, UpVal};
+use crate::lobject::{CClosure, Proto, StkId, TString, UValue, Udata, UnsafeValue, UpVal};
 use crate::lstring::luaS_remove;
 use crate::ltable::{luaH_free, luaH_realasize};
 use crate::ltm::{TM_MODE, luaT_gettm};
@@ -123,7 +123,7 @@ unsafe fn reallymarkobject(g: *const Lua, o: *const Object) {
         9 => {
             let uv = o as *const UpVal;
 
-            if (*uv).v.get() != &raw mut (*(*uv).u.get()).value as *mut TValue {
+            if (*uv).v.get() != &raw mut (*(*uv).u.get()).value as *mut UnsafeValue {
                 (*uv)
                     .hdr
                     .marked
@@ -431,10 +431,10 @@ unsafe fn traversestrongtable(g: *const Lua, h: *const Table) {
 unsafe fn traversetable(g: *const Lua, h: *const Table) -> usize {
     let mut weakkey: *const libc::c_char = 0 as *const libc::c_char;
     let mut weakvalue: *const libc::c_char = 0 as *const libc::c_char;
-    let mode: *const TValue = if ((*h).metatable.get()).is_null() {
-        0 as *const TValue
+    let mode: *const UnsafeValue = if ((*h).metatable.get()).is_null() {
+        0 as *const UnsafeValue
     } else if (*(*h).metatable.get()).flags.get() & 1 << TM_MODE != 0 {
-        0 as *const TValue
+        0 as *const UnsafeValue
     } else {
         luaT_gettm(
             (*h).metatable.get(),
@@ -774,7 +774,7 @@ unsafe fn clearbyvalues(g: *const Lua, mut l: *const Object, f: *const Object) {
         let asize: libc::c_uint = luaH_realasize(h);
         i = 0 as libc::c_int as libc::c_uint;
         while i < asize {
-            let o: *mut TValue = (*h).array.get().offset(i as isize) as *mut TValue;
+            let o: *mut UnsafeValue = (*h).array.get().offset(i as isize) as *mut UnsafeValue;
             if iscleared(
                 g,
                 if (*o).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 {
@@ -813,7 +813,7 @@ unsafe fn clearbyvalues(g: *const Lua, mut l: *const Object, f: *const Object) {
 unsafe fn freeupval(g: *const Lua, uv: *mut UpVal) {
     let layout = Layout::new::<UpVal>();
 
-    if (*uv).v.get() != &raw mut (*(*uv).u.get()).value as *mut TValue {
+    if (*uv).v.get() != &raw mut (*(*uv).u.get()).value as *mut UnsafeValue {
         luaF_unlinkupval(uv);
     }
 
@@ -833,7 +833,7 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
         38 => {
             let cl_0: *mut CClosure = o as *mut CClosure;
             let nupvalues = usize::from((*cl_0).nupvalues);
-            let size = offset_of!(CClosure, upvalue) + size_of::<TValue>() * nupvalues;
+            let size = offset_of!(CClosure, upvalue) + size_of::<UnsafeValue>() * nupvalues;
             let align = align_of::<CClosure>();
             let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
@@ -1088,7 +1088,7 @@ unsafe fn singlestep(g: &Lua) -> usize {
 unsafe fn incstep(g: &Lua) {
     let stepmul = g.gcstepmul.get() * 4 | 1;
     let mut debt: isize = (g.gc.debt.get() as libc::c_ulong)
-        .wrapping_div(size_of::<TValue>() as libc::c_ulong)
+        .wrapping_div(size_of::<UnsafeValue>() as libc::c_ulong)
         .wrapping_mul(stepmul as libc::c_ulong) as isize;
     let stepsize: isize = (if (*g).gcstepsize.get() as libc::c_ulong
         <= (::core::mem::size_of::<isize>() as libc::c_ulong)
@@ -1096,7 +1096,7 @@ unsafe fn incstep(g: &Lua) {
             .wrapping_sub(2 as libc::c_int as libc::c_ulong)
     {
         (((1 as libc::c_int as isize) << (*g).gcstepsize.get() as libc::c_int) as libc::c_ulong)
-            .wrapping_div(::core::mem::size_of::<TValue>() as libc::c_ulong)
+            .wrapping_div(::core::mem::size_of::<UnsafeValue>() as libc::c_ulong)
             .wrapping_mul(stepmul as libc::c_ulong)
     } else {
         (!(0 as libc::c_int as usize) >> 1 as libc::c_int) as isize as libc::c_ulong
@@ -1114,7 +1114,7 @@ unsafe fn incstep(g: &Lua) {
         setpause(g);
     } else {
         debt = ((debt / stepmul as isize) as libc::c_ulong)
-            .wrapping_mul(::core::mem::size_of::<TValue>() as libc::c_ulong)
+            .wrapping_mul(::core::mem::size_of::<UnsafeValue>() as libc::c_ulong)
             as isize;
         (*g).gc.set_debt(debt);
     };

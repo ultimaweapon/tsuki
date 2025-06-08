@@ -12,7 +12,7 @@ pub use self::thread::*;
 use self::lapi::lua_settop;
 use self::ldo::luaD_protectedparser;
 use self::lmem::luaM_free_;
-use self::lobject::{TString, TValue};
+use self::lobject::{TString, UnsafeValue};
 use self::lzio::Zio;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
@@ -84,8 +84,8 @@ pub struct Lua {
     GCestimate: Cell<usize>,
     lastatomic: Cell<usize>,
     strt: UnsafeCell<StringTable>,
-    l_registry: UnsafeCell<TValue>,
-    nilvalue: UnsafeCell<TValue>,
+    l_registry: UnsafeCell<UnsafeValue>,
+    nilvalue: UnsafeCell<UnsafeValue>,
     seed: u32,
     gcstate: Cell<u8>,
     gcstopem: Cell<u8>,
@@ -140,7 +140,7 @@ impl Lua {
                     .offset(2 - 1)
             };
 
-            let io1: *mut TValue = unsafe { (*(*f).upvals[0].get()).v.get() };
+            let io1: *mut UnsafeValue = unsafe { (*(*f).upvals[0].get()).v.get() };
 
             unsafe { (*io1).value_ = (*gt).value_ };
             unsafe { (*io1).tt_ = (*gt).tt_ };

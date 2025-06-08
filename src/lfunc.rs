@@ -11,7 +11,7 @@ use crate::ldebug::{luaG_findlocal, luaG_runerror};
 use crate::ldo::luaD_call;
 use crate::lmem::luaM_free_;
 use crate::lobject::{
-    AbsLineInfo, CClosure, LocVar, Proto, StackValue, StkId, TValue, UpVal, Upvaldesc,
+    AbsLineInfo, CClosure, LocVar, Proto, StackValue, StkId, UnsafeValue, UpVal, Upvaldesc,
 };
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
 use crate::{ChunkInfo, Lua, LuaFn, Object, Thread};
@@ -26,7 +26,7 @@ use core::ptr::{addr_of_mut, null_mut};
 
 pub unsafe fn luaF_newCclosure(g: *const Lua, nupvals: libc::c_int) -> *mut CClosure {
     let nupvals = u8::try_from(nupvals).unwrap();
-    let size = offset_of!(CClosure, upvalue) + size_of::<TValue>() * usize::from(nupvals);
+    let size = offset_of!(CClosure, upvalue) + size_of::<UnsafeValue>() * usize::from(nupvals);
     let align = align_of::<CClosure>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
     let o = Object::new(g, 6 | 2 << 4, layout).cast::<CClosure>();
@@ -107,21 +107,21 @@ pub unsafe fn luaF_findupval(L: *const Thread, level: StkId) -> *mut UpVal {
 
 unsafe fn callclosemethod(
     L: *const Thread,
-    obj: *mut TValue,
-    err: *mut TValue,
+    obj: *mut UnsafeValue,
+    err: *mut UnsafeValue,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let top: StkId = (*L).top.get();
-    let tm: *const TValue = luaT_gettmbyobj(L, obj, TM_CLOSE);
-    let io1: *mut TValue = &mut (*top).val;
-    let io2: *const TValue = tm;
+    let tm: *const UnsafeValue = luaT_gettmbyobj(L, obj, TM_CLOSE);
+    let io1: *mut UnsafeValue = &mut (*top).val;
+    let io2: *const UnsafeValue = tm;
     (*io1).value_ = (*io2).value_;
     (*io1).tt_ = (*io2).tt_;
-    let io1_0: *mut TValue = &mut (*top.offset(1 as libc::c_int as isize)).val;
-    let io2_0: *const TValue = obj;
+    let io1_0: *mut UnsafeValue = &mut (*top.offset(1 as libc::c_int as isize)).val;
+    let io2_0: *const UnsafeValue = obj;
     (*io1_0).value_ = (*io2_0).value_;
     (*io1_0).tt_ = (*io2_0).tt_;
-    let io1_1: *mut TValue = &mut (*top.offset(2 as libc::c_int as isize)).val;
-    let io2_1: *const TValue = err;
+    let io1_1: *mut UnsafeValue = &mut (*top.offset(2 as libc::c_int as isize)).val;
+    let io2_1: *const UnsafeValue = err;
     (*io1_1).value_ = (*io2_1).value_;
     (*io1_1).tt_ = (*io2_1).tt_;
     (*L).top.set(top.offset(3 as libc::c_int as isize));
@@ -130,7 +130,7 @@ unsafe fn callclosemethod(
 }
 
 unsafe fn checkclosemth(L: *const Thread, level: StkId) -> Result<(), Box<dyn core::error::Error>> {
-    let tm: *const TValue = luaT_gettmbyobj(L, &mut (*level).val, TM_CLOSE);
+    let tm: *const UnsafeValue = luaT_gettmbyobj(L, &mut (*level).val, TM_CLOSE);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         let idx: libc::c_int =
             level.offset_from((*(*L).ci.get()).func) as libc::c_long as libc::c_int;
@@ -154,7 +154,7 @@ unsafe fn prepcallclosemth(
     L: *const Thread,
     level: StkId,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    let uv: *mut TValue = &mut (*level).val;
+    let uv: *mut UnsafeValue = &mut (*level).val;
     let errobj = (*(*L).global).nilvalue.get();
 
     callclosemethod(L, uv, errobj)
@@ -213,10 +213,10 @@ pub unsafe fn luaF_closeupval(L: *const Thread, level: StkId) {
         }) {
             break;
         }
-        let slot: *mut TValue = &raw mut (*(*uv).u.get()).value;
+        let slot: *mut UnsafeValue = &raw mut (*(*uv).u.get()).value;
         luaF_unlinkupval(uv);
-        let io1: *mut TValue = slot;
-        let io2: *const TValue = (*uv).v.get();
+        let io1: *mut UnsafeValue = slot;
+        let io2: *const UnsafeValue = (*uv).v.get();
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
         (*uv).v.set(slot);
@@ -285,7 +285,7 @@ pub unsafe fn luaF_newproto(g: *const Lua, chunk: ChunkInfo) -> *mut Proto {
     let layout = Layout::new::<Proto>();
     let f = Object::new(g, 9 + 1 | 0 << 4, layout).cast::<Proto>();
 
-    (*f).k = 0 as *mut TValue;
+    (*f).k = 0 as *mut UnsafeValue;
     (*f).sizek = 0 as libc::c_int;
     (*f).p = 0 as *mut *mut Proto;
     (*f).sizep = 0 as libc::c_int;
@@ -323,7 +323,7 @@ pub unsafe fn luaF_freeproto(g: *const Lua, f: *mut Proto) {
     luaM_free_(
         g,
         (*f).k as *mut libc::c_void,
-        ((*f).sizek as usize).wrapping_mul(::core::mem::size_of::<TValue>()),
+        ((*f).sizek as usize).wrapping_mul(::core::mem::size_of::<UnsafeValue>()),
     );
     luaM_free_(
         g,

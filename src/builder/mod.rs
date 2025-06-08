@@ -2,7 +2,7 @@ use crate::lauxlib::luaL_requiref;
 use crate::lbaselib::luaopen_base;
 use crate::llex::luaX_init;
 use crate::lmathlib::luaopen_math;
-use crate::lobject::{TValue, UntaggedValue};
+use crate::lobject::{UnsafeValue, UntaggedValue};
 use crate::lstring::luaS_init;
 use crate::lstrlib::luaopen_string;
 use crate::ltable::{luaH_new, luaH_resize};
@@ -45,11 +45,11 @@ impl Builder {
                 nuse: 0,
                 size: 0,
             }),
-            l_registry: UnsafeCell::new(TValue {
+            l_registry: UnsafeCell::new(UnsafeValue {
                 value_: UntaggedValue { i: 0 },
                 tt_: (0 | 0 << 4),
             }),
-            nilvalue: UnsafeCell::new(TValue {
+            nilvalue: UnsafeCell::new(UnsafeValue {
                 value_: UntaggedValue { i: 0 },
                 tt_: (0 | 0 << 4),
             }),
@@ -111,7 +111,7 @@ impl Builder {
 
         // Setup registry.
         let registry = unsafe { luaH_new(g.deref()) };
-        let io: *mut TValue = g.l_registry.get();
+        let io: *mut UnsafeValue = g.l_registry.get();
 
         unsafe { (*io).value_.gc = registry as *mut Object };
         unsafe { (*io).tt_ = 5 | 0 << 4 | 1 << 6 };
@@ -119,13 +119,13 @@ impl Builder {
         unsafe { luaH_resize(g.deref(), registry, 2, 0) };
 
         // Create dummy object for LUA_RIDX_MAINTHREAD.
-        let io_0 = unsafe { (*registry).array.get().offset(1 - 1) as *mut TValue };
+        let io_0 = unsafe { (*registry).array.get().offset(1 - 1) as *mut UnsafeValue };
 
         unsafe { (*io_0).value_.gc = luaH_new(g.deref()).cast() };
         unsafe { (*io_0).tt_ = 5 | 0 << 4 | 1 << 6 };
 
         // Create LUA_RIDX_GLOBALS.
-        let io_1 = unsafe { (*registry).array.get().offset(2 - 1) as *mut TValue };
+        let io_1 = unsafe { (*registry).array.get().offset(2 - 1) as *mut UnsafeValue };
 
         unsafe { (*io_1).value_.gc = luaH_new(g.deref()).cast() };
         unsafe { (*io_1).tt_ = 5 | 0 << 4 | 1 << 6 };

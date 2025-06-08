@@ -1,6 +1,6 @@
 pub(crate) use self::node::*;
 
-use crate::{Object, TValue};
+use crate::{Object, UnsafeValue};
 use core::cell::Cell;
 use thiserror::Error;
 
@@ -13,7 +13,7 @@ pub struct Table {
     pub(crate) flags: Cell<u8>,
     pub(crate) lsizenode: Cell<u8>,
     pub(crate) alimit: Cell<libc::c_uint>,
-    pub(crate) array: Cell<*mut TValue>,
+    pub(crate) array: Cell<*mut UnsafeValue>,
     pub(crate) node: Cell<*mut Node>,
     pub(crate) lastfree: Cell<*mut Node>,
     pub(crate) metatable: Cell<*mut Table>,

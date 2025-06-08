@@ -1,4 +1,4 @@
-use crate::lobject::{StackValue, TValue, UntaggedValue};
+use crate::lobject::{StackValue, UnsafeValue, UntaggedValue};
 use crate::{LuaFn, Table};
 use core::cell::Cell;
 use core::mem::zeroed;
@@ -33,13 +33,13 @@ impl StackPtr {
     }
 
     #[inline(always)]
-    pub unsafe fn write(&self, val: TValue) {
+    pub unsafe fn write(&self, val: UnsafeValue) {
         unsafe { self.0.get().write(StackValue { val }) };
     }
 
     #[inline(always)]
     pub fn write_nil(&self) {
-        let v = TValue {
+        let v = UnsafeValue {
             value_: unsafe { zeroed() },
             tt_: 0 | 0 << 4,
         };
@@ -49,7 +49,7 @@ impl StackPtr {
 
     #[inline(always)]
     pub fn write_table(&self, t: &Table) {
-        let v = TValue {
+        let v = UnsafeValue {
             value_: UntaggedValue { gc: &t.hdr },
             tt_: 5 | 0 << 4 | 1 << 6,
         };
@@ -59,7 +59,7 @@ impl StackPtr {
 
     #[inline(always)]
     pub fn write_lua(&self, f: &LuaFn) {
-        let v = TValue {
+        let v = UnsafeValue {
             value_: UntaggedValue { gc: &f.hdr },
             tt_: 6 | 0 << 4 | 1 << 6,
         };

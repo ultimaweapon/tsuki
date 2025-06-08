@@ -1,5 +1,4 @@
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -12,7 +11,9 @@
 use crate::gc::luaC_fix;
 use crate::lctype::luai_ctype_;
 use crate::lmem::luaM_saferealloc_;
-use crate::lobject::{TString, TValue, UntaggedValue, luaO_hexavalue, luaO_str2num, luaO_utf8esc};
+use crate::lobject::{
+    TString, UnsafeValue, UntaggedValue, luaO_hexavalue, luaO_str2num, luaO_utf8esc,
+};
 use crate::lparser::{Dyndata, FuncState};
 use crate::lstring::luaS_newlstr;
 use crate::ltable::{luaH_finishset, luaH_getstr};
@@ -235,13 +236,13 @@ pub unsafe fn luaX_newstring(
     mut l: usize,
 ) -> *mut TString {
     let mut ts: *mut TString = luaS_newlstr((*ls).g.deref(), str, l);
-    let mut o: *const TValue = luaH_getstr((*ls).h.deref(), ts);
+    let mut o: *const UnsafeValue = luaH_getstr((*ls).h.deref(), ts);
 
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
         ts = ((*(o as *mut Node)).u.key_val.gc as *mut TString);
     } else {
         let ts = Ref::new((*ls).g.clone(), ts);
-        let stv = TValue {
+        let stv = UnsafeValue {
             value_: UntaggedValue { gc: &ts.hdr },
             tt_: ((*ts).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8,
         };
@@ -346,7 +347,7 @@ unsafe fn read_numeral(
     mut ls: *mut LexState,
     mut seminfo: *mut SemInfo,
 ) -> Result<libc::c_int, ParseError> {
-    let mut obj: TValue = TValue {
+    let mut obj: UnsafeValue = UnsafeValue {
         value_: UntaggedValue {
             gc: 0 as *mut Object,
         },

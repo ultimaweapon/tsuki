@@ -24,7 +24,7 @@ pub type StkId = *mut StackValue;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union StackValue {
-    pub val: TValue,
+    pub val: UnsafeValue,
     pub tbclist: TbcList,
 }
 
@@ -47,7 +47,7 @@ pub(crate) union UntaggedValue {
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub(crate) struct TValue {
+pub(crate) struct UnsafeValue {
     pub value_: UntaggedValue,
     pub tt_: u8,
 }
@@ -55,7 +55,7 @@ pub(crate) struct TValue {
 #[repr(C)]
 pub struct UpVal {
     pub hdr: Object,
-    pub v: Cell<*mut TValue>,
+    pub v: Cell<*mut UnsafeValue>,
     pub u: UnsafeCell<C2RustUnnamed_5>,
 }
 
@@ -63,7 +63,7 @@ pub struct UpVal {
 #[repr(C)]
 pub union C2RustUnnamed_5 {
     pub open: C2RustUnnamed_6,
-    pub value: TValue,
+    pub value: UnsafeValue,
 }
 
 #[derive(Copy, Clone)]
@@ -93,7 +93,7 @@ pub union C2RustUnnamed_8 {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union UValue {
-    pub uv: TValue,
+    pub uv: UnsafeValue,
     pub n: f64,
     pub u: libc::c_double,
     pub s: *mut libc::c_void,
@@ -149,7 +149,7 @@ pub struct Proto {
     pub sizeabslineinfo: c_int,
     pub linedefined: c_int,
     pub lastlinedefined: c_int,
-    pub k: *mut TValue,
+    pub k: *mut UnsafeValue,
     pub code: *mut u32,
     pub p: *mut *mut Proto,
     pub upvalues: *mut Upvaldesc,
@@ -164,7 +164,7 @@ pub struct CClosure {
     pub hdr: Object,
     pub nupvalues: u8,
     pub f: lua_CFunction,
-    pub upvalue: [TValue; 1],
+    pub upvalue: [UnsafeValue; 1],
 }
 
 pub unsafe fn luaO_ceillog2(mut x: libc::c_uint) -> c_int {
@@ -479,9 +479,9 @@ unsafe fn numarith(op: c_int, v1: f64, v2: f64) -> f64 {
 
 pub unsafe fn luaO_rawarith(
     op: c_int,
-    p1: *const TValue,
-    p2: *const TValue,
-    res: *mut TValue,
+    p1: *const UnsafeValue,
+    p2: *const UnsafeValue,
+    res: *mut UnsafeValue,
 ) -> Result<c_int, ArithError> {
     match op {
         7 | 8 | 9 | 10 | 11 | 13 => {
@@ -506,7 +506,7 @@ pub unsafe fn luaO_rawarith(
                     luaV_tointegerns(p2, &mut i2, F2Ieq)
                 }) != 0
             {
-                let io: *mut TValue = res;
+                let io: *mut UnsafeValue = res;
                 (*io).value_.i = intarith(op, i1, i2)?;
                 (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                 return Ok(1 as c_int);
@@ -540,7 +540,7 @@ pub unsafe fn luaO_rawarith(
                     }
                 }) != 0
             {
-                let io_0: *mut TValue = res;
+                let io_0: *mut UnsafeValue = res;
                 (*io_0).value_.n = numarith(op, n1, n2);
                 (*io_0).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                 return Ok(1 as c_int);
@@ -554,7 +554,7 @@ pub unsafe fn luaO_rawarith(
             if (*p1).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int
                 && (*p2).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int
             {
-                let io_1: *mut TValue = res;
+                let io_1: *mut UnsafeValue = res;
                 (*io_1).value_.i = intarith(op, (*p1).value_.i, (*p2).value_.i)?;
                 (*io_1).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                 return Ok(1 as c_int);
@@ -581,7 +581,7 @@ pub unsafe fn luaO_rawarith(
                     }
                 }) != 0
             {
-                let io_2: *mut TValue = res;
+                let io_2: *mut UnsafeValue = res;
                 (*io_2).value_.n = numarith(op, n1_0, n2_0);
                 (*io_2).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                 return Ok(1 as c_int);
@@ -595,8 +595,8 @@ pub unsafe fn luaO_rawarith(
 pub unsafe fn luaO_arith(
     L: *const Thread,
     op: c_int,
-    p1: *const TValue,
-    p2: *const TValue,
+    p1: *const UnsafeValue,
+    p2: *const UnsafeValue,
     res: StkId,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let r = match luaO_rawarith(op, p1, p2, &mut (*res).val) {
@@ -733,19 +733,19 @@ unsafe fn l_str2int(mut s: *const c_char, result: *mut i64) -> *const c_char {
     };
 }
 
-pub unsafe fn luaO_str2num(s: *const c_char, o: *mut TValue) -> usize {
+pub unsafe fn luaO_str2num(s: *const c_char, o: *mut UnsafeValue) -> usize {
     let mut i: i64 = 0;
     let mut n: f64 = 0.;
     let mut e: *const c_char = 0 as *const c_char;
     e = l_str2int(s, &mut i);
     if !e.is_null() {
-        let io: *mut TValue = o;
+        let io: *mut UnsafeValue = o;
         (*io).value_.i = i;
         (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
     } else {
         e = l_str2d(s, &mut n);
         if !e.is_null() {
-            let io_0: *mut TValue = o;
+            let io_0: *mut UnsafeValue = o;
             (*io_0).value_.n = n;
             (*io_0).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
         } else {
@@ -778,7 +778,7 @@ pub unsafe fn luaO_utf8esc(buff: *mut c_char, mut x: libc::c_ulong) -> c_int {
     return n;
 }
 
-unsafe fn tostringbuff(obj: *mut TValue, buff: *mut c_char) -> c_int {
+unsafe fn tostringbuff(obj: *mut UnsafeValue, buff: *mut c_char) -> c_int {
     if (*obj).tt_ == 3 | 0 << 4 {
         sprintf(
             buff,
@@ -805,10 +805,10 @@ unsafe fn tostringbuff(obj: *mut TValue, buff: *mut c_char) -> c_int {
     }
 }
 
-pub unsafe fn luaO_tostring(g: *const Lua, obj: *mut TValue) {
+pub unsafe fn luaO_tostring(g: *const Lua, obj: *mut UnsafeValue) {
     let mut buff: [c_char; 44] = [0; 44];
     let len: c_int = tostringbuff(obj, buff.as_mut_ptr());
-    let io: *mut TValue = obj;
+    let io: *mut UnsafeValue = obj;
     let x_: *mut TString = luaS_newlstr(g, buff.as_mut_ptr(), len as usize);
     (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;

@@ -20,12 +20,13 @@ use crate::lcode::{
 };
 use crate::lfunc::{luaF_newLclosure, luaF_newproto};
 use crate::llex::{
-    LexState, SemInfo, TK_BREAK, TK_DBCOLON, TK_DO, TK_ELSE, TK_ELSEIF, TK_END, TK_EOS, TK_FOR,
-    TK_FUNCTION, TK_IF, TK_IN, TK_NAME, TK_REPEAT, TK_RETURN, TK_THEN, TK_UNTIL, TK_WHILE, Token,
-    luaX_lookahead, luaX_newstring, luaX_next, luaX_setinput, luaX_syntaxerror, luaX_token2str,
+    LexState, SemInfo, TK_AND, TK_BREAK, TK_DBCOLON, TK_DO, TK_ELSE, TK_ELSEIF, TK_END, TK_EOS,
+    TK_FALSE, TK_FOR, TK_FUNCTION, TK_GOTO, TK_IF, TK_IN, TK_LOCAL, TK_NAME, TK_NIL, TK_NOT, TK_OR,
+    TK_REPEAT, TK_RETURN, TK_THEN, TK_TRUE, TK_UNTIL, TK_WHILE, Token, luaX_lookahead,
+    luaX_newstring, luaX_next, luaX_setinput, luaX_syntaxerror, luaX_token2str,
 };
 use crate::lmem::{luaM_growaux_, luaM_shrinkvector_};
-use crate::lobject::{AbsLineInfo, LocVar, Proto, TString, TValue, UntaggedValue, Upvaldesc};
+use crate::lobject::{AbsLineInfo, LocVar, Proto, TString, UnsafeValue, UntaggedValue, Upvaldesc};
 use crate::lopcodes::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_FORLOOP, OP_FORPREP, OP_GETUPVAL, OP_MOVE, OP_NEWTABLE,
     OP_TAILCALL, OP_TBC, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_VARARG, OP_VARARGPREP, OpCode,
@@ -81,7 +82,7 @@ pub struct C2RustUnnamed_9 {
 #[repr(C)]
 pub union Vardesc {
     pub vd: C2RustUnnamed_10,
-    pub k: TValue,
+    pub k: UnsafeValue,
 }
 
 #[derive(Copy, Clone)]
@@ -1082,8 +1083,8 @@ unsafe fn close_func(ls: *mut LexState) -> Result<(), ParseError> {
         (*f).k as *mut libc::c_void,
         &mut (*f).sizek,
         (*fs).nk,
-        ::core::mem::size_of::<TValue>() as libc::c_ulong as libc::c_int,
-    ) as *mut TValue;
+        ::core::mem::size_of::<UnsafeValue>() as libc::c_ulong as libc::c_int,
+    ) as *mut UnsafeValue;
     (*f).p = luaM_shrinkvector_(
         (*ls).g.deref(),
         (*f).p as *mut libc::c_void,
@@ -1519,7 +1520,7 @@ unsafe fn suffixedexp(ls: *mut LexState, v: *mut expdesc) -> Result<(), ParseErr
 }
 
 unsafe fn simpleexp(ls: *mut LexState, v: *mut expdesc) -> Result<(), ParseError> {
-    match (*ls).t.token {
+    match (*ls).t.token as u32 {
         289 => {
             init_exp(v, VKFLT, 0 as libc::c_int);
             (*v).u.nval = (*ls).t.seminfo.r;
@@ -1531,15 +1532,9 @@ unsafe fn simpleexp(ls: *mut LexState, v: *mut expdesc) -> Result<(), ParseError
         292 => {
             codestring(v, (*ls).t.seminfo.ts);
         }
-        269 => {
-            init_exp(v, VNIL, 0 as libc::c_int);
-        }
-        275 => {
-            init_exp(v, VTRUE, 0 as libc::c_int);
-        }
-        262 => {
-            init_exp(v, VFALSE, 0 as libc::c_int);
-        }
+        TK_NIL => init_exp(v, VNIL, 0 as libc::c_int),
+        TK_TRUE => init_exp(v, VTRUE, 0 as libc::c_int),
+        TK_FALSE => init_exp(v, VFALSE, 0 as libc::c_int),
         280 => {
             let fs: *mut FuncState = (*ls).fs;
             if (*(*fs).f).is_vararg == 0 {
@@ -1573,8 +1568,8 @@ unsafe fn simpleexp(ls: *mut LexState, v: *mut expdesc) -> Result<(), ParseError
 }
 
 unsafe fn getunopr(op: libc::c_int) -> UnOpr {
-    match op {
-        270 => return OPR_NOT,
+    match op as u32 {
+        TK_NOT => return OPR_NOT,
         45 => return OPR_MINUS,
         126 => return OPR_BNOT,
         35 => return OPR_LEN,
@@ -1583,7 +1578,7 @@ unsafe fn getunopr(op: libc::c_int) -> UnOpr {
 }
 
 unsafe fn getbinopr(op: libc::c_int) -> BinOpr {
-    match op {
+    match op as u32 {
         43 => return OPR_ADD,
         45 => return OPR_SUB,
         42 => return OPR_MUL,
@@ -1603,8 +1598,8 @@ unsafe fn getbinopr(op: libc::c_int) -> BinOpr {
         283 => return OPR_LE,
         62 => return OPR_GT,
         282 => return OPR_GE,
-        256 => return OPR_AND,
-        271 => return OPR_OR,
+        TK_AND => return OPR_AND,
+        TK_OR => return OPR_OR,
         _ => return OPR_NOBINOPR,
     };
 }
@@ -2672,7 +2667,7 @@ unsafe fn statement(ls: *mut LexState) -> Result<(), ParseError> {
         return Err(ParseError::ItemLimit("nested level", 200));
     }
 
-    match (*ls).t.token {
+    match (*ls).t.token as u32 {
         59 => luaX_next(ls)?,
         266 => ifstat(ls, line)?,
         277 => whilestat(ls, line)?,
@@ -2684,7 +2679,7 @@ unsafe fn statement(ls: *mut LexState) -> Result<(), ParseError> {
         263 => forstat(ls, line)?,
         272 => repeatstat(ls, line)?,
         264 => funcstat(ls, line)?,
-        268 => {
+        TK_LOCAL => {
             luaX_next(ls)?;
             if testnext(ls, TK_FUNCTION as libc::c_int)? != 0 {
                 localfunc(ls)?;
@@ -2701,7 +2696,7 @@ unsafe fn statement(ls: *mut LexState) -> Result<(), ParseError> {
             retstat(ls)?;
         }
         257 => breakstat(ls)?,
-        265 => {
+        TK_GOTO => {
             luaX_next(ls)?;
             gotostat(ls)?;
         }

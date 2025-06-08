@@ -10,7 +10,7 @@
 
 use crate::ldo::{luaD_hook, luaD_hookcall};
 use crate::lfunc::luaF_getlocalname;
-use crate::lobject::{CClosure, Proto, StkId, TString, TValue, UntaggedValue};
+use crate::lobject::{CClosure, Proto, StkId, TString, UnsafeValue, UntaggedValue};
 use crate::lopcodes::{OpCode, luaP_opmodes};
 use crate::lstate::{CallInfo, lua_Debug, lua_Hook};
 use crate::ltable::{luaH_new, luaH_setint};
@@ -244,8 +244,8 @@ pub unsafe fn lua_getlocal(
         let mut pos: StkId = 0 as StkId;
         name = luaG_findlocal(L, (*ar).i_ci, n, &mut pos);
         if !name.is_null() {
-            let io1: *mut TValue = &raw mut (*(*L).top.get()).val;
-            let io2: *const TValue = &raw mut (*pos).val;
+            let io1: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
+            let io2: *const UnsafeValue = &raw mut (*pos).val;
             (*io1).value_ = (*io2).value_;
             (*io1).tt_ = (*io2).tt_;
             api_incr_top(L);
@@ -263,8 +263,8 @@ pub unsafe fn lua_setlocal(
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
     name = luaG_findlocal(L, (*ar).i_ci, n, &mut pos);
     if !name.is_null() {
-        let io1: *mut TValue = &raw mut (*pos).val;
-        let io2: *const TValue = &raw mut (*((*L).top.get()).offset(-1)).val;
+        let io1: *mut UnsafeValue = &raw mut (*pos).val;
+        let io2: *const UnsafeValue = &raw mut (*((*L).top.get()).offset(-1)).val;
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
         (*L).top.sub(1);
@@ -308,7 +308,7 @@ unsafe fn collectvalidlines(L: *const Thread, f: *const Object) {
         let p: *const Proto = (*f.cast::<LuaFn>()).p.get();
         let mut currentline: libc::c_int = (*p).linedefined;
         let t = luaH_new((*L).global);
-        let io: *mut TValue = &raw mut (*(*L).top.get()).val;
+        let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
 
         (*io).value_.gc = t.cast();
         (*io).tt_ = (5 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int | 1 << 6) as u8;
@@ -317,7 +317,7 @@ unsafe fn collectvalidlines(L: *const Thread, f: *const Object) {
 
         if !((*p).lineinfo).is_null() {
             let mut i: libc::c_int = 0;
-            let mut v: TValue = TValue {
+            let mut v: UnsafeValue = UnsafeValue {
                 value_: UntaggedValue {
                     gc: 0 as *mut Object,
                 },
@@ -434,7 +434,7 @@ pub unsafe fn lua_getinfo(
 ) -> libc::c_int {
     let mut status: libc::c_int = 0;
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
-    let mut func: *mut TValue = 0 as *mut TValue;
+    let mut func: *mut UnsafeValue = 0 as *mut UnsafeValue;
 
     if *what as libc::c_int == '>' as i32 {
         ci = 0 as *mut CallInfo;
@@ -461,8 +461,8 @@ pub unsafe fn lua_getinfo(
     };
     status = auxgetinfo(L, what, ar, cl, ci);
     if !(strchr(what, 'f' as i32)).is_null() {
-        let io1: *mut TValue = &raw mut (*(*L).top.get()).val;
-        let io2: *const TValue = func;
+        let io1: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
+        let io2: *const UnsafeValue = func;
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
         api_incr_top(L);
@@ -559,7 +559,7 @@ unsafe fn kname(
     index: libc::c_int,
     name: *mut *const libc::c_char,
 ) -> *const libc::c_char {
-    let kvalue: *mut TValue = &mut *((*p).k).offset(index as isize) as *mut TValue;
+    let kvalue: *mut UnsafeValue = &mut *((*p).k).offset(index as isize) as *mut UnsafeValue;
     if (*kvalue).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int {
         *name = ((*((*kvalue).value_.gc as *mut TString)).contents).as_mut_ptr();
         return b"constant\0" as *const u8 as *const libc::c_char;
@@ -872,12 +872,12 @@ unsafe fn funcnamefromcall(
     };
 }
 
-unsafe fn instack(ci: *mut CallInfo, o: *const TValue) -> libc::c_int {
+unsafe fn instack(ci: *mut CallInfo, o: *const UnsafeValue) -> libc::c_int {
     let mut pos: libc::c_int = 0;
     let base: StkId = ((*ci).func).offset(1 as libc::c_int as isize);
     pos = 0 as libc::c_int;
     while base.offset(pos as isize) < (*ci).top {
-        if o == &mut (*base.offset(pos as isize)).val as *mut TValue as *const TValue {
+        if o == &mut (*base.offset(pos as isize)).val as *mut UnsafeValue as *const UnsafeValue {
             return pos;
         }
         pos += 1;
@@ -887,13 +887,13 @@ unsafe fn instack(ci: *mut CallInfo, o: *const TValue) -> libc::c_int {
 
 unsafe fn getupvalname(
     ci: *mut CallInfo,
-    o: *const TValue,
+    o: *const UnsafeValue,
     name: *mut *const libc::c_char,
 ) -> *const libc::c_char {
     let c = (*(*ci).func).val.value_.gc.cast::<LuaFn>();
 
     for (i, uv) in (*c).upvals.iter().map(|v| v.get()).enumerate() {
-        if (*uv).v.get() == o as *mut TValue {
+        if (*uv).v.get() == o as *mut UnsafeValue {
             *name = upvalname((*c).p.get(), i);
             return b"upvalue\0" as *const u8 as *const libc::c_char;
         }
@@ -915,7 +915,7 @@ unsafe fn formatvarinfo(kind: *const libc::c_char, name: *const libc::c_char) ->
     }
 }
 
-unsafe fn varinfo(L: *const Thread, o: *const TValue) -> Cow<'static, str> {
+unsafe fn varinfo(L: *const Thread, o: *const UnsafeValue) -> Cow<'static, str> {
     let ci: *mut CallInfo = (*L).ci.get();
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
     let mut kind: *const libc::c_char = 0 as *const libc::c_char;
@@ -939,7 +939,7 @@ unsafe fn varinfo(L: *const Thread, o: *const TValue) -> Cow<'static, str> {
 
 unsafe fn typeerror(
     L: *const Thread,
-    o: *const TValue,
+    o: *const UnsafeValue,
     op: impl Display,
     extra: impl Display,
 ) -> Result<(), Box<dyn core::error::Error>> {
@@ -950,7 +950,7 @@ unsafe fn typeerror(
 
 pub unsafe fn luaG_typeerror(
     L: *const Thread,
-    o: *const TValue,
+    o: *const UnsafeValue,
     op: impl Display,
 ) -> Result<(), Box<dyn core::error::Error>> {
     typeerror(L, o, op, varinfo(L, o))
@@ -958,7 +958,7 @@ pub unsafe fn luaG_typeerror(
 
 pub unsafe fn luaG_callerror(
     L: *const Thread,
-    o: *const TValue,
+    o: *const UnsafeValue,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let ci: *mut CallInfo = (*L).ci.get();
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
@@ -974,7 +974,7 @@ pub unsafe fn luaG_callerror(
 
 pub unsafe fn luaG_forerror(
     L: *const Thread,
-    o: *const TValue,
+    o: *const UnsafeValue,
     what: impl Display,
 ) -> Result<(), Box<dyn core::error::Error>> {
     luaG_runerror(
@@ -989,8 +989,8 @@ pub unsafe fn luaG_forerror(
 
 pub unsafe fn luaG_concaterror(
     L: *const Thread,
-    mut p1: *const TValue,
-    p2: *const TValue,
+    mut p1: *const UnsafeValue,
+    p2: *const UnsafeValue,
 ) -> Result<(), Box<dyn core::error::Error>> {
     if (*p1).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
         || (*p1).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
@@ -1003,8 +1003,8 @@ pub unsafe fn luaG_concaterror(
 
 pub unsafe fn luaG_opinterror(
     L: *const Thread,
-    p1: *const TValue,
-    mut p2: *const TValue,
+    p1: *const UnsafeValue,
+    mut p2: *const UnsafeValue,
     msg: impl Display,
 ) -> Result<(), Box<dyn core::error::Error>> {
     if !((*p1).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int) {
@@ -1016,8 +1016,8 @@ pub unsafe fn luaG_opinterror(
 
 pub unsafe fn luaG_tointerror(
     L: *const Thread,
-    p1: *const TValue,
-    mut p2: *const TValue,
+    p1: *const UnsafeValue,
+    mut p2: *const UnsafeValue,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let mut temp: i64 = 0;
 
@@ -1033,8 +1033,8 @@ pub unsafe fn luaG_tointerror(
 
 pub unsafe fn luaG_ordererror(
     L: *const Thread,
-    p1: *const TValue,
-    p2: *const TValue,
+    p1: *const UnsafeValue,
+    p2: *const UnsafeValue,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let t1 = luaT_objtypename((*L).global, p1);
     let t2 = luaT_objtypename((*L).global, p2);
