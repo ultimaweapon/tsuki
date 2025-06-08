@@ -118,13 +118,13 @@ pub unsafe fn luaT_gettmbyobj(
     let mt = match (*o).tt_ as libc::c_int & 0xf as libc::c_int {
         5 => (*((*o).value_.gc as *mut Table)).metatable.get(),
         7 => (*((*o).value_.gc as *mut Udata)).metatable,
-        _ => (*(*L).global).mt[((*o).tt_ & 0xf) as usize].get(),
+        _ => (*(*L).hdr.global).mt[((*o).tt_ & 0xf) as usize].get(),
     };
 
     return if !mt.is_null() {
-        luaH_getshortstr(mt, (*(*L).global).tmname[event as usize].get())
+        luaH_getshortstr(mt, (*(*L).hdr.global).tmname[event as usize].get())
     } else {
-        (*(*L).global).nilvalue.get()
+        (*(*L).hdr.global).nilvalue.get()
     };
 }
 
@@ -439,8 +439,8 @@ pub unsafe fn luaT_getvarargs(
             let t__: isize =
                 (where_0 as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
 
-            if (*(*L).global).gc.debt() > 0 {
-                crate::gc::step((*L).global);
+            if (*(*L).hdr.global).gc.debt() > 0 {
+                crate::gc::step((*L).hdr.global);
             }
 
             luaD_growstack(L, nextra.try_into().unwrap())?;

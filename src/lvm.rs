@@ -334,7 +334,7 @@ pub unsafe fn luaV_finishget(
                 luaT_gettm(
                     (*((*t).value_.gc.cast::<Table>())).metatable.get(),
                     TM_INDEX,
-                    (*(*L).global).tmname[TM_INDEX as usize].get(),
+                    (*(*L).hdr.global).tmname[TM_INDEX as usize].get(),
                 )
             };
             if tm.is_null() {
@@ -395,7 +395,7 @@ pub unsafe fn luaV_finishset(
                 luaT_gettm(
                     (*h).metatable.get(),
                     TM_NEWINDEX,
-                    (*(*L).global).tmname[TM_NEWINDEX as usize].get(),
+                    (*(*L).hdr.global).tmname[TM_NEWINDEX as usize].get(),
                 )
             };
 
@@ -727,7 +727,7 @@ pub unsafe fn luaV_equalobj(
                 luaT_gettm(
                     (*((*t1).value_.gc as *mut Udata)).metatable,
                     TM_EQ,
-                    (*(*L).global).tmname[TM_EQ as usize].get(),
+                    (*(*L).hdr.global).tmname[TM_EQ as usize].get(),
                 )
             };
             if tm.is_null() {
@@ -743,7 +743,7 @@ pub unsafe fn luaV_equalobj(
                     luaT_gettm(
                         (*((*t2).value_.gc as *mut Udata)).metatable,
                         TM_EQ,
-                        (*(*L).global).tmname[TM_EQ as usize].get(),
+                        (*(*L).hdr.global).tmname[TM_EQ as usize].get(),
                     )
                 };
             }
@@ -769,7 +769,7 @@ pub unsafe fn luaV_equalobj(
                 luaT_gettm(
                     (*((*t1).value_.gc as *mut Table)).metatable.get(),
                     TM_EQ,
-                    (*(*L).global).tmname[TM_EQ as usize].get(),
+                    (*(*L).hdr.global).tmname[TM_EQ as usize].get(),
                 )
             };
             if tm.is_null() {
@@ -786,7 +786,7 @@ pub unsafe fn luaV_equalobj(
                     luaT_gettm(
                         (*((*t2).value_.gc as *mut Table)).metatable.get(),
                         TM_EQ,
-                        (*(*L).global).tmname[TM_EQ as usize].get(),
+                        (*(*L).hdr.global).tmname[TM_EQ as usize].get(),
                     )
                 };
             }
@@ -846,7 +846,7 @@ pub unsafe fn luaV_concat(
                     & 0xf as libc::c_int
                     == 3 as libc::c_int
                     && {
-                        luaO_tostring((*L).global, &raw mut (*top.offset(-1)).val);
+                        luaO_tostring((*L).hdr.global, &raw mut (*top.offset(-1)).val);
                         1 as libc::c_int != 0
                     })
         {
@@ -867,7 +867,7 @@ pub unsafe fn luaV_concat(
                     & 0xf as libc::c_int
                     == 3 as libc::c_int
                     && {
-                        luaO_tostring((*L).global, &raw mut (*top.offset(-2)).val);
+                        luaO_tostring((*L).hdr.global, &raw mut (*top.offset(-2)).val);
                         1 as libc::c_int != 0
                     }) as libc::c_int;
         } else if (*top.offset(-(2 as libc::c_int as isize))).val.tt_ as libc::c_int
@@ -918,7 +918,7 @@ pub unsafe fn luaV_concat(
                         == 3 as libc::c_int
                         && {
                             luaO_tostring(
-                                (*L).global,
+                                (*L).hdr.global,
                                 &raw mut (*top.offset(-(n as isize)).offset(-1)).val,
                             );
                             1 as libc::c_int != 0
@@ -975,9 +975,9 @@ pub unsafe fn luaV_concat(
             if tl <= 40 as libc::c_int as usize {
                 let mut buff: [libc::c_char; 40] = [0; 40];
                 copy2buff(top, n, buff.as_mut_ptr());
-                ts = luaS_newlstr((*L).global, buff.as_mut_ptr(), tl);
+                ts = luaS_newlstr((*L).hdr.global, buff.as_mut_ptr(), tl);
             } else {
-                ts = luaS_createlngstrobj((*L).global, tl);
+                ts = luaS_createlngstrobj((*L).hdr.global, tl);
                 copy2buff(top, n, ((*ts).contents).as_mut_ptr());
             }
             let io: *mut UnsafeValue = &raw mut (*top.offset(-(n as isize))).val;
@@ -1014,7 +1014,7 @@ pub unsafe fn luaV_objlen(
                 luaT_gettm(
                     (*h).metatable.get(),
                     TM_LEN,
-                    (*(*L).global).tmname[TM_LEN as usize].get(),
+                    (*(*L).hdr.global).tmname[TM_LEN as usize].get(),
                 )
             };
             if tm.is_null() {
@@ -1132,7 +1132,7 @@ unsafe fn pushclosure(
     let nup: libc::c_int = (*p).sizeupvalues;
     let uv: *mut Upvaldesc = (*p).upvalues;
     let mut i: libc::c_int = 0;
-    let ncl: *mut LuaFn = luaF_newLclosure((*L).global, nup);
+    let ncl: *mut LuaFn = luaF_newLclosure((*L).hdr.global, nup);
     (*ncl).p.set(p);
     let io: *mut UnsafeValue = &raw mut (*ra).val;
     let x_: *mut LuaFn = ncl;
@@ -1155,12 +1155,11 @@ unsafe fn pushclosure(
             && (*(*ncl).upvals[i as usize].get()).hdr.marked.get() & (1 << 3 | 1 << 4) != 0
         {
             luaC_barrier_(
-                (*L).global,
+                (*L).hdr.global,
                 ncl.cast(),
                 (*ncl).upvals[i as usize].get().cast(),
             );
-        } else {
-        };
+        }
         i += 1;
     }
 }
@@ -1432,14 +1431,12 @@ pub unsafe fn luaV_execute(
                                     != 0
                             {
                                 luaC_barrier_(
-                                    (*L).global,
+                                    (*L).hdr.global,
                                     uv as *mut Object,
                                     (*ra_9).val.value_.gc as *mut Object,
                                 );
-                            } else {
-                            };
-                        } else {
-                        };
+                            }
+                        }
                         continue;
                     }
                     11 => {
@@ -2135,7 +2132,7 @@ pub unsafe fn luaV_execute(
                         }
                         pc = pc.offset(1);
                         (*L).top.set(ra_17.offset(1 as libc::c_int as isize));
-                        t = luaH_new((*L).global);
+                        t = luaH_new((*L).hdr.global);
                         let io_3: *mut UnsafeValue = &raw mut (*ra_17).val;
                         let x_: *mut Table = t;
                         (*io_3).value_.gc = x_ as *mut Object;
@@ -2148,10 +2145,10 @@ pub unsafe fn luaV_execute(
                             luaH_resize(t, c_1 as libc::c_uint, b_3 as libc::c_uint);
                         }
 
-                        if (*(*L).global).gc.debt() > 0 {
+                        if (*(*L).hdr.global).gc.debt() > 0 {
                             (*ci).u.savedpc = pc;
                             (*L).top.set(ra_17.offset(1 as libc::c_int as isize));
-                            crate::gc::step((*L).global);
+                            crate::gc::step((*L).hdr.global);
                             trap = (*ci).u.trap;
                         }
 
@@ -4277,9 +4274,9 @@ pub unsafe fn luaV_execute(
                         luaV_concat(L, n_1)?;
                         trap = (*ci).u.trap;
 
-                        if (*(*L).global).gc.debt() > 0 {
+                        if (*(*L).hdr.global).gc.debt() > 0 {
                             (*ci).u.savedpc = pc;
-                            crate::gc::step((*L).global);
+                            crate::gc::step((*L).hdr.global);
                             trap = (*ci).u.trap;
                         }
 
@@ -5473,10 +5470,10 @@ pub unsafe fn luaV_execute(
                         (*L).top.set((*ci).top);
                         pushclosure(L, p, &(*cl).upvals, base, ra_77);
 
-                        if (*(*L).global).gc.debt() > 0 {
+                        if (*(*L).hdr.global).gc.debt() > 0 {
                             (*ci).u.savedpc = pc;
                             (*L).top.set(ra_77.offset(1 as libc::c_int as isize));
-                            crate::gc::step((*L).global);
+                            crate::gc::step((*L).hdr.global);
                             trap = (*ci).u.trap;
                         }
 

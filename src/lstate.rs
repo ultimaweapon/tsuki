@@ -75,7 +75,7 @@ pub type lua_CFunction =
 
 pub unsafe fn luaE_extendCI(mut L: *const Thread) -> *mut CallInfo {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
-    ci = luaM_malloc_((*L).global, ::core::mem::size_of::<CallInfo>()) as *mut CallInfo;
+    ci = luaM_malloc_((*L).hdr.global, ::core::mem::size_of::<CallInfo>()) as *mut CallInfo;
     (*(*L).ci.get()).next = ci;
     (*ci).previous = (*L).ci.get();
     (*ci).next = 0 as *mut CallInfo;
@@ -101,7 +101,7 @@ pub unsafe fn luaE_shrinkCI(mut L: *const Thread) {
         (*L).nci.set((*L).nci.get().wrapping_sub(1));
 
         luaM_free_(
-            (*L).global,
+            (*L).hdr.global,
             next as *mut libc::c_void,
             ::core::mem::size_of::<CallInfo>(),
         );

@@ -307,7 +307,7 @@ unsafe fn collectvalidlines(L: *const Thread, f: *const Object) {
     } else {
         let p: *const Proto = (*f.cast::<LuaFn>()).p.get();
         let mut currentline: libc::c_int = (*p).linedefined;
-        let t = luaH_new((*L).global);
+        let t = luaH_new((*L).hdr.global);
         let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
 
         (*io).value_.gc = t.cast();
@@ -842,7 +842,7 @@ unsafe fn funcnamefromcode(
         _ => return 0 as *const libc::c_char,
     }
 
-    *name = ((*(*(*L).global).tmname[tm as usize].get()).contents)
+    *name = ((*(*(*L).hdr.global).tmname[tm as usize].get()).contents)
         .as_mut_ptr()
         .offset(2 as libc::c_int as isize);
 
@@ -943,7 +943,7 @@ unsafe fn typeerror(
     op: impl Display,
     extra: impl Display,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    let t = luaT_objtypename((*L).global, o);
+    let t = luaT_objtypename((*L).hdr.global, o);
 
     luaG_runerror(L, format_args!("attempt to {op} a {t} value{extra}"))
 }
@@ -982,7 +982,7 @@ pub unsafe fn luaG_forerror(
         format_args!(
             "bad 'for' {} (number expected, got {})",
             what,
-            luaT_objtypename((*L).global, o)
+            luaT_objtypename((*L).hdr.global, o)
         ),
     )
 }
@@ -1036,8 +1036,8 @@ pub unsafe fn luaG_ordererror(
     p1: *const UnsafeValue,
     p2: *const UnsafeValue,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    let t1 = luaT_objtypename((*L).global, p1);
-    let t2 = luaT_objtypename((*L).global, p2);
+    let t1 = luaT_objtypename((*L).hdr.global, p1);
+    let t2 = luaT_objtypename((*L).hdr.global, p2);
 
     if t1 == t2 {
         luaG_runerror(L, format_args!("attempt to compare two {t1} values"))

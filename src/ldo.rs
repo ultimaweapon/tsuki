@@ -96,7 +96,7 @@ unsafe fn correctstack(L: *const Thread) {
 }
 
 pub unsafe fn luaD_reallocstack(th: *const Thread, newsize: usize) {
-    let lua = (*th).global;
+    let lua = (*th).hdr.global;
     let oldsize = ((*th).stack_last.get()).offset_from_unsigned((*th).stack.get());
     let oldgcstop: libc::c_int = (*lua).gcstopem.get() as libc::c_int;
 
@@ -347,8 +347,8 @@ unsafe fn tryfuncTM(
     {
         let t__: isize =
             (func as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
-        if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-            crate::gc::step((*L).global);
+        if (*(*L).hdr.global).gc.debt() > 0 as libc::c_int as isize {
+            crate::gc::step((*L).hdr.global);
         }
         luaD_growstack(L, 1)?;
         func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
@@ -505,8 +505,8 @@ unsafe fn precallC(
     {
         let t__: isize =
             (func as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
-        if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-            crate::gc::step((*L).global);
+        if (*(*L).hdr.global).gc.debt() > 0 as libc::c_int as isize {
+            crate::gc::step((*L).hdr.global);
         }
         luaD_growstack(L, 20)?;
         func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
@@ -571,8 +571,8 @@ pub unsafe fn luaD_pretailcall(
                 {
                     let t__: isize = (func as *mut libc::c_char)
                         .offset_from((*L).stack.get() as *mut libc::c_char);
-                    if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-                        crate::gc::step((*L).global);
+                    if (*(*L).hdr.global).gc.debt() > 0 as libc::c_int as isize {
+                        crate::gc::step((*L).hdr.global);
                     }
                     luaD_growstack(L, (fsize - delta).try_into().unwrap())?;
                     func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
@@ -643,8 +643,8 @@ pub unsafe fn luaD_precall(
                 if ((*L).stack_last.get()).offset_from_unsigned((*L).top.get()) <= fsize {
                     let t__: isize = (func as *mut libc::c_char)
                         .offset_from((*L).stack.get() as *mut libc::c_char);
-                    if (*(*L).global).gc.debt() > 0 as libc::c_int as isize {
-                        crate::gc::step((*L).global);
+                    if (*(*L).hdr.global).gc.debt() > 0 as libc::c_int as isize {
+                        crate::gc::step((*L).hdr.global);
                     }
                     luaD_growstack(L, fsize)?;
                     func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;

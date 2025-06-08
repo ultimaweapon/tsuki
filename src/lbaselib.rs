@@ -358,7 +358,11 @@ unsafe fn luaB_load(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
         CStr::from_ptr(name).to_string_lossy().into_owned()
     };
 
-    match (*L).global().load(ChunkInfo { name: name.clone() }, s) {
+    match (*L)
+        .hdr
+        .global_owned()
+        .load(ChunkInfo { name: name.clone() }, s)
+    {
         Ok(f) => {
             if env != 0 as libc::c_int {
                 lua_pushvalue(L, env);

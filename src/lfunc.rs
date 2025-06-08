@@ -70,7 +70,7 @@ pub unsafe fn luaF_initupvals(g: *const Lua, cl: *const LuaFn) {
 
 unsafe fn newupval(L: *const Thread, level: StkId, prev: *mut *mut UpVal) -> *mut UpVal {
     let layout = Layout::new::<UpVal>();
-    let uv = Object::new((*L).global, 9 | 0 << 4, layout).cast::<UpVal>();
+    let uv = Object::new((*L).hdr.global, 9 | 0 << 4, layout).cast::<UpVal>();
     let next: *mut UpVal = *prev;
 
     (*uv).v.set(&raw mut (*level).val);
@@ -82,8 +82,8 @@ unsafe fn newupval(L: *const Thread, level: StkId, prev: *mut *mut UpVal) -> *mu
     *prev = uv;
 
     if !((*L).twups.get() != L) {
-        (*L).twups.set((*(*L).global).twups.get());
-        (*(*L).global).twups.set(L);
+        (*L).twups.set((*(*L).hdr.global).twups.get());
+        (*(*L).hdr.global).twups.set(L);
     }
 
     return uv;
@@ -155,7 +155,7 @@ unsafe fn prepcallclosemth(
     level: StkId,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let uv: *mut UnsafeValue = &mut (*level).val;
-    let errobj = (*(*L).global).nilvalue.get();
+    let errobj = (*(*L).hdr.global).nilvalue.get();
 
     callclosemethod(L, uv, errobj)
 }
@@ -236,7 +236,7 @@ pub unsafe fn luaF_closeupval(L: *const Thread, level: StkId) {
                         != 0
                 {
                     luaC_barrier_(
-                        (*L).global,
+                        (*L).hdr.global,
                         uv as *mut Object,
                         (*slot).value_.gc as *mut Object,
                     );

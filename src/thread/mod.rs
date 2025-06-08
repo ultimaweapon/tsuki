@@ -42,7 +42,6 @@ pub struct Thread {
     pub(crate) basehookcount: Cell<libc::c_int>,
     pub(crate) hookcount: Cell<libc::c_int>,
     pub(crate) hookmask: Cell<libc::c_int>,
-    pub(crate) global: *const Lua,
     phantom: PhantomPinned,
 }
 
@@ -53,7 +52,6 @@ impl Thread {
         let layout = Layout::new::<Thread>();
         let th = unsafe { Object::new(g.deref(), 8, layout).cast::<Thread>() };
 
-        unsafe { addr_of_mut!((*th).global).write(g.deref()) };
         unsafe { addr_of_mut!((*th).stack).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*th).ci).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*th).nci).write(Cell::new(0)) };
@@ -127,11 +125,6 @@ impl Thread {
 
         Ok(Vec::new())
     }
-
-    pub(crate) fn global(&self) -> Pin<Rc<Lua>> {
-        unsafe { Rc::increment_strong_count(self.global) };
-        unsafe { Pin::new_unchecked(Rc::from_raw(self.global)) }
-    }
 }
 
 impl Drop for Thread {
@@ -159,7 +152,13 @@ impl Drop for Thread {
 
             next = unsafe { (*ci).next };
 
-            unsafe { luaM_free_(self.global, ci as *mut libc::c_void, size_of::<CallInfo>()) };
+            unsafe {
+                luaM_free_(
+                    self.hdr.global,
+                    ci as *mut libc::c_void,
+                    size_of::<CallInfo>(),
+                )
+            };
             self.nci.set(self.nci.get().wrapping_sub(1));
         }
 
