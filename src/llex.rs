@@ -16,8 +16,8 @@ use crate::lobject::{
 };
 use crate::lparser::{Dyndata, FuncState};
 use crate::lstring::luaS_newlstr;
-use crate::ltable::{luaH_finishset, luaH_getstr};
 use crate::lzio::{Mbuffer, ZIO};
+use crate::table::{luaH_finishset, luaH_getstr};
 use crate::{ChunkInfo, Lua, Node, Object, ParseError, Ref, Table};
 use alloc::borrow::Cow;
 use alloc::format;

@@ -19,14 +19,14 @@ use crate::lobject::{
 use crate::lopcodes::OpCode;
 use crate::lstate::CallInfo;
 use crate::lstring::{luaS_createlngstrobj, luaS_eqlngstr, luaS_newlstr};
-use crate::ltable::{
-    luaH_finishset, luaH_get, luaH_getint, luaH_getn, luaH_getshortstr, luaH_getstr, luaH_new,
-    luaH_realasize, luaH_resize, luaH_resizearray,
-};
 use crate::ltm::{
     TM_BNOT, TM_EQ, TM_INDEX, TM_LE, TM_LEN, TM_LT, TM_NEWINDEX, TM_UNM, TMS, luaT_adjustvarargs,
     luaT_callTM, luaT_callTMres, luaT_callorderTM, luaT_callorderiTM, luaT_gettm, luaT_gettmbyobj,
     luaT_getvarargs, luaT_trybinTM, luaT_trybinassocTM, luaT_trybiniTM, luaT_tryconcatTM,
+};
+use crate::table::{
+    luaH_finishset, luaH_get, luaH_getint, luaH_getn, luaH_getshortstr, luaH_getstr, luaH_new,
+    luaH_realasize, luaH_resize, luaH_resizearray,
 };
 use crate::{ArithError, LuaFn, Table, Thread};
 use alloc::boxed::Box;

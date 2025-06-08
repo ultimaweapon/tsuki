@@ -12,7 +12,7 @@ use crate::ldo::{luaD_call, luaD_growstack};
 use crate::lobject::{Proto, StkId, TString, Udata, UnsafeValue, UntaggedValue};
 use crate::lstate::CallInfo;
 use crate::lstring::luaS_new;
-use crate::ltable::luaH_getshortstr;
+use crate::table::luaH_getshortstr;
 use crate::{Lua, Table, Thread};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;

@@ -1,12 +1,13 @@
+pub(crate) use self::legacy::*;
 pub(crate) use self::node::*;
 
 use crate::gc::luaC_barrierback_;
-use crate::ltable::luaH_set;
 use crate::ltm::TM_EQ;
 use crate::{Object, UnsafeValue};
 use core::cell::Cell;
 use thiserror::Error;
 
+mod legacy;
 mod node;
 
 /// Lua table.

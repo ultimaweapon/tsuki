@@ -32,8 +32,8 @@ use crate::lopcodes::{
     OP_TAILCALL, OP_TBC, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_VARARG, OP_VARARGPREP, OpCode,
 };
 use crate::lstring::luaS_newlstr;
-use crate::ltable::luaH_new;
 use crate::lzio::{Mbuffer, ZIO};
+use crate::table::luaH_new;
 use crate::{ChunkInfo, Lua, LuaFn, Object, ParseError, Ref};
 use alloc::borrow::Cow;
 use alloc::format;
