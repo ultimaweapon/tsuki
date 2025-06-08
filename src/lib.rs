@@ -17,12 +17,15 @@ use self::lobject::{TString, UnsafeValue};
 use self::lzio::Zio;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
-use core::cell::{Cell, UnsafeCell};
+use core::any::TypeId;
+use core::cell::{Cell, RefCell, UnsafeCell};
 use core::ffi::c_int;
 use core::marker::PhantomPinned;
 use core::ops::Deref;
 use core::pin::Pin;
 use core::ptr::null_mut;
+use hashbrown::HashMap;
+use rustc_hash::FxBuildHasher;
 use thiserror::Error;
 
 mod builder;
@@ -103,6 +106,7 @@ pub struct Lua {
     twups: Cell<*const Thread>,
     tmname: [Cell<*mut TString>; 25],
     primitive_mt: [Cell<*const Table>; 9],
+    userdata_mt: RefCell<HashMap<TypeId, *const Table, FxBuildHasher>>,
     _phantom: PhantomPinned,
 }
 
@@ -201,6 +205,8 @@ struct StringTable {
 
 /// Lua value.
 pub enum Value {}
+
+pub type Fp = unsafe fn(*const Thread) -> Result<libc::c_int, Box<dyn core::error::Error>>;
 
 /// Represents an error when arithmetic operation fails.
 #[derive(Debug, Error)]

@@ -17,8 +17,8 @@ use crate::lapi::{
     lua_tonumberx, lua_topointer, lua_touserdata, lua_type, lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
-use crate::lstate::{CallInfo, Fp, lua_Debug};
-use crate::{ChunkInfo, Thread, lua_pop};
+use crate::lstate::{CallInfo, lua_Debug};
+use crate::{ChunkInfo, Fp, Thread, lua_pop};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;

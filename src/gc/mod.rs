@@ -993,7 +993,14 @@ unsafe fn atomic(g: &Lua) -> usize {
         .map(|v| v.get())
         .filter(|v| !v.is_null())
     {
-        if (*mt).hdr.marked.get() as libc::c_int & ((1 as libc::c_int) << 3 | 1 << 4) != 0 {
+        if (*mt).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
+            reallymarkobject(g, mt.cast());
+        }
+    }
+
+    // Mark userdata metatable.
+    for mt in g.userdata_mt.borrow().values().copied() {
+        if (*mt).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
             reallymarkobject(g, mt.cast());
         }
     }

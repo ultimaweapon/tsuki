@@ -69,8 +69,6 @@ pub struct C2RustUnnamed_3 {
     pub nextraargs: libc::c_int,
 }
 
-pub type Fp = unsafe fn(*const Thread) -> Result<libc::c_int, Box<dyn core::error::Error>>;
-
 pub unsafe fn luaE_extendCI(L: *const Thread) -> *mut CallInfo {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     ci = luaM_malloc_((*L).hdr.global, ::core::mem::size_of::<CallInfo>()) as *mut CallInfo;

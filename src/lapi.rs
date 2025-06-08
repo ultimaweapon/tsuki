@@ -13,7 +13,7 @@ use crate::lobject::{
     CClosure, Proto, StackValue, StkId, TString, UValue, Udata, UnsafeValue, UntaggedValue, UpVal,
     luaO_arith, luaO_str2num, luaO_tostring,
 };
-use crate::lstate::{CallInfo, Fp};
+use crate::lstate::CallInfo;
 use crate::lstring::{luaS_new, luaS_newlstr, luaS_newudata};
 use crate::ltm::{TM_GC, luaT_gettm, luaT_typenames_};
 use crate::lvm::{
@@ -23,7 +23,7 @@ use crate::lvm::{
 use crate::table::{
     luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_new, luaH_next, luaH_resize, luaH_setint,
 };
-use crate::{LuaFn, Object, Table, TableError, Thread, api_incr_top};
+use crate::{Fp, LuaFn, Object, Table, TableError, Thread, api_incr_top};
 use alloc::boxed::Box;
 use core::ffi::c_void;
 use core::mem::offset_of;
@@ -455,15 +455,14 @@ pub unsafe fn lua_rawlen(L: *const Thread, idx: c_int) -> u64 {
 
 pub unsafe fn lua_tocfunction(L: *mut Thread, idx: c_int) -> Option<Fp> {
     let o: *const UnsafeValue = index2value(L, idx);
+
     if (*o).tt_ as c_int == 6 as c_int | (1 as c_int) << 4 as c_int {
-        return Some((*o).value_.f);
-    } else if (*o).tt_ as c_int
-        == 6 as c_int | (2 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int
-    {
-        return Some((*((*o).value_.gc as *mut CClosure)).f);
+        Some((*o).value_.f)
+    } else if (*o).tt_ as c_int == 6 as c_int | (2 as c_int) << 4 as c_int | (1 as c_int) << 6 {
+        Some((*((*o).value_.gc as *mut CClosure)).f)
     } else {
-        return None;
-    };
+        None
+    }
 }
 
 unsafe fn touserdata(o: *const UnsafeValue) -> *mut libc::c_void {

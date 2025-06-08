@@ -10,11 +10,10 @@ use crate::gc::{Object, luaC_barrierback_};
 use crate::ldebug::luaG_runerror;
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
 use crate::lobject::{StkId, TString, UnsafeValue, UntaggedValue, luaO_ceillog2};
-use crate::lstate::Fp;
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::ltm::TM_EQ;
 use crate::lvm::{F2Ieq, luaV_flttointeger};
-use crate::{Lua, Node, NodeKey, Table, TableError, Thread};
+use crate::{Fp, Lua, Node, NodeKey, Table, TableError, Thread};
 use alloc::boxed::Box;
 use core::alloc::Layout;
 use core::cell::Cell;
@@ -140,8 +139,7 @@ unsafe fn mainpositionTV(t: *const Table, key: *const UnsafeValue) -> *mut Node 
         22 => {
             let f: Fp = (*key).value_.f;
             return ((*t).node.get()).offset(
-                ((::core::mem::transmute::<Fp, usize>(f) & 0xffffffff as libc::c_uint as usize)
-                    as libc::c_uint)
+                ((::core::mem::transmute::<Fp, usize>(f) & 0xffffffff) as libc::c_uint)
                     .wrapping_rem(
                         (((1 as libc::c_int) << (*t).lsizenode.get() as libc::c_int)
                             - 1 as libc::c_int

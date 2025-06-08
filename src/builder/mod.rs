@@ -106,6 +106,7 @@ impl Builder {
                 Cell::new(null_mut()),
                 Cell::new(null_mut()),
             ],
+            userdata_mt: Default::default(),
             _phantom: PhantomPinned,
         });
 

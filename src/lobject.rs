@@ -9,11 +9,10 @@
 use crate::gc::Object;
 use crate::lctype::luai_ctype_;
 use crate::ldebug::luaG_runerror;
-use crate::lstate::Fp;
 use crate::lstring::luaS_newlstr;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
-use crate::{ArithError, ChunkInfo, Lua, Table, Thread};
+use crate::{ArithError, ChunkInfo, Fp, Lua, Table, Thread};
 use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
 use libc::{c_char, c_int, sprintf, strpbrk, strspn, strtod};
