@@ -16,10 +16,9 @@ use crate::lobject::{
 use crate::lstate::{CallInfo, lua_CFunction};
 use crate::lstring::{luaS_new, luaS_newlstr, luaS_newudata};
 use crate::ltable::{
-    luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_new, luaH_next, luaH_resize, luaH_set,
-    luaH_setint,
+    luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_new, luaH_next, luaH_resize, luaH_setint,
 };
-use crate::ltm::{TM_EQ, TM_GC, luaT_gettm, luaT_typenames_};
+use crate::ltm::{TM_GC, luaT_gettm, luaT_typenames_};
 use crate::lvm::{
     F2Ieq, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_lessequal,
     luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
@@ -825,7 +824,7 @@ pub unsafe fn lua_createtable(L: *const Thread, narray: c_int, nrec: c_int) {
     api_incr_top(L);
 
     if narray > 0 as c_int || nrec > 0 as c_int {
-        luaH_resize((*L).global, t, narray as libc::c_uint, nrec as libc::c_uint);
+        luaH_resize(t, narray as libc::c_uint, nrec as libc::c_uint);
     }
 
     if (*(*L).global).gc.debt() > 0 as c_int as isize {
@@ -912,7 +911,7 @@ unsafe fn auxsetstr(
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                     != 0
             {
-                luaC_barrierback_((*L).global, (*t).value_.gc);
+                luaC_barrierback_((*t).value_.gc);
             }
         }
 
@@ -983,7 +982,7 @@ pub unsafe fn lua_settable(L: *mut Thread, idx: c_int) -> Result<(), Box<dyn cor
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                     != 0
             {
-                luaC_barrierback_((*L).global, (*t).value_.gc);
+                luaC_barrierback_((*t).value_.gc);
             }
         }
     } else {
@@ -1054,7 +1053,7 @@ pub unsafe fn lua_seti(
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                     != 0
             {
-                luaC_barrierback_((*L).global, (*t).value_.gc);
+                luaC_barrierback_((*t).value_.gc);
             }
         }
     } else {
@@ -1082,35 +1081,13 @@ pub unsafe fn lua_seti(
 }
 
 pub unsafe fn lua_rawset(L: *const Thread, idx: c_int) -> Result<(), TableError> {
-    let key = &raw mut (*(*L).top.get().offset(-2)).val;
+    let v = (*((*L).top.get()).offset(-1)).val;
+    let k = (*(*L).top.get().offset(-2)).val;
     let t = gettable(L, idx);
 
-    luaH_set(
-        (*L).global,
-        t,
-        key,
-        &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val,
-    )?;
-
-    (*t).flags
-        .set(((*t).flags.get() as libc::c_uint & !!(!(0 as libc::c_uint) << TM_EQ + 1)) as u8);
-
-    if (*((*L).top.get()).offset(-1)).val.tt_ & 1 << 6 != 0 {
-        if (*t).hdr.marked.get() as c_int & (1 as c_int) << 5 as c_int != 0
-            && (*(*((*L).top.get()).offset(-(1 as c_int as isize)))
-                .val
-                .value_
-                .gc)
-                .marked
-                .get() as c_int
-                & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                != 0
-        {
-            luaC_barrierback_((*L).global, t.cast());
-        }
-    }
-
+    (*t).set(k, v)?;
     (*L).top.sub(2);
+
     Ok(())
 }
 
@@ -1118,7 +1095,6 @@ pub unsafe fn lua_rawseti(L: *mut Thread, idx: c_int, n: i64) {
     let t = gettable(L, idx);
 
     luaH_setint(
-        (*L).global,
         t,
         n,
         &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val,
@@ -1138,7 +1114,7 @@ pub unsafe fn lua_rawseti(L: *mut Thread, idx: c_int, n: i64) {
                 & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                 != 0
         {
-            luaC_barrierback_((*L).global, t as *mut Object);
+            luaC_barrierback_(t.cast());
         }
     }
 
@@ -1244,7 +1220,7 @@ pub unsafe fn lua_setiuservalue(L: *mut Thread, idx: c_int, n: c_int) -> c_int {
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                     != 0
             {
-                luaC_barrierback_((*L).global, (*o).value_.gc);
+                luaC_barrierback_((*o).value_.gc);
             }
         }
 

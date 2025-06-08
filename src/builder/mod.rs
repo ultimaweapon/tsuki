@@ -116,7 +116,7 @@ impl Builder {
         unsafe { (*io).value_.gc = registry as *mut Object };
         unsafe { (*io).tt_ = 5 | 0 << 4 | 1 << 6 };
 
-        unsafe { luaH_resize(g.deref(), registry, 2, 0) };
+        unsafe { luaH_resize(registry, 2, 0) };
 
         // Create dummy object for LUA_RIDX_MAINTHREAD.
         let io_0 = unsafe { (*registry).array.get().offset(1 - 1) as *mut UnsafeValue };

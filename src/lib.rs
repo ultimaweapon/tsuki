@@ -3,12 +3,13 @@
 pub use self::builder::*;
 pub use self::error::*;
 pub use self::function::*;
-pub use self::gc::*;
+pub use self::gc::Ref;
 pub use self::module::*;
 pub use self::parser::*;
 pub use self::table::*;
 pub use self::thread::*;
 
+use self::gc::{Gc, Object, luaC_barrier_, luaC_freeallobjects};
 use self::lapi::lua_settop;
 use self::ldo::luaD_protectedparser;
 use self::lmem::luaM_free_;

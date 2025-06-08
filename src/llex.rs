@@ -247,7 +247,7 @@ pub unsafe fn luaX_newstring(
             tt_: ((*ts).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8,
         };
 
-        luaH_finishset((*ls).g.deref(), (*ls).h.deref(), &stv, o, &stv).unwrap(); // This should never fails.
+        luaH_finishset((*ls).h.deref(), &stv, o, &stv).unwrap(); // This should never fails.
 
         if ((*ls).g).gc.debt() > 0 as libc::c_int as isize {
             crate::gc::step((*ls).g.deref());

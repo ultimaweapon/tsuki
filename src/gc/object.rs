@@ -8,7 +8,8 @@ use core::ptr::null;
 /// Header of all object managed by Garbage Collector.
 ///
 /// All object must have this struct at the beginning of its memory block.
-pub(crate) struct Object {
+pub struct Object {
+    pub(crate) global: *const Lua,
     pub(super) next: Cell<*const Object>,
     pub(crate) tt: u8,
     pub(crate) marked: Mark,
@@ -21,7 +22,7 @@ pub(crate) struct Object {
 impl Object {
     /// # Safety
     /// `layout` must have the layout of [`Object`] at the beginning.
-    pub(crate) unsafe fn new(g: *const Lua, tt: u8, layout: Layout) -> *mut Object {
+    pub unsafe fn new(g: *const Lua, tt: u8, layout: Layout) -> *mut Object {
         let g = &*g;
         let o = unsafe { alloc::alloc::alloc(layout) as *mut Object };
 
@@ -30,6 +31,7 @@ impl Object {
         }
 
         o.write(Object {
+            global: g,
             next: Cell::new(g.all.get()),
             tt,
             marked: Mark::new(g.currentwhite.get() & (1 << 3 | 1 << 4)),
@@ -51,6 +53,7 @@ impl Default for Object {
     #[inline(always)]
     fn default() -> Self {
         Self {
+            global: null(),
             next: Cell::new(null()),
             tt: 0,
             marked: Mark::default(),

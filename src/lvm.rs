@@ -403,7 +403,7 @@ pub unsafe fn luaV_finishset(
                 (*L).top.write_table(&*h);
                 (*L).top.add(1);
 
-                if let Err(e) = luaH_finishset((*L).global, h, key, slot, val) {
+                if let Err(e) = luaH_finishset(h, key, slot, val) {
                     (*L).top.sub(1);
                     luaG_runerror(L, e)?;
                 }
@@ -416,7 +416,7 @@ pub unsafe fn luaV_finishset(
                     if (*h).hdr.marked.get() & 1 << 5 != 0
                         && (*(*val).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
                     {
-                        luaC_barrierback_((*L).global, h.cast());
+                        luaC_barrierback_(h.cast());
                     }
                 }
 
@@ -460,7 +460,7 @@ pub unsafe fn luaV_finishset(
                             | (1 as libc::c_int) << 4 as libc::c_int)
                         != 0
                 {
-                    luaC_barrierback_((*L).global, (*t).value_.gc);
+                    luaC_barrierback_((*t).value_.gc);
                 } else {
                 };
             } else {
@@ -1778,11 +1778,9 @@ pub unsafe fn luaV_execute(
                                             | (1 as libc::c_int) << 4 as libc::c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_((*L).global, (*upval_0).value_.gc);
-                                } else {
-                                };
-                            } else {
-                            };
+                                    luaC_barrierback_((*upval_0).value_.gc);
+                                }
+                            }
                         } else {
                             (*ci).u.savedpc = pc;
                             (*L).top.set((*ci).top);
@@ -1893,7 +1891,7 @@ pub unsafe fn luaV_execute(
                                             | (1 as libc::c_int) << 4 as libc::c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_((*L).global, (*ra_14).val.value_.gc);
+                                    luaC_barrierback_((*ra_14).val.value_.gc);
                                 }
                             }
                         } else {
@@ -1985,7 +1983,7 @@ pub unsafe fn luaV_execute(
                                             | (1 as libc::c_int) << 4 as libc::c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_((*L).global, (*ra_15).val.value_.gc);
+                                    luaC_barrierback_((*ra_15).val.value_.gc);
                                 }
                             }
                         } else {
@@ -2081,7 +2079,7 @@ pub unsafe fn luaV_execute(
                                             | (1 as libc::c_int) << 4 as libc::c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_((*L).global, (*ra_16).val.value_.gc);
+                                    luaC_barrierback_((*ra_16).val.value_.gc);
                                 }
                             }
                         } else {
@@ -2147,7 +2145,7 @@ pub unsafe fn luaV_execute(
                             as u8;
 
                         if b_3 != 0 as libc::c_int || c_1 != 0 as libc::c_int {
-                            luaH_resize((*L).global, t, c_1 as libc::c_uint, b_3 as libc::c_uint);
+                            luaH_resize(t, c_1 as libc::c_uint, b_3 as libc::c_uint);
                         }
 
                         if (*(*L).global).gc.debt() > 0 {
@@ -5429,7 +5427,7 @@ pub unsafe fn luaV_execute(
                         }
 
                         if last > luaH_realasize(h) {
-                            luaH_resizearray((*L).global, h, last);
+                            luaH_resizearray(h, last);
                         }
 
                         while n_4 > 0 as libc::c_int {
@@ -5450,7 +5448,7 @@ pub unsafe fn luaV_execute(
                                             | (1 as libc::c_int) << 4 as libc::c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_((*L).global, h as *mut Object);
+                                    luaC_barrierback_(h.cast());
                                 }
                             }
                             n_4 -= 1;

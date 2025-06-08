@@ -90,13 +90,16 @@ pub(crate) unsafe fn luaC_barrier_(g: *const Lua, o: *const Object, v: *const Ob
     }
 }
 
-pub(crate) unsafe fn luaC_barrierback_(g: *const Lua, o: *const Object) {
+pub(crate) unsafe fn luaC_barrierback_(o: *const Object) {
+    let g = (*o).global;
+
     if (*o).marked.get() as libc::c_int & 7 as libc::c_int == 6 as libc::c_int {
         (*o).marked
             .set((*o).marked.get() & !(1 << 5 | (1 << 3 | 1 << 4)));
     } else {
         linkgclist_(o, getgclist(o), (*g).grayagain.as_ptr());
     }
+
     if (*o).marked.get() as libc::c_int & 7 as libc::c_int > 1 as libc::c_int {
         (*o).marked
             .set(((*o).marked.get() as libc::c_int & !(7 as libc::c_int) | 5 as libc::c_int) as u8);
@@ -839,7 +842,7 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
 
             (*g).gc.dealloc(cl_0.cast(), layout);
         }
-        5 => luaH_free(g, o as *mut Table),
+        5 => luaH_free(o.cast()),
         8 => {
             core::ptr::drop_in_place(o.cast::<Thread>());
             (*g).gc.dealloc(o.cast(), Layout::new::<Thread>());

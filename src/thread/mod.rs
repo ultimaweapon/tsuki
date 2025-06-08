@@ -101,11 +101,18 @@ impl Thread {
     }
 
     /// Call a Lua function.
+    ///
+    /// # Panics
+    /// If `f` or some of `args` come from different [`Lua`] instance.
     pub async fn call(
         &self,
         f: &LuaFn,
         args: impl Args,
     ) -> Result<Vec<Value>, Box<dyn core::error::Error>> {
+        if f.hdr.global != self.hdr.global {
+            panic!("attempt to call a function created from a different Lua");
+        }
+
         // Push function and its arguments.
         let nargs = args.len();
 

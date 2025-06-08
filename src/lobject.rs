@@ -36,18 +36,19 @@ pub struct TbcList {
     pub delta: libc::c_ushort,
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
-pub(crate) union UntaggedValue {
+#[derive(Copy, Clone)]
+pub union UntaggedValue {
     pub gc: *const Object,
     pub f: lua_CFunction,
     pub i: i64,
     pub n: f64,
 }
 
-#[derive(Copy, Clone)]
+/// The outside must never be able to construct or have the value of this type.
 #[repr(C)]
-pub(crate) struct UnsafeValue {
+#[derive(Copy, Clone)]
+pub struct UnsafeValue {
     pub value_: UntaggedValue,
     pub tt_: u8,
 }
