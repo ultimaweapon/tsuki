@@ -837,7 +837,7 @@ pub unsafe fn lua_getmetatable(L: *const Thread, objindex: c_int) -> c_int {
     let mt = match (*obj).tt_ as c_int & 0xf as c_int {
         5 => (*((*obj).value_.gc as *mut Table)).metatable.get(),
         7 => (*((*obj).value_.gc as *mut Udata)).metatable,
-        _ => (*(*L).hdr.global).mt[((*obj).tt_ & 0xf) as usize].get(),
+        _ => (*(*L).hdr.global).primitive_mt[usize::from((*obj).tt_ & 0xf)].get(),
     };
 
     if !mt.is_null() {
@@ -1178,9 +1178,7 @@ pub unsafe fn lua_setmetatable(
                 };
             }
         }
-        _ => {
-            (*(*L).hdr.global).mt[((*obj).tt_ & 0xf) as usize].set(mt);
-        }
+        _ => (*(*L).hdr.global).primitive_mt[usize::from((*obj).tt_ & 0xf)].set(mt),
     }
 
     (*L).top.sub(1);

@@ -95,7 +95,7 @@ impl Builder {
                 Cell::new(null_mut()),
                 Cell::new(null_mut()),
             ],
-            mt: [
+            primitive_mt: [
                 Cell::new(null_mut()),
                 Cell::new(null_mut()),
                 Cell::new(null_mut()),

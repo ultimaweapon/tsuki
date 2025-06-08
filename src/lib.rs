@@ -102,7 +102,7 @@ pub struct Lua {
     fixedgc: Cell<*const Object>,
     twups: Cell<*const Thread>,
     tmname: [Cell<*mut TString>; 25],
-    mt: [Cell<*mut Table>; 9],
+    primitive_mt: [Cell<*const Table>; 9],
     _phantom: PhantomPinned,
 }
 

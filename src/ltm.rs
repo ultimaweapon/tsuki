@@ -118,7 +118,7 @@ pub unsafe fn luaT_gettmbyobj(
     let mt = match (*o).tt_ as libc::c_int & 0xf as libc::c_int {
         5 => (*((*o).value_.gc as *mut Table)).metatable.get(),
         7 => (*((*o).value_.gc as *mut Udata)).metatable,
-        _ => (*(*L).hdr.global).mt[((*o).tt_ & 0xf) as usize].get(),
+        _ => (*(*L).hdr.global).primitive_mt[usize::from((*o).tt_ & 0xf)].get(),
     };
 
     return if !mt.is_null() {

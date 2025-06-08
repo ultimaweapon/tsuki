@@ -172,22 +172,6 @@ unsafe fn reallymarkobject(g: *const Lua, o: *const Object) {
     linkgclist_(o, getgclist(o), (*g).gray.as_ptr());
 }
 
-unsafe fn markmt(g: *const Lua) {
-    let mut i: libc::c_int = 0;
-    i = 0 as libc::c_int;
-    while i < 9 as libc::c_int {
-        if !((*g).mt[i as usize].get()).is_null() {
-            if (*(*g).mt[i as usize].get()).hdr.marked.get() as libc::c_int
-                & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
-                != 0
-            {
-                reallymarkobject(g, ((*g).mt[i as usize].get()) as *mut Object);
-            }
-        }
-        i += 1;
-    }
-}
-
 unsafe fn remarkupvals(g: *const Lua) -> libc::c_int {
     let mut p = (*g).twups.as_ptr();
     let mut work: libc::c_int = 0 as libc::c_int;
@@ -1002,7 +986,18 @@ unsafe fn atomic(g: &Lua) -> usize {
         reallymarkobject(g, (*g.l_registry.get()).value_.gc);
     }
 
-    markmt(g);
+    // Mark primitive metatable.
+    for mt in g
+        .primitive_mt
+        .iter()
+        .map(|v| v.get())
+        .filter(|v| !v.is_null())
+    {
+        if (*mt).hdr.marked.get() as libc::c_int & ((1 as libc::c_int) << 3 | 1 << 4) != 0 {
+            reallymarkobject(g, mt.cast());
+        }
+    }
+
     work = work.wrapping_add(propagateall(g));
     work = work.wrapping_add(remarkupvals(g) as usize);
     work = work.wrapping_add(propagateall(g));
