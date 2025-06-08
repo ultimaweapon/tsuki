@@ -11,11 +11,35 @@ pub struct ChunkInfo {
 }
 
 /// Represents an error when failed to parse Lua source.
-#[non_exhaustive]
 #[derive(Debug)]
 pub enum ParseError {
-    ItemLimit(&'static str, c_int, c_int),
-    Source(String, Option<Cow<'static, str>>, c_int),
+    ItemLimit {
+        name: &'static str,
+        limit: c_int,
+        line: c_int,
+    },
+    Source {
+        reason: String,
+        token: Option<Cow<'static, str>>,
+        line: c_int,
+    },
+}
+
+impl ParseError {
+    pub fn line(&self) -> c_int {
+        match self {
+            Self::ItemLimit {
+                name: _,
+                limit: _,
+                line,
+            } => *line,
+            Self::Source {
+                reason: _,
+                token: _,
+                line,
+            } => *line,
+        }
+    }
 }
 
 impl Error for ParseError {}
@@ -23,12 +47,20 @@ impl Error for ParseError {}
 impl Display for ParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::ItemLimit(name, limit, ln) => {
-                write!(f, "{ln}: too many {name} (limit is {limit})")
+            Self::ItemLimit {
+                name,
+                limit,
+                line: _,
+            } => {
+                write!(f, "too many {} (limit is {})", name, limit)
             }
-            Self::Source(r, t, l) => match t {
-                Some(t) => write!(f, "{l}: {r} near {t}"),
-                None => write!(f, "{l}: {r}"),
+            Self::Source {
+                reason,
+                token,
+                line: _,
+            } => match token {
+                Some(t) => write!(f, "{reason} near {t}"),
+                None => write!(f, "{reason}"),
             },
         }
     }

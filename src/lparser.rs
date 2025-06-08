@@ -1768,7 +1768,11 @@ unsafe fn subexpr(
     (*ls).level += 1;
 
     if (*ls).level >= 200 {
-        return Err(ParseError::ItemLimit("nested level", 200, (*ls).linenumber));
+        return Err(ParseError::ItemLimit {
+            name: "nested level",
+            limit: 200,
+            line: (*ls).linenumber,
+        });
     }
 
     let mut op: BinOpr = OPR_ADD;
@@ -1930,7 +1934,11 @@ unsafe fn restassign(
         (*ls).level += 1;
 
         if (*ls).level >= 200 {
-            return Err(ParseError::ItemLimit("nested level", 200, (*ls).linenumber));
+            return Err(ParseError::ItemLimit {
+                name: "nested level",
+                limit: 200,
+                line: (*ls).linenumber,
+            });
         }
 
         restassign(ls, &mut nv, nvars + 1 as libc::c_int)?;
@@ -2669,7 +2677,11 @@ unsafe fn statement(ls: *mut LexState) -> Result<(), ParseError> {
     (*ls).level += 1;
 
     if (*ls).level >= 200 {
-        return Err(ParseError::ItemLimit("nested level", 200, (*ls).linenumber));
+        return Err(ParseError::ItemLimit {
+            name: "nested level",
+            limit: 200,
+            line: (*ls).linenumber,
+        });
     }
 
     match (*ls).t.token as u32 {

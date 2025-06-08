@@ -13,7 +13,7 @@ pub unsafe fn luaM_growaux_(
     psize: *mut libc::c_int,
     size_elems: libc::c_int,
     limit: libc::c_int,
-    what: &'static str,
+    name: &'static str,
     line: libc::c_int,
 ) -> Result<*mut c_void, ParseError> {
     let mut size: libc::c_int = *psize;
@@ -22,7 +22,7 @@ pub unsafe fn luaM_growaux_(
     }
     if size >= limit / 2 as libc::c_int {
         if size >= limit {
-            return Err(ParseError::ItemLimit(what, limit, line));
+            return Err(ParseError::ItemLimit { name, limit, line });
         }
         size = limit;
     } else {

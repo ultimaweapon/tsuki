@@ -382,7 +382,7 @@ unsafe fn luaB_load(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
         }
         Err(e) => {
             lua_pushnil(L);
-            lua_pushlstring(L, format!("{name}:{e}"));
+            lua_pushlstring(L, format!("{}:{}: {}", name, e.line(), e));
 
             Ok(2)
         }

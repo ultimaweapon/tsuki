@@ -223,7 +223,11 @@ unsafe fn lexerror(mut ls: *mut LexState, msg: impl Display, mut token: libc::c_
         None
     };
 
-    ParseError::Source(msg.to_string(), token, (*ls).linenumber)
+    ParseError::Source {
+        reason: msg.to_string(),
+        token,
+        line: (*ls).linenumber,
+    }
 }
 
 pub unsafe fn luaX_syntaxerror(mut ls: *mut LexState, msg: impl Display) -> ParseError {
