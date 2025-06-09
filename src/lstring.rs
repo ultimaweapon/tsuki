@@ -6,7 +6,6 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::lmem::{luaM_malloc_, luaM_realloc_};
 use crate::lobject::{UValue, Udata};
 use crate::{Lua, Object, Str};
 use core::alloc::Layout;
@@ -14,6 +13,7 @@ use core::cell::Cell;
 use core::mem::offset_of;
 use core::ptr::{addr_of_mut, null};
 use libc::{memcmp, memcpy, strlen};
+use std::alloc::handle_alloc_error;
 
 pub unsafe fn luaS_eqlngstr(a: *mut Str, b: *mut Str) -> libc::c_int {
     let len: usize = (*(*a).u.get()).lnglen;
@@ -86,7 +86,7 @@ unsafe fn tablerehash(vect: *mut *const Str, osize: usize, nsize: usize) {
     }
 }
 
-pub unsafe fn luaS_resize(g: *const Lua, nsize: usize) {
+unsafe fn luaS_resize(g: *const Lua, nsize: usize) {
     let tb = (*g).strt.get();
     let osize = (*tb).size;
 
@@ -94,51 +94,38 @@ pub unsafe fn luaS_resize(g: *const Lua, nsize: usize) {
         tablerehash((*tb).hash, osize, nsize);
     }
 
-    let newvect = luaM_realloc_(
-        g,
-        (*tb).hash as *mut libc::c_void,
-        osize * size_of::<*const Str>(),
-        nsize * size_of::<*const Str>(),
-    ) as *mut *const Str;
+    // Re-allocate.
+    let layout = Layout::array::<*const Str>(osize).unwrap();
+    let newvect = alloc::alloc::realloc((*tb).hash.cast(), layout, nsize * size_of::<*const Str>());
 
     if newvect.is_null() {
-        if nsize < osize {
-            tablerehash((*tb).hash, nsize, osize);
-        }
-    } else {
-        (*tb).hash = newvect;
-        (*tb).size = nsize;
-        if nsize > osize {
-            tablerehash(newvect, osize, nsize);
-        }
-    };
+        handle_alloc_error(Layout::array::<*const Str>(nsize).unwrap());
+    }
+
+    (*tb).hash = newvect.cast();
+    (*tb).size = nsize;
+
+    if nsize > osize {
+        tablerehash((*tb).hash, osize, nsize);
+    }
 }
 
 pub unsafe fn luaS_init(g: *const Lua) {
     let tb = (*g).strt.get();
+    let layout = Layout::array::<*const Str>(128).unwrap();
+    let hash = alloc::alloc::alloc(layout);
 
-    (*tb).hash = luaM_malloc_(g, 128usize * size_of::<*const Str>()) as *mut *const Str;
+    if hash.is_null() {
+        handle_alloc_error(layout);
+    }
 
+    (*tb).hash = hash.cast();
     tablerehash((*tb).hash, 0, 128);
-
     (*tb).size = 128;
 }
 
-unsafe fn createstrobj(g: *const Lua, l: usize, tag: u8, h: u32) -> *mut Str {
-    let size = offset_of!(Str, contents) + l + 1;
-    let align = align_of::<Str>();
-    let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = Object::new(g, tag, layout).cast::<Str>();
-
-    addr_of_mut!((*o).hash).write(Cell::new(h));
-    addr_of_mut!((*o).extra).write(Cell::new(0));
-    *((*o).contents).as_mut_ptr().offset(l as isize) = '\0' as i32 as libc::c_char;
-
-    o
-}
-
 pub unsafe fn luaS_createlngstrobj(g: *const Lua, l: usize) -> *mut Str {
-    let ts: *mut Str = createstrobj(g, l, 4 | 1 << 4, (*g).seed);
+    let ts = Str::new(g, l, 4 | 1 << 4, (*g).seed);
 
     (*(*ts).u.get()).lnglen = l;
     addr_of_mut!((*ts).shrlen).write(Cell::new(0xff));
@@ -193,7 +180,7 @@ unsafe fn internshrstr(g: *const Lua, str: *const libc::c_char, l: usize) -> *co
             .add(usize::try_from(h).unwrap() & ((*tb).size - 1));
     }
 
-    let ts = createstrobj(g, l, 4 | 0 << 4, h);
+    let ts = Str::new(g, l, 4 | 0 << 4, h);
 
     addr_of_mut!((*ts).shrlen).write(Cell::new(l.try_into().unwrap()));
     memcpy(

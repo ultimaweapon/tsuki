@@ -14,11 +14,11 @@ pub use self::thread::*;
 use self::gc::{Gc, Object, luaC_barrier_, luaC_freeallobjects};
 use self::lapi::lua_settop;
 use self::ldo::luaD_protectedparser;
-use self::lmem::luaM_free_;
 use self::lzio::Zio;
 use self::value::UnsafeValue;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
+use core::alloc::Layout;
 use core::any::TypeId;
 use core::cell::{Cell, RefCell, UnsafeCell};
 use core::ffi::c_int;
@@ -190,18 +190,17 @@ impl Lua {
 
 impl Drop for Lua {
     fn drop(&mut self) {
+        // Free objects.
         unsafe { luaC_freeallobjects(self) };
-        unsafe {
-            luaM_free_(
-                self,
-                (*self.strt.get()).hash as *mut libc::c_void,
-                (*self.strt.get()).size * size_of::<*const Str>(),
-            )
-        };
+
+        // Free string table.
+        let stb = self.strt.get();
+        let layout = Layout::array::<*const Str>(unsafe { (*stb).size }).unwrap();
+
+        unsafe { alloc::alloc::dealloc((*stb).hash.cast(), layout) };
     }
 }
 
-#[repr(C)]
 struct StringTable {
     hash: *mut *const Str,
     nuse: usize,
