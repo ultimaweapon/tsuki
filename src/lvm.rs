@@ -899,7 +899,7 @@ pub unsafe fn luaV_concat(
                     .get())
                 .lnglen
             };
-            let mut ts: *mut Str = 0 as *mut Str;
+
             n = 1 as libc::c_int;
             while n < total
                 && ((*top
@@ -972,22 +972,26 @@ pub unsafe fn luaV_concat(
                 tl = tl.wrapping_add(l);
                 n += 1;
             }
-            if tl <= 40 as libc::c_int as usize {
+
+            let ts = if tl <= 40 as libc::c_int as usize {
                 let mut buff: [libc::c_char; 40] = [0; 40];
                 copy2buff(top, n, buff.as_mut_ptr());
-                ts = luaS_newlstr((*L).hdr.global, buff.as_mut_ptr(), tl);
+                luaS_newlstr((*L).hdr.global, buff.as_mut_ptr(), tl)
             } else {
-                ts = luaS_createlngstrobj((*L).hdr.global, tl);
+                let ts = luaS_createlngstrobj((*L).hdr.global, tl);
                 copy2buff(top, n, ((*ts).contents).as_mut_ptr());
-            }
+                ts
+            };
+
             let io: *mut UnsafeValue = &raw mut (*top.offset(-(n as isize))).val;
-            let x_: *mut Str = ts;
-            (*io).value_.gc = x_ as *mut Object;
-            (*io).tt_ =
-                ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+
+            (*io).value_.gc = ts.cast();
+            (*io).tt_ = ((*ts).hdr.tt as libc::c_int | (1 as libc::c_int) << 6) as u8;
         }
+
         total -= n - 1 as libc::c_int;
         (*L).top.sub((n - 1).try_into().unwrap());
+
         if !(total > 1 as libc::c_int) {
             break Ok(());
         }

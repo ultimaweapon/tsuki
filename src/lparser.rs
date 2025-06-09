@@ -65,7 +65,7 @@ pub struct Labellist {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Labeldesc {
-    pub name: *mut Str,
+    pub name: *const Str,
     pub pc: libc::c_int,
     pub line: libc::c_int,
     pub nactvar: u8,
@@ -95,7 +95,7 @@ pub struct C2RustUnnamed_10 {
     pub kind: u8,
     pub ridx: u8,
     pub pidx: libc::c_short,
-    pub name: *mut Str,
+    pub name: *const Str,
 }
 
 #[repr(C)]
@@ -193,7 +193,7 @@ pub struct expdesc {
 pub union C2RustUnnamed_11 {
     pub ival: i64,
     pub nval: f64,
-    pub strval: *mut Str,
+    pub strval: *const Str,
     pub info: libc::c_int,
     pub ind: C2RustUnnamed_13,
     pub var: C2RustUnnamed_12,
@@ -315,10 +315,9 @@ unsafe fn check_match(
     Ok(())
 }
 
-unsafe fn str_checkname(ls: *mut LexState) -> Result<*mut Str, ParseError> {
-    let mut ts: *mut Str = 0 as *mut Str;
+unsafe fn str_checkname(ls: *mut LexState) -> Result<*const Str, ParseError> {
     check(ls, TK_NAME as libc::c_int)?;
-    ts = (*ls).t.seminfo.ts;
+    let ts = (*ls).t.seminfo.ts;
     luaX_next(ls)?;
     return Ok(ts);
 }
@@ -330,7 +329,7 @@ unsafe fn init_exp(e: *mut expdesc, k: expkind, i: libc::c_int) {
     (*e).u.info = i;
 }
 
-unsafe fn codestring(e: *mut expdesc, s: *mut Str) {
+unsafe fn codestring(e: *mut expdesc, s: *const Str) {
     (*e).t = -(1 as libc::c_int);
     (*e).f = (*e).t;
     (*e).k = VKSTR;
@@ -345,7 +344,7 @@ unsafe fn codename(ls: *mut LexState, e: *mut expdesc) -> Result<(), ParseError>
 unsafe fn registerlocalvar(
     ls: *mut LexState,
     fs: *mut FuncState,
-    varname: *mut Str,
+    varname: *const Str,
 ) -> Result<libc::c_int, ParseError> {
     let f: *mut Proto = (*fs).f;
     let mut oldsize: libc::c_int = (*f).sizelocvars;
@@ -389,7 +388,7 @@ unsafe fn registerlocalvar(
     return Ok(fresh3 as libc::c_int);
 }
 
-unsafe fn new_localvar(ls: *mut LexState, name: *mut Str) -> Result<libc::c_int, ParseError> {
+unsafe fn new_localvar(ls: *mut LexState, name: *const Str) -> Result<libc::c_int, ParseError> {
     let fs: *mut FuncState = (*ls).fs;
     let dyd: *mut Dyndata = (*ls).dyd;
     let mut var: *mut Vardesc = 0 as *mut Vardesc;
@@ -530,7 +529,7 @@ unsafe fn removevars(fs: *mut FuncState, tolevel: libc::c_int) {
     }
 }
 
-unsafe fn searchupvalue(fs: *mut FuncState, name: *mut Str) -> libc::c_int {
+unsafe fn searchupvalue(fs: *mut FuncState, name: *const Str) -> libc::c_int {
     let mut i: libc::c_int = 0;
     let up: *mut Upvaldesc = (*(*fs).f).upvalues;
     i = 0 as libc::c_int;
@@ -582,7 +581,7 @@ unsafe fn allocupvalue(fs: *mut FuncState) -> Result<*mut Upvaldesc, ParseError>
 
 unsafe fn newupvalue(
     fs: *mut FuncState,
-    name: *mut Str,
+    name: *const Str,
     v: *mut expdesc,
 ) -> Result<libc::c_int, ParseError> {
     let up: *mut Upvaldesc = allocupvalue(fs)?;
@@ -614,7 +613,7 @@ unsafe fn newupvalue(
     return Ok((*fs).nups as libc::c_int - 1 as libc::c_int);
 }
 
-unsafe fn searchvar(fs: *mut FuncState, n: *mut Str, var: *mut expdesc) -> libc::c_int {
+unsafe fn searchvar(fs: *mut FuncState, n: *const Str, var: *mut expdesc) -> libc::c_int {
     let mut i: libc::c_int = 0;
     i = (*fs).nactvar as libc::c_int - 1 as libc::c_int;
     while i >= 0 as libc::c_int {
@@ -650,7 +649,7 @@ unsafe fn marktobeclosed(fs: *mut FuncState) {
 
 unsafe fn singlevaraux(
     fs: *mut FuncState,
-    n: *mut Str,
+    n: *const Str,
     var: *mut expdesc,
     base: libc::c_int,
 ) -> Result<(), ParseError> {
@@ -681,7 +680,7 @@ unsafe fn singlevaraux(
 }
 
 unsafe fn singlevar(ls: *mut LexState, var: *mut expdesc) -> Result<(), ParseError> {
-    let varname: *mut Str = str_checkname(ls)?;
+    let varname = str_checkname(ls)?;
     let fs: *mut FuncState = (*ls).fs;
     singlevaraux(fs, varname, var, 1 as libc::c_int)?;
     if (*var).k as libc::c_uint == VVOID as libc::c_int as libc::c_uint {
@@ -737,13 +736,13 @@ unsafe fn jumpscopeerror(ls: *mut LexState, gt: *mut Labeldesc) -> ParseError {
             .vd
             .name)
             .contents)
-            .as_mut_ptr();
+            .as_ptr();
 
     luaK_semerror(
         ls,
         format_args!(
             "<goto {}> at line {} jumps into the scope of local '{}'",
-            CStr::from_ptr(((*(*gt).name).contents).as_mut_ptr()).to_string_lossy(),
+            CStr::from_ptr(((*(*gt).name).contents).as_ptr()).to_string_lossy(),
             (*gt).line,
             CStr::from_ptr(varname).to_string_lossy(),
         ),
@@ -775,7 +774,7 @@ unsafe fn solvegoto(
     Ok(())
 }
 
-unsafe fn findlabel(ls: *mut LexState, name: *mut Str) -> *mut Labeldesc {
+unsafe fn findlabel(ls: *mut LexState, name: *const Str) -> *mut Labeldesc {
     let mut i: libc::c_int = 0;
     let dyd: *mut Dyndata = (*ls).dyd;
     i = (*(*ls).fs).firstlabel;
@@ -792,7 +791,7 @@ unsafe fn findlabel(ls: *mut LexState, name: *mut Str) -> *mut Labeldesc {
 unsafe fn newlabelentry(
     ls: *mut LexState,
     l: *mut Labellist,
-    name: *mut Str,
+    name: *const Str,
     line: libc::c_int,
     pc: libc::c_int,
 ) -> Result<libc::c_int, ParseError> {
@@ -826,7 +825,7 @@ unsafe fn newlabelentry(
 
 unsafe fn newgotoentry(
     ls: *mut LexState,
-    name: *mut Str,
+    name: *const Str,
     line: libc::c_int,
     pc: libc::c_int,
 ) -> Result<libc::c_int, ParseError> {
@@ -850,7 +849,7 @@ unsafe fn solvegotos(ls: *mut LexState, lb: *mut Labeldesc) -> Result<libc::c_in
 
 unsafe fn createlabel(
     ls: *mut LexState,
-    name: *mut Str,
+    name: *const Str,
     line: libc::c_int,
     last: libc::c_int,
 ) -> Result<libc::c_int, ParseError> {
@@ -919,7 +918,7 @@ unsafe fn undefgoto(ls: *mut LexState, gt: *mut Labeldesc) -> ParseError {
             ls,
             format_args!(
                 "no visible label '{}' for <goto> at line {}",
-                CStr::from_ptr(((*(*gt).name).contents).as_mut_ptr()).to_string_lossy(),
+                CStr::from_ptr(((*(*gt).name).contents).as_ptr()).to_string_lossy(),
                 (*gt).line,
             ),
         )
@@ -1986,7 +1985,7 @@ unsafe fn cond(ls: *mut LexState) -> Result<libc::c_int, ParseError> {
 unsafe fn gotostat(ls: *mut LexState) -> Result<(), ParseError> {
     let fs: *mut FuncState = (*ls).fs;
     let line: libc::c_int = (*ls).linenumber;
-    let name: *mut Str = str_checkname(ls)?;
+    let name = str_checkname(ls)?;
     let lb: *mut Labeldesc = findlabel(ls, name);
     if lb.is_null() {
         newgotoentry(ls, name, line, luaK_jump(fs)?)?;
@@ -2025,7 +2024,7 @@ unsafe fn breakstat(ls: *mut LexState) -> Result<(), ParseError> {
     Ok(())
 }
 
-unsafe fn checkrepeated(ls: *mut LexState, name: *mut Str) -> Result<(), ParseError> {
+unsafe fn checkrepeated(ls: *mut LexState, name: *const Str) -> Result<(), ParseError> {
     let lb: *mut Labeldesc = findlabel(ls, name);
     if ((lb != 0 as *mut libc::c_void as *mut Labeldesc) as libc::c_int != 0 as libc::c_int)
         as libc::c_int as libc::c_long
@@ -2035,7 +2034,7 @@ unsafe fn checkrepeated(ls: *mut LexState, name: *mut Str) -> Result<(), ParseEr
             ls,
             format_args!(
                 "label '{}' already defined on line {}",
-                CStr::from_ptr(((*name).contents).as_mut_ptr()).to_string_lossy(),
+                CStr::from_ptr(((*name).contents).as_ptr()).to_string_lossy(),
                 (*lb).line
             ),
         ));
@@ -2045,7 +2044,7 @@ unsafe fn checkrepeated(ls: *mut LexState, name: *mut Str) -> Result<(), ParseEr
 
 unsafe fn labelstat(
     ls: *mut LexState,
-    name: *mut Str,
+    name: *const Str,
     line: libc::c_int,
 ) -> Result<(), ParseError> {
     checknext(ls, TK_DBCOLON as libc::c_int)?;
@@ -2230,7 +2229,7 @@ unsafe fn forbody(
 
 unsafe fn fornum(
     ls: *mut LexState,
-    varname: *mut Str,
+    varname: *const Str,
     line: libc::c_int,
 ) -> Result<(), ParseError> {
     let fs: *mut FuncState = (*ls).fs;
@@ -2282,7 +2281,7 @@ unsafe fn fornum(
     Ok(())
 }
 
-unsafe fn forlist(ls: *mut LexState, indexname: *mut Str) -> Result<(), ParseError> {
+unsafe fn forlist(ls: *mut LexState, indexname: *const Str) -> Result<(), ParseError> {
     let fs: *mut FuncState = (*ls).fs;
     let mut e: expdesc = expdesc {
         k: VVOID,
@@ -2350,7 +2349,6 @@ unsafe fn forlist(ls: *mut LexState, indexname: *mut Str) -> Result<(), ParseErr
 
 unsafe fn forstat(ls: *mut LexState, line: libc::c_int) -> Result<(), ParseError> {
     let fs: *mut FuncState = (*ls).fs;
-    let mut varname: *mut Str = 0 as *mut Str;
     let mut bl: BlockCnt = BlockCnt {
         previous: 0 as *mut BlockCnt,
         firstlabel: 0,
@@ -2362,7 +2360,7 @@ unsafe fn forstat(ls: *mut LexState, line: libc::c_int) -> Result<(), ParseError
     };
     enterblock(fs, &mut bl, 1 as libc::c_int as u8);
     luaX_next(ls)?;
-    varname = str_checkname(ls)?;
+    let varname = str_checkname(ls)?;
     match (*ls).t.token {
         61 => fornum(ls, varname, line)?,
         44 | 267 => forlist(ls, varname)?,
@@ -2466,7 +2464,7 @@ unsafe fn localfunc(ls: *mut LexState) -> Result<(), ParseError> {
 
 unsafe fn getlocalattribute(ls: *mut LexState) -> Result<libc::c_int, ParseError> {
     if testnext(ls, '<' as i32)? != 0 {
-        let attr: *const libc::c_char = ((*str_checkname(ls)?).contents).as_mut_ptr();
+        let attr: *const libc::c_char = ((*str_checkname(ls)?).contents).as_ptr();
         checknext(ls, '>' as i32)?;
         if strcmp(attr, b"const\0" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
             return Ok(1 as libc::c_int);

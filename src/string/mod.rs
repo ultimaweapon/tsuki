@@ -17,5 +17,5 @@ pub struct Str {
 #[repr(C)]
 pub(crate) union C2RustUnnamed_8 {
     pub lnglen: usize,
-    pub hnext: *mut Str,
+    pub hnext: *const Str,
 }

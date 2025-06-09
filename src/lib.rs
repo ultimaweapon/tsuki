@@ -109,7 +109,7 @@ pub struct Lua {
     allweak: Cell<*const Object>,
     fixedgc: Cell<*const Object>,
     twups: Cell<*const Thread>,
-    tmname: [Cell<*mut Str>; 25],
+    tmname: [Cell<*const Str>; 25],
     primitive_mt: [Cell<*const Table>; 9],
     userdata_mt: RefCell<HashMap<TypeId, *const Table, FxBuildHasher>>,
     _phantom: PhantomPinned,
@@ -203,7 +203,7 @@ impl Drop for Lua {
 
 #[repr(C)]
 struct StringTable {
-    hash: *mut *mut Str,
+    hash: *mut *const Str,
     nuse: libc::c_int,
     size: libc::c_int,
 }

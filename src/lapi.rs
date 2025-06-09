@@ -541,16 +541,17 @@ pub unsafe fn lua_pushlstring(L: *const Thread, s: impl AsRef<[u8]>) -> *const l
         luaS_newlstr((*L).hdr.global, s.as_ptr().cast(), s.len())
     };
     let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-    let x_: *mut Str = ts;
-    (*io).value_.gc = x_ as *mut Object;
-    (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
+
+    (*io).value_.gc = ts.cast();
+    (*io).tt_ = ((*ts).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
+
     api_incr_top(L);
 
     if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
         crate::gc::step((*L).hdr.global);
     }
 
-    ((*ts).contents).as_mut_ptr()
+    ((*ts).contents).as_ptr()
 }
 
 pub unsafe fn lua_pushstring(L: *const Thread, mut s: *const libc::c_char) -> *const libc::c_char {
@@ -559,10 +560,11 @@ pub unsafe fn lua_pushstring(L: *const Thread, mut s: *const libc::c_char) -> *c
     } else {
         let ts = luaS_new((*L).hdr.global, s);
         let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-        let x_: *mut Str = ts;
-        (*io).value_.gc = x_ as *mut Object;
-        (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
-        s = ((*ts).contents).as_mut_ptr();
+
+        (*io).value_.gc = ts.cast();
+        (*io).tt_ = ((*ts).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
+
+        s = ((*ts).contents).as_ptr();
     }
 
     api_incr_top(L);
@@ -636,14 +638,13 @@ unsafe fn auxgetstr(
     k: &[u8],
 ) -> Result<c_int, Box<dyn core::error::Error>> {
     let mut slot: *const UnsafeValue = 0 as *const UnsafeValue;
-    let str: *mut Str = luaS_newlstr((*L).hdr.global, k.as_ptr().cast(), k.len());
-    if if !((*t).tt_ as c_int
-        == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
-    {
+    let str = luaS_newlstr((*L).hdr.global, k.as_ptr().cast(), k.len());
+
+    if if !((*t).tt_ as c_int == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6) {
         slot = 0 as *const UnsafeValue;
         0 as c_int
     } else {
-        slot = luaH_getstr((*t).value_.gc as *mut Table, str);
+        slot = luaH_getstr((*t).value_.gc.cast(), str);
         !((*slot).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int
     } != 0
     {
@@ -654,9 +655,10 @@ unsafe fn auxgetstr(
         api_incr_top(L);
     } else {
         let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-        let x_: *mut Str = str;
-        (*io).value_.gc = x_ as *mut Object;
-        (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
+
+        (*io).value_.gc = str.cast();
+        (*io).tt_ = ((*str).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
+
         api_incr_top(L);
         luaV_finishget(
             L,
@@ -880,10 +882,9 @@ unsafe fn auxsetstr(
     k: *const libc::c_char,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let mut slot: *const UnsafeValue = 0 as *const UnsafeValue;
-    let str: *mut Str = luaS_new((*L).hdr.global, k);
-    if if !((*t).tt_ as c_int
-        == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
-    {
+    let str = luaS_new((*L).hdr.global, k);
+
+    if if !((*t).tt_ as c_int == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6) {
         slot = 0 as *const UnsafeValue;
         0 as c_int
     } else {
@@ -917,9 +918,10 @@ unsafe fn auxsetstr(
         (*L).top.sub(1);
     } else {
         let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-        let x_: *mut Str = str;
-        (*io).value_.gc = x_ as *mut Object;
-        (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
+
+        (*io).value_.gc = str.cast();
+        (*io).tt_ = ((*str).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
+
         api_incr_top(L);
         luaV_finishset(
             L,
@@ -1295,10 +1297,10 @@ pub unsafe fn lua_concat(L: *const Thread, n: c_int) -> Result<(), Box<dyn core:
         luaV_concat(L, n)?;
     } else {
         let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-        let x_: *mut Str = luaS_newlstr(
+        let x_ = luaS_newlstr(
             (*L).hdr.global,
             b"\0" as *const u8 as *const libc::c_char,
-            0 as c_int as usize,
+            0,
         );
         (*io).value_.gc = x_ as *mut Object;
         (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;

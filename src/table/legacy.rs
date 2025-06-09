@@ -822,17 +822,12 @@ pub unsafe fn luaH_getint(t: *const Table, key: i64) -> *const UnsafeValue {
     };
 }
 
-pub unsafe fn luaH_getshortstr(t: *const Table, key: *mut Str) -> *const UnsafeValue {
+pub unsafe fn luaH_getshortstr(t: *const Table, key: *const Str) -> *const UnsafeValue {
     let mut n =
         ((*t).node.get()).offset(((*key).hash.get() & ((1 << (*t).lsizenode.get()) - 1)) as isize);
 
     loop {
-        if (*n).u.key_tt as libc::c_int
-            == 4 as libc::c_int
-                | (0 as libc::c_int) << 4 as libc::c_int
-                | (1 as libc::c_int) << 6 as libc::c_int
-            && ((*n).u.key_val.gc as *mut Str) as *mut Str == key
-        {
+        if (*n).u.key_tt as libc::c_int == 4 | 0 << 4 | 1 << 6 && (*n).u.key_val.gc.cast() == key {
             return &mut (*n).i_val;
         } else {
             let nx: libc::c_int = (*n).u.next;
@@ -844,7 +839,7 @@ pub unsafe fn luaH_getshortstr(t: *const Table, key: *mut Str) -> *const UnsafeV
     }
 }
 
-pub unsafe fn luaH_getstr(t: *const Table, key: *mut Str) -> *const UnsafeValue {
+pub unsafe fn luaH_getstr(t: *const Table, key: *const Str) -> *const UnsafeValue {
     if (*key).hdr.tt as libc::c_int == 4 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
         return luaH_getshortstr(t, key);
     } else {
@@ -855,9 +850,10 @@ pub unsafe fn luaH_getstr(t: *const Table, key: *mut Str) -> *const UnsafeValue 
             tt_: 0,
         };
         let io: *mut UnsafeValue = &mut ko;
-        let x_: *mut Str = key;
-        (*io).value_.gc = x_ as *mut Object;
-        (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+
+        (*io).value_.gc = key.cast();
+        (*io).tt_ = ((*key).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+
         return getgeneric(t, &mut ko, 0 as libc::c_int);
     };
 }

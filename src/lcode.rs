@@ -123,10 +123,11 @@ pub unsafe fn luaK_exp2const(
         }
         7 => {
             let io: *mut UnsafeValue = v;
-            let x_: *mut Str = (*e).u.strval;
-            (*io).value_.gc = x_ as *mut Object;
-            (*io).tt_ =
-                ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+            let x_ = (*e).u.strval;
+
+            (*io).value_.gc = x_.cast();
+            (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6) as u8;
+
             return 1 as libc::c_int;
         }
         11 => {
@@ -788,18 +789,19 @@ unsafe fn addk(
     return Ok(k);
 }
 
-unsafe fn stringK(fs: *mut FuncState, s: *mut Str) -> Result<libc::c_int, ParseError> {
+unsafe fn stringK(fs: *mut FuncState, s: *const Str) -> Result<libc::c_int, ParseError> {
     let mut o: UnsafeValue = UnsafeValue {
         value_: UntaggedValue {
             gc: 0 as *mut Object,
         },
         tt_: 0,
     };
-    let io: *mut UnsafeValue = &mut o;
-    let x_: *mut Str = s;
-    (*io).value_.gc = x_ as *mut Object;
-    (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
-    return addk(fs, &mut o, &mut o);
+    let io: *mut UnsafeValue = &raw mut o;
+
+    (*io).value_.gc = s.cast();
+    (*io).tt_ = ((*s).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
+
+    return addk(fs, &raw mut o, &raw mut o);
 }
 
 unsafe fn luaK_intK(fs: *mut FuncState, n: i64) -> Result<libc::c_int, ParseError> {

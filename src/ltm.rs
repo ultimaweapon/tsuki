@@ -90,12 +90,16 @@ pub unsafe fn luaT_init(g: *const Lua) {
 
     while i < TM_N as libc::c_int {
         (*g).tmname[i as usize].set(luaS_new(g, luaT_eventname[i as usize]));
-        luaC_fix(&*g, (*g).tmname[i as usize].get() as *mut Object);
+        luaC_fix(&*g, (*g).tmname[i as usize].get().cast());
         i += 1;
     }
 }
 
-pub unsafe fn luaT_gettm(events: *const Table, event: TMS, ename: *mut Str) -> *const UnsafeValue {
+pub unsafe fn luaT_gettm(
+    events: *const Table,
+    event: TMS,
+    ename: *const Str,
+) -> *const UnsafeValue {
     let tm: *const UnsafeValue = luaH_getshortstr(events, ename);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         (*events)

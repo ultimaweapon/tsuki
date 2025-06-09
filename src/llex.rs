@@ -69,7 +69,7 @@ pub const TK_AND: RESERVED = 256;
 pub union SemInfo {
     pub r: f64,
     pub i: i64,
-    pub ts: *mut Str,
+    pub ts: *const Str,
 }
 
 #[derive(Copy, Clone)]
@@ -92,7 +92,7 @@ pub struct LexState {
     pub h: Ref<Table>,
     pub dyd: *mut Dyndata,
     pub source: ChunkInfo,
-    pub envn: *mut Str,
+    pub envn: *const Str,
     pub level: usize,
 }
 
@@ -157,7 +157,7 @@ unsafe fn save(ls: *mut LexState, c: libc::c_int) {
 
 pub unsafe fn luaX_init(g: *const Lua) {
     let mut i: libc::c_int = 0;
-    let e: *mut Str = luaS_newlstr(
+    let e = luaS_newlstr(
         g,
         b"_ENV\0" as *const u8 as *const libc::c_char,
         ::core::mem::size_of::<[libc::c_char; 5]>()
@@ -167,7 +167,7 @@ pub unsafe fn luaX_init(g: *const Lua) {
     luaC_fix(&*g, e.cast());
     i = 0 as libc::c_int;
     while i < TK_WHILE as libc::c_int - (255 as libc::c_int + 1 as libc::c_int) + 1 as libc::c_int {
-        let ts: *mut Str = luaS_newlstr(
+        let ts = luaS_newlstr(
             g,
             luaX_tokens[i as usize].as_ptr().cast(),
             luaX_tokens[i as usize].len(),
@@ -231,8 +231,8 @@ pub unsafe fn luaX_syntaxerror(ls: *mut LexState, msg: impl Display) -> ParseErr
     lexerror(ls, msg, (*ls).t.token)
 }
 
-pub unsafe fn luaX_newstring(ls: *mut LexState, str: *const libc::c_char, l: usize) -> *mut Str {
-    let mut ts: *mut Str = luaS_newlstr((*ls).g.deref(), str, l);
+pub unsafe fn luaX_newstring(ls: *mut LexState, str: *const libc::c_char, l: usize) -> *const Str {
+    let mut ts = luaS_newlstr((*ls).g.deref(), str, l);
     let o: *const UnsafeValue = luaH_getstr((*ls).h.deref(), ts);
 
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
@@ -1094,7 +1094,6 @@ unsafe fn llex(ls: *mut LexState, seminfo: *mut SemInfo) -> Result<libc::c_int, 
                     & (1 as libc::c_int) << 0 as libc::c_int
                     != 0
                 {
-                    let mut ts: *mut Str = 0 as *mut Str;
                     loop {
                         save(ls, (*ls).current);
                         let fresh76 = (*(*ls).z).n;
@@ -1115,7 +1114,8 @@ unsafe fn llex(ls: *mut LexState, seminfo: *mut SemInfo) -> Result<libc::c_int, 
                             break;
                         }
                     }
-                    ts = luaX_newstring(ls, (*(*ls).buff).buffer, (*(*ls).buff).n);
+
+                    let ts = luaX_newstring(ls, (*(*ls).buff).buffer, (*(*ls).buff).n);
                     (*seminfo).ts = ts;
                     if (*ts).hdr.tt as libc::c_int
                         == 4 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
