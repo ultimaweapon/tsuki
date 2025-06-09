@@ -8,7 +8,7 @@
 
 use crate::lmem::{luaM_malloc_, luaM_realloc_};
 use crate::lobject::{UValue, Udata};
-use crate::{Lua, Object, Str, StringTable};
+use crate::{Lua, Object, Str};
 use core::alloc::Layout;
 use core::cell::Cell;
 use core::mem::offset_of;
@@ -57,35 +57,38 @@ pub unsafe fn luaS_hashlongstr(ts: *mut Str) -> libc::c_uint {
     return (*ts).hash.get();
 }
 
-unsafe fn tablerehash(vect: *mut *const Str, osize: libc::c_int, nsize: libc::c_int) {
-    let mut i: libc::c_int = 0;
-    i = osize;
+unsafe fn tablerehash(vect: *mut *const Str, osize: usize, nsize: usize) {
+    let mut i = osize;
+
     while i < nsize {
-        let ref mut fresh0 = *vect.offset(i as isize);
-        *fresh0 = 0 as *mut Str;
+        vect.add(i).write(null());
         i += 1;
     }
-    i = 0 as libc::c_int;
+
+    i = 0;
+
     while i < osize {
         let mut p = *vect.offset(i as isize);
         let ref mut fresh1 = *vect.offset(i as isize);
         *fresh1 = 0 as *mut Str;
+
         while !p.is_null() {
             let hnext = (*(*p).u.get()).hnext;
-            let h: libc::c_uint = ((*p).hash.get() & (nsize - 1 as libc::c_int) as libc::c_uint)
-                as libc::c_int as libc::c_uint;
-            (*(*p).u.get()).hnext = *vect.offset(h as isize);
-            let ref mut fresh2 = *vect.offset(h as isize);
-            *fresh2 = p;
+            let h = usize::try_from((*p).hash.get()).unwrap() & (nsize - 1);
+
+            (*(*p).u.get()).hnext = *vect.add(h);
+            vect.add(h).write(p);
+
             p = hnext;
         }
+
         i += 1;
     }
 }
 
-pub unsafe fn luaS_resize(g: *const Lua, nsize: libc::c_int) {
+pub unsafe fn luaS_resize(g: *const Lua, nsize: usize) {
     let tb = (*g).strt.get();
-    let osize: libc::c_int = (*tb).size;
+    let osize = (*tb).size;
 
     if nsize < osize {
         tablerehash((*tb).hash, osize, nsize);
@@ -94,8 +97,8 @@ pub unsafe fn luaS_resize(g: *const Lua, nsize: libc::c_int) {
     let newvect = luaM_realloc_(
         g,
         (*tb).hash as *mut libc::c_void,
-        (osize as usize).wrapping_mul(::core::mem::size_of::<*mut Str>()),
-        (nsize as usize).wrapping_mul(::core::mem::size_of::<*mut Str>()),
+        osize * size_of::<*const Str>(),
+        nsize * size_of::<*const Str>(),
     ) as *mut *const Str;
 
     if newvect.is_null() {
@@ -116,9 +119,9 @@ pub unsafe fn luaS_init(g: *const Lua) {
 
     (*tb).hash = luaM_malloc_(g, 128usize * size_of::<*const Str>()) as *mut *const Str;
 
-    tablerehash((*tb).hash, 0 as libc::c_int, 128 as libc::c_int);
+    tablerehash((*tb).hash, 0, 128);
 
-    (*tb).size = 128 as libc::c_int;
+    (*tb).size = 128;
 }
 
 unsafe fn createstrobj(g: *const Lua, l: usize, tag: u8, h: u32) -> *mut Str {
@@ -145,7 +148,7 @@ pub unsafe fn luaS_createlngstrobj(g: *const Lua, l: usize) -> *mut Str {
 
 pub unsafe fn luaS_remove(g: *const Lua, ts: *mut Str) {
     let tb = (*g).strt.get();
-    let mut p = ((*tb).hash).offset(((*ts).hash.get() & ((*tb).size - 1) as libc::c_uint) as isize);
+    let mut p = ((*tb).hash).add(usize::try_from((*ts).hash.get()).unwrap() & ((*tb).size - 1));
 
     while *p != ts {
         p = &raw mut (*(**p).u.get()).hnext;
@@ -153,29 +156,12 @@ pub unsafe fn luaS_remove(g: *const Lua, ts: *mut Str) {
 
     *p = (*(**p).u.get()).hnext;
     (*tb).nuse -= 1;
-    (*tb).nuse;
-}
-
-unsafe fn growstrtab(g: *const Lua, tb: *mut StringTable) {
-    if (*tb).size
-        <= (if 2147483647 as libc::c_int as usize
-            <= (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<*mut Str>())
-        {
-            2147483647 as libc::c_int as libc::c_uint
-        } else {
-            (!(0 as libc::c_int as usize)).wrapping_div(::core::mem::size_of::<*mut Str>())
-                as libc::c_uint
-        }) as libc::c_int
-            / 2
-    {
-        luaS_resize(g, (*tb).size * 2 as libc::c_int);
-    }
 }
 
 unsafe fn internshrstr(g: *const Lua, str: *const libc::c_char, l: usize) -> *const Str {
     let tb = (*g).strt.get();
-    let h: libc::c_uint = luaS_hash(str, l, (*g).seed);
-    let mut list = ((*tb).hash).offset((h & ((*tb).size - 1) as libc::c_uint) as isize);
+    let h = luaS_hash(str, l, (*g).seed);
+    let mut list = ((*tb).hash).add(usize::try_from(h).unwrap() & ((*tb).size - 1));
     let mut ts = *list;
 
     while !ts.is_null() {
@@ -200,11 +186,11 @@ unsafe fn internshrstr(g: *const Lua, str: *const libc::c_char, l: usize) -> *co
     }
 
     if (*tb).nuse >= (*tb).size {
-        growstrtab(g, tb);
+        luaS_resize(g, (*tb).size.checked_mul(2).unwrap());
 
         list = (*tb)
             .hash
-            .offset((h & ((*tb).size - 1) as libc::c_uint) as libc::c_int as isize);
+            .add(usize::try_from(h).unwrap() & ((*tb).size - 1));
     }
 
     let ts = createstrobj(g, l, 4 | 0 << 4, h);
@@ -218,7 +204,6 @@ unsafe fn internshrstr(g: *const Lua, str: *const libc::c_char, l: usize) -> *co
     (*(*ts).u.get()).hnext = *list;
     *list = ts;
     (*tb).nuse += 1;
-    (*tb).nuse;
 
     return ts;
 }

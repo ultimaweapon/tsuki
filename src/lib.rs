@@ -195,7 +195,7 @@ impl Drop for Lua {
             luaM_free_(
                 self,
                 (*self.strt.get()).hash as *mut libc::c_void,
-                ((*self.strt.get()).size as usize).wrapping_mul(size_of::<*mut Str>()),
+                (*self.strt.get()).size * size_of::<*const Str>(),
             )
         };
     }
@@ -204,8 +204,8 @@ impl Drop for Lua {
 #[repr(C)]
 struct StringTable {
     hash: *mut *const Str,
-    nuse: libc::c_int,
-    size: libc::c_int,
+    nuse: usize,
+    size: usize,
 }
 
 /// Lua value.
