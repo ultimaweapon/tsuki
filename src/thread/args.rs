@@ -1,6 +1,6 @@
 use super::Thread;
 use crate::Object;
-use crate::lobject::UnsafeValue;
+use crate::value::UnsafeValue;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 

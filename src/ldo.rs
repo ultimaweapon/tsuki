@@ -9,12 +9,13 @@
 use crate::ldebug::{luaG_callerror, luaG_runerror};
 use crate::lfunc::{luaF_close, luaF_initupvals};
 use crate::lmem::{luaM_free_, luaM_saferealloc_};
-use crate::lobject::{CClosure, Proto, StackValue, StkId, UnsafeValue, UpVal};
+use crate::lobject::{CClosure, Proto, StackValue, StkId, UpVal};
 use crate::lparser::{C2RustUnnamed_9, Dyndata, Labeldesc, Labellist, Vardesc, luaY_parser};
 use crate::lstate::{CallInfo, lua_Debug, lua_Hook, luaE_extendCI, luaE_shrinkCI};
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, Zio};
+use crate::value::UnsafeValue;
 use crate::{ChunkInfo, Fp, Lua, LuaFn, ParseError, Ref, Thread};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;

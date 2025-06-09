@@ -12,7 +12,8 @@ use crate::ldebug::luaG_runerror;
 use crate::lstring::luaS_newlstr;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
-use crate::{ArithError, AsyncContext, ChunkInfo, Context, Fp, Lua, Table, Thread, YieldContext};
+use crate::value::{UnsafeValue, UntaggedValue};
+use crate::{ArithError, ChunkInfo, Fp, Lua, Table, Thread};
 use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
 use libc::{c_char, c_int, sprintf, strpbrk, strspn, strtod};
@@ -33,44 +34,6 @@ pub struct TbcList {
     pub value_: UntaggedValue,
     pub tt_: u8,
     pub delta: libc::c_ushort,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union UntaggedValue {
-    pub gc: *const Object,
-    pub f: Fp,
-    pub i: i64,
-    pub n: f64,
-}
-
-/// The outside **must** never be able to construct or have the value of this type.
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct UnsafeValue {
-    pub value_: UntaggedValue,
-    pub tt_: u8,
-}
-
-impl From<fn(&mut Context) -> Result<(), Box<dyn core::error::Error>>> for UnsafeValue {
-    fn from(value: fn(&mut Context) -> Result<(), Box<dyn core::error::Error>>) -> Self {
-        todo!()
-    }
-}
-
-impl From<fn(YieldContext) -> Result<(), Box<dyn core::error::Error>>> for UnsafeValue {
-    fn from(value: fn(YieldContext) -> Result<(), Box<dyn core::error::Error>>) -> Self {
-        todo!()
-    }
-}
-
-impl<'a, F> From<fn(AsyncContext<'a>) -> F> for UnsafeValue
-where
-    F: Future<Output = Result<(), Box<dyn core::error::Error>>> + 'a,
-{
-    fn from(value: fn(AsyncContext<'a>) -> F) -> Self {
-        todo!()
-    }
 }
 
 #[repr(C)]
@@ -95,7 +58,7 @@ pub struct C2RustUnnamed_6 {
 }
 
 #[repr(C)]
-pub struct TString {
+pub struct Str {
     pub hdr: Object,
     pub extra: Cell<u8>,
     pub shrlen: Cell<u8>,
@@ -108,7 +71,7 @@ pub struct TString {
 #[repr(C)]
 pub union C2RustUnnamed_8 {
     pub lnglen: usize,
-    pub hnext: *mut TString,
+    pub hnext: *mut Str,
 }
 
 #[derive(Copy, Clone)]
@@ -134,7 +97,7 @@ pub struct Udata {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Upvaldesc {
-    pub name: *mut TString,
+    pub name: *mut Str,
     pub instack: u8,
     pub idx: u8,
     pub kind: u8,
@@ -143,7 +106,7 @@ pub struct Upvaldesc {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct LocVar {
-    pub varname: *mut TString,
+    pub varname: *mut Str,
     pub startpc: c_int,
     pub endpc: c_int,
 }
@@ -830,7 +793,7 @@ pub unsafe fn luaO_tostring(g: *const Lua, obj: *mut UnsafeValue) {
     let mut buff: [c_char; 44] = [0; 44];
     let len: c_int = tostringbuff(obj, buff.as_mut_ptr());
     let io: *mut UnsafeValue = obj;
-    let x_: *mut TString = luaS_newlstr(g, buff.as_mut_ptr(), len as usize);
+    let x_: *mut Str = luaS_newlstr(g, buff.as_mut_ptr(), len as usize);
     (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
 }

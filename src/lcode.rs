@@ -9,9 +9,7 @@
 use crate::gc::luaC_barrier_;
 use crate::llex::{LexState, luaX_syntaxerror};
 use crate::lmem::luaM_growaux_;
-use crate::lobject::{
-    AbsLineInfo, Proto, TString, UnsafeValue, UntaggedValue, luaO_ceillog2, luaO_rawarith,
-};
+use crate::lobject::{AbsLineInfo, Proto, Str, luaO_ceillog2, luaO_rawarith};
 use crate::lopcodes::{
     OP_ADD, OP_ADDI, OP_ADDK, OP_CONCAT, OP_EQ, OP_EQI, OP_EQK, OP_EXTRAARG, OP_GETFIELD, OP_GETI,
     OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI, OP_JMP, OP_LFALSESKIP, OP_LOADF, OP_LOADFALSE,
@@ -28,6 +26,7 @@ use crate::lparser::{
 use crate::ltm::{TM_ADD, TM_SHL, TM_SHR, TM_SUB, TMS};
 use crate::lvm::{F2Ieq, luaV_equalobj, luaV_flttointeger, luaV_tointegerns};
 use crate::table::{luaH_finishset, luaH_get};
+use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{ArithError, Object, ParseError, Thread};
 use core::fmt::Display;
 use core::ops::Deref;
@@ -124,7 +123,7 @@ pub unsafe fn luaK_exp2const(
         }
         7 => {
             let io: *mut UnsafeValue = v;
-            let x_: *mut TString = (*e).u.strval;
+            let x_: *mut Str = (*e).u.strval;
             (*io).value_.gc = x_ as *mut Object;
             (*io).tt_ =
                 ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -789,7 +788,7 @@ unsafe fn addk(
     return Ok(k);
 }
 
-unsafe fn stringK(fs: *mut FuncState, s: *mut TString) -> Result<libc::c_int, ParseError> {
+unsafe fn stringK(fs: *mut FuncState, s: *mut Str) -> Result<libc::c_int, ParseError> {
     let mut o: UnsafeValue = UnsafeValue {
         value_: UntaggedValue {
             gc: 0 as *mut Object,
@@ -797,7 +796,7 @@ unsafe fn stringK(fs: *mut FuncState, s: *mut TString) -> Result<libc::c_int, Pa
         tt_: 0,
     };
     let io: *mut UnsafeValue = &mut o;
-    let x_: *mut TString = s;
+    let x_: *mut Str = s;
     (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
     return addk(fs, &mut o, &mut o);
@@ -888,7 +887,7 @@ unsafe fn nilK(fs: *mut FuncState) -> Result<libc::c_int, ParseError> {
     v.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     let io: *mut UnsafeValue = &mut k;
 
-    (*io).value_.gc = &(*(*fs).ls).h.hdr;
+    (*io).value_.gc = &(&(*(*fs).ls).h).hdr;
     (*io).tt_ = (5 as libc::c_int
         | (0 as libc::c_int) << 4 as libc::c_int
         | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -956,7 +955,7 @@ unsafe fn const2exp(v: *mut UnsafeValue, e: *mut expdesc) {
         }
         4 | 20 => {
             (*e).k = VKSTR;
-            (*e).u.strval = (*v).value_.gc as *mut TString;
+            (*e).u.strval = (*v).value_.gc as *mut Str;
         }
         _ => {}
     };

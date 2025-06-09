@@ -9,10 +9,11 @@
 use crate::gc::{Object, luaC_barrierback_};
 use crate::ldebug::luaG_runerror;
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
-use crate::lobject::{StkId, TString, UnsafeValue, UntaggedValue, luaO_ceillog2};
+use crate::lobject::{StkId, Str, luaO_ceillog2};
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::ltm::TM_EQ;
 use crate::lvm::{F2Ieq, luaV_flttointeger};
+use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{Fp, Lua, Node, NodeKey, Table, TableError, Thread};
 use alloc::boxed::Box;
 use core::alloc::Layout;
@@ -105,7 +106,7 @@ unsafe fn mainpositionTV(t: *const Table, key: *const UnsafeValue) -> *mut Node 
             ) as *mut Node;
         }
         4 => {
-            let ts: *mut TString = (*key).value_.gc as *mut TString;
+            let ts: *mut Str = (*key).value_.gc as *mut Str;
             return ((*t).node.get()).offset(
                 ((*ts).hash.get()
                     & (((1 as libc::c_int) << (*t).lsizenode.get() as libc::c_int)
@@ -114,7 +115,7 @@ unsafe fn mainpositionTV(t: *const Table, key: *const UnsafeValue) -> *mut Node 
             ) as *mut Node;
         }
         20 => {
-            let ts_0: *mut TString = (*key).value_.gc as *mut TString;
+            let ts_0: *mut Str = (*key).value_.gc as *mut Str;
             return ((*t).node.get()).offset(
                 (luaS_hashlongstr(ts_0)
                     & (((1 as libc::c_int) << (*t).lsizenode.get() as libc::c_int)
@@ -187,10 +188,7 @@ unsafe fn equalkey(k1: *const UnsafeValue, n2: *const Node, deadok: libc::c_int)
         3 => ((*k1).value_.i == (*n2).u.key_val.i) as libc::c_int,
         19 => ((*k1).value_.n == (*n2).u.key_val.n) as libc::c_int,
         22 => core::ptr::fn_addr_eq((*k1).value_.f, (*n2).u.key_val.f) as libc::c_int,
-        84 => luaS_eqlngstr(
-            (*k1).value_.gc as *mut TString,
-            (*n2).u.key_val.gc as *mut TString,
-        ),
+        84 => luaS_eqlngstr((*k1).value_.gc as *mut Str, (*n2).u.key_val.gc as *mut Str),
         _ => ((*k1).value_.gc == (*n2).u.key_val.gc) as libc::c_int,
     }
 }
@@ -824,7 +822,7 @@ pub unsafe fn luaH_getint(t: *const Table, key: i64) -> *const UnsafeValue {
     };
 }
 
-pub unsafe fn luaH_getshortstr(t: *const Table, key: *mut TString) -> *const UnsafeValue {
+pub unsafe fn luaH_getshortstr(t: *const Table, key: *mut Str) -> *const UnsafeValue {
     let mut n =
         ((*t).node.get()).offset(((*key).hash.get() & ((1 << (*t).lsizenode.get()) - 1)) as isize);
 
@@ -833,7 +831,7 @@ pub unsafe fn luaH_getshortstr(t: *const Table, key: *mut TString) -> *const Uns
             == 4 as libc::c_int
                 | (0 as libc::c_int) << 4 as libc::c_int
                 | (1 as libc::c_int) << 6 as libc::c_int
-            && ((*n).u.key_val.gc as *mut TString) as *mut TString == key
+            && ((*n).u.key_val.gc as *mut Str) as *mut Str == key
         {
             return &mut (*n).i_val;
         } else {
@@ -846,7 +844,7 @@ pub unsafe fn luaH_getshortstr(t: *const Table, key: *mut TString) -> *const Uns
     }
 }
 
-pub unsafe fn luaH_getstr(t: *const Table, key: *mut TString) -> *const UnsafeValue {
+pub unsafe fn luaH_getstr(t: *const Table, key: *mut Str) -> *const UnsafeValue {
     if (*key).hdr.tt as libc::c_int == 4 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
         return luaH_getshortstr(t, key);
     } else {
@@ -857,7 +855,7 @@ pub unsafe fn luaH_getstr(t: *const Table, key: *mut TString) -> *const UnsafeVa
             tt_: 0,
         };
         let io: *mut UnsafeValue = &mut ko;
-        let x_: *mut TString = key;
+        let x_: *mut Str = key;
         (*io).value_.gc = x_ as *mut Object;
         (*io).tt_ = ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
         return getgeneric(t, &mut ko, 0 as libc::c_int);
@@ -866,7 +864,7 @@ pub unsafe fn luaH_getstr(t: *const Table, key: *mut TString) -> *const UnsafeVa
 
 pub unsafe fn luaH_get(t: *const Table, key: *const UnsafeValue) -> *const UnsafeValue {
     match (*key).tt_ as libc::c_int & 0x3f as libc::c_int {
-        4 => return luaH_getshortstr(t, (*key).value_.gc as *mut TString),
+        4 => return luaH_getshortstr(t, (*key).value_.gc as *mut Str),
         3 => return luaH_getint(t, (*key).value_.i),
         0 => return &raw const absentkey,
         19 => {

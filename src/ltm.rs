@@ -9,10 +9,11 @@
 use crate::gc::{Object, luaC_fix};
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
 use crate::ldo::{luaD_call, luaD_growstack};
-use crate::lobject::{Proto, StkId, TString, Udata, UnsafeValue, UntaggedValue};
+use crate::lobject::{Proto, StkId, Str, Udata};
 use crate::lstate::CallInfo;
 use crate::lstring::luaS_new;
 use crate::table::luaH_getshortstr;
+use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{Lua, Table, Thread};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
@@ -97,7 +98,7 @@ pub unsafe fn luaT_init(g: *const Lua) {
 pub unsafe fn luaT_gettm(
     events: *const Table,
     event: TMS,
-    ename: *mut TString,
+    ename: *mut Str,
 ) -> *const UnsafeValue {
     let tm: *const UnsafeValue = luaH_getshortstr(events, ename);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
@@ -153,7 +154,7 @@ pub unsafe fn luaT_objtypename(g: *const Lua, o: *const UnsafeValue) -> Cow<'sta
             luaS_new(g, b"__name\0" as *const u8 as *const libc::c_char),
         );
         if (*name).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int {
-            return CStr::from_ptr(((*((*name).value_.gc as *mut TString)).contents).as_mut_ptr())
+            return CStr::from_ptr(((*((*name).value_.gc as *mut Str)).contents).as_mut_ptr())
                 .to_string_lossy()
                 .into_owned()
                 .into();

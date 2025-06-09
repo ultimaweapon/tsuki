@@ -14,8 +14,9 @@ use self::gc::{Gc, Object, luaC_barrier_, luaC_freeallobjects};
 use self::lapi::lua_settop;
 use self::ldo::luaD_protectedparser;
 use self::lmem::luaM_free_;
-use self::lobject::{TString, UnsafeValue};
+use self::lobject::Str;
 use self::lzio::Zio;
+use self::value::UnsafeValue;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use core::any::TypeId;
@@ -59,6 +60,7 @@ mod module;
 mod parser;
 mod table;
 mod thread;
+mod value;
 
 extern crate alloc;
 #[cfg(feature = "std")]
@@ -106,7 +108,7 @@ pub struct Lua {
     allweak: Cell<*const Object>,
     fixedgc: Cell<*const Object>,
     twups: Cell<*const Thread>,
-    tmname: [Cell<*mut TString>; 25],
+    tmname: [Cell<*mut Str>; 25],
     primitive_mt: [Cell<*const Table>; 9],
     userdata_mt: RefCell<HashMap<TypeId, *const Table, FxBuildHasher>>,
     _phantom: PhantomPinned,
@@ -192,7 +194,7 @@ impl Drop for Lua {
             luaM_free_(
                 self,
                 (*self.strt.get()).hash as *mut libc::c_void,
-                ((*self.strt.get()).size as usize).wrapping_mul(size_of::<*mut TString>()),
+                ((*self.strt.get()).size as usize).wrapping_mul(size_of::<*mut Str>()),
             )
         };
     }
@@ -200,7 +202,7 @@ impl Drop for Lua {
 
 #[repr(C)]
 struct StringTable {
-    hash: *mut *mut TString,
+    hash: *mut *mut Str,
     nuse: libc::c_int,
     size: libc::c_int,
 }

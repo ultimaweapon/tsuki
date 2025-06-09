@@ -10,8 +10,8 @@ use crate::gc::{luaC_barrier_, luaC_barrierback_};
 use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall};
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::{
-    CClosure, Proto, StackValue, StkId, TString, UValue, Udata, UnsafeValue, UntaggedValue, UpVal,
-    luaO_arith, luaO_str2num, luaO_tostring,
+    CClosure, Proto, StackValue, StkId, Str, UValue, Udata, UpVal, luaO_arith, luaO_str2num,
+    luaO_tostring,
 };
 use crate::lstate::CallInfo;
 use crate::lstring::{luaS_new, luaS_newlstr, luaS_newudata};
@@ -23,6 +23,7 @@ use crate::lvm::{
 use crate::table::{
     luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_new, luaH_next, luaH_resize, luaH_setint,
 };
+use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{Fp, LuaFn, Object, Table, TableError, Thread, api_incr_top};
 use alloc::boxed::Box;
 use core::ffi::c_void;
@@ -432,21 +433,21 @@ pub unsafe fn lua_tolstring(L: *const Thread, idx: c_int, len: *mut usize) -> *c
     }
 
     if !len.is_null() {
-        *len = if (*((*o).value_.gc as *mut TString)).shrlen.get() as c_int != 0xff {
-            (*((*o).value_.gc as *mut TString)).shrlen.get() as usize
+        *len = if (*((*o).value_.gc as *mut Str)).shrlen.get() as c_int != 0xff {
+            (*((*o).value_.gc as *mut Str)).shrlen.get() as usize
         } else {
-            (*(*((*o).value_.gc as *mut TString)).u.get()).lnglen
+            (*(*((*o).value_.gc as *mut Str)).u.get()).lnglen
         };
     }
 
-    ((*((*o).value_.gc as *mut TString)).contents).as_mut_ptr()
+    ((*((*o).value_.gc as *mut Str)).contents).as_mut_ptr()
 }
 
 pub unsafe fn lua_rawlen(L: *const Thread, idx: c_int) -> u64 {
     let o: *const UnsafeValue = index2value(L, idx);
     match (*o).tt_ as c_int & 0x3f as c_int {
-        4 => return (*((*o).value_.gc as *mut TString)).shrlen.get() as u64,
-        20 => return (*(*((*o).value_.gc as *mut TString)).u.get()).lnglen as u64,
+        4 => return (*((*o).value_.gc as *mut Str)).shrlen.get() as u64,
+        20 => return (*(*((*o).value_.gc as *mut Str)).u.get()).lnglen as u64,
         7 => return (*((*o).value_.gc as *mut Udata)).len as u64,
         5 => return luaH_getn((*o).value_.gc as *mut Table),
         _ => return 0 as c_int as u64,
@@ -540,7 +541,7 @@ pub unsafe fn lua_pushlstring(L: *const Thread, s: impl AsRef<[u8]>) -> *const l
         luaS_newlstr((*L).hdr.global, s.as_ptr().cast(), s.len())
     };
     let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-    let x_: *mut TString = ts;
+    let x_: *mut Str = ts;
     (*io).value_.gc = x_ as *mut Object;
     (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
     api_incr_top(L);
@@ -558,7 +559,7 @@ pub unsafe fn lua_pushstring(L: *const Thread, mut s: *const libc::c_char) -> *c
     } else {
         let ts = luaS_new((*L).hdr.global, s);
         let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-        let x_: *mut TString = ts;
+        let x_: *mut Str = ts;
         (*io).value_.gc = x_ as *mut Object;
         (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
         s = ((*ts).contents).as_mut_ptr();
@@ -635,7 +636,7 @@ unsafe fn auxgetstr(
     k: &[u8],
 ) -> Result<c_int, Box<dyn core::error::Error>> {
     let mut slot: *const UnsafeValue = 0 as *const UnsafeValue;
-    let str: *mut TString = luaS_newlstr((*L).hdr.global, k.as_ptr().cast(), k.len());
+    let str: *mut Str = luaS_newlstr((*L).hdr.global, k.as_ptr().cast(), k.len());
     if if !((*t).tt_ as c_int
         == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
     {
@@ -653,7 +654,7 @@ unsafe fn auxgetstr(
         api_incr_top(L);
     } else {
         let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-        let x_: *mut TString = str;
+        let x_: *mut Str = str;
         (*io).value_.gc = x_ as *mut Object;
         (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
         api_incr_top(L);
@@ -879,7 +880,7 @@ unsafe fn auxsetstr(
     k: *const libc::c_char,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let mut slot: *const UnsafeValue = 0 as *const UnsafeValue;
-    let str: *mut TString = luaS_new((*L).hdr.global, k);
+    let str: *mut Str = luaS_new((*L).hdr.global, k);
     if if !((*t).tt_ as c_int
         == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
     {
@@ -916,7 +917,7 @@ unsafe fn auxsetstr(
         (*L).top.sub(1);
     } else {
         let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-        let x_: *mut TString = str;
+        let x_: *mut Str = str;
         (*io).value_.gc = x_ as *mut Object;
         (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
         api_incr_top(L);
@@ -1294,7 +1295,7 @@ pub unsafe fn lua_concat(L: *const Thread, n: c_int) -> Result<(), Box<dyn core:
         luaV_concat(L, n)?;
     } else {
         let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-        let x_: *mut TString = luaS_newlstr(
+        let x_: *mut Str = luaS_newlstr(
             (*L).hdr.global,
             b"\0" as *const u8 as *const libc::c_char,
             0 as c_int as usize,
@@ -1361,7 +1362,7 @@ unsafe fn aux_upvalue(
         }
         6 => {
             let f_0: *mut LuaFn = (*fi).value_.gc as *mut LuaFn;
-            let mut name: *mut TString = 0 as *mut TString;
+            let mut name: *mut Str = 0 as *mut Str;
             let p: *mut Proto = (*f_0).p.get();
 
             if !((n as libc::c_uint).wrapping_sub(1 as libc::c_uint)

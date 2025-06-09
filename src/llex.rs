@@ -6,18 +6,16 @@
     unused_mut
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
-#![allow(unused_parens)]
 
 use crate::gc::luaC_fix;
 use crate::lctype::luai_ctype_;
 use crate::lmem::luaM_saferealloc_;
-use crate::lobject::{
-    TString, UnsafeValue, UntaggedValue, luaO_hexavalue, luaO_str2num, luaO_utf8esc,
-};
+use crate::lobject::{Str, luaO_hexavalue, luaO_str2num, luaO_utf8esc};
 use crate::lparser::{Dyndata, FuncState};
 use crate::lstring::luaS_newlstr;
 use crate::lzio::{Mbuffer, ZIO};
 use crate::table::{luaH_finishset, luaH_getstr};
+use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{ChunkInfo, Lua, Node, Object, ParseError, Ref, Table};
 use alloc::borrow::Cow;
 use alloc::format;
@@ -72,7 +70,7 @@ pub const TK_AND: RESERVED = 256;
 pub union SemInfo {
     pub r: f64,
     pub i: i64,
-    pub ts: *mut TString,
+    pub ts: *mut Str,
 }
 
 #[derive(Copy, Clone)]
@@ -95,7 +93,7 @@ pub struct LexState {
     pub h: Ref<Table>,
     pub dyd: *mut Dyndata,
     pub source: ChunkInfo,
-    pub envn: *mut TString,
+    pub envn: *mut Str,
     pub level: usize,
 }
 
@@ -160,22 +158,22 @@ unsafe fn save(mut ls: *mut LexState, mut c: libc::c_int) {
 
 pub unsafe fn luaX_init(mut g: *const Lua) {
     let mut i: libc::c_int = 0;
-    let mut e: *mut TString = luaS_newlstr(
+    let mut e: *mut Str = luaS_newlstr(
         g,
         b"_ENV\0" as *const u8 as *const libc::c_char,
         ::core::mem::size_of::<[libc::c_char; 5]>()
             .wrapping_div(::core::mem::size_of::<libc::c_char>())
             .wrapping_sub(1),
     );
-    luaC_fix(&*g, (e as *mut Object));
+    luaC_fix(&*g, e.cast());
     i = 0 as libc::c_int;
     while i < TK_WHILE as libc::c_int - (255 as libc::c_int + 1 as libc::c_int) + 1 as libc::c_int {
-        let mut ts: *mut TString = luaS_newlstr(
+        let mut ts: *mut Str = luaS_newlstr(
             g,
             luaX_tokens[i as usize].as_ptr().cast(),
             luaX_tokens[i as usize].len(),
         );
-        luaC_fix(&*g, (ts as *mut Object));
+        luaC_fix(&*g, ts.cast());
         (*ts).extra.set((i + 1 as libc::c_int) as u8);
         i += 1;
     }
@@ -238,12 +236,12 @@ pub unsafe fn luaX_newstring(
     mut ls: *mut LexState,
     mut str: *const libc::c_char,
     mut l: usize,
-) -> *mut TString {
-    let mut ts: *mut TString = luaS_newlstr((*ls).g.deref(), str, l);
+) -> *mut Str {
+    let mut ts: *mut Str = luaS_newlstr((*ls).g.deref(), str, l);
     let mut o: *const UnsafeValue = luaH_getstr((*ls).h.deref(), ts);
 
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
-        ts = ((*(o as *mut Node)).u.key_val.gc as *mut TString);
+        ts = (*(o as *mut Node)).u.key_val.gc as *mut Str;
     } else {
         let ts = Ref::new((*ls).g.clone(), ts);
         let stv = UnsafeValue {
@@ -253,7 +251,7 @@ pub unsafe fn luaX_newstring(
 
         luaH_finishset((*ls).h.deref(), &stv, o, &stv).unwrap(); // This should never fails.
 
-        if ((*ls).g).gc.debt() > 0 as libc::c_int as isize {
+        if (&(*ls).g).gc.debt() > 0 as libc::c_int as isize {
             crate::gc::step((*ls).g.deref());
         }
     }
@@ -334,13 +332,13 @@ unsafe fn check_next2(mut ls: *mut LexState, mut set: *const libc::c_char) -> li
         save(ls, (*ls).current);
         let fresh8 = (*(*ls).z).n;
         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-        (*ls).current = (if fresh8 > 0 as libc::c_int as usize {
+        (*ls).current = if fresh8 > 0 as libc::c_int as usize {
             let fresh9 = (*(*ls).z).p;
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh9 as libc::c_uchar as libc::c_int
         } else {
             -1
-        });
+        };
         return 1 as libc::c_int;
     } else {
         return 0 as libc::c_int;
@@ -362,13 +360,13 @@ unsafe fn read_numeral(
     save(ls, (*ls).current);
     let fresh10 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-    (*ls).current = (if fresh10 > 0 as libc::c_int as usize {
+    (*ls).current = if fresh10 > 0 as libc::c_int as usize {
         let fresh11 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh11 as libc::c_uchar as libc::c_int
     } else {
         -1
-    });
+    };
     if first == '0' as i32 && check_next2(ls, b"xX\0" as *const u8 as *const libc::c_char) != 0 {
         expo = b"Pp\0" as *const u8 as *const libc::c_char;
     }
@@ -386,13 +384,13 @@ unsafe fn read_numeral(
             save(ls, (*ls).current);
             let fresh12 = (*(*ls).z).n;
             (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-            (*ls).current = (if fresh12 > 0 as libc::c_int as usize {
+            (*ls).current = if fresh12 > 0 as libc::c_int as usize {
                 let fresh13 = (*(*ls).z).p;
                 (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                 *fresh13 as libc::c_uchar as libc::c_int
             } else {
                 -1
-            });
+            };
         }
     }
     if luai_ctype_[((*ls).current + 1 as libc::c_int) as usize] as libc::c_int
@@ -402,13 +400,13 @@ unsafe fn read_numeral(
         save(ls, (*ls).current);
         let fresh14 = (*(*ls).z).n;
         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-        (*ls).current = (if fresh14 > 0 as libc::c_int as usize {
+        (*ls).current = if fresh14 > 0 as libc::c_int as usize {
             let fresh15 = (*(*ls).z).p;
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh15 as libc::c_uchar as libc::c_int
         } else {
             -1
-        });
+        };
     }
     save(ls, '\0' as i32);
     if luaO_str2num((*(*ls).buff).buffer, &mut obj) == 0 as libc::c_int as usize {
@@ -429,24 +427,24 @@ unsafe fn skip_sep(mut ls: *mut LexState) -> usize {
     save(ls, (*ls).current);
     let fresh16 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-    (*ls).current = (if fresh16 > 0 as libc::c_int as usize {
+    (*ls).current = if fresh16 > 0 as libc::c_int as usize {
         let fresh17 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh17 as libc::c_uchar as libc::c_int
     } else {
         -1
-    });
+    };
     while (*ls).current == '=' as i32 {
         save(ls, (*ls).current);
         let fresh18 = (*(*ls).z).n;
         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-        (*ls).current = (if fresh18 > 0 as libc::c_int as usize {
+        (*ls).current = if fresh18 > 0 as libc::c_int as usize {
             let fresh19 = (*(*ls).z).p;
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh19 as libc::c_uchar as libc::c_int
         } else {
             -1
-        });
+        };
         count = count.wrapping_add(1);
     }
     return if (*ls).current == s {
@@ -469,13 +467,13 @@ unsafe fn read_long_string(
     save(ls, (*ls).current);
     let fresh20 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-    (*ls).current = (if fresh20 > 0 as libc::c_int as usize {
+    (*ls).current = if fresh20 > 0 as libc::c_int as usize {
         let fresh21 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh21 as libc::c_uchar as libc::c_int
     } else {
         -1
-    });
+    };
     if (*ls).current == '\n' as i32 || (*ls).current == '\r' as i32 {
         inclinenumber(ls);
     }
@@ -501,13 +499,13 @@ unsafe fn read_long_string(
                 save(ls, (*ls).current);
                 let fresh22 = (*(*ls).z).n;
                 (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-                (*ls).current = (if fresh22 > 0 as libc::c_int as usize {
+                (*ls).current = if fresh22 > 0 as libc::c_int as usize {
                     let fresh23 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh23 as libc::c_uchar as libc::c_int
                 } else {
                     -1
-                });
+                };
                 break;
             }
             10 | 13 => {
@@ -522,13 +520,13 @@ unsafe fn read_long_string(
                     save(ls, (*ls).current);
                     let fresh24 = (*(*ls).z).n;
                     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-                    (*ls).current = (if fresh24 > 0 as libc::c_int as usize {
+                    (*ls).current = if fresh24 > 0 as libc::c_int as usize {
                         let fresh25 = (*(*ls).z).p;
                         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                         *fresh25 as libc::c_uchar as libc::c_int
                     } else {
                         -1
-                    });
+                    };
                 } else {
                     let fresh26 = (*(*ls).z).n;
                     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -564,13 +562,13 @@ unsafe fn esccheck(
             save(ls, (*ls).current);
             let fresh28 = (*(*ls).z).n;
             (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-            (*ls).current = (if fresh28 > 0 as libc::c_int as usize {
+            (*ls).current = if fresh28 > 0 as libc::c_int as usize {
                 let fresh29 = (*(*ls).z).p;
                 (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                 *fresh29 as libc::c_uchar as libc::c_int
             } else {
                 -1
-            });
+            };
         }
 
         return Err(lexerror(ls, msg, TK_STRING as libc::c_int));
@@ -582,13 +580,13 @@ unsafe fn gethexa(mut ls: *mut LexState) -> Result<libc::c_int, ParseError> {
     save(ls, (*ls).current);
     let fresh30 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-    (*ls).current = (if fresh30 > 0 as libc::c_int as usize {
+    (*ls).current = if fresh30 > 0 as libc::c_int as usize {
         let fresh31 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh31 as libc::c_uchar as libc::c_int
     } else {
         -1
-    });
+    };
     esccheck(
         ls,
         luai_ctype_[((*ls).current + 1 as libc::c_int) as usize] as libc::c_int
@@ -611,13 +609,13 @@ unsafe fn readutf8esc(mut ls: *mut LexState) -> Result<libc::c_ulong, ParseError
     save(ls, (*ls).current);
     let fresh32 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-    (*ls).current = (if fresh32 > 0 as libc::c_int as usize {
+    (*ls).current = if fresh32 > 0 as libc::c_int as usize {
         let fresh33 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh33 as libc::c_uchar as libc::c_int
     } else {
         -1
-    });
+    };
     esccheck(
         ls,
         ((*ls).current == '{' as i32) as libc::c_int,
@@ -628,13 +626,13 @@ unsafe fn readutf8esc(mut ls: *mut LexState) -> Result<libc::c_ulong, ParseError
         save(ls, (*ls).current);
         let fresh34 = (*(*ls).z).n;
         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-        (*ls).current = (if fresh34 > 0 as libc::c_int as usize {
+        (*ls).current = if fresh34 > 0 as libc::c_int as usize {
             let fresh35 = (*(*ls).z).p;
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh35 as libc::c_uchar as libc::c_int
         } else {
             -1
-        });
+        };
         if !(luai_ctype_[((*ls).current + 1 as libc::c_int) as usize] as libc::c_int
             & (1 as libc::c_int) << 4 as libc::c_int
             != 0)
@@ -690,13 +688,13 @@ unsafe fn readdecesc(mut ls: *mut LexState) -> Result<libc::c_int, ParseError> {
         save(ls, (*ls).current);
         let fresh38 = (*(*ls).z).n;
         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-        (*ls).current = (if fresh38 > 0 as libc::c_int as usize {
+        (*ls).current = if fresh38 > 0 as libc::c_int as usize {
             let fresh39 = (*(*ls).z).p;
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
             *fresh39 as libc::c_uchar as libc::c_int
         } else {
             -1
-        });
+        };
         i += 1;
     }
     esccheck(
@@ -717,13 +715,13 @@ unsafe fn read_string(
     save(ls, (*ls).current);
     let fresh40 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-    (*ls).current = (if fresh40 > 0 as libc::c_int as usize {
+    (*ls).current = if fresh40 > 0 as libc::c_int as usize {
         let fresh41 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh41 as libc::c_uchar as libc::c_int
     } else {
         -1
-    });
+    };
     while (*ls).current != del {
         match (*ls).current {
             -1 => return Err(lexerror(ls, "unfinished string", TK_EOS as libc::c_int)),
@@ -733,13 +731,13 @@ unsafe fn read_string(
                 save(ls, (*ls).current);
                 let fresh42 = (*(*ls).z).n;
                 (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-                (*ls).current = (if fresh42 > 0 as libc::c_int as usize {
+                (*ls).current = if fresh42 > 0 as libc::c_int as usize {
                     let fresh43 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh43 as libc::c_uchar as libc::c_int
                 } else {
                     -1
-                });
+                };
                 match (*ls).current {
                     97 => {
                         c = '\u{7}' as i32;
@@ -853,26 +851,26 @@ unsafe fn read_string(
                 save(ls, (*ls).current);
                 let fresh50 = (*(*ls).z).n;
                 (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-                (*ls).current = (if fresh50 > 0 as libc::c_int as usize {
+                (*ls).current = if fresh50 > 0 as libc::c_int as usize {
                     let fresh51 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh51 as libc::c_uchar as libc::c_int
                 } else {
                     -1
-                });
+                };
             }
         }
     }
     save(ls, (*ls).current);
     let fresh52 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-    (*ls).current = (if fresh52 > 0 as libc::c_int as usize {
+    (*ls).current = if fresh52 > 0 as libc::c_int as usize {
         let fresh53 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
         *fresh53 as libc::c_uchar as libc::c_int
     } else {
         -1
-    });
+    };
     (*seminfo).ts = luaX_newstring(
         ls,
         ((*(*ls).buff).buffer).offset(1 as libc::c_int as isize),
@@ -1077,13 +1075,13 @@ unsafe fn llex(
                 save(ls, (*ls).current);
                 let fresh74 = (*(*ls).z).n;
                 (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-                (*ls).current = (if fresh74 > 0 as libc::c_int as usize {
+                (*ls).current = if fresh74 > 0 as libc::c_int as usize {
                     let fresh75 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                     *fresh75 as libc::c_uchar as libc::c_int
                 } else {
                     -1
-                });
+                };
                 if check_next1(ls, '.' as i32) != 0 {
                     if check_next1(ls, '.' as i32) != 0 {
                         return Ok(TK_DOTS as libc::c_int);
@@ -1108,18 +1106,18 @@ unsafe fn llex(
                     & (1 as libc::c_int) << 0 as libc::c_int
                     != 0
                 {
-                    let mut ts: *mut TString = 0 as *mut TString;
+                    let mut ts: *mut Str = 0 as *mut Str;
                     loop {
                         save(ls, (*ls).current);
                         let fresh76 = (*(*ls).z).n;
                         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-                        (*ls).current = (if fresh76 > 0 as libc::c_int as usize {
+                        (*ls).current = if fresh76 > 0 as libc::c_int as usize {
                             let fresh77 = (*(*ls).z).p;
                             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
                             *fresh77 as libc::c_uchar as libc::c_int
                         } else {
                             -1
-                        });
+                        };
                         if !(luai_ctype_[((*ls).current + 1 as libc::c_int) as usize]
                             as libc::c_int
                             & ((1 as libc::c_int) << 0 as libc::c_int

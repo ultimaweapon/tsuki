@@ -12,10 +12,11 @@ pub use self::r#ref::*;
 
 use crate::ldo::luaD_shrinkstack;
 use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
-use crate::lobject::{CClosure, Proto, StkId, TString, UValue, Udata, UnsafeValue, UpVal};
+use crate::lobject::{CClosure, Proto, StkId, Str, UValue, Udata, UpVal};
 use crate::lstring::luaS_remove;
 use crate::ltm::{TM_MODE, luaT_gettm};
 use crate::table::{luaH_free, luaH_realasize};
+use crate::value::UnsafeValue;
 use crate::{Lua, LuaFn, Node, Table, Thread};
 use core::alloc::Layout;
 use core::cell::Cell;
@@ -430,7 +431,7 @@ unsafe fn traversetable(g: *const Lua, h: *const Table) -> usize {
         )
     };
 
-    let mut smode: *mut TString = 0 as *mut TString;
+    let mut smode: *mut Str = 0 as *mut Str;
     if !((*h).metatable.get()).is_null() {
         if (*(*h).metatable.get()).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
@@ -445,7 +446,7 @@ unsafe fn traversetable(g: *const Lua, h: *const Table) -> usize {
                 | (0 as libc::c_int) << 4 as libc::c_int
                 | (1 as libc::c_int) << 6 as libc::c_int
         && {
-            smode = ((*mode).value_.gc as *mut TString) as *mut TString;
+            smode = ((*mode).value_.gc as *mut Str) as *mut Str;
             weakkey = strchr(((*smode).contents).as_mut_ptr(), 'k' as i32);
             weakvalue = strchr(((*smode).contents).as_mut_ptr(), 'v' as i32);
             !weakkey.is_null() || !weakvalue.is_null()
@@ -612,7 +613,7 @@ unsafe fn traverseLclosure(g: &Lua, cl: *const LuaFn) -> usize {
         }
     }
 
-    1 + (*cl).upvals.len()
+    1 + (&(*cl).upvals).len()
 }
 
 unsafe fn traversethread(g: *const Lua, th: *const Thread) -> libc::c_int {
@@ -846,18 +847,18 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
             (*g).gc.dealloc(o.cast(), layout);
         }
         4 => {
-            let ts: *mut TString = o as *mut TString;
-            let size = offset_of!(TString, contents) + usize::from((*ts).shrlen.get()) + 1;
-            let align = align_of::<TString>();
+            let ts: *mut Str = o as *mut Str;
+            let size = offset_of!(Str, contents) + usize::from((*ts).shrlen.get()) + 1;
+            let align = align_of::<Str>();
             let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
             luaS_remove(g, ts);
             (*g).gc.dealloc(ts.cast(), layout);
         }
         20 => {
-            let ts_0: *mut TString = o as *mut TString;
-            let size = offset_of!(TString, contents) + (*(*ts_0).u.get()).lnglen + 1;
-            let align = align_of::<TString>();
+            let ts_0: *mut Str = o as *mut Str;
+            let size = offset_of!(Str, contents) + (*(*ts_0).u.get()).lnglen + 1;
+            let align = align_of::<Str>();
             let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
             (*g).gc.dealloc(ts_0.cast(), layout);

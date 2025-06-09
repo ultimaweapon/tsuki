@@ -10,10 +10,9 @@ use crate::gc::luaC_barrier_;
 use crate::ldebug::{luaG_findlocal, luaG_runerror};
 use crate::ldo::luaD_call;
 use crate::lmem::luaM_free_;
-use crate::lobject::{
-    AbsLineInfo, CClosure, LocVar, Proto, StackValue, StkId, UnsafeValue, UpVal, Upvaldesc,
-};
+use crate::lobject::{AbsLineInfo, CClosure, LocVar, Proto, StackValue, StkId, UpVal, Upvaldesc};
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
+use crate::value::UnsafeValue;
 use crate::{ChunkInfo, Lua, LuaFn, Object, Thread};
 use alloc::boxed::Box;
 use alloc::format;

@@ -1,4 +1,5 @@
-use crate::lobject::{StackValue, UnsafeValue, UntaggedValue};
+use crate::lobject::StackValue;
+use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{LuaFn, Table};
 use core::cell::Cell;
 use core::mem::zeroed;

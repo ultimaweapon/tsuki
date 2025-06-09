@@ -13,8 +13,7 @@ use crate::lfunc::{
     luaF_close, luaF_closeupval, luaF_findupval, luaF_newLclosure, luaF_newtbcupval,
 };
 use crate::lobject::{
-    Proto, StackValue, StkId, TString, Udata, UnsafeValue, UntaggedValue, UpVal, Upvaldesc,
-    luaO_str2num, luaO_tostring,
+    Proto, StackValue, StkId, Str, Udata, UpVal, Upvaldesc, luaO_str2num, luaO_tostring,
 };
 use crate::lopcodes::OpCode;
 use crate::lstate::CallInfo;
@@ -28,6 +27,7 @@ use crate::table::{
     luaH_finishset, luaH_get, luaH_getint, luaH_getn, luaH_getshortstr, luaH_getstr, luaH_new,
     luaH_realasize, luaH_resize, luaH_resizearray,
 };
+use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{ArithError, LuaFn, Table, Thread};
 use alloc::boxed::Box;
 use core::cell::Cell;
@@ -44,7 +44,7 @@ unsafe fn l_strton(obj: *const UnsafeValue, result: *mut UnsafeValue) -> libc::c
     if !((*obj).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int) {
         return 0 as libc::c_int;
     } else {
-        let st: *mut TString = (*obj).value_.gc as *mut TString;
+        let st: *mut Str = (*obj).value_.gc as *mut Str;
         return (luaO_str2num(((*st).contents).as_mut_ptr(), result)
             == (if (*st).shrlen.get() as libc::c_int != 0xff as libc::c_int {
                 (*st).shrlen.get() as usize
@@ -473,7 +473,7 @@ pub unsafe fn luaV_finishset(
     unreachable!("luaG_runerror always return Err");
 }
 
-unsafe fn l_strcmp(ts1: *const TString, ts2: *const TString) -> libc::c_int {
+unsafe fn l_strcmp(ts1: *const Str, ts2: *const Str) -> libc::c_int {
     let mut s1: *const libc::c_char = ((*ts1).contents).as_ptr();
     let mut rl1: usize = if (*ts1).shrlen.get() as libc::c_int != 0xff as libc::c_int {
         (*ts1).shrlen.get() as usize
@@ -616,10 +616,10 @@ unsafe fn lessthanothers(
     if (*l).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
         && (*r).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
     {
-        return Ok((l_strcmp(
-            (*l).value_.gc as *mut TString,
-            (*r).value_.gc as *mut TString,
-        ) < 0 as libc::c_int) as libc::c_int);
+        return Ok(
+            (l_strcmp((*l).value_.gc as *mut Str, (*r).value_.gc as *mut Str) < 0 as libc::c_int)
+                as libc::c_int,
+        );
     } else {
         return luaT_callorderTM(L, l, r, TM_LT);
     };
@@ -647,10 +647,10 @@ unsafe fn lessequalothers(
     if (*l).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
         && (*r).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
     {
-        return Ok((l_strcmp(
-            (*l).value_.gc as *mut TString,
-            (*r).value_.gc as *mut TString,
-        ) <= 0 as libc::c_int) as libc::c_int);
+        return Ok(
+            (l_strcmp((*l).value_.gc as *mut Str, (*r).value_.gc as *mut Str) <= 0 as libc::c_int)
+                as libc::c_int,
+        );
     } else {
         return luaT_callorderTM(L, l, r, TM_LE);
     };
@@ -698,14 +698,14 @@ pub unsafe fn luaV_equalobj(
         19 => return Ok(((*t1).value_.n == (*t2).value_.n) as libc::c_int),
         22 => return Ok(core::ptr::fn_addr_eq((*t1).value_.f, (*t2).value_.f) as libc::c_int),
         4 => {
-            return Ok((((*t1).value_.gc as *mut TString) as *mut TString
-                == ((*t2).value_.gc as *mut TString) as *mut TString)
+            return Ok((((*t1).value_.gc as *mut Str) as *mut Str
+                == ((*t2).value_.gc as *mut Str) as *mut Str)
                 as libc::c_int);
         }
         20 => {
             return Ok(luaS_eqlngstr(
-                (*t1).value_.gc as *mut TString,
-                (*t2).value_.gc as *mut TString,
+                (*t1).value_.gc as *mut Str,
+                (*t2).value_.gc as *mut Str,
             ));
         }
         7 => {
@@ -807,7 +807,7 @@ pub unsafe fn luaV_equalobj(
 unsafe fn copy2buff(top: StkId, mut n: libc::c_int, buff: *mut libc::c_char) {
     let mut tl: usize = 0 as libc::c_int as usize;
     loop {
-        let st: *mut TString = (*top.offset(-(n as isize))).val.value_.gc as *mut TString;
+        let st: *mut Str = (*top.offset(-(n as isize))).val.value_.gc as *mut Str;
         let l: usize = if (*st).shrlen.get() as libc::c_int != 0xff as libc::c_int {
             (*st).shrlen.get() as usize
         } else {
@@ -855,7 +855,7 @@ pub unsafe fn luaV_concat(
             == 4 as libc::c_int
                 | (0 as libc::c_int) << 4 as libc::c_int
                 | (1 as libc::c_int) << 6 as libc::c_int
-            && (*((*top.offset(-(1 as libc::c_int as isize))).val.value_.gc as *mut TString))
+            && (*((*top.offset(-(1 as libc::c_int as isize))).val.value_.gc as *mut Str))
                 .shrlen
                 .get() as libc::c_int
                 == 0 as libc::c_int
@@ -874,7 +874,7 @@ pub unsafe fn luaV_concat(
             == 4 as libc::c_int
                 | (0 as libc::c_int) << 4 as libc::c_int
                 | (1 as libc::c_int) << 6 as libc::c_int
-            && (*((*top.offset(-(2 as libc::c_int as isize))).val.value_.gc as *mut TString))
+            && (*((*top.offset(-(2 as libc::c_int as isize))).val.value_.gc as *mut Str))
                 .shrlen
                 .get() as libc::c_int
                 == 0 as libc::c_int
@@ -885,21 +885,21 @@ pub unsafe fn luaV_concat(
             (*io1).tt_ = (*io2).tt_;
         } else {
             let mut tl: usize = if (*((*top.offset(-(1 as libc::c_int as isize))).val.value_.gc
-                as *mut TString))
+                as *mut Str))
                 .shrlen
                 .get()
                 != 0xff
             {
-                (*((*top.offset(-(1 as libc::c_int as isize))).val.value_.gc as *mut TString))
+                (*((*top.offset(-(1 as libc::c_int as isize))).val.value_.gc as *mut Str))
                     .shrlen
                     .get() as usize
             } else {
-                (*(*((*top.offset(-(1 as libc::c_int as isize))).val.value_.gc as *mut TString))
+                (*(*((*top.offset(-(1 as libc::c_int as isize))).val.value_.gc as *mut Str))
                     .u
                     .get())
                 .lnglen
             };
-            let mut ts: *mut TString = 0 as *mut TString;
+            let mut ts: *mut Str = 0 as *mut Str;
             n = 1 as libc::c_int;
             while n < total
                 && ((*top
@@ -929,7 +929,7 @@ pub unsafe fn luaV_concat(
                     .offset(-(1 as libc::c_int as isize)))
                 .val
                 .value_
-                .gc as *mut TString))
+                .gc as *mut Str))
                     .shrlen
                     .get()
                     != 0xff
@@ -939,7 +939,7 @@ pub unsafe fn luaV_concat(
                         .offset(-(1 as libc::c_int as isize)))
                     .val
                     .value_
-                    .gc as *mut TString))
+                    .gc as *mut Str))
                         .shrlen
                         .get() as usize
                 } else {
@@ -948,7 +948,7 @@ pub unsafe fn luaV_concat(
                         .offset(-(1 as libc::c_int as isize)))
                     .val
                     .value_
-                    .gc as *mut TString))
+                    .gc as *mut Str))
                         .u
                         .get())
                     .lnglen
@@ -961,7 +961,7 @@ pub unsafe fn luaV_concat(
                     } else {
                         0x7fffffffffffffff as libc::c_longlong as usize
                     })
-                    .wrapping_sub(::core::mem::size_of::<TString>())
+                    .wrapping_sub(::core::mem::size_of::<Str>())
                     .wrapping_sub(tl)) as libc::c_int
                     != 0 as libc::c_int) as libc::c_int as libc::c_long
                     != 0
@@ -981,7 +981,7 @@ pub unsafe fn luaV_concat(
                 copy2buff(top, n, ((*ts).contents).as_mut_ptr());
             }
             let io: *mut UnsafeValue = &raw mut (*top.offset(-(n as isize))).val;
-            let x_: *mut TString = ts;
+            let x_: *mut Str = ts;
             (*io).value_.gc = x_ as *mut Object;
             (*io).tt_ =
                 ((*x_).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8;
@@ -1026,13 +1026,13 @@ pub unsafe fn luaV_objlen(
         }
         4 => {
             let io_0: *mut UnsafeValue = &raw mut (*ra).val;
-            (*io_0).value_.i = (*((*rb).value_.gc as *mut TString)).shrlen.get() as i64;
+            (*io_0).value_.i = (*((*rb).value_.gc as *mut Str)).shrlen.get() as i64;
             (*io_0).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
             return Ok(());
         }
         20 => {
             let io_1: *mut UnsafeValue = &raw mut (*ra).val;
-            (*io_1).value_.i = (*(*((*rb).value_.gc as *mut TString)).u.get()).lnglen as i64;
+            (*io_1).value_.i = (*(*((*rb).value_.gc as *mut Str)).u.get()).lnglen as i64;
             (*io_1).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
             return Ok(());
         }
@@ -1468,7 +1468,7 @@ pub unsafe fn luaV_execute(
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let key: *mut TString = (*rc).value_.gc as *mut TString;
+                        let key: *mut Str = (*rc).value_.gc as *mut Str;
                         if if !((*upval).tt_ as libc::c_int
                             == 5 as libc::c_int
                                 | (0 as libc::c_int) << 4 as libc::c_int
@@ -1672,7 +1672,7 @@ pub unsafe fn luaV_execute(
                                     << 0 as libc::c_int) as libc::c_int
                                 as isize,
                         );
-                        let key_1: *mut TString = (*rc_1).value_.gc as *mut TString;
+                        let key_1: *mut Str = (*rc_1).value_.gc as *mut Str;
                         if if !((*rb_3).tt_ as libc::c_int
                             == 5 as libc::c_int
                                 | (0 as libc::c_int) << 4 as libc::c_int
@@ -1746,7 +1746,7 @@ pub unsafe fn luaV_execute(
                             ))
                             .val
                         };
-                        let key_2: *mut TString = (*rb_4).value_.gc as *mut TString;
+                        let key_2: *mut Str = (*rb_4).value_.gc as *mut Str;
                         if if !((*upval_0).tt_ as libc::c_int
                             == 5 as libc::c_int
                                 | (0 as libc::c_int) << 4 as libc::c_int
@@ -2047,7 +2047,7 @@ pub unsafe fn luaV_execute(
                             ))
                             .val
                         };
-                        let key_4: *mut TString = (*rb_6).value_.gc as *mut TString;
+                        let key_4: *mut Str = (*rb_6).value_.gc as *mut Str;
                         if if !((*ra_16).val.tt_ as libc::c_int
                             == 5 as libc::c_int
                                 | (0 as libc::c_int) << 4 as libc::c_int
@@ -2201,7 +2201,7 @@ pub unsafe fn luaV_execute(
                             ))
                             .val
                         };
-                        let key_5: *mut TString = (*rc_6).value_.gc as *mut TString;
+                        let key_5: *mut Str = (*rc_6).value_.gc as *mut Str;
                         let io1_12: *mut UnsafeValue =
                             &raw mut (*ra_18.offset(1 as libc::c_int as isize)).val;
                         let io2_12: *const UnsafeValue = rb_7;

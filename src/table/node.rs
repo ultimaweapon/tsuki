@@ -1,5 +1,5 @@
 use crate::UnsafeValue;
-use crate::lobject::UntaggedValue;
+use crate::value::UntaggedValue;
 use core::ffi::c_int;
 
 #[derive(Copy, Clone)]
