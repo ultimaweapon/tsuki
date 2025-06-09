@@ -1,6 +1,7 @@
 #![no_std]
 
 pub use self::builder::*;
+pub use self::context::*;
 pub use self::error::*;
 pub use self::function::*;
 pub use self::gc::Ref;
@@ -29,6 +30,7 @@ use rustc_hash::FxBuildHasher;
 use thiserror::Error;
 
 mod builder;
+mod context;
 mod error;
 mod function;
 mod gc;

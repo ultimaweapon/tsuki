@@ -186,7 +186,7 @@ unsafe fn equalkey(k1: *const UnsafeValue, n2: *const Node, deadok: libc::c_int)
         0 | 1 | 17 => 1,
         3 => ((*k1).value_.i == (*n2).u.key_val.i) as libc::c_int,
         19 => ((*k1).value_.n == (*n2).u.key_val.n) as libc::c_int,
-        22 => ((*k1).value_.f == (*n2).u.key_val.f) as libc::c_int,
+        22 => core::ptr::fn_addr_eq((*k1).value_.f, (*n2).u.key_val.f) as libc::c_int,
         84 => luaS_eqlngstr(
             (*k1).value_.gc as *mut TString,
             (*n2).u.key_val.gc as *mut TString,

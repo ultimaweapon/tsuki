@@ -12,7 +12,7 @@ use crate::ldebug::luaG_runerror;
 use crate::lstring::luaS_newlstr;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
-use crate::{ArithError, ChunkInfo, Fp, Lua, Table, Thread};
+use crate::{ArithError, AsyncContext, ChunkInfo, Context, Fp, Lua, Table, Thread, YieldContext};
 use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
 use libc::{c_char, c_int, sprintf, strpbrk, strspn, strtod};
@@ -44,12 +44,33 @@ pub union UntaggedValue {
     pub n: f64,
 }
 
-/// The outside must never be able to construct or have the value of this type.
+/// The outside **must** never be able to construct or have the value of this type.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct UnsafeValue {
     pub value_: UntaggedValue,
     pub tt_: u8,
+}
+
+impl From<fn(&mut Context) -> Result<(), Box<dyn core::error::Error>>> for UnsafeValue {
+    fn from(value: fn(&mut Context) -> Result<(), Box<dyn core::error::Error>>) -> Self {
+        todo!()
+    }
+}
+
+impl From<fn(YieldContext) -> Result<(), Box<dyn core::error::Error>>> for UnsafeValue {
+    fn from(value: fn(YieldContext) -> Result<(), Box<dyn core::error::Error>>) -> Self {
+        todo!()
+    }
+}
+
+impl<'a, F> From<fn(AsyncContext<'a>) -> F> for UnsafeValue
+where
+    F: Future<Output = Result<(), Box<dyn core::error::Error>>> + 'a,
+{
+    fn from(value: fn(AsyncContext<'a>) -> F) -> Self {
+        todo!()
+    }
 }
 
 #[repr(C)]

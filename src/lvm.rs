@@ -696,7 +696,7 @@ pub unsafe fn luaV_equalobj(
         0 | 1 | 17 => return Ok(1 as libc::c_int),
         3 => return Ok(((*t1).value_.i == (*t2).value_.i) as libc::c_int),
         19 => return Ok(((*t1).value_.n == (*t2).value_.n) as libc::c_int),
-        22 => return Ok(((*t1).value_.f == (*t2).value_.f) as libc::c_int),
+        22 => return Ok(core::ptr::fn_addr_eq((*t1).value_.f, (*t2).value_.f) as libc::c_int),
         4 => {
             return Ok((((*t1).value_.gc as *mut TString) as *mut TString
                 == ((*t2).value_.gc as *mut TString) as *mut TString)
