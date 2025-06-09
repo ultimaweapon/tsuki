@@ -10,7 +10,7 @@ use crate::gc::{luaC_barrier_, luaC_barrierback_};
 use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall};
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::{
-    CClosure, Proto, StackValue, StkId, Str, UValue, Udata, UpVal, luaO_arith, luaO_str2num,
+    CClosure, Proto, StackValue, StkId, UValue, Udata, UpVal, luaO_arith, luaO_str2num,
     luaO_tostring,
 };
 use crate::lstate::CallInfo;
@@ -24,7 +24,7 @@ use crate::table::{
     luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_new, luaH_next, luaH_resize, luaH_setint,
 };
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{Fp, LuaFn, Object, Table, TableError, Thread, api_incr_top};
+use crate::{Fp, LuaFn, Object, Str, Table, TableError, Thread, api_incr_top};
 use alloc::boxed::Box;
 use core::ffi::c_void;
 use core::mem::offset_of;
@@ -1362,7 +1362,6 @@ unsafe fn aux_upvalue(
         }
         6 => {
             let f_0: *mut LuaFn = (*fi).value_.gc as *mut LuaFn;
-            let mut name: *mut Str = 0 as *mut Str;
             let p: *mut Proto = (*f_0).p.get();
 
             if !((n as libc::c_uint).wrapping_sub(1 as libc::c_uint)
@@ -1377,11 +1376,11 @@ unsafe fn aux_upvalue(
                 *owner = (*f_0).upvals[(n - 1) as usize].get().cast();
             }
 
-            name = (*((*p).upvalues).offset((n - 1 as c_int) as isize)).name;
+            let name = (*((*p).upvalues).offset((n - 1 as c_int) as isize)).name;
             return if name.is_null() {
                 b"(no name)\0" as *const u8 as *const libc::c_char
             } else {
-                ((*name).contents).as_mut_ptr() as *const libc::c_char
+                ((*name).contents).as_ptr() as *const libc::c_char
             };
         }
         _ => return 0 as *const libc::c_char,

@@ -7,8 +7,8 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::lmem::{luaM_malloc_, luaM_realloc_};
-use crate::lobject::{Str, UValue, Udata};
-use crate::{Lua, Object, StringTable};
+use crate::lobject::{UValue, Udata};
+use crate::{Lua, Object, Str, StringTable};
 use core::alloc::Layout;
 use core::cell::Cell;
 use core::mem::offset_of;

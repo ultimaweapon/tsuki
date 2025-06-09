@@ -10,7 +10,7 @@
 
 use crate::ldo::{luaD_hook, luaD_hookcall};
 use crate::lfunc::luaF_getlocalname;
-use crate::lobject::{CClosure, Proto, StkId, Str};
+use crate::lobject::{CClosure, Proto, StkId};
 use crate::lopcodes::{OpCode, luaP_opmodes};
 use crate::lstate::{CallInfo, lua_Debug, lua_Hook};
 use crate::ltm::{
@@ -20,7 +20,7 @@ use crate::ltm::{
 use crate::lvm::{F2Ieq, luaV_tointegerns};
 use crate::table::{luaH_new, luaH_setint};
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{ChunkInfo, LuaFn, Object, Thread, api_incr_top};
+use crate::{ChunkInfo, LuaFn, Object, Str, Thread, api_incr_top};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
@@ -153,12 +153,12 @@ pub unsafe fn lua_getstack(
 }
 
 unsafe fn upvalname(p: *const Proto, uv: usize) -> *const libc::c_char {
-    let s: *mut Str = (*((*p).upvalues).add(uv)).name;
+    let s = (*((*p).upvalues).add(uv)).name;
 
     if s.is_null() {
         return b"?\0" as *const u8 as *const libc::c_char;
     } else {
-        return ((*s).contents).as_mut_ptr();
+        return ((*s).contents).as_ptr();
     };
 }
 

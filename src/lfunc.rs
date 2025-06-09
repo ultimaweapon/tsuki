@@ -363,7 +363,7 @@ pub unsafe fn luaF_getlocalname(
         if pc < (*((*f).locvars).offset(i as isize)).endpc {
             local_number -= 1;
             if local_number == 0 as libc::c_int {
-                return ((*(*((*f).locvars).offset(i as isize)).varname).contents).as_mut_ptr();
+                return ((*(*((*f).locvars).offset(i as isize)).varname).contents).as_ptr();
             }
         }
         i += 1;

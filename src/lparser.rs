@@ -26,7 +26,7 @@ use crate::llex::{
     luaX_newstring, luaX_next, luaX_setinput, luaX_syntaxerror, luaX_token2str,
 };
 use crate::lmem::{luaM_growaux_, luaM_shrinkvector_};
-use crate::lobject::{AbsLineInfo, LocVar, Proto, Str, Upvaldesc};
+use crate::lobject::{AbsLineInfo, LocVar, Proto, Upvaldesc};
 use crate::lopcodes::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_FORLOOP, OP_FORPREP, OP_GETUPVAL, OP_MOVE, OP_NEWTABLE,
     OP_TAILCALL, OP_TBC, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_VARARG, OP_VARARGPREP, OpCode,
@@ -35,7 +35,7 @@ use crate::lstring::luaS_newlstr;
 use crate::lzio::{Mbuffer, ZIO};
 use crate::table::luaH_new;
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{ChunkInfo, Lua, LuaFn, Object, ParseError, Ref};
+use crate::{ChunkInfo, Lua, LuaFn, Object, ParseError, Ref, Str};
 use alloc::borrow::Cow;
 use alloc::format;
 use alloc::rc::Rc;
@@ -43,6 +43,7 @@ use core::ffi::CStr;
 use core::fmt::Display;
 use core::ops::Deref;
 use core::pin::Pin;
+use core::ptr::null;
 use libc::strcmp;
 
 #[derive(Copy, Clone)]
@@ -462,7 +463,8 @@ unsafe fn init_var(fs: *mut FuncState, e: *mut expdesc, vidx: libc::c_int) {
 
 unsafe fn check_readonly(ls: *mut LexState, e: *mut expdesc) -> Result<(), ParseError> {
     let fs: *mut FuncState = (*ls).fs;
-    let mut varname: *mut Str = 0 as *mut Str;
+    let mut varname = null();
+
     match (*e).k as libc::c_uint {
         11 => {
             varname = (*((*(*ls).dyd).actvar.arr).offset((*e).u.info as isize))
@@ -490,7 +492,7 @@ unsafe fn check_readonly(ls: *mut LexState, e: *mut expdesc) -> Result<(), Parse
             ls,
             format_args!(
                 "attempt to assign to const variable '{}'",
-                CStr::from_ptr(((*varname).contents).as_mut_ptr()).to_string_lossy(),
+                CStr::from_ptr(((*varname).contents).as_ptr()).to_string_lossy(),
             ),
         ));
     }

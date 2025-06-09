@@ -13,7 +13,7 @@ use crate::lfunc::{
     luaF_close, luaF_closeupval, luaF_findupval, luaF_newLclosure, luaF_newtbcupval,
 };
 use crate::lobject::{
-    Proto, StackValue, StkId, Str, Udata, UpVal, Upvaldesc, luaO_str2num, luaO_tostring,
+    Proto, StackValue, StkId, Udata, UpVal, Upvaldesc, luaO_str2num, luaO_tostring,
 };
 use crate::lopcodes::OpCode;
 use crate::lstate::CallInfo;
@@ -28,7 +28,7 @@ use crate::table::{
     luaH_realasize, luaH_resize, luaH_resizearray,
 };
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{ArithError, LuaFn, Table, Thread};
+use crate::{ArithError, LuaFn, Str, Table, Thread};
 use alloc::boxed::Box;
 use core::cell::Cell;
 use libc::{memcpy, strcoll, strlen};

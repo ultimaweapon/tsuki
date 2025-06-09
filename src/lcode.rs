@@ -9,7 +9,7 @@
 use crate::gc::luaC_barrier_;
 use crate::llex::{LexState, luaX_syntaxerror};
 use crate::lmem::luaM_growaux_;
-use crate::lobject::{AbsLineInfo, Proto, Str, luaO_ceillog2, luaO_rawarith};
+use crate::lobject::{AbsLineInfo, Proto, luaO_ceillog2, luaO_rawarith};
 use crate::lopcodes::{
     OP_ADD, OP_ADDI, OP_ADDK, OP_CONCAT, OP_EQ, OP_EQI, OP_EQK, OP_EXTRAARG, OP_GETFIELD, OP_GETI,
     OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI, OP_JMP, OP_LFALSESKIP, OP_LOADF, OP_LOADFALSE,
@@ -27,7 +27,7 @@ use crate::ltm::{TM_ADD, TM_SHL, TM_SHR, TM_SUB, TMS};
 use crate::lvm::{F2Ieq, luaV_equalobj, luaV_flttointeger, luaV_tointegerns};
 use crate::table::{luaH_finishset, luaH_get};
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{ArithError, Object, ParseError, Thread};
+use crate::{ArithError, Object, ParseError, Str, Thread};
 use core::fmt::Display;
 use core::ops::Deref;
 use libc::abs;

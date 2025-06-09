@@ -9,12 +9,12 @@
 use crate::gc::{Object, luaC_fix};
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
 use crate::ldo::{luaD_call, luaD_growstack};
-use crate::lobject::{Proto, StkId, Str, Udata};
+use crate::lobject::{Proto, StkId, Udata};
 use crate::lstate::CallInfo;
 use crate::lstring::luaS_new;
 use crate::table::luaH_getshortstr;
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{Lua, Table, Thread};
+use crate::{Lua, Str, Table, Thread};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use core::ffi::CStr;
@@ -95,11 +95,7 @@ pub unsafe fn luaT_init(g: *const Lua) {
     }
 }
 
-pub unsafe fn luaT_gettm(
-    events: *const Table,
-    event: TMS,
-    ename: *mut Str,
-) -> *const UnsafeValue {
+pub unsafe fn luaT_gettm(events: *const Table, event: TMS, ename: *mut Str) -> *const UnsafeValue {
     let tm: *const UnsafeValue = luaH_getshortstr(events, ename);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         (*events)

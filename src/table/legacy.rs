@@ -9,12 +9,12 @@
 use crate::gc::{Object, luaC_barrierback_};
 use crate::ldebug::luaG_runerror;
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
-use crate::lobject::{StkId, Str, luaO_ceillog2};
+use crate::lobject::{StkId, luaO_ceillog2};
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::ltm::TM_EQ;
 use crate::lvm::{F2Ieq, luaV_flttointeger};
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{Fp, Lua, Node, NodeKey, Table, TableError, Thread};
+use crate::{Fp, Lua, Node, NodeKey, Str, Table, TableError, Thread};
 use alloc::boxed::Box;
 use core::alloc::Layout;
 use core::cell::Cell;
