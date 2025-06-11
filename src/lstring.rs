@@ -12,8 +12,7 @@ use core::alloc::Layout;
 use core::cell::Cell;
 use core::mem::offset_of;
 use core::ptr::{addr_of_mut, null};
-use libc::{memcmp, memcpy, strlen};
-use std::alloc::handle_alloc_error;
+use libc::{memcmp, strlen};
 
 pub unsafe fn luaS_eqlngstr(a: *mut Str, b: *mut Str) -> libc::c_int {
     let len: usize = (*(*a).u.get()).lnglen;
@@ -57,73 +56,6 @@ pub unsafe fn luaS_hashlongstr(ts: *mut Str) -> libc::c_uint {
     return (*ts).hash.get();
 }
 
-unsafe fn tablerehash(vect: *mut *const Str, osize: usize, nsize: usize) {
-    let mut i = osize;
-
-    while i < nsize {
-        vect.add(i).write(null());
-        i += 1;
-    }
-
-    i = 0;
-
-    while i < osize {
-        let mut p = *vect.offset(i as isize);
-        let ref mut fresh1 = *vect.offset(i as isize);
-        *fresh1 = 0 as *mut Str;
-
-        while !p.is_null() {
-            let hnext = (*(*p).u.get()).hnext;
-            let h = usize::try_from((*p).hash.get()).unwrap() & (nsize - 1);
-
-            (*(*p).u.get()).hnext = *vect.add(h);
-            vect.add(h).write(p);
-
-            p = hnext;
-        }
-
-        i += 1;
-    }
-}
-
-unsafe fn luaS_resize(g: *const Lua, nsize: usize) {
-    let tb = (*g).strt.get();
-    let osize = (*tb).size;
-
-    if nsize < osize {
-        tablerehash((*tb).hash, osize, nsize);
-    }
-
-    // Re-allocate.
-    let layout = Layout::array::<*const Str>(osize).unwrap();
-    let newvect = alloc::alloc::realloc((*tb).hash.cast(), layout, nsize * size_of::<*const Str>());
-
-    if newvect.is_null() {
-        handle_alloc_error(Layout::array::<*const Str>(nsize).unwrap());
-    }
-
-    (*tb).hash = newvect.cast();
-    (*tb).size = nsize;
-
-    if nsize > osize {
-        tablerehash((*tb).hash, osize, nsize);
-    }
-}
-
-pub unsafe fn luaS_init(g: *const Lua) {
-    let tb = (*g).strt.get();
-    let layout = Layout::array::<*const Str>(128).unwrap();
-    let hash = alloc::alloc::alloc(layout);
-
-    if hash.is_null() {
-        handle_alloc_error(layout);
-    }
-
-    (*tb).hash = hash.cast();
-    tablerehash((*tb).hash, 0, 128);
-    (*tb).size = 128;
-}
-
 pub unsafe fn luaS_createlngstrobj(g: *const Lua, l: usize) -> *mut Str {
     let ts = Str::new(g, l, 4 | 1 << 4, (*g).seed);
 
@@ -133,77 +65,41 @@ pub unsafe fn luaS_createlngstrobj(g: *const Lua, l: usize) -> *mut Str {
     return ts;
 }
 
-pub unsafe fn luaS_remove(g: *const Lua, ts: *mut Str) {
-    let tb = (*g).strt.get();
-    let mut p = ((*tb).hash).add(usize::try_from((*ts).hash.get()).unwrap() & ((*tb).size - 1));
-
-    while *p != ts {
-        p = &raw mut (*(**p).u.get()).hnext;
-    }
-
-    *p = (*(**p).u.get()).hnext;
-    (*tb).nuse -= 1;
-}
-
-unsafe fn internshrstr(g: *const Lua, str: *const libc::c_char, l: usize) -> *const Str {
-    let tb = (*g).strt.get();
-    let h = luaS_hash(str, l, (*g).seed);
-    let mut list = ((*tb).hash).add(usize::try_from(h).unwrap() & ((*tb).size - 1));
-    let mut ts = *list;
-
-    while !ts.is_null() {
-        if l == (*ts).shrlen.get() as usize
-            && memcmp(
-                str as *const libc::c_void,
-                ((*ts).contents).as_ptr() as *const libc::c_void,
-                l,
-            ) == 0
-        {
-            if (*ts).hdr.marked.is_dead((*g).currentwhite.get()) {
-                (*ts)
-                    .hdr
-                    .marked
-                    .set((*ts).hdr.marked.get() ^ (1 << 3 | 1 << 4));
-            }
-
-            return ts;
-        }
-
-        ts = (*(*ts).u.get()).hnext;
-    }
-
-    if (*tb).nuse >= (*tb).size {
-        luaS_resize(g, (*tb).size.checked_mul(2).unwrap());
-
-        list = (*tb)
-            .hash
-            .add(usize::try_from(h).unwrap() & ((*tb).size - 1));
-    }
-
-    let ts = Str::new(g, l, 4 | 0 << 4, h);
-
-    addr_of_mut!((*ts).shrlen).write(Cell::new(l.try_into().unwrap()));
-    memcpy(
-        ((*ts).contents).as_mut_ptr() as *mut libc::c_void,
-        str as *const libc::c_void,
-        l,
-    );
-    (*(*ts).u.get()).hnext = *list;
-    *list = ts;
-    (*tb).nuse += 1;
-
-    return ts;
-}
-
 pub unsafe fn luaS_newlstr(g: *const Lua, str: *const libc::c_char, l: usize) -> *const Str {
     if l <= 40 {
-        internshrstr(g, str, l)
+        let h = unsafe { luaS_hash(str, l, (*g).seed) };
+        let str = core::slice::from_raw_parts(str.cast(), l);
+
+        match (*g).strt.insert(h, str) {
+            Ok(v) => {
+                if (*v).hdr.marked.is_dead((*g).currentwhite.get()) {
+                    (*v).hdr
+                        .marked
+                        .set((*v).hdr.marked.get() ^ (1 << 3 | 1 << 4));
+                }
+
+                v
+            }
+            Err(e) => {
+                let v = Str::new(g, l, 4 | 0 << 4, h);
+
+                addr_of_mut!((*v).shrlen).write(Cell::new(l.try_into().unwrap()));
+                (*v).contents
+                    .as_mut_ptr()
+                    .copy_from_nonoverlapping(str.as_ptr().cast(), str.len());
+
+                (*(*v).u.get()).hnext = *e;
+                *e = v;
+
+                v
+            }
+        }
     } else {
-        let ts = luaS_createlngstrobj(g, l);
+        let s = luaS_createlngstrobj(g, l);
 
-        memcpy(((*ts).contents).as_mut_ptr().cast(), str.cast(), l);
+        (*s).contents.as_mut_ptr().copy_from_nonoverlapping(str, l);
 
-        ts
+        s
     }
 }
 

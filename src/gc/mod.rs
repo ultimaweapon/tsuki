@@ -13,7 +13,6 @@ pub use self::r#ref::*;
 use crate::ldo::luaD_shrinkstack;
 use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
 use crate::lobject::{CClosure, Proto, StkId, UValue, Udata, UpVal};
-use crate::lstring::luaS_remove;
 use crate::ltm::{TM_MODE, luaT_gettm};
 use crate::table::{luaH_free, luaH_realasize};
 use crate::value::UnsafeValue;
@@ -852,7 +851,7 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
             let align = align_of::<Str>();
             let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
-            luaS_remove(g, ts);
+            (*g).strt.remove(ts);
             (*g).gc.dealloc(ts.cast(), layout);
         }
         20 => {

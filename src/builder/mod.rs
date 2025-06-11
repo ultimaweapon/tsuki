@@ -2,7 +2,6 @@ use crate::lauxlib::luaL_requiref;
 use crate::lbaselib::luaopen_base;
 use crate::llex::luaX_init;
 use crate::lmathlib::luaopen_math;
-use crate::lstring::luaS_init;
 use crate::lstrlib::luaopen_string;
 use crate::ltablib::luaopen_table;
 use crate::ltm::luaT_init;
@@ -40,11 +39,7 @@ impl Builder {
             gc: Gc::new(size_of::<Self>()),
             GCestimate: Cell::new(0), // TODO: Lua does not initialize this.
             lastatomic: Cell::new(0),
-            strt: UnsafeCell::new(StringTable {
-                hash: null_mut(),
-                nuse: 0,
-                size: 0,
-            }),
+            strt: StringTable::new(),
             l_registry: UnsafeCell::new(UnsafeValue {
                 value_: UntaggedValue { i: 0 },
                 tt_: (0 | 0 << 4),
@@ -132,7 +127,6 @@ impl Builder {
         unsafe { (*io_1).tt_ = 5 | 0 << 4 | 1 << 6 };
 
         // Initialize internal module.
-        unsafe { luaS_init(g.deref()) };
         unsafe { luaT_init(g.deref()) };
         unsafe { luaX_init(g.deref()) };
 

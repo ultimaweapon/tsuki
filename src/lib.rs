@@ -18,7 +18,6 @@ use self::lzio::Zio;
 use self::value::UnsafeValue;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
-use core::alloc::Layout;
 use core::any::TypeId;
 use core::cell::{Cell, RefCell, UnsafeCell};
 use core::ffi::c_int;
@@ -91,7 +90,7 @@ pub struct Lua {
     gc: Gc,
     GCestimate: Cell<usize>,
     lastatomic: Cell<usize>,
-    strt: UnsafeCell<StringTable>,
+    strt: StringTable,
     l_registry: UnsafeCell<UnsafeValue>,
     nilvalue: UnsafeCell<UnsafeValue>,
     seed: u32,
@@ -190,21 +189,8 @@ impl Lua {
 
 impl Drop for Lua {
     fn drop(&mut self) {
-        // Free objects.
         unsafe { luaC_freeallobjects(self) };
-
-        // Free string table.
-        let stb = self.strt.get();
-        let layout = Layout::array::<*const Str>(unsafe { (*stb).size }).unwrap();
-
-        unsafe { alloc::alloc::dealloc((*stb).hash.cast(), layout) };
     }
-}
-
-struct StringTable {
-    hash: *mut *const Str,
-    nuse: usize,
-    size: usize,
 }
 
 /// Lua value.

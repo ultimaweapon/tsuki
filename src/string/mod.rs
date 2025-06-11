@@ -1,9 +1,13 @@
+pub(crate) use self::table::*;
+
 use crate::{Lua, Object};
 use core::alloc::Layout;
 use core::cell::{Cell, UnsafeCell};
 use core::ffi::c_char;
 use core::mem::offset_of;
 use core::ptr::addr_of_mut;
+
+mod table;
 
 /// Lua string.
 #[repr(C)]
@@ -28,6 +32,19 @@ impl Str {
         unsafe { *((*o).contents).as_mut_ptr().offset(l as isize) = '\0' as i32 as libc::c_char };
 
         o
+    }
+
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        match self.shrlen.get() {
+            0xFF => unsafe { (*self.u.get()).lnglen },
+            v => v.into(),
+        }
+    }
+
+    #[inline(always)]
+    pub fn as_bytes(&self) -> &[u8] {
+        unsafe { core::slice::from_raw_parts(self.contents.as_ptr().cast(), self.len()) }
     }
 }
 
