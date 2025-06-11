@@ -9,7 +9,6 @@
 use crate::gc::Object;
 use crate::lctype::luai_ctype_;
 use crate::ldebug::luaG_runerror;
-use crate::lstring::luaS_newlstr;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
 use crate::value::{UnsafeValue, UntaggedValue};
@@ -776,7 +775,10 @@ pub unsafe fn luaO_tostring(g: *const Lua, obj: *mut UnsafeValue) {
     let mut buff: [c_char; 44] = [0; 44];
     let len: c_int = tostringbuff(obj, buff.as_mut_ptr());
     let io: *mut UnsafeValue = obj;
-    let x_ = luaS_newlstr(g, buff.as_mut_ptr(), len as usize);
+    let x_ = Str::new(
+        g,
+        core::slice::from_raw_parts(buff.as_ptr().cast(), len as usize),
+    );
 
     (*io).value_.gc = x_.cast();
     (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;

@@ -9,10 +9,9 @@
 use crate::lobject::{UValue, Udata};
 use crate::{Lua, Object, Str};
 use core::alloc::Layout;
-use core::cell::Cell;
 use core::mem::offset_of;
-use core::ptr::{addr_of_mut, null};
-use libc::{memcmp, strlen};
+use core::ptr::null;
+use libc::memcmp;
 
 pub unsafe fn luaS_eqlngstr(a: *mut Str, b: *mut Str) -> libc::c_int {
     let len: usize = (*(*a).u.get()).lnglen;
@@ -54,57 +53,6 @@ pub unsafe fn luaS_hashlongstr(ts: *mut Str) -> libc::c_uint {
         (*ts).extra.set(1 as libc::c_int as u8);
     }
     return (*ts).hash.get();
-}
-
-pub unsafe fn luaS_createlngstrobj(g: *const Lua, l: usize) -> *mut Str {
-    let ts = Str::new(g, l, 4 | 1 << 4, (*g).seed);
-
-    (*(*ts).u.get()).lnglen = l;
-    addr_of_mut!((*ts).shrlen).write(Cell::new(0xff));
-
-    return ts;
-}
-
-pub unsafe fn luaS_newlstr(g: *const Lua, str: *const libc::c_char, l: usize) -> *const Str {
-    if l <= 40 {
-        let h = unsafe { luaS_hash(str, l, (*g).seed) };
-        let str = core::slice::from_raw_parts(str.cast(), l);
-
-        match (*g).strt.insert(h, str) {
-            Ok(v) => {
-                if (*v).hdr.marked.is_dead((*g).currentwhite.get()) {
-                    (*v).hdr
-                        .marked
-                        .set((*v).hdr.marked.get() ^ (1 << 3 | 1 << 4));
-                }
-
-                v
-            }
-            Err(e) => {
-                let v = Str::new(g, l, 4 | 0 << 4, h);
-
-                addr_of_mut!((*v).shrlen).write(Cell::new(l.try_into().unwrap()));
-                (*v).contents
-                    .as_mut_ptr()
-                    .copy_from_nonoverlapping(str.as_ptr().cast(), str.len());
-
-                (*(*v).u.get()).hnext = *e;
-                *e = v;
-
-                v
-            }
-        }
-    } else {
-        let s = luaS_createlngstrobj(g, l);
-
-        (*s).contents.as_mut_ptr().copy_from_nonoverlapping(str, l);
-
-        s
-    }
-}
-
-pub unsafe fn luaS_new(g: *const Lua, str: *const libc::c_char) -> *const Str {
-    luaS_newlstr(g, str, strlen(str))
 }
 
 pub unsafe fn luaS_newudata(g: *const Lua, s: usize, nuvalue: libc::c_int) -> *mut Udata {

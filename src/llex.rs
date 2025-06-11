@@ -11,7 +11,6 @@ use crate::lctype::luai_ctype_;
 use crate::lmem::luaM_saferealloc_;
 use crate::lobject::{luaO_hexavalue, luaO_str2num, luaO_utf8esc};
 use crate::lparser::{Dyndata, FuncState};
-use crate::lstring::luaS_newlstr;
 use crate::lzio::{Mbuffer, ZIO};
 use crate::table::{luaH_finishset, luaH_getstr};
 use crate::value::{UnsafeValue, UntaggedValue};
@@ -157,21 +156,12 @@ unsafe fn save(ls: *mut LexState, c: libc::c_int) {
 
 pub unsafe fn luaX_init(g: *const Lua) {
     let mut i: libc::c_int = 0;
-    let e = luaS_newlstr(
-        g,
-        b"_ENV\0" as *const u8 as *const libc::c_char,
-        ::core::mem::size_of::<[libc::c_char; 5]>()
-            .wrapping_div(::core::mem::size_of::<libc::c_char>())
-            .wrapping_sub(1),
-    );
+    let e = Str::new(g, "_ENV");
     luaC_fix(&*g, e.cast());
     i = 0 as libc::c_int;
+
     while i < TK_WHILE as libc::c_int - (255 as libc::c_int + 1 as libc::c_int) + 1 as libc::c_int {
-        let ts = luaS_newlstr(
-            g,
-            luaX_tokens[i as usize].as_ptr().cast(),
-            luaX_tokens[i as usize].len(),
-        );
+        let ts = Str::new(g, luaX_tokens[i as usize]);
         luaC_fix(&*g, ts.cast());
         (*ts).extra.set((i + 1 as libc::c_int) as u8);
         i += 1;
@@ -232,7 +222,7 @@ pub unsafe fn luaX_syntaxerror(ls: *mut LexState, msg: impl Display) -> ParseErr
 }
 
 pub unsafe fn luaX_newstring(ls: *mut LexState, str: *const libc::c_char, l: usize) -> *const Str {
-    let mut ts = luaS_newlstr((*ls).g.deref(), str, l);
+    let mut ts = Str::new((*ls).g.deref(), core::slice::from_raw_parts(str.cast(), l));
     let o: *const UnsafeValue = luaH_getstr((*ls).h.deref(), ts);
 
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
@@ -287,13 +277,7 @@ pub unsafe fn luaX_setinput(ls: &mut LexState, z: *mut ZIO, firstchar: libc::c_i
     (*ls).fs = 0 as *mut FuncState;
     (*ls).linenumber = 1 as libc::c_int;
     (*ls).lastline = 1 as libc::c_int;
-    (*ls).envn = luaS_newlstr(
-        (*ls).g.deref(),
-        b"_ENV\0" as *const u8 as *const libc::c_char,
-        ::core::mem::size_of::<[libc::c_char; 5]>()
-            .wrapping_div(::core::mem::size_of::<libc::c_char>())
-            .wrapping_sub(1),
-    );
+    (*ls).envn = Str::new((*ls).g.deref(), "_ENV");
     (*(*ls).buff).buffer = luaM_saferealloc_(
         (*ls).g.deref(),
         (*(*ls).buff).buffer as *mut libc::c_void,

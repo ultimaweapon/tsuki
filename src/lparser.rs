@@ -31,7 +31,6 @@ use crate::lopcodes::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_FORLOOP, OP_FORPREP, OP_GETUPVAL, OP_MOVE, OP_NEWTABLE,
     OP_TAILCALL, OP_TBC, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_VARARG, OP_VARARGPREP, OpCode,
 };
-use crate::lstring::luaS_newlstr;
 use crate::lzio::{Mbuffer, ZIO};
 use crate::table::luaH_new;
 use crate::value::{UnsafeValue, UntaggedValue};
@@ -900,15 +899,7 @@ unsafe fn enterblock(fs: *mut FuncState, bl: *mut BlockCnt, isloop: u8) {
 }
 
 unsafe fn undefgoto(ls: *mut LexState, gt: *mut Labeldesc) -> ParseError {
-    if (*gt).name
-        == luaS_newlstr(
-            (*ls).g.deref(),
-            b"break\0" as *const u8 as *const libc::c_char,
-            ::core::mem::size_of::<[libc::c_char; 6]>()
-                .wrapping_div(::core::mem::size_of::<libc::c_char>())
-                .wrapping_sub(1),
-        )
-    {
+    if (*gt).name == Str::new((*ls).g.deref(), "break") {
         luaK_semerror(
             ls,
             format_args!("break outside loop at line {}", (*gt).line),
@@ -934,13 +925,7 @@ unsafe fn leaveblock(fs: *mut FuncState) -> Result<(), ParseError> {
     if (*bl).isloop != 0 {
         hasclose = createlabel(
             ls,
-            luaS_newlstr(
-                (*ls).g.deref(),
-                b"break\0" as *const u8 as *const libc::c_char,
-                ::core::mem::size_of::<[libc::c_char; 6]>()
-                    .wrapping_div(::core::mem::size_of::<libc::c_char>())
-                    .wrapping_sub(1),
-            ),
+            Str::new((*ls).g.deref(), "break"),
             0 as libc::c_int,
             0 as libc::c_int,
         )?;
@@ -2011,13 +1996,7 @@ unsafe fn breakstat(ls: *mut LexState) -> Result<(), ParseError> {
     luaX_next(ls)?;
     newgotoentry(
         ls,
-        luaS_newlstr(
-            (*ls).g.deref(),
-            b"break\0" as *const u8 as *const libc::c_char,
-            ::core::mem::size_of::<[libc::c_char; 6]>()
-                .wrapping_div(::core::mem::size_of::<libc::c_char>())
-                .wrapping_sub(1),
-        ),
+        Str::new((*ls).g.deref(), "break"),
         line,
         luaK_jump((*ls).fs)?,
     )?;
@@ -2400,18 +2379,7 @@ unsafe fn test_then_block(
         luaK_goiffalse((*ls).fs, &mut v)?;
         luaX_next(ls)?;
         enterblock(fs, &mut bl, 0 as libc::c_int as u8);
-        newgotoentry(
-            ls,
-            luaS_newlstr(
-                (*ls).g.deref(),
-                b"break\0" as *const u8 as *const libc::c_char,
-                ::core::mem::size_of::<[libc::c_char; 6]>()
-                    .wrapping_div(::core::mem::size_of::<libc::c_char>())
-                    .wrapping_sub(1),
-            ),
-            line,
-            v.t,
-        )?;
+        newgotoentry(ls, Str::new((*ls).g.deref(), "break"), line, v.t)?;
         while testnext(ls, ';' as i32)? != 0 {}
         if block_follow(ls, 0 as libc::c_int) != 0 {
             leaveblock(fs)?;

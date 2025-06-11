@@ -11,7 +11,6 @@ use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_toi
 use crate::ldo::{luaD_call, luaD_growstack};
 use crate::lobject::{Proto, StkId, Udata};
 use crate::lstate::CallInfo;
-use crate::lstring::luaS_new;
 use crate::table::luaH_getshortstr;
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{Lua, Str, Table, Thread};
@@ -58,38 +57,38 @@ pub const luaT_typenames_: [&str; 12] = [
 ];
 
 pub unsafe fn luaT_init(g: *const Lua) {
-    static mut luaT_eventname: [*const libc::c_char; 25] = [
-        b"__index\0" as *const u8 as *const libc::c_char,
-        b"__newindex\0" as *const u8 as *const libc::c_char,
-        b"__gc\0" as *const u8 as *const libc::c_char,
-        b"__mode\0" as *const u8 as *const libc::c_char,
-        b"__len\0" as *const u8 as *const libc::c_char,
-        b"__eq\0" as *const u8 as *const libc::c_char,
-        b"__add\0" as *const u8 as *const libc::c_char,
-        b"__sub\0" as *const u8 as *const libc::c_char,
-        b"__mul\0" as *const u8 as *const libc::c_char,
-        b"__mod\0" as *const u8 as *const libc::c_char,
-        b"__pow\0" as *const u8 as *const libc::c_char,
-        b"__div\0" as *const u8 as *const libc::c_char,
-        b"__idiv\0" as *const u8 as *const libc::c_char,
-        b"__band\0" as *const u8 as *const libc::c_char,
-        b"__bor\0" as *const u8 as *const libc::c_char,
-        b"__bxor\0" as *const u8 as *const libc::c_char,
-        b"__shl\0" as *const u8 as *const libc::c_char,
-        b"__shr\0" as *const u8 as *const libc::c_char,
-        b"__unm\0" as *const u8 as *const libc::c_char,
-        b"__bnot\0" as *const u8 as *const libc::c_char,
-        b"__lt\0" as *const u8 as *const libc::c_char,
-        b"__le\0" as *const u8 as *const libc::c_char,
-        b"__concat\0" as *const u8 as *const libc::c_char,
-        b"__call\0" as *const u8 as *const libc::c_char,
-        b"__close\0" as *const u8 as *const libc::c_char,
+    static luaT_eventname: [&str; 25] = [
+        "__index",
+        "__newindex",
+        "__gc",
+        "__mode",
+        "__len",
+        "__eq",
+        "__add",
+        "__sub",
+        "__mul",
+        "__mod",
+        "__pow",
+        "__div",
+        "__idiv",
+        "__band",
+        "__bor",
+        "__bxor",
+        "__shl",
+        "__shr",
+        "__unm",
+        "__bnot",
+        "__lt",
+        "__le",
+        "__concat",
+        "__call",
+        "__close",
     ];
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
 
     while i < TM_N as libc::c_int {
-        (*g).tmname[i as usize].set(luaS_new(g, luaT_eventname[i as usize]));
+        (*g).tmname[i as usize].set(Str::new(g, luaT_eventname[i as usize]));
         luaC_fix(&*g, (*g).tmname[i as usize].get().cast());
         i += 1;
     }
@@ -149,10 +148,7 @@ pub unsafe fn luaT_objtypename(g: *const Lua, o: *const UnsafeValue) -> Cow<'sta
                 !mt.is_null()
             }
     {
-        let name: *const UnsafeValue = luaH_getshortstr(
-            mt,
-            luaS_new(g, b"__name\0" as *const u8 as *const libc::c_char),
-        );
+        let name: *const UnsafeValue = luaH_getshortstr(mt, Str::new(g, "__name"));
         if (*name).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int {
             return CStr::from_ptr(((*((*name).value_.gc as *mut Str)).contents).as_mut_ptr())
                 .to_string_lossy()

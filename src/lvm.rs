@@ -17,7 +17,7 @@ use crate::lobject::{
 };
 use crate::lopcodes::OpCode;
 use crate::lstate::CallInfo;
-use crate::lstring::{luaS_createlngstrobj, luaS_eqlngstr, luaS_newlstr};
+use crate::lstring::luaS_eqlngstr;
 use crate::ltm::{
     TM_BNOT, TM_EQ, TM_INDEX, TM_LE, TM_LEN, TM_LT, TM_NEWINDEX, TM_UNM, TMS, luaT_adjustvarargs,
     luaT_callTM, luaT_callTMres, luaT_callorderTM, luaT_callorderiTM, luaT_gettm, luaT_gettmbyobj,
@@ -30,6 +30,7 @@ use crate::table::{
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{ArithError, LuaFn, Str, Table, Thread};
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 use core::cell::Cell;
 use libc::{memcpy, strcoll, strlen};
 use libm::{floor, fmod, pow};
@@ -804,26 +805,22 @@ pub unsafe fn luaV_equalobj(
     };
 }
 
-unsafe fn copy2buff(top: StkId, mut n: libc::c_int, buff: *mut libc::c_char) {
-    let mut tl: usize = 0 as libc::c_int as usize;
+unsafe fn copy2buff(top: StkId, mut n: libc::c_int, len: usize) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(len);
+
     loop {
-        let st: *mut Str = (*top.offset(-(n as isize))).val.value_.gc as *mut Str;
-        let l: usize = if (*st).shrlen.get() as libc::c_int != 0xff as libc::c_int {
-            (*st).shrlen.get() as usize
-        } else {
-            (*(*st).u.get()).lnglen
-        };
-        memcpy(
-            buff.offset(tl as isize) as *mut libc::c_void,
-            ((*st).contents).as_mut_ptr() as *const libc::c_void,
-            l.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
-        );
-        tl = tl.wrapping_add(l);
+        let st = (*top.offset(-(n as isize))).val.value_.gc.cast::<Str>();
+
+        buf.extend_from_slice((*st).as_bytes());
+
         n -= 1;
+
         if !(n > 0 as libc::c_int) {
             break;
         }
     }
+
+    buf
 }
 
 pub unsafe fn luaV_concat(
@@ -973,16 +970,7 @@ pub unsafe fn luaV_concat(
                 n += 1;
             }
 
-            let ts = if tl <= 40 as libc::c_int as usize {
-                let mut buff: [libc::c_char; 40] = [0; 40];
-                copy2buff(top, n, buff.as_mut_ptr());
-                luaS_newlstr((*L).hdr.global, buff.as_mut_ptr(), tl)
-            } else {
-                let ts = luaS_createlngstrobj((*L).hdr.global, tl);
-                copy2buff(top, n, ((*ts).contents).as_mut_ptr());
-                ts
-            };
-
+            let ts = Str::new((*L).hdr.global, copy2buff(top, n, tl));
             let io: *mut UnsafeValue = &raw mut (*top.offset(-(n as isize))).val;
 
             (*io).value_.gc = ts.cast();
