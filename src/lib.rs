@@ -115,16 +115,6 @@ pub struct Lua {
 }
 
 impl Lua {
-    /// Returns a global table.
-    #[inline(always)]
-    pub fn global(&self) -> &Table {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
-        let tab = unsafe { (*reg).array.get().add(2 - 1) };
-        let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
-
-        unsafe { &*tab }
-    }
-
     /// Load a Lua chunk.
     pub fn load(
         self: &Pin<Rc<Self>>,
@@ -168,14 +158,29 @@ impl Lua {
         Ok(f)
     }
 
-    pub fn create_table(&self) -> Ref<Table> {
-        todo!()
-    }
-
     /// Create a new Lua thread (AKA coroutine).
     #[inline(always)]
     pub fn spawn(self: &Pin<Rc<Self>>) -> Ref<Thread> {
         Thread::new(self)
+    }
+
+    /// Returns a global table.
+    #[inline(always)]
+    pub fn global(&self) -> &Table {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
+        let tab = unsafe { (*reg).array.get().add(2 - 1) };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
+
+        unsafe { &*tab }
+    }
+
+    /// Create a Lua string.
+    pub fn create_str(&self, v: impl AsRef<str>) -> Ref<Str> {
+        unsafe { Ref::new(self.to_rc(), Str::new(self, v.as_ref())) }
+    }
+
+    pub fn create_table(&self) -> Ref<Table> {
+        todo!()
     }
 
     fn reset_gray(&self) {
@@ -184,6 +189,11 @@ impl Lua {
         self.ephemeron.set(null_mut());
         self.allweak.set(null_mut());
         self.weak.set(null_mut());
+    }
+
+    fn to_rc(&self) -> Pin<Rc<Self>> {
+        unsafe { Rc::increment_strong_count(self) };
+        unsafe { Pin::new_unchecked(Rc::from_raw(self)) }
     }
 }
 

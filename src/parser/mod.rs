@@ -7,7 +7,17 @@ use core::fmt::{Display, Formatter};
 /// Contains information for Lua chunk.
 #[derive(Default, Clone)]
 pub struct ChunkInfo {
-    pub name: String,
+    name: String,
+}
+
+impl ChunkInfo {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self { name: name.into() }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 /// Represents an error when failed to parse Lua source.

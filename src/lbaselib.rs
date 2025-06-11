@@ -361,7 +361,7 @@ unsafe fn luaB_load(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
     match (*L)
         .hdr
         .global_owned()
-        .load(ChunkInfo { name: name.clone() }, s)
+        .load(ChunkInfo::new(name.clone()), s)
     {
         Ok(f) => {
             if env != 0 as libc::c_int {

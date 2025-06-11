@@ -851,7 +851,7 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
             let align = align_of::<Str>();
             let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
-            (*g).strt.remove(ts);
+            core::ptr::drop_in_place(ts);
             (*g).gc.dealloc(ts.cast(), layout);
         }
         20 => {
@@ -860,6 +860,7 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
             let align = align_of::<Str>();
             let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
+            core::ptr::drop_in_place(ts_0);
             (*g).gc.dealloc(ts_0.cast(), layout);
         }
         _ => unreachable!(),

@@ -18,7 +18,7 @@ use crate::lapi::{
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::{CallInfo, lua_Debug};
-use crate::{ChunkInfo, Fp, Thread, lua_pop};
+use crate::{Fp, Thread, lua_pop};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
@@ -86,7 +86,7 @@ unsafe fn findfield(
 
 unsafe fn pushglobalfuncname(
     mut L: *const Thread,
-    mut ar: *mut lua_Debug,
+    mut ar: &mut lua_Debug,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     let mut top: libc::c_int = lua_gettop(L);
     lua_getinfo(L, b"f\0" as *const u8 as *const libc::c_char, ar);
@@ -136,14 +136,8 @@ unsafe fn pushfuncname(
         dst.push('\'');
     } else if *(*ar).what as libc::c_int == 'm' as i32 {
         dst.push_str("main chunk");
-    } else if *(*ar).what as libc::c_int != 'C' as i32 {
-        write!(
-            dst,
-            "function <{}:{}>",
-            (*ar).source.name,
-            (*ar).linedefined
-        )
-        .unwrap();
+    } else if let Some(v) = &ar.source {
+        write!(dst, "function <{}:{}>", v.name(), (*ar).linedefined).unwrap();
     } else {
         dst.push('?');
     }
@@ -157,7 +151,7 @@ unsafe fn lastlevel(mut L: *mut Thread) -> libc::c_int {
         name: 0 as *const libc::c_char,
         namewhat: 0 as *const libc::c_char,
         what: 0 as *const libc::c_char,
-        source: ChunkInfo::default(),
+        source: None,
         currentline: 0,
         linedefined: 0,
         lastlinedefined: 0,
@@ -198,7 +192,7 @@ pub unsafe fn luaL_traceback(
         name: 0 as *const libc::c_char,
         namewhat: 0 as *const libc::c_char,
         what: 0 as *const libc::c_char,
-        source: ChunkInfo::default(),
+        source: None,
         currentline: 0,
         linedefined: 0,
         lastlinedefined: 0,
@@ -242,9 +236,20 @@ pub unsafe fn luaL_traceback(
             lua_getinfo(L1, b"Slnt\0" as *const u8 as *const libc::c_char, &mut ar);
 
             if ar.currentline <= 0 {
-                write!(b, "\n\t{}: in ", ar.source.name).unwrap();
+                write!(
+                    b,
+                    "\n\t{}: in ",
+                    ar.source.as_ref().map(|v| v.name()).unwrap_or("")
+                )
+                .unwrap();
             } else {
-                write!(b, "\n\t{}:{}: in ", ar.source.name, ar.currentline,).unwrap();
+                write!(
+                    b,
+                    "\n\t{}:{}: in ",
+                    ar.source.as_ref().map(|v| v.name()).unwrap_or(""),
+                    ar.currentline,
+                )
+                .unwrap();
             }
 
             pushfuncname(L, &mut b, &mut ar)?;
@@ -269,7 +274,7 @@ pub unsafe fn luaL_argerror(
         name: 0 as *const libc::c_char,
         namewhat: 0 as *const libc::c_char,
         what: 0 as *const libc::c_char,
-        source: ChunkInfo::default(),
+        source: None,
         currentline: 0,
         linedefined: 0,
         lastlinedefined: 0,
@@ -345,7 +350,7 @@ pub unsafe fn luaL_where(mut L: *const Thread, level: libc::c_int) -> Cow<'stati
         name: 0 as *const libc::c_char,
         namewhat: 0 as *const libc::c_char,
         what: 0 as *const libc::c_char,
-        source: ChunkInfo::default(),
+        source: None,
         currentline: 0,
         linedefined: 0,
         lastlinedefined: 0,
@@ -362,7 +367,12 @@ pub unsafe fn luaL_where(mut L: *const Thread, level: libc::c_int) -> Cow<'stati
         lua_getinfo(L, b"Sl\0" as *const u8 as *const libc::c_char, &mut ar);
 
         if ar.currentline > 0 {
-            return format!("{}:{}: ", ar.source.name, ar.currentline,).into();
+            return format!(
+                "{}:{}: ",
+                ar.source.as_ref().map(|v| v.name()).unwrap_or(""),
+                ar.currentline,
+            )
+            .into();
         }
     }
 

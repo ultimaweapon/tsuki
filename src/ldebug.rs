@@ -127,7 +127,7 @@ pub unsafe fn lua_gethookcount(L: *mut Thread) -> libc::c_int {
 pub unsafe fn lua_getstack(
     L: *const Thread,
     mut level: libc::c_int,
-    ar: *mut lua_Debug,
+    ar: &mut lua_Debug,
 ) -> libc::c_int {
     let mut status: libc::c_int = 0;
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
@@ -272,16 +272,16 @@ pub unsafe fn lua_setlocal(
     return name;
 }
 
-unsafe fn funcinfo(ar: *mut lua_Debug, cl: *const Object) {
+unsafe fn funcinfo(ar: &mut lua_Debug, cl: *const Object) {
     if !(!cl.is_null() && (*cl).tt as libc::c_int == 6 as libc::c_int | (0 as libc::c_int) << 4) {
-        (*ar).source.name.clear();
+        (*ar).source = None;
         (*ar).linedefined = -(1 as libc::c_int);
         (*ar).lastlinedefined = -(1 as libc::c_int);
         (*ar).what = b"C\0" as *const u8 as *const libc::c_char;
     } else {
         let p: *const Proto = (*cl.cast::<LuaFn>()).p.get();
 
-        (*ar).source = (*p).chunk.clone();
+        (*ar).source = Some((*p).chunk.clone());
         (*ar).linedefined = (*p).linedefined;
         (*ar).lastlinedefined = (*p).lastlinedefined;
         (*ar).what = if (*ar).linedefined == 0 as libc::c_int {
@@ -356,7 +356,7 @@ unsafe fn getfuncname(
 unsafe fn auxgetinfo(
     L: *const Thread,
     mut what: *const libc::c_char,
-    ar: *mut lua_Debug,
+    ar: &mut lua_Debug,
     f: *const Object,
     ci: *mut CallInfo,
 ) -> libc::c_int {
@@ -430,7 +430,7 @@ unsafe fn auxgetinfo(
 pub unsafe fn lua_getinfo(
     L: *const Thread,
     mut what: *const libc::c_char,
-    ar: *mut lua_Debug,
+    ar: &mut lua_Debug,
 ) -> libc::c_int {
     let mut status: libc::c_int = 0;
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
@@ -1047,7 +1047,7 @@ pub unsafe fn luaG_ordererror(
 }
 
 pub unsafe fn luaG_addinfo(msg: impl Display, src: &ChunkInfo, line: libc::c_int) -> String {
-    format!("{}:{}: {}", src.name, line, msg)
+    format!("{}:{}: {}", src.name(), line, msg)
 }
 
 pub unsafe fn luaG_runerror(

@@ -31,7 +31,7 @@ impl StringTable {
     /// # Safety
     /// The returned [`Str`] may already dead but not collected yet so the caller must check and
     /// resurrect it.
-    pub unsafe fn insert(&self, h: u32, str: &[u8]) -> Result<*const Str, *mut *const Str> {
+    pub(super) unsafe fn insert(&self, h: u32, str: &[u8]) -> Result<*const Str, *mut *const Str> {
         // Check if same string exists.
         let mut e = self.entry(h);
         let mut s = unsafe { *e };
@@ -55,7 +55,7 @@ impl StringTable {
         Err(e)
     }
 
-    pub unsafe fn remove(&self, s: *mut Str) {
+    pub(super) unsafe fn remove(&self, s: *mut Str) {
         let mut e = self.entry(unsafe { (*s).hash.get() });
 
         while unsafe { *e != s } {

@@ -222,7 +222,7 @@ pub unsafe fn luaD_hook(
             name: 0 as *const libc::c_char,
             namewhat: 0 as *const libc::c_char,
             what: 0 as *const libc::c_char,
-            source: ChunkInfo::default(),
+            source: None,
             currentline: 0,
             linedefined: 0,
             lastlinedefined: 0,

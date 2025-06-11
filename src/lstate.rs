@@ -20,7 +20,7 @@ pub struct lua_Debug {
     pub name: *const libc::c_char,
     pub namewhat: *const libc::c_char,
     pub what: *const libc::c_char,
-    pub source: ChunkInfo,
+    pub source: Option<ChunkInfo>,
     pub currentline: libc::c_int,
     pub linedefined: libc::c_int,
     pub lastlinedefined: libc::c_int,

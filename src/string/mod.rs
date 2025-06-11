@@ -96,6 +96,14 @@ impl Str {
     }
 }
 
+impl Drop for Str {
+    fn drop(&mut self) {
+        if self.shrlen.get() != 0xff {
+            unsafe { (*self.hdr.global).strt.remove(self) };
+        }
+    }
+}
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub(crate) union C2RustUnnamed_8 {
