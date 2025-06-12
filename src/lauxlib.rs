@@ -7,9 +7,9 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::lapi::{
-    lua_absindex, lua_call, lua_checkstack, lua_concat, lua_copy, lua_createtable, lua_getfield,
+    lua_absindex, lua_checkstack, lua_concat, lua_copy, lua_createtable, lua_getfield,
     lua_getmetatable, lua_gettop, lua_isinteger, lua_isnumber, lua_isstring, lua_len, lua_next,
-    lua_pushboolean, lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil,
+    lua_pcall, lua_pushboolean, lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil,
     lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawget, lua_rotate, lua_setfield,
     lua_setglobal, lua_setmetatable, lua_settop, lua_toboolean, lua_tointegerx, lua_tolstring,
     lua_tonumberx, lua_topointer, lua_touserdata, lua_type, lua_typename,
@@ -691,7 +691,7 @@ pub unsafe fn luaL_callmeta(
     }
 
     lua_pushvalue(L, obj);
-    lua_call(L, 1, 1)?;
+    lua_pcall(L, 1, 1)?;
 
     return Ok(1);
 }
@@ -840,7 +840,7 @@ pub unsafe fn luaL_requiref(
         lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
         lua_pushcclosure(L, openf, 0 as libc::c_int);
         lua_pushstring(L, modname);
-        lua_call(L, 1, 1)?;
+        lua_pcall(L, 1, 1)?;
         lua_pushvalue(L, -(1 as libc::c_int));
         lua_setfield(L, -(3 as libc::c_int), modname)?;
     }

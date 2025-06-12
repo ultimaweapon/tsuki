@@ -28,7 +28,8 @@ use alloc::boxed::Box;
 use core::ffi::{CStr, c_void};
 use core::mem::offset_of;
 use core::ptr::null_mut;
-use libc::c_int;
+
+type c_int = i32;
 
 unsafe fn index2value(L: *const Thread, mut idx: c_int) -> *mut UnsafeValue {
     let ci: *mut CallInfo = (*L).ci.get();
@@ -1228,22 +1229,6 @@ pub unsafe fn lua_setiuservalue(L: *mut Thread, idx: c_int, n: c_int) -> c_int {
     (*L).top.sub(1);
 
     return res;
-}
-
-pub unsafe fn lua_call(
-    L: *const Thread,
-    nargs: c_int,
-    nresults: c_int,
-) -> Result<(), Box<dyn core::error::Error>> {
-    let func = ((*L).top.get()).offset(-((nargs + 1) as isize));
-
-    luaD_call(L, func, nresults)?;
-
-    if nresults <= -1 && (*(*L).ci.get()).top < (*L).top.get() {
-        (*(*L).ci.get()).top = (*L).top.get();
-    }
-
-    Ok(())
 }
 
 pub unsafe fn lua_pcall(
