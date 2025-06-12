@@ -202,8 +202,6 @@ impl Drop for Lua {
 /// Lua value.
 pub enum Value {}
 
-pub type Fp = unsafe fn(*const Thread) -> Result<libc::c_int, Box<dyn core::error::Error>>;
-
 /// Represents an error when arithmetic operation fails.
 #[derive(Debug, Error)]
 pub enum ArithError {

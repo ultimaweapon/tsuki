@@ -22,8 +22,8 @@ use crate::lvm::{
 use crate::table::{
     luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_new, luaH_next, luaH_resize, luaH_setint,
 };
-use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{Fp, LuaFn, Object, Str, Table, TableError, Thread, api_incr_top};
+use crate::value::{Fp, UnsafeValue, UntaggedValue};
+use crate::{LuaFn, Object, Str, Table, TableError, Thread, api_incr_top};
 use alloc::boxed::Box;
 use core::ffi::{CStr, c_void};
 use core::mem::offset_of;

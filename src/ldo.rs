@@ -15,8 +15,8 @@ use crate::lstate::{CallInfo, lua_Debug, lua_Hook, luaE_extendCI, luaE_shrinkCI}
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, Zio};
-use crate::value::UnsafeValue;
-use crate::{ChunkInfo, Fp, Lua, LuaFn, ParseError, Ref, Thread};
+use crate::value::{Fp, UnsafeValue};
+use crate::{ChunkInfo, Lua, LuaFn, ParseError, Ref, Thread};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
