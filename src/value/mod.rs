@@ -1,4 +1,4 @@
-use crate::{AsyncContext, Context, Object, Thread, YieldContext};
+use crate::{AsyncContext, Context, Object, YieldContext};
 use std::boxed::Box;
 
 /// The outside **must** never be able to construct or have the value of this type.
@@ -39,4 +39,4 @@ pub union UntaggedValue {
     pub n: f64,
 }
 
-pub type Fp = unsafe fn(*const Thread) -> Result<libc::c_int, Box<dyn core::error::Error>>;
+pub type Fp = unsafe fn(&mut Context) -> Result<libc::c_int, Box<dyn core::error::Error>>;

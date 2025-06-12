@@ -16,13 +16,15 @@ use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, Zio};
 use crate::value::{Fp, UnsafeValue};
-use crate::{ChunkInfo, Lua, LuaFn, ParseError, Ref, Thread};
+use crate::{ChunkInfo, Context, Lua, LuaFn, ParseError, Ref, Thread};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use core::alloc::Layout;
 use core::ops::Deref;
 use core::pin::Pin;
+
+type c_int = i32;
 
 #[repr(C)]
 struct SParser {
@@ -99,10 +101,10 @@ unsafe fn correctstack(L: *const Thread) {
 pub unsafe fn luaD_reallocstack(th: *const Thread, newsize: usize) {
     let lua = (*th).hdr.global;
     let oldsize = ((*th).stack_last.get()).offset_from_unsigned((*th).stack.get());
-    let oldgcstop: libc::c_int = (*lua).gcstopem.get() as libc::c_int;
+    let oldgcstop: c_int = (*lua).gcstopem.get() as c_int;
 
     relstack(th);
-    (*lua).gcstopem.set(1 as libc::c_int as u8);
+    (*lua).gcstopem.set(1 as c_int as u8);
 
     // Re-allocate the stack.
     let newstack = alloc::alloc::realloc(
@@ -204,14 +206,14 @@ pub unsafe fn luaD_shrinkstack(L: *const Thread) {
 
 pub unsafe fn luaD_hook(
     L: *const Thread,
-    event: libc::c_int,
-    line: libc::c_int,
-    ftransfer: libc::c_int,
-    ntransfer: libc::c_int,
+    event: c_int,
+    line: c_int,
+    ftransfer: c_int,
+    ntransfer: c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let hook: lua_Hook = (*L).hook.get();
     if hook.is_some() && (*L).allowhook.get() != 0 {
-        let mut mask: libc::c_int = (1 as libc::c_int) << 3 as libc::c_int;
+        let mut mask: c_int = (1 as c_int) << 3 as c_int;
         let ci: *mut CallInfo = (*L).ci.get();
         let top: isize = ((*L).top.get() as *mut libc::c_char)
             .offset_from((*L).stack.get() as *mut libc::c_char);
@@ -237,28 +239,27 @@ pub unsafe fn luaD_hook(
         ar.event = event;
         ar.currentline = line;
         ar.i_ci = ci;
-        if ntransfer != 0 as libc::c_int {
-            mask |= (1 as libc::c_int) << 8 as libc::c_int;
+        if ntransfer != 0 as c_int {
+            mask |= (1 as c_int) << 8 as c_int;
             (*ci).u2.transferinfo.ftransfer = ftransfer as libc::c_ushort;
             (*ci).u2.transferinfo.ntransfer = ntransfer as libc::c_ushort;
         }
-        if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0
-            && (*L).top.get() < (*ci).top
+        if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 && (*L).top.get() < (*ci).top
         {
             (*L).top.set((*ci).top);
         }
         if ((((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
-            <= 20 as libc::c_int as libc::c_long) as libc::c_int
-            != 0 as libc::c_int) as libc::c_int as libc::c_long
+            <= 20 as c_int as libc::c_long) as c_int
+            != 0 as c_int) as c_int as libc::c_long
             != 0
         {
             luaD_growstack(L, 20)?;
         }
-        if (*ci).top < ((*L).top.get()).offset(20 as libc::c_int as isize) {
-            (*ci).top = ((*L).top.get()).offset(20 as libc::c_int as isize);
+        if (*ci).top < ((*L).top.get()).offset(20 as c_int as isize) {
+            (*ci).top = ((*L).top.get()).offset(20 as c_int as isize);
         }
         (*L).allowhook.set(0);
-        (*ci).callstatus = ((*ci).callstatus as libc::c_int | mask) as libc::c_ushort;
+        (*ci).callstatus = ((*ci).callstatus as c_int | mask) as libc::c_ushort;
         (Some(hook.expect("non-null function pointer"))).expect("non-null function pointer")(
             L, &mut ar,
         );
@@ -266,7 +267,7 @@ pub unsafe fn luaD_hook(
         (*ci).top = ((*L).stack.get() as *mut libc::c_char).offset(ci_top as isize) as StkId;
         (*L).top
             .set(((*L).stack.get() as *mut libc::c_char).offset(top as isize) as StkId);
-        (*ci).callstatus = ((*ci).callstatus as libc::c_int & !mask) as libc::c_ushort;
+        (*ci).callstatus = ((*ci).callstatus as c_int & !mask) as libc::c_ushort;
     }
     Ok(())
 }
@@ -278,22 +279,15 @@ pub unsafe fn luaD_hookcall(
     (*L).oldpc.set(0);
 
     if (*L).hookmask.get() & 1 << 0 != 0 {
-        let event: libc::c_int =
-            if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0 {
-                4 as libc::c_int
-            } else {
-                0 as libc::c_int
-            };
+        let event: c_int = if (*ci).callstatus as c_int & (1 as c_int) << 5 as c_int != 0 {
+            4 as c_int
+        } else {
+            0 as c_int
+        };
         let p: *mut Proto = (*(*(*ci).func).val.value_.gc.cast::<LuaFn>()).p.get();
         (*ci).u.savedpc = ((*ci).u.savedpc).offset(1);
         (*ci).u.savedpc;
-        luaD_hook(
-            L,
-            event,
-            -(1 as libc::c_int),
-            1 as libc::c_int,
-            (*p).numparams as libc::c_int,
-        )?;
+        luaD_hook(L, event, -(1 as c_int), 1 as c_int, (*p).numparams as c_int)?;
         (*ci).u.savedpc = ((*ci).u.savedpc).offset(-1);
         (*ci).u.savedpc;
     }
@@ -303,31 +297,30 @@ pub unsafe fn luaD_hookcall(
 unsafe fn rethook(
     L: *const Thread,
     mut ci: *mut CallInfo,
-    nres: libc::c_int,
+    nres: c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
     if (*L).hookmask.get() & 1 << 1 != 0 {
         let firstres: StkId = ((*L).top.get()).offset(-(nres as isize));
-        let mut delta: libc::c_int = 0 as libc::c_int;
-        let mut ftransfer: libc::c_int = 0;
-        if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
+        let mut delta: c_int = 0 as c_int;
+        let mut ftransfer: c_int = 0;
+        if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
             let p: *mut Proto = (*(*(*ci).func).val.value_.gc.cast::<LuaFn>()).p.get();
             if (*p).is_vararg != 0 {
-                delta = (*ci).u.nextraargs + (*p).numparams as libc::c_int + 1 as libc::c_int;
+                delta = (*ci).u.nextraargs + (*p).numparams as c_int + 1 as c_int;
             }
         }
         (*ci).func = ((*ci).func).offset(delta as isize);
-        ftransfer =
-            firstres.offset_from((*ci).func) as libc::c_long as libc::c_ushort as libc::c_int;
-        luaD_hook(L, 1 as libc::c_int, -(1 as libc::c_int), ftransfer, nres)?;
+        ftransfer = firstres.offset_from((*ci).func) as libc::c_long as libc::c_ushort as c_int;
+        luaD_hook(L, 1 as c_int, -(1 as c_int), ftransfer, nres)?;
         (*ci).func = ((*ci).func).offset(-(delta as isize));
     }
     ci = (*ci).previous;
 
-    if (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0 {
+    if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
         (*L).oldpc.set(
             ((*ci).u.savedpc)
                 .offset_from((*(*(*(*ci).func).val.value_.gc.cast::<LuaFn>()).p.get()).code)
-                as libc::c_long as libc::c_int
+                as libc::c_long as c_int
                 - 1,
         );
     }
@@ -342,21 +335,21 @@ unsafe fn tryfuncTM(
     let mut tm: *const UnsafeValue = 0 as *const UnsafeValue;
     let mut p: StkId = 0 as *mut StackValue;
     if ((((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
-        <= 1 as libc::c_int as libc::c_long) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
+        <= 1 as c_int as libc::c_long) as c_int
+        != 0 as c_int) as c_int as libc::c_long
         != 0
     {
         let t__: isize =
             (func as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
-        if (*(*L).hdr.global).gc.debt() > 0 as libc::c_int as isize {
+        if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
             crate::gc::step((*L).hdr.global);
         }
         luaD_growstack(L, 1)?;
         func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
     }
     tm = luaT_gettmbyobj(L, &mut (*func).val, TM_CALL);
-    if (((*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
+    if (((*tm).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int != 0 as c_int) as c_int
+        as libc::c_long
         != 0
     {
         luaG_callerror(L, &mut (*func).val)?;
@@ -364,7 +357,7 @@ unsafe fn tryfuncTM(
     p = (*L).top.get();
     while p > func {
         let io1: *mut UnsafeValue = &mut (*p).val;
-        let io2: *const UnsafeValue = &mut (*p.offset(-(1 as libc::c_int as isize))).val;
+        let io2: *const UnsafeValue = &mut (*p.offset(-(1 as c_int as isize))).val;
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
         p = p.offset(-1);
@@ -382,19 +375,19 @@ unsafe fn tryfuncTM(
 unsafe fn moveresults(
     L: *const Thread,
     mut res: StkId,
-    mut nres: libc::c_int,
-    mut wanted: libc::c_int,
+    mut nres: c_int,
+    mut wanted: c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let mut firstresult: StkId = 0 as *mut StackValue;
-    let mut i: libc::c_int = 0;
+    let mut i: c_int = 0;
     match wanted {
         0 => {
             (*L).top.set(res);
             return Ok(());
         }
         1 => {
-            if nres == 0 as libc::c_int {
-                (*res).val.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+            if nres == 0 as c_int {
+                (*res).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
             } else {
                 let io1: *mut UnsafeValue = &raw mut (*res).val;
                 let io2: *const UnsafeValue =
@@ -402,21 +395,21 @@ unsafe fn moveresults(
                 (*io1).value_ = (*io2).value_;
                 (*io1).tt_ = (*io2).tt_;
             }
-            (*L).top.set(res.offset(1 as libc::c_int as isize));
+            (*L).top.set(res.offset(1 as c_int as isize));
             return Ok(());
         }
         -1 => {
             wanted = nres;
         }
         _ => {
-            if wanted < -(1 as libc::c_int) {
-                (*(*L).ci.get()).callstatus = ((*(*L).ci.get()).callstatus as libc::c_int
-                    | (1 as libc::c_int) << 9 as libc::c_int)
+            if wanted < -(1 as c_int) {
+                (*(*L).ci.get()).callstatus = ((*(*L).ci.get()).callstatus as c_int
+                    | (1 as c_int) << 9 as c_int)
                     as libc::c_ushort;
                 (*(*L).ci.get()).u2.nres = nres;
                 res = luaF_close(L, res)?;
-                (*(*L).ci.get()).callstatus = ((*(*L).ci.get()).callstatus as libc::c_int
-                    & !((1 as libc::c_int) << 9 as libc::c_int))
+                (*(*L).ci.get()).callstatus = ((*(*L).ci.get()).callstatus as c_int
+                    & !((1 as c_int) << 9 as c_int))
                     as libc::c_ushort;
                 if (*L).hookmask.get() != 0 {
                     let savedres: isize = (res as *mut libc::c_char)
@@ -425,8 +418,8 @@ unsafe fn moveresults(
                     res =
                         ((*L).stack.get() as *mut libc::c_char).offset(savedres as isize) as StkId;
                 }
-                wanted = -wanted - 3 as libc::c_int;
-                if wanted == -(1 as libc::c_int) {
+                wanted = -wanted - 3 as c_int;
+                if wanted == -(1 as c_int) {
                     wanted = nres;
                 }
             }
@@ -436,7 +429,7 @@ unsafe fn moveresults(
     if nres > wanted {
         nres = wanted;
     }
-    i = 0 as libc::c_int;
+    i = 0 as c_int;
     while i < nres {
         let io1_0: *mut UnsafeValue = &mut (*res.offset(i as isize)).val;
         let io2_0: *const UnsafeValue = &mut (*firstresult.offset(i as isize)).val;
@@ -445,8 +438,7 @@ unsafe fn moveresults(
         i += 1;
     }
     while i < wanted {
-        (*res.offset(i as isize)).val.tt_ =
-            (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+        (*res.offset(i as isize)).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
         i += 1;
     }
     (*L).top.set(res.offset(wanted as isize));
@@ -456,11 +448,11 @@ unsafe fn moveresults(
 pub unsafe fn luaD_poscall(
     L: *const Thread,
     ci: *mut CallInfo,
-    nres: libc::c_int,
+    nres: c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    let wanted: libc::c_int = (*ci).nresults as libc::c_int;
-    if (((*L).hookmask.get() != 0 && !(wanted < -(1 as libc::c_int))) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
+    let wanted: c_int = (*ci).nresults as c_int;
+    if (((*L).hookmask.get() != 0 && !(wanted < -(1 as c_int))) as c_int != 0 as c_int) as c_int
+        as libc::c_long
         != 0
     {
         rethook(L, ci, nres)?;
@@ -473,8 +465,8 @@ pub unsafe fn luaD_poscall(
 unsafe fn prepCallInfo(
     L: *const Thread,
     func: StkId,
-    nret: libc::c_int,
-    mask: libc::c_int,
+    nret: c_int,
+    mask: c_int,
     top: StkId,
 ) -> *mut CallInfo {
     (*L).ci.set(if !((*(*L).ci.get()).next).is_null() {
@@ -493,20 +485,19 @@ unsafe fn prepCallInfo(
 unsafe fn precallC(
     L: *const Thread,
     mut func: StkId,
-    nresults: libc::c_int,
+    nresults: c_int,
     f: Fp,
-) -> Result<libc::c_int, Box<dyn core::error::Error>> {
-    let mut n: libc::c_int = 0;
+) -> Result<c_int, Box<dyn core::error::Error>> {
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
 
     if ((((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
-        <= 20 as libc::c_int as libc::c_long) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
+        <= 20 as c_int as libc::c_long) as c_int
+        != 0 as c_int) as c_int as libc::c_long
         != 0
     {
         let t__: isize =
             (func as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
-        if (*(*L).hdr.global).gc.debt() > 0 as libc::c_int as isize {
+        if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
             crate::gc::step((*L).hdr.global);
         }
         luaD_growstack(L, 20)?;
@@ -517,25 +508,22 @@ unsafe fn precallC(
         L,
         func,
         nresults,
-        (1 as libc::c_int) << 1 as libc::c_int,
-        ((*L).top.get()).offset(20 as libc::c_int as isize),
+        (1 as c_int) << 1 as c_int,
+        ((*L).top.get()).offset(20 as c_int as isize),
     );
 
     (*L).ci.set(ci);
 
-    if ((*L).hookmask.get() & (1 as libc::c_int) << 0 != 0) as libc::c_int as libc::c_long != 0 {
-        let narg: libc::c_int =
-            ((*L).top.get()).offset_from(func) as libc::c_long as libc::c_int - 1 as libc::c_int;
-        luaD_hook(
-            L,
-            0 as libc::c_int,
-            -(1 as libc::c_int),
-            1 as libc::c_int,
-            narg,
-        )?;
+    if ((*L).hookmask.get() & (1 as c_int) << 0 != 0) as c_int as libc::c_long != 0 {
+        let narg: c_int = ((*L).top.get()).offset_from(func) as c_int - 1;
+
+        luaD_hook(L, 0 as c_int, -(1 as c_int), 1 as c_int, narg)?;
     }
 
-    n = f(L)?;
+    // Invoke Rust function.
+    let mut cx = Context::new(L);
+    let n = f(&mut cx)?;
+
     luaD_poscall(L, ci, n)?;
 
     Ok(n)
@@ -545,34 +533,34 @@ pub unsafe fn luaD_pretailcall(
     L: *const Thread,
     ci: *mut CallInfo,
     mut func: StkId,
-    mut narg1: libc::c_int,
-    delta: libc::c_int,
-) -> Result<libc::c_int, Box<dyn core::error::Error>> {
+    mut narg1: c_int,
+    delta: c_int,
+) -> Result<c_int, Box<dyn core::error::Error>> {
     loop {
-        match (*func).val.tt_ as libc::c_int & 0x3f as libc::c_int {
+        match (*func).val.tt_ as c_int & 0x3f as c_int {
             38 => {
                 return precallC(
                     L,
                     func,
-                    -(1 as libc::c_int),
+                    -(1 as c_int),
                     (*((*func).val.value_.gc as *mut CClosure)).f,
                 );
             }
-            22 => return precallC(L, func, -(1 as libc::c_int), (*func).val.value_.f),
+            22 => return precallC(L, func, -(1 as c_int), (*func).val.value_.f),
             6 => {
                 let p: *mut Proto = (*(*func).val.value_.gc.cast::<LuaFn>()).p.get();
-                let fsize: libc::c_int = (*p).maxstacksize as libc::c_int;
-                let nfixparams: libc::c_int = (*p).numparams as libc::c_int;
-                let mut i: libc::c_int = 0;
+                let fsize: c_int = (*p).maxstacksize as c_int;
+                let nfixparams: c_int = (*p).numparams as c_int;
+                let mut i: c_int = 0;
 
                 if ((((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
-                    <= (fsize - delta) as libc::c_long) as libc::c_int
-                    != 0 as libc::c_int) as libc::c_int as libc::c_long
+                    <= (fsize - delta) as libc::c_long) as c_int
+                    != 0 as c_int) as c_int as libc::c_long
                     != 0
                 {
                     let t__: isize = (func as *mut libc::c_char)
                         .offset_from((*L).stack.get() as *mut libc::c_char);
-                    if (*(*L).hdr.global).gc.debt() > 0 as libc::c_int as isize {
+                    if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
                         crate::gc::step((*L).hdr.global);
                     }
                     luaD_growstack(L, (fsize - delta).try_into().unwrap())?;
@@ -580,7 +568,7 @@ pub unsafe fn luaD_pretailcall(
                 }
 
                 (*ci).func = ((*ci).func).offset(-(delta as isize));
-                i = 0 as libc::c_int;
+                i = 0 as c_int;
                 while i < narg1 {
                     let io1: *mut UnsafeValue = &raw mut (*((*ci).func).offset(i as isize)).val;
                     let io2: *const UnsafeValue = &raw mut (*func.offset(i as isize)).val;
@@ -591,18 +579,15 @@ pub unsafe fn luaD_pretailcall(
                 func = (*ci).func;
                 while narg1 <= nfixparams {
                     (*func.offset(narg1 as isize)).val.tt_ =
-                        (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+                        (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     narg1 += 1;
                 }
-                (*ci).top = func
-                    .offset(1 as libc::c_int as isize)
-                    .offset(fsize as isize);
+                (*ci).top = func.offset(1 as c_int as isize).offset(fsize as isize);
                 (*ci).u.savedpc = (*p).code;
-                (*ci).callstatus = ((*ci).callstatus as libc::c_int
-                    | (1 as libc::c_int) << 5 as libc::c_int)
-                    as libc::c_ushort;
+                (*ci).callstatus =
+                    ((*ci).callstatus as c_int | (1 as c_int) << 5 as c_int) as libc::c_ushort;
                 (*L).top.set(func.offset(narg1 as isize));
-                return Ok(-(1 as libc::c_int));
+                return Ok(-(1 as c_int));
             }
             _ => {
                 func = tryfuncTM(L, func)?;
@@ -615,10 +600,10 @@ pub unsafe fn luaD_pretailcall(
 pub unsafe fn luaD_precall(
     L: *const Thread,
     mut func: StkId,
-    nresults: libc::c_int,
+    nresults: c_int,
 ) -> Result<*mut CallInfo, Box<dyn core::error::Error>> {
     loop {
-        match (*func).val.tt_ as libc::c_int & 0x3f as libc::c_int {
+        match (*func).val.tt_ as c_int & 0x3f as c_int {
             38 => {
                 precallC(
                     L,
@@ -635,16 +620,15 @@ pub unsafe fn luaD_precall(
             6 => {
                 let mut ci: *mut CallInfo = 0 as *mut CallInfo;
                 let p: *mut Proto = (*(*func).val.value_.gc.cast::<LuaFn>()).p.get();
-                let mut narg: libc::c_int = ((*L).top.get()).offset_from(func) as libc::c_long
-                    as libc::c_int
-                    - 1 as libc::c_int;
-                let nfixparams: libc::c_int = (*p).numparams as libc::c_int;
+                let mut narg: c_int =
+                    ((*L).top.get()).offset_from(func) as libc::c_long as c_int - 1 as c_int;
+                let nfixparams: c_int = (*p).numparams as c_int;
                 let fsize = usize::from((*p).maxstacksize);
 
                 if ((*L).stack_last.get()).offset_from_unsigned((*L).top.get()) <= fsize {
                     let t__: isize = (func as *mut libc::c_char)
                         .offset_from((*L).stack.get() as *mut libc::c_char);
-                    if (*(*L).hdr.global).gc.debt() > 0 as libc::c_int as isize {
+                    if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
                         crate::gc::step((*L).hdr.global);
                     }
                     luaD_growstack(L, fsize)?;
@@ -655,17 +639,15 @@ pub unsafe fn luaD_precall(
                     L,
                     func,
                     nresults,
-                    0 as libc::c_int,
-                    func.offset(1 as libc::c_int as isize)
-                        .offset(fsize as isize),
+                    0 as c_int,
+                    func.offset(1 as c_int as isize).offset(fsize as isize),
                 );
                 (*L).ci.set(ci);
                 (*ci).u.savedpc = (*p).code;
                 while narg < nfixparams {
                     let fresh2 = (*L).top.get();
                     (*L).top.add(1);
-                    (*fresh2).val.tt_ =
-                        (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
+                    (*fresh2).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     narg += 1;
                 }
                 return Ok(ci);
@@ -678,12 +660,12 @@ pub unsafe fn luaD_precall(
 pub unsafe fn luaD_call(
     L: *const Thread,
     func: StkId,
-    nResults: libc::c_int,
+    nResults: c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let ci = luaD_precall(L, func, nResults)?;
 
     if !ci.is_null() {
-        (*ci).callstatus = ((1 as libc::c_int) << 2 as libc::c_int) as libc::c_ushort;
+        (*ci).callstatus = ((1 as c_int) << 2 as c_int) as libc::c_ushort;
         luaV_execute(L, ci)?;
     }
 
@@ -771,21 +753,21 @@ pub unsafe fn luaD_protectedparser(
 
     p.z = &mut z;
     p.dyd.actvar.arr = 0 as *mut Vardesc;
-    p.dyd.actvar.size = 0 as libc::c_int;
+    p.dyd.actvar.size = 0 as c_int;
     p.dyd.gt.arr = 0 as *mut Labeldesc;
-    p.dyd.gt.size = 0 as libc::c_int;
+    p.dyd.gt.size = 0 as c_int;
     p.dyd.label.arr = 0 as *mut Labeldesc;
-    p.dyd.label.size = 0 as libc::c_int;
+    p.dyd.label.size = 0 as c_int;
     p.buff.buffer = 0 as *mut libc::c_char;
-    p.buff.buffsize = 0 as libc::c_int as usize;
+    p.buff.buffsize = 0 as c_int as usize;
 
     // Parse.
     let fresh3 = (*p.z).n;
     (*p.z).n = ((*p.z).n).wrapping_sub(1);
-    let c: libc::c_int = if fresh3 > 0 {
+    let c: c_int = if fresh3 > 0 {
         let fresh4 = (*p.z).p;
         (*p.z).p = ((*p.z).p).offset(1);
-        *fresh4 as libc::c_uchar as libc::c_int
+        *fresh4 as libc::c_uchar as c_int
     } else {
         -1
     };
@@ -802,7 +784,7 @@ pub unsafe fn luaD_protectedparser(
         (p.buff.buffsize).wrapping_mul(::core::mem::size_of::<libc::c_char>()),
         0usize.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
     ) as *mut libc::c_char;
-    p.buff.buffsize = 0 as libc::c_int as usize;
+    p.buff.buffsize = 0 as c_int as usize;
     luaM_free_(
         g.deref(),
         p.dyd.actvar.arr as *mut libc::c_void,
