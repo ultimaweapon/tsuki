@@ -1,13 +1,8 @@
-use crate::lauxlib::luaL_requiref;
-use crate::lbaselib::luaopen_base;
 use crate::llex::luaX_init;
-use crate::lmathlib::luaopen_math;
-use crate::lstrlib::luaopen_string;
-use crate::ltablib::luaopen_table;
 use crate::ltm::luaT_init;
 use crate::table::{luaH_new, luaH_resize};
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{Gc, Lua, Module, Object, Ref, StringTable, Thread, lua_pop};
+use crate::{Gc, Lua, Module, Object, StringTable};
 use alloc::rc::Rc;
 use core::cell::{Cell, UnsafeCell};
 use core::marker::PhantomPinned;
@@ -18,7 +13,6 @@ use core::ptr::{null, null_mut};
 /// Struct to build the instance of [`Lua`].
 pub struct Builder {
     g: Pin<Rc<Lua>>,
-    th: Ref<Thread>,
 }
 
 impl Builder {
@@ -132,49 +126,7 @@ impl Builder {
 
         g.gcstp.set(0);
 
-        Self {
-            th: Thread::new(&g),
-            g,
-        }
-    }
-
-    /// Enable all built-in libraries.
-    ///
-    /// This has the same effect as calling [`Self::enable_base()`], [`Self::enable_string()`],
-    /// [`Self::enable_table()`] and [`Self::enable_math()`] individually.
-    pub fn enable_all(self) -> Self {
-        self.enable_base()
-            .enable_string()
-            .enable_table()
-            .enable_math()
-    }
-
-    /// Enable [basic library](https://www.lua.org/manual/5.4/manual.html#6.1).
-    pub fn enable_base(self) -> Self {
-        unsafe { luaL_requiref(self.th.deref(), c"_G".as_ptr(), luaopen_base, 0).unwrap() };
-        unsafe { lua_pop(self.th.deref(), 1).unwrap() };
-        self
-    }
-
-    /// Enable [string library](https://www.lua.org/manual/5.4/manual.html#6.4).
-    pub fn enable_string(self) -> Self {
-        unsafe { luaL_requiref(self.th.deref(), c"string".as_ptr(), luaopen_string, 1).unwrap() };
-        unsafe { lua_pop(self.th.deref(), 1).unwrap() };
-        self
-    }
-
-    /// Enable [table library](https://www.lua.org/manual/5.4/manual.html#6.6).
-    pub fn enable_table(self) -> Self {
-        unsafe { luaL_requiref(self.th.deref(), c"table".as_ptr(), luaopen_table, 1).unwrap() };
-        unsafe { lua_pop(self.th.deref(), 1).unwrap() };
-        self
-    }
-
-    /// Enable [mathematical library](https://www.lua.org/manual/5.4/manual.html#6.7).
-    pub fn enable_math(self) -> Self {
-        unsafe { luaL_requiref(self.th.deref(), c"math".as_ptr(), luaopen_math, 1).unwrap() };
-        unsafe { lua_pop(self.th.deref(), 1).unwrap() };
-        self
+        Self { g }
     }
 
     /// # Panics
