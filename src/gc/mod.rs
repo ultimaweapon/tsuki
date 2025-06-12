@@ -12,7 +12,7 @@ pub use self::r#ref::*;
 
 use crate::ldo::luaD_shrinkstack;
 use crate::lfunc::{luaF_freeproto, luaF_unlinkupval};
-use crate::lobject::{CClosure, Proto, StkId, UValue, Udata, UpVal};
+use crate::lobject::{CClosure, Proto, StkId, Udata, UpVal};
 use crate::ltm::{TM_MODE, luaT_gettm};
 use crate::table::{luaH_free, luaH_realasize};
 use crate::value::UnsafeValue;
@@ -489,20 +489,21 @@ unsafe fn traverseudata(g: *const Lua, u: *const Udata) -> libc::c_int {
         }
     }
     i = 0 as libc::c_int;
+
     while i < (*u).nuvalue as libc::c_int {
-        if (*((*u).uv).as_ptr().offset(i as isize)).uv.tt_ as libc::c_int
-            & (1 as libc::c_int) << 6 as libc::c_int
-            != 0
-            && (*(*((*u).uv).as_ptr().offset(i as isize)).uv.value_.gc)
+        if (*((*u).uv).as_ptr().offset(i as isize)).tt_ & 1 << 6 != 0
+            && (*(*((*u).uv).as_ptr().offset(i as isize)).value_.gc)
                 .marked
                 .get() as libc::c_int
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            reallymarkobject(g, (*((*u).uv).as_ptr().offset(i as isize)).uv.value_.gc);
+            reallymarkobject(g, (*((*u).uv).as_ptr().offset(i as isize)).value_.gc);
         }
+
         i += 1;
     }
+
     genlink(g, u as *const Object);
     return 1 as libc::c_int + (*u).nuvalue as libc::c_int;
 }
@@ -835,7 +836,7 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
             let u: *mut Udata = o as *mut Udata;
             let layout = Layout::from_size_align(
                 offset_of!(Udata, uv)
-                    + size_of::<UValue>()
+                    + size_of::<UnsafeValue>()
                         .wrapping_mul((*u).nuvalue.into())
                         .wrapping_add((*u).len),
                 align_of::<Udata>(),

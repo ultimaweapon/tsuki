@@ -6,7 +6,8 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::lobject::{UValue, Udata};
+use crate::lobject::Udata;
+use crate::value::UnsafeValue;
 use crate::{Lua, Object, Str};
 use core::alloc::Layout;
 use core::mem::offset_of;
@@ -57,7 +58,7 @@ pub unsafe fn luaS_hashlongstr(ts: *mut Str) -> libc::c_uint {
 
 pub unsafe fn luaS_newudata(g: *const Lua, s: usize, nuvalue: libc::c_int) -> *mut Udata {
     let mut i: libc::c_int = 0;
-    let min = offset_of!(Udata, uv) + size_of::<UValue>() * nuvalue as usize;
+    let min = offset_of!(Udata, uv) + size_of::<UnsafeValue>() * nuvalue as usize;
     let size = min + s;
     let align = align_of::<Udata>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
@@ -69,7 +70,7 @@ pub unsafe fn luaS_newudata(g: *const Lua, s: usize, nuvalue: libc::c_int) -> *m
     i = 0 as libc::c_int;
 
     while i < nuvalue {
-        (*((*o).uv).as_mut_ptr().offset(i as isize)).uv.tt_ = 0 | 0 << 4;
+        (*((*o).uv).as_mut_ptr().offset(i as isize)).tt_ = 0 | 0 << 4;
         i += 1;
     }
 

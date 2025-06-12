@@ -10,8 +10,7 @@ use crate::gc::{luaC_barrier_, luaC_barrierback_};
 use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall};
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::{
-    CClosure, Proto, StackValue, StkId, UValue, Udata, UpVal, luaO_arith, luaO_str2num,
-    luaO_tostring,
+    CClosure, Proto, StackValue, StkId, Udata, UpVal, luaO_arith, luaO_str2num, luaO_tostring,
 };
 use crate::lstate::CallInfo;
 use crate::lstring::luaS_newudata;
@@ -473,7 +472,8 @@ unsafe fn touserdata(o: *const UnsafeValue) -> *mut libc::c_void {
             .gc
             .byte_add(
                 offset_of!(Udata, uv)
-                    + size_of::<UValue>() * usize::from((*((*o).value_.gc as *mut Udata)).nuvalue),
+                    + size_of::<UnsafeValue>()
+                        * usize::from((*((*o).value_.gc as *mut Udata)).nuvalue),
             )
             .cast_mut()
             .cast(),
@@ -859,12 +859,14 @@ pub unsafe fn lua_getiuservalue(L: *mut Thread, idx: c_int, n: c_int) -> c_int {
         t = -(1 as c_int);
     } else {
         let io1: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-        let io2: *const UnsafeValue = &mut (*((*((*o).value_.gc as *mut Udata)).uv)
+        let io2: *const UnsafeValue = (*((*o).value_.gc as *mut Udata))
+            .uv
             .as_mut_ptr()
-            .offset((n - 1 as c_int) as isize))
-        .uv;
+            .offset((n - 1 as c_int) as isize);
+
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
+
         t = (*(*L).top.get()).val.tt_ as c_int & 0xf as c_int;
     }
     api_incr_top(L);
@@ -1192,14 +1194,16 @@ pub unsafe fn lua_setiuservalue(L: *mut Thread, idx: c_int, n: c_int) -> c_int {
     {
         res = 0 as c_int;
     } else {
-        let io1: *mut UnsafeValue = &mut (*((*((*o).value_.gc as *mut Udata)).uv)
+        let io1: *mut UnsafeValue = (*((*o).value_.gc as *mut Udata))
+            .uv
             .as_mut_ptr()
-            .offset((n - 1 as c_int) as isize))
-        .uv;
+            .offset((n - 1 as c_int) as isize);
         let io2: *const UnsafeValue =
             &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val;
+
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
+
         if (*((*L).top.get()).offset(-(1 as c_int as isize))).val.tt_ as c_int
             & (1 as c_int) << 6 as c_int
             != 0
@@ -1329,7 +1333,7 @@ pub unsafe fn lua_newuserdatauv(L: *const Thread, size: usize, nuvalue: c_int) -
         crate::gc::step((*L).hdr.global);
     }
 
-    u.byte_add(offset_of!(Udata, uv) + size_of::<UValue>() * usize::from((*u).nuvalue))
+    u.byte_add(offset_of!(Udata, uv) + size_of::<UnsafeValue>() * usize::from((*u).nuvalue))
         .cast()
 }
 

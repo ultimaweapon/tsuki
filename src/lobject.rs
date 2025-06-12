@@ -56,24 +56,13 @@ pub struct C2RustUnnamed_6 {
     pub previous: *mut *mut UpVal,
 }
 
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union UValue {
-    pub uv: UnsafeValue,
-    pub n: f64,
-    pub u: libc::c_double,
-    pub s: *mut libc::c_void,
-    pub i: i64,
-    pub l: libc::c_long,
-}
-
 #[repr(C)]
 pub struct Udata {
     pub hdr: Object,
     pub nuvalue: libc::c_ushort,
     pub len: usize,
     pub metatable: *const Table,
-    pub uv: [UValue; 1],
+    pub uv: [UnsafeValue; 1],
 }
 
 #[derive(Copy, Clone)]
