@@ -482,7 +482,7 @@ unsafe fn prepCallInfo(
     return ci;
 }
 
-unsafe fn precallC(
+async unsafe fn precallC(
     L: *const Thread,
     mut func: StkId,
     nresults: c_int,
@@ -529,7 +529,7 @@ unsafe fn precallC(
     Ok(n)
 }
 
-pub unsafe fn luaD_pretailcall(
+pub async unsafe fn luaD_pretailcall(
     L: *const Thread,
     ci: *mut CallInfo,
     mut func: StkId,
@@ -544,9 +544,10 @@ pub unsafe fn luaD_pretailcall(
                     func,
                     -(1 as c_int),
                     (*((*func).val.value_.gc as *mut CClosure)).f,
-                );
+                )
+                .await;
             }
-            22 => return precallC(L, func, -(1 as c_int), (*func).val.value_.f),
+            22 => return precallC(L, func, -(1 as c_int), (*func).val.value_.f).await,
             6 => {
                 let p: *mut Proto = (*(*func).val.value_.gc.cast::<LuaFn>()).p.get();
                 let fsize: c_int = (*p).maxstacksize as c_int;
@@ -597,7 +598,7 @@ pub unsafe fn luaD_pretailcall(
     }
 }
 
-pub unsafe fn luaD_precall(
+pub async unsafe fn luaD_precall(
     L: *const Thread,
     mut func: StkId,
     nresults: c_int,
@@ -610,11 +611,12 @@ pub unsafe fn luaD_precall(
                     func,
                     nresults,
                     (*((*func).val.value_.gc as *mut CClosure)).f,
-                )?;
+                )
+                .await?;
                 return Ok(0 as *mut CallInfo);
             }
             22 => {
-                precallC(L, func, nresults, (*func).val.value_.f)?;
+                precallC(L, func, nresults, (*func).val.value_.f).await?;
                 return Ok(0 as *mut CallInfo);
             }
             6 => {
@@ -657,16 +659,16 @@ pub unsafe fn luaD_precall(
     }
 }
 
-pub unsafe fn luaD_call(
+pub async unsafe fn luaD_call(
     L: *const Thread,
     func: StkId,
     nResults: c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    let ci = luaD_precall(L, func, nResults)?;
+    let ci = luaD_precall(L, func, nResults).await?;
 
     if !ci.is_null() {
         (*ci).callstatus = ((1 as c_int) << 2 as c_int) as libc::c_ushort;
-        luaV_execute(L, ci)?;
+        luaV_execute(L, ci).await?;
     }
 
     Ok(())
@@ -695,29 +697,6 @@ pub unsafe fn luaD_closeprotected(
             (*L).allowhook.set(old_allowhooks);
         }
     }
-}
-
-pub unsafe fn luaD_pcall<F>(
-    L: *const Thread,
-    old_top: usize,
-    f: F,
-) -> Result<(), Box<dyn core::error::Error>>
-where
-    F: FnOnce(*const Thread) -> Result<(), Box<dyn core::error::Error>>,
-{
-    let old_ci = (*L).ci.get();
-    let old_allowhooks: u8 = (*L).allowhook.get();
-    let mut status = f(L);
-
-    if status.is_err() {
-        (*L).ci.set(old_ci);
-        (*L).allowhook.set(old_allowhooks);
-        status = luaD_closeprotected(L, old_top, status);
-        (*L).top.set((*L).stack.get().byte_add(old_top));
-        luaD_shrinkstack(L);
-    }
-
-    status
 }
 
 pub unsafe fn luaD_protectedparser(

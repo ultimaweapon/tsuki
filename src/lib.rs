@@ -25,6 +25,7 @@ use core::marker::PhantomPinned;
 use core::ops::Deref;
 use core::pin::Pin;
 use core::ptr::null_mut;
+use core::task::RawWakerVTable;
 use hashbrown::HashMap;
 use rustc_hash::FxBuildHasher;
 use thiserror::Error;
@@ -211,3 +212,10 @@ pub enum ArithError {
     #[error("attempt to divide by zero")]
     DivZero,
 }
+
+pub(crate) static NON_YIELDABLE_WAKER: RawWakerVTable = RawWakerVTable::new(
+    |_| unimplemented!(),
+    |_| unimplemented!(),
+    |_| unimplemented!(),
+    |_| {},
+);

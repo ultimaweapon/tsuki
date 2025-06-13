@@ -15,7 +15,7 @@ use crate::lfunc::{
 use crate::lobject::{
     Proto, StackValue, StkId, Udata, UpVal, Upvaldesc, luaO_str2num, luaO_tostring,
 };
-use crate::lopcodes::OpCode;
+use crate::lopcodes::{OP_CALL, OP_TAILCALL, OP_TFORCALL, OpCode};
 use crate::lstate::CallInfo;
 use crate::lstring::luaS_eqlngstr;
 use crate::ltm::{
@@ -28,10 +28,13 @@ use crate::table::{
     luaH_realasize, luaH_resize, luaH_resizearray,
 };
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{ArithError, LuaFn, Str, Table, Thread};
+use crate::{ArithError, LuaFn, NON_YIELDABLE_WAKER, Str, Table, Thread};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::cell::Cell;
+use core::pin::pin;
+use core::ptr::null;
+use core::task::{Context, Poll, Waker};
 use libc::{memcpy, strcoll, strlen};
 use libm::{floor, fmod, pow};
 
@@ -1156,7 +1159,7 @@ unsafe fn pushclosure(
     }
 }
 
-pub unsafe fn luaV_execute(
+pub async unsafe fn luaV_execute(
     L: *const Thread,
     mut ci: *mut CallInfo,
 ) -> Result<(), Box<dyn core::error::Error>> {
@@ -5036,7 +5039,7 @@ pub unsafe fn luaV_execute(
                         }
                         continue;
                     }
-                    68 => {
+                    OP_CALL => {
                         ra_65 = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
@@ -5064,14 +5067,14 @@ pub unsafe fn luaV_execute(
                             (*L).top.set(ra_65.offset(b_4 as isize));
                         }
                         (*ci).u.savedpc = pc;
-                        newci = luaD_precall(L, ra_65, nresults)?;
+                        newci = luaD_precall(L, ra_65, nresults).await?;
                         if !newci.is_null() {
                             break '_returning;
                         }
                         trap = (*ci).u.trap;
                         continue;
                     }
-                    69 => {
+                    OP_TAILCALL => {
                         let ra_66: StkId = base.offset(
                             (i >> 0 as libc::c_int + 7 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
@@ -5114,7 +5117,7 @@ pub unsafe fn luaV_execute(
                         {
                             luaF_closeupval(L, base);
                         }
-                        n_2 = luaD_pretailcall(L, ci, ra_66, b_5, delta)?;
+                        n_2 = luaD_pretailcall(L, ci, ra_66, b_5, delta).await?;
                         if n_2 < 0 {
                             continue '_startfunc;
                         }
@@ -5355,7 +5358,7 @@ pub unsafe fn luaV_execute(
                         i = *fresh7;
                         current_block = 13973394567113199817;
                     }
-                    76 => {
+                    OP_TFORCALL => {
                         current_block = 13973394567113199817;
                     }
                     77 => {
@@ -5534,9 +5537,12 @@ pub unsafe fn luaV_execute(
                                 .offset(3 as libc::c_int as isize),
                         );
                         (*ci).u.savedpc = pc;
-                        luaD_call(
+
+                        // Invoke iterator function.
+                        let w = Waker::new(null(), &NON_YIELDABLE_WAKER);
+                        let f = pin!(luaD_call(
                             L,
-                            ra_74.offset(4 as libc::c_int as isize),
+                            ra_74.offset(4),
                             (i >> 0 as libc::c_int
                                 + 7 as libc::c_int
                                 + 8 as libc::c_int
@@ -5544,7 +5550,13 @@ pub unsafe fn luaV_execute(
                                 + 8 as libc::c_int
                                 & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
                                     << 0 as libc::c_int) as libc::c_int,
-                        )?;
+                        ));
+
+                        match f.poll(&mut Context::from_waker(&w)) {
+                            Poll::Ready(v) => v?,
+                            Poll::Pending => unreachable!(),
+                        }
+
                         trap = (*ci).u.trap;
                         if (trap != 0 as libc::c_int) as libc::c_int as libc::c_long != 0 {
                             base = ((*ci).func).offset(1 as libc::c_int as isize);

@@ -13,7 +13,7 @@ use crate::lmem::luaM_free_;
 use crate::lobject::{AbsLineInfo, CClosure, LocVar, Proto, StackValue, StkId, UpVal, Upvaldesc};
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
 use crate::value::UnsafeValue;
-use crate::{ChunkInfo, Lua, LuaFn, Object, Thread};
+use crate::{ChunkInfo, Lua, LuaFn, NON_YIELDABLE_WAKER, Object, Thread};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::vec::Vec;
@@ -21,7 +21,9 @@ use core::alloc::Layout;
 use core::cell::Cell;
 use core::ffi::CStr;
 use core::mem::offset_of;
-use core::ptr::{addr_of_mut, null_mut};
+use core::pin::pin;
+use core::ptr::{addr_of_mut, null, null_mut};
+use core::task::{Context, Poll, Waker};
 
 pub unsafe fn luaF_newCclosure(g: *const Lua, nupvals: libc::c_int) -> *mut CClosure {
     let nupvals = u8::try_from(nupvals).unwrap();
@@ -125,7 +127,14 @@ unsafe fn callclosemethod(
     (*io1_1).tt_ = (*io2_1).tt_;
     (*L).top.set(top.offset(3 as libc::c_int as isize));
 
-    luaD_call(L, top, 0 as libc::c_int)
+    // Invoke.
+    let f = pin!(luaD_call(L, top, 0));
+    let w = Waker::new(null(), &NON_YIELDABLE_WAKER);
+
+    match f.poll(&mut Context::from_waker(&w)) {
+        Poll::Ready(v) => v,
+        Poll::Pending => unreachable!(),
+    }
 }
 
 unsafe fn checkclosemth(L: *const Thread, level: StkId) -> Result<(), Box<dyn core::error::Error>> {

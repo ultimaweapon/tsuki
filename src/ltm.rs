@@ -13,10 +13,13 @@ use crate::lobject::{Proto, StkId, Udata};
 use crate::lstate::CallInfo;
 use crate::table::luaH_getshortstr;
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{Lua, Str, Table, Thread};
+use crate::{Lua, NON_YIELDABLE_WAKER, Str, Table, Thread};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use core::ffi::CStr;
+use core::pin::pin;
+use core::ptr::null;
+use core::task::{Context, Poll, Waker};
 
 pub type TMS = libc::c_uint;
 
@@ -186,7 +189,14 @@ pub unsafe fn luaT_callTM(
     (*io1_2).tt_ = (*io2_2).tt_;
     (*L).top.set(func.offset(4 as libc::c_int as isize));
 
-    luaD_call(L, func, 0 as libc::c_int)
+    // Invoke.
+    let f = pin!(luaD_call(L, func, 0));
+    let w = Waker::new(null(), &NON_YIELDABLE_WAKER);
+
+    match f.poll(&mut Context::from_waker(&w)) {
+        Poll::Ready(v) => v,
+        Poll::Pending => unreachable!(),
+    }
 }
 
 pub unsafe fn luaT_callTMres(
@@ -213,7 +223,14 @@ pub unsafe fn luaT_callTMres(
     (*io1_1).tt_ = (*io2_1).tt_;
     (*L).top.add(3);
 
-    luaD_call(L, func, 1 as libc::c_int)?;
+    // Invoke.
+    let f = pin!(luaD_call(L, func, 1));
+    let w = Waker::new(null(), &NON_YIELDABLE_WAKER);
+
+    match f.poll(&mut Context::from_waker(&w)) {
+        Poll::Ready(v) => v?,
+        Poll::Pending => unreachable!(),
+    }
 
     res = ((*L).stack.get() as *mut libc::c_char).offset(result as isize) as StkId;
     let io1_2: *mut UnsafeValue = &raw mut (*res).val;

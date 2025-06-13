@@ -7,7 +7,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::gc::{luaC_barrier_, luaC_barrierback_};
-use crate::ldo::{luaD_call, luaD_growstack, luaD_pcall};
+use crate::ldo::{luaD_call, luaD_closeprotected, luaD_growstack, luaD_shrinkstack};
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::{
     CClosure, Proto, StackValue, StkId, Udata, UpVal, luaO_arith, luaO_str2num, luaO_tostring,
@@ -1231,17 +1231,24 @@ pub unsafe fn lua_setiuservalue(L: *mut Thread, idx: c_int, n: c_int) -> c_int {
     return res;
 }
 
-pub unsafe fn lua_pcall(
+pub async unsafe fn lua_pcall(
     L: *const Thread,
     nargs: usize,
     nresults: c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let func = ((*L).top.get()).sub(nargs + 1);
-    let status = luaD_pcall(
-        L,
-        func.byte_offset_from_unsigned((*L).stack.get()),
-        move |L| luaD_call(L, func, nresults),
-    );
+    let old_top = func.byte_offset_from_unsigned((*L).stack.get());
+    let old_ci = (*L).ci.get();
+    let old_allowhooks: u8 = (*L).allowhook.get();
+    let mut status = luaD_call(L, func, nresults).await;
+
+    if status.is_err() {
+        (*L).ci.set(old_ci);
+        (*L).allowhook.set(old_allowhooks);
+        status = luaD_closeprotected(L, old_top, status);
+        (*L).top.set((*L).stack.get().byte_add(old_top));
+        luaD_shrinkstack(L);
+    }
 
     // Adjust current CI.
     if nresults <= -1 && (*(*L).ci.get()).top < (*L).top.get() {

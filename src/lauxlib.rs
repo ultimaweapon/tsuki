@@ -17,14 +17,16 @@ use crate::lapi::{
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::{CallInfo, lua_Debug};
 use crate::value::Fp;
-use crate::{Thread, lua_pop};
+use crate::{NON_YIELDABLE_WAKER, Thread, lua_pop};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
 use core::ffi::{CStr, c_void};
 use core::fmt::{Display, Write};
-use core::ptr::null_mut;
+use core::pin::pin;
+use core::ptr::{null, null_mut};
+use core::task::{Context, Poll, Waker};
 use libc::{FILE, strcmp, strlen, strncmp};
 
 #[derive(Copy, Clone)]
@@ -691,7 +693,15 @@ pub unsafe fn luaL_callmeta(
     }
 
     lua_pushvalue(L, obj);
-    lua_pcall(L, 1, 1)?;
+
+    // Invoke.
+    let f = pin!(lua_pcall(L, 1, 1));
+    let w = Waker::new(null(), &NON_YIELDABLE_WAKER);
+
+    match f.poll(&mut Context::from_waker(&w)) {
+        Poll::Ready(v) => v?,
+        Poll::Pending => unreachable!(),
+    }
 
     return Ok(1);
 }
@@ -840,7 +850,7 @@ pub unsafe fn luaL_requiref(
         lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
         lua_pushcclosure(L, openf, 0 as libc::c_int);
         lua_pushstring(L, modname);
-        lua_pcall(L, 1, 1)?;
+        // lua_pcall(L, 1, 1)?;
         lua_pushvalue(L, -(1 as libc::c_int));
         lua_setfield(L, -(3 as libc::c_int), modname)?;
     }

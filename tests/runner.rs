@@ -88,7 +88,7 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Run.
     let th = lua.spawn();
 
-    pollster::block_on(async move { th.call(&chunk, ()).await })?;
+    th.call(&chunk, ())?;
 
     Ok(())
 }

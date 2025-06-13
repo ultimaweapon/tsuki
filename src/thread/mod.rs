@@ -8,7 +8,7 @@ use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
 use crate::lobject::{StackValue, StkId, UpVal};
 use crate::lstate::{CallInfo, lua_Hook};
-use crate::{Lua, LuaFn, Object, Ref, Value};
+use crate::{Lua, LuaFn, NON_YIELDABLE_WAKER, Object, Ref, Value};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
@@ -17,8 +17,9 @@ use core::alloc::Layout;
 use core::cell::{Cell, UnsafeCell};
 use core::marker::PhantomPinned;
 use core::ops::Deref;
-use core::pin::Pin;
+use core::pin::{Pin, pin};
 use core::ptr::{addr_of_mut, null, null_mut};
+use core::task::{Context, Poll, Waker};
 
 mod args;
 mod stack;
@@ -102,7 +103,7 @@ impl Thread {
     ///
     /// # Panics
     /// If `f` or some of `args` come from different [`Lua`] instance.
-    pub async fn call(
+    pub fn call(
         &self,
         f: &LuaFn,
         args: impl Args,
@@ -121,7 +122,13 @@ impl Thread {
         unsafe { args.push_to(self) };
 
         // Call.
-        unsafe { lua_pcall(self, nargs, 0)? };
+        let f = unsafe { pin!(lua_pcall(self, nargs, 0)) };
+        let w = unsafe { Waker::new(null(), &NON_YIELDABLE_WAKER) };
+
+        match f.poll(&mut Context::from_waker(&w)) {
+            Poll::Ready(v) => v?,
+            Poll::Pending => unreachable!(),
+        }
 
         Ok(Vec::new())
     }
