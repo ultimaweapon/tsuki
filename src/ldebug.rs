@@ -407,13 +407,11 @@ unsafe fn auxgetinfo(
                 }
             }
             114 => {
-                if ci.is_null()
-                    || (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 8 as libc::c_int == 0
-                {
-                    (*ar).ntransfer = 0 as libc::c_int as libc::c_ushort;
+                if ci.is_null() || (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 8 == 0 {
+                    (*ar).ntransfer = 0;
                     (*ar).ftransfer = (*ar).ntransfer;
                 } else {
-                    (*ar).ftransfer = (*ci).u2.transferinfo.ftransfer;
+                    (*ar).ftransfer = (*ci).u2.transferinfo.ftransfer.into();
                     (*ar).ntransfer = (*ci).u2.transferinfo.ntransfer;
                 }
             }
@@ -1149,15 +1147,11 @@ pub unsafe fn luaG_traceexec(
     {
         (*L).top.set((*ci).top);
     }
+
     if counthook != 0 {
-        luaD_hook(
-            L,
-            3 as libc::c_int,
-            -(1 as libc::c_int),
-            0 as libc::c_int,
-            0 as libc::c_int,
-        )?;
+        luaD_hook(L, 3 as libc::c_int, -(1 as libc::c_int), 0, 0)?;
     }
+
     if mask as libc::c_int & (1 as libc::c_int) << 2 as libc::c_int != 0 {
         let oldpc: libc::c_int = if (*L).oldpc.get() < (*p).sizecode {
             (*L).oldpc.get()
@@ -1166,15 +1160,11 @@ pub unsafe fn luaG_traceexec(
         };
         let npci: libc::c_int =
             pc.offset_from((*p).code) as libc::c_long as libc::c_int - 1 as libc::c_int;
+
         if npci <= oldpc || changedline(p, oldpc, npci) != 0 {
             let newline: libc::c_int = luaG_getfuncline(p, npci);
-            luaD_hook(
-                L,
-                2 as libc::c_int,
-                newline,
-                0 as libc::c_int,
-                0 as libc::c_int,
-            )?;
+
+            luaD_hook(L, 2 as libc::c_int, newline, 0 as libc::c_int, 0)?;
         }
 
         (*L).oldpc.set(npci);

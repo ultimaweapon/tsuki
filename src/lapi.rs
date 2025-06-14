@@ -22,8 +22,8 @@ use crate::lvm::{
 use crate::table::{
     luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_new, luaH_next, luaH_resize, luaH_setint,
 };
-use crate::value::{Fp, UnsafeValue, UntaggedValue};
-use crate::{LuaFn, Object, Str, Table, TableError, Thread, api_incr_top};
+use crate::value::{UnsafeValue, UntaggedValue};
+use crate::{Context, LuaFn, Object, Str, Table, TableError, Thread, api_incr_top};
 use alloc::boxed::Box;
 use core::ffi::{CStr, c_void};
 use core::mem::offset_of;
@@ -454,18 +454,6 @@ pub unsafe fn lua_rawlen(L: *const Thread, idx: c_int) -> u64 {
     };
 }
 
-pub unsafe fn lua_tocfunction(L: *mut Thread, idx: c_int) -> Option<Fp> {
-    let o: *const UnsafeValue = index2value(L, idx);
-
-    if ((*o).tt_ & 0xf) == 2 {
-        Some((*o).value_.f)
-    } else if (*o).tt_ as c_int == 6 as c_int | (2 as c_int) << 4 as c_int | (1 as c_int) << 6 {
-        Some((*((*o).value_.gc as *mut CClosure)).f)
-    } else {
-        None
-    }
-}
-
 unsafe fn touserdata(o: *const UnsafeValue) -> *mut libc::c_void {
     match (*o).tt_ as c_int & 0xf as c_int {
         7 => (*o)
@@ -500,10 +488,10 @@ pub unsafe fn lua_tothread(L: *mut Thread, idx: c_int) -> *mut Thread {
 
 pub unsafe fn lua_topointer(L: *const Thread, idx: c_int) -> *const libc::c_void {
     let o: *const UnsafeValue = index2value(L, idx);
+
     match (*o).tt_ as c_int & 0x3f as c_int {
-        2 | 18 | 34 | 50 => {
-            return ::core::mem::transmute::<Fp, usize>((*o).value_.f) as *mut libc::c_void;
-        }
+        2 => (*o).value_.f as *const libc::c_void,
+        18 | 34 | 50 => todo!(),
         7 => return touserdata(o),
         _ => {
             if (*o).tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {
@@ -512,7 +500,7 @@ pub unsafe fn lua_topointer(L: *const Thread, idx: c_int) -> *const libc::c_void
                 return 0 as *const libc::c_void;
             }
         }
-    };
+    }
 }
 
 pub unsafe fn lua_pushnil(L: *const Thread) {
@@ -572,7 +560,11 @@ pub unsafe fn lua_pushstring(L: *const Thread, mut s: *const libc::c_char) -> *c
     s
 }
 
-pub unsafe fn lua_pushcclosure(L: *const Thread, fn_0: Fp, mut n: c_int) {
+pub unsafe fn lua_pushcclosure(
+    L: *const Thread,
+    fn_0: fn(&mut Context) -> Result<(), Box<dyn core::error::Error>>,
+    mut n: c_int,
+) {
     let cl = luaF_newCclosure((*L).hdr.global, n);
 
     (*cl).f = fn_0;

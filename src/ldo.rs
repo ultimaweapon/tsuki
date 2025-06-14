@@ -15,7 +15,7 @@ use crate::lstate::{CallInfo, lua_Debug, lua_Hook, luaE_extendCI, luaE_shrinkCI}
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, Zio};
-use crate::value::{Fp, UnsafeValue};
+use crate::value::UnsafeValue;
 use crate::{ChunkInfo, Context, Lua, LuaFn, ParseError, Ref, Thread};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
@@ -209,7 +209,7 @@ pub unsafe fn luaD_hook(
     event: c_int,
     line: c_int,
     ftransfer: c_int,
-    ntransfer: c_int,
+    ntransfer: usize,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let hook: lua_Hook = (*L).hook.get();
     if hook.is_some() && (*L).allowhook.get() != 0 {
@@ -239,15 +239,17 @@ pub unsafe fn luaD_hook(
         ar.event = event;
         ar.currentline = line;
         ar.i_ci = ci;
-        if ntransfer != 0 as c_int {
+
+        if ntransfer != 0 {
             mask |= (1 as c_int) << 8 as c_int;
             (*ci).u2.transferinfo.ftransfer = ftransfer as libc::c_ushort;
-            (*ci).u2.transferinfo.ntransfer = ntransfer as libc::c_ushort;
+            (*ci).u2.transferinfo.ntransfer = ntransfer;
         }
-        if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 && (*L).top.get() < (*ci).top
-        {
+
+        if (*ci).callstatus as c_int & (1 as c_int) << 1 == 0 && (*L).top.get() < (*ci).top {
             (*L).top.set((*ci).top);
         }
+
         if ((((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
             <= 20 as c_int as libc::c_long) as c_int
             != 0 as c_int) as c_int as libc::c_long
@@ -287,7 +289,7 @@ pub unsafe fn luaD_hookcall(
         let p: *mut Proto = (*(*(*ci).func).val.value_.gc.cast::<LuaFn>()).p.get();
         (*ci).u.savedpc = ((*ci).u.savedpc).offset(1);
         (*ci).u.savedpc;
-        luaD_hook(L, event, -(1 as c_int), 1 as c_int, (*p).numparams as c_int)?;
+        luaD_hook(L, event, -(1 as c_int), 1 as c_int, (*p).numparams.into())?;
         (*ci).u.savedpc = ((*ci).u.savedpc).offset(-1);
         (*ci).u.savedpc;
     }
@@ -311,7 +313,15 @@ unsafe fn rethook(
         }
         (*ci).func = ((*ci).func).offset(delta as isize);
         ftransfer = firstres.offset_from((*ci).func) as libc::c_long as libc::c_ushort as c_int;
-        luaD_hook(L, 1 as c_int, -(1 as c_int), ftransfer, nres)?;
+
+        luaD_hook(
+            L,
+            1 as c_int,
+            -(1 as c_int),
+            ftransfer,
+            nres.try_into().unwrap(),
+        )?;
+
         (*ci).func = ((*ci).func).offset(-(delta as isize));
     }
     ci = (*ci).previous;
@@ -445,6 +455,7 @@ unsafe fn moveresults(
     Ok(())
 }
 
+#[inline(always)]
 pub unsafe fn luaD_poscall(
     L: *const Thread,
     ci: *mut CallInfo,
@@ -462,6 +473,7 @@ pub unsafe fn luaD_poscall(
     Ok(())
 }
 
+#[inline(always)]
 unsafe fn prepCallInfo(
     L: *const Thread,
     func: StkId,
@@ -486,15 +498,10 @@ async unsafe fn precallC(
     L: *const Thread,
     mut func: StkId,
     nresults: c_int,
-    f: Fp,
+    f: Func,
 ) -> Result<c_int, Box<dyn core::error::Error>> {
-    let mut ci: *mut CallInfo = 0 as *mut CallInfo;
-
-    if ((((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
-        <= 20 as c_int as libc::c_long) as c_int
-        != 0 as c_int) as c_int as libc::c_long
-        != 0
-    {
+    // Grow stack at least 20 slots.
+    if ((*L).stack_last.get()).offset_from((*L).top.get()) <= 20 {
         let t__: isize =
             (func as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
         if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
@@ -504,25 +511,34 @@ async unsafe fn precallC(
         func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
     }
 
-    ci = prepCallInfo(
-        L,
-        func,
-        nresults,
-        (1 as c_int) << 1 as c_int,
-        ((*L).top.get()).offset(20 as c_int as isize),
-    );
+    // Set current CI.
+    let ci = prepCallInfo(L, func, nresults, 1 << 1, ((*L).top.get()).offset(20));
 
     (*L).ci.set(ci);
 
-    if ((*L).hookmask.get() & (1 as c_int) << 0 != 0) as c_int as libc::c_long != 0 {
-        let narg: c_int = ((*L).top.get()).offset_from(func) as c_int - 1;
+    // Invoke hook.
+    let narg = (*L).top.get().offset_from_unsigned(func) - 1;
 
+    if ((*L).hookmask.get() & (1 as c_int) << 0 != 0) as c_int as libc::c_long != 0 {
         luaD_hook(L, 0 as c_int, -(1 as c_int), 1 as c_int, narg)?;
     }
 
     // Invoke Rust function.
     let mut cx = Context::new(L);
-    let n = f(&mut cx)?;
+    let ret = (*L).top.get().offset_from_unsigned((*L).stack.get()); // Rust may move the stack.
+
+    match f {
+        Func::NonYieldableFp(f) => f(&mut cx)?,
+    }
+
+    // Get number of results.
+    let n = (*L)
+        .top
+        .get()
+        .offset_from((*L).stack.get().add(ret))
+        .clamp(0, isize::MAX)
+        .try_into()
+        .unwrap();
 
     luaD_poscall(L, ci, n)?;
 
@@ -543,13 +559,12 @@ pub async unsafe fn luaD_pretailcall(
                     L,
                     func,
                     -(1 as c_int),
-                    (*((*func).val.value_.gc as *mut CClosure)).f,
+                    Func::NonYieldableFp((*((*func).val.value_.gc as *mut CClosure)).f),
                 )
                 .await;
             }
-            2 | 18 | 34 | 50 => {
-                return precallC(L, func, -(1 as c_int), (*func).val.value_.f).await;
-            }
+            2 => return precallC(L, func, -1, Func::NonYieldableFp((*func).val.value_.f)).await,
+            18 | 34 | 50 => todo!(),
             6 => {
                 let p: *mut Proto = (*(*func).val.value_.gc.cast::<LuaFn>()).p.get();
                 let fsize: c_int = (*p).maxstacksize as c_int;
@@ -612,15 +627,24 @@ pub async unsafe fn luaD_precall(
                     L,
                     func,
                     nresults,
-                    (*((*func).val.value_.gc as *mut CClosure)).f,
+                    Func::NonYieldableFp((*((*func).val.value_.gc as *mut CClosure)).f),
                 )
                 .await?;
+
                 return Ok(0 as *mut CallInfo);
             }
-            2 | 18 | 34 | 50 => {
-                precallC(L, func, nresults, (*func).val.value_.f).await?;
+            2 => {
+                precallC(
+                    L,
+                    func,
+                    nresults,
+                    Func::NonYieldableFp((*func).val.value_.f),
+                )
+                .await?;
+
                 return Ok(0 as *mut CallInfo);
             }
+            18 | 34 | 50 => todo!(),
             6 => {
                 let mut ci: *mut CallInfo = 0 as *mut CallInfo;
                 let p: *mut Proto = (*(*func).val.value_.gc.cast::<LuaFn>()).p.get();
@@ -783,4 +807,8 @@ pub unsafe fn luaD_protectedparser(
     );
 
     status
+}
+
+enum Func {
+    NonYieldableFp(fn(&mut Context) -> Result<(), Box<dyn core::error::Error>>),
 }

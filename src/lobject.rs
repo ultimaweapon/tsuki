@@ -11,8 +11,8 @@ use crate::lctype::luai_ctype_;
 use crate::ldebug::luaG_runerror;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::lvm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
-use crate::value::{Fp, UnsafeValue, UntaggedValue};
-use crate::{ArithError, ChunkInfo, Lua, Str, Table, Thread};
+use crate::value::{UnsafeValue, UntaggedValue};
+use crate::{ArithError, ChunkInfo, Context, Lua, Str, Table, Thread};
 use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
 use libc::{c_char, c_int, sprintf, strpbrk, strspn, strtod};
@@ -118,7 +118,7 @@ pub struct Proto {
 pub struct CClosure {
     pub hdr: Object,
     pub nupvalues: u8,
-    pub f: Fp,
+    pub f: fn(&mut Context) -> Result<(), Box<dyn core::error::Error>>,
     pub upvalue: [UnsafeValue; 1],
 }
 

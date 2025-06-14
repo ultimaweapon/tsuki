@@ -213,7 +213,7 @@ pub enum ArithError {
     DivZero,
 }
 
-pub(crate) static NON_YIELDABLE_WAKER: RawWakerVTable = RawWakerVTable::new(
+static NON_YIELDABLE_WAKER: RawWakerVTable = RawWakerVTable::new(
     |_| unimplemented!(),
     |_| unimplemented!(),
     |_| unimplemented!(),

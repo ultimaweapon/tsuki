@@ -10,8 +10,12 @@ pub struct UnsafeValue {
 }
 
 impl From<fn(&mut Context) -> Result<(), Box<dyn core::error::Error>>> for UnsafeValue {
+    #[inline(always)]
     fn from(value: fn(&mut Context) -> Result<(), Box<dyn core::error::Error>>) -> Self {
-        todo!()
+        Self {
+            value_: UntaggedValue { f: value },
+            tt_: 2 | 0 << 4,
+        }
     }
 }
 
@@ -34,9 +38,7 @@ where
 #[derive(Copy, Clone)]
 pub union UntaggedValue {
     pub gc: *const Object,
-    pub f: Fp,
+    pub f: fn(&mut Context) -> Result<(), Box<dyn core::error::Error>>,
     pub i: i64,
     pub n: f64,
 }
-
-pub type Fp = unsafe fn(&mut Context) -> Result<libc::c_int, Box<dyn core::error::Error>>;

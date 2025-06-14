@@ -28,8 +28,8 @@ pub struct lua_Debug {
     pub nparams: libc::c_uchar,
     pub isvararg: libc::c_char,
     pub istailcall: libc::c_char,
-    pub ftransfer: libc::c_ushort,
-    pub ntransfer: libc::c_ushort,
+    pub ftransfer: usize,
+    pub ntransfer: usize,
     pub(crate) i_ci: *mut CallInfo,
 }
 
@@ -58,7 +58,7 @@ pub union C2RustUnnamed {
 #[repr(C)]
 pub struct C2RustUnnamed_0 {
     pub ftransfer: libc::c_ushort,
-    pub ntransfer: libc::c_ushort,
+    pub ntransfer: usize,
 }
 
 #[derive(Copy, Clone)]

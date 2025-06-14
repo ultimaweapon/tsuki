@@ -13,7 +13,7 @@ use crate::lobject::{StkId, luaO_ceillog2};
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::ltm::TM_EQ;
 use crate::lvm::{F2Ieq, luaV_flttointeger};
-use crate::value::{Fp, UnsafeValue, UntaggedValue};
+use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{Lua, Node, NodeKey, Str, Table, TableError, Thread};
 use alloc::boxed::Box;
 use core::alloc::Layout;
@@ -137,17 +137,17 @@ unsafe fn mainpositionTV(t: *const Table, key: *const UnsafeValue) -> *mut Node 
                         - 1 as libc::c_int) as isize,
             ) as *mut Node;
         }
-        2 | 18 | 34 | 50 => {
-            let f: Fp = (*key).value_.f;
-            return ((*t).node.get()).offset(
-                ((::core::mem::transmute::<Fp, usize>(f) & 0xffffffff) as libc::c_uint)
-                    .wrapping_rem(
-                        (((1 as libc::c_int) << (*t).lsizenode.get() as libc::c_int)
-                            - 1 as libc::c_int
-                            | 1 as libc::c_int) as libc::c_uint,
-                    ) as isize,
-            ) as *mut Node;
+        2 => {
+            let f = (*key).value_.f;
+
+            (*t).node
+                .get()
+                .offset((((f as usize) & 0xffffffff) as libc::c_uint).wrapping_rem(
+                    (((1 as libc::c_int) << (*t).lsizenode.get() as libc::c_int) - 1 as libc::c_int
+                        | 1 as libc::c_int) as libc::c_uint,
+                ) as isize)
         }
+        18 | 34 | 50 => todo!(),
         _ => {
             let o = (*key).value_.gc;
             return ((*t).node.get()).offset(
@@ -157,7 +157,7 @@ unsafe fn mainpositionTV(t: *const Table, key: *const UnsafeValue) -> *mut Node 
                 ) as isize,
             ) as *mut Node;
         }
-    };
+    }
 }
 
 unsafe fn mainpositionfromnode(t: *const Table, nd: *mut Node) -> *mut Node {

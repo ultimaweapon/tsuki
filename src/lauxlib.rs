@@ -9,14 +9,13 @@
 use crate::lapi::{
     lua_absindex, lua_checkstack, lua_concat, lua_copy, lua_createtable, lua_getfield,
     lua_getmetatable, lua_gettop, lua_isinteger, lua_isnumber, lua_isstring, lua_len, lua_next,
-    lua_pcall, lua_pushboolean, lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil,
-    lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawget, lua_rotate, lua_setfield,
-    lua_setglobal, lua_setmetatable, lua_settop, lua_toboolean, lua_tointegerx, lua_tolstring,
-    lua_tonumberx, lua_topointer, lua_touserdata, lua_type, lua_typename,
+    lua_pcall, lua_pushboolean, lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushstring,
+    lua_pushvalue, lua_rawequal, lua_rawget, lua_rotate, lua_setfield, lua_setmetatable,
+    lua_settop, lua_toboolean, lua_tointegerx, lua_tolstring, lua_tonumberx, lua_topointer,
+    lua_touserdata, lua_type, lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::{CallInfo, lua_Debug};
-use crate::value::Fp;
 use crate::{NON_YIELDABLE_WAKER, Thread, lua_pop};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
@@ -27,22 +26,7 @@ use core::fmt::{Display, Write};
 use core::pin::pin;
 use core::ptr::{null, null_mut};
 use core::task::{Context, Poll, Waker};
-use libc::{FILE, strcmp, strlen, strncmp};
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct luaL_Reg {
-    pub name: *const libc::c_char,
-    pub func: Option<Fp>,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LoadF {
-    pub n: libc::c_int,
-    pub f: *mut FILE,
-    pub buff: [libc::c_char; 1024],
-}
+use libc::{strcmp, strlen, strncmp};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -784,39 +768,6 @@ pub unsafe fn luaL_tolstring(
     Ok(lua_tolstring(L, -(1 as libc::c_int), len))
 }
 
-pub unsafe fn luaL_setfuncs(
-    L: *const Thread,
-    mut l: *const luaL_Reg,
-    nup: libc::c_int,
-) -> Result<(), Box<dyn core::error::Error>> {
-    luaL_checkstack(
-        L,
-        nup.try_into().unwrap(),
-        b"too many upvalues\0" as *const u8 as *const libc::c_char,
-    )?;
-
-    while !((*l).name).is_null() {
-        match (*l).func {
-            Some(f) => {
-                let mut i: libc::c_int = 0;
-
-                while i < nup {
-                    lua_pushvalue(L, -nup);
-                    i += 1;
-                }
-
-                lua_pushcclosure(L, f, nup);
-            }
-            None => lua_pushboolean(L, 0),
-        }
-
-        lua_setfield(L, -(nup + 2 as libc::c_int), (*l).name)?;
-        l = l.offset(1);
-    }
-
-    lua_settop(L, -nup - 1 as libc::c_int)
-}
-
 pub unsafe fn luaL_getsubtable(
     L: *const Thread,
     mut idx: libc::c_int,
@@ -832,33 +783,4 @@ pub unsafe fn luaL_getsubtable(
         lua_setfield(L, idx, fname)?;
         return Ok(0 as libc::c_int);
     };
-}
-
-pub unsafe fn luaL_requiref(
-    L: *const Thread,
-    modname: *const libc::c_char,
-    openf: Fp,
-    glb: libc::c_int,
-) -> Result<(), Box<dyn core::error::Error>> {
-    luaL_getsubtable(
-        L,
-        -(1000000 as libc::c_int) - 1000 as libc::c_int,
-        b"_LOADED\0" as *const u8 as *const libc::c_char,
-    )?;
-    lua_getfield(L, -(1 as libc::c_int), CStr::from_ptr(modname).to_bytes())?;
-    if lua_toboolean(L, -(1 as libc::c_int)) == 0 {
-        lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-        lua_pushcclosure(L, openf, 0 as libc::c_int);
-        lua_pushstring(L, modname);
-        // lua_pcall(L, 1, 1)?;
-        lua_pushvalue(L, -(1 as libc::c_int));
-        lua_setfield(L, -(3 as libc::c_int), modname)?;
-    }
-    lua_rotate(L, -(2 as libc::c_int), -(1 as libc::c_int));
-    lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-    if glb != 0 {
-        lua_pushvalue(L, -(1 as libc::c_int));
-        lua_setglobal(L, modname)?;
-    }
-    Ok(())
 }
