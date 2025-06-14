@@ -118,7 +118,7 @@ pub struct Proto {
 pub struct CClosure {
     pub hdr: Object,
     pub nupvalues: u8,
-    pub f: fn(&mut Context) -> Result<(), Box<dyn core::error::Error>>,
+    pub f: fn(&Context) -> Result<(), Box<dyn core::error::Error>>,
     pub upvalue: [UnsafeValue; 1],
 }
 

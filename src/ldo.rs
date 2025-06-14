@@ -524,11 +524,11 @@ async unsafe fn precallC(
     }
 
     // Invoke Rust function.
-    let mut cx = Context::new(L);
+    let cx = Context::new(L, narg);
     let ret = (*L).top.get().offset_from_unsigned((*L).stack.get()); // Rust may move the stack.
 
     match f {
-        Func::NonYieldableFp(f) => f(&mut cx)?,
+        Func::NonYieldableFp(f) => f(&cx)?,
     }
 
     // Get number of results.
@@ -810,5 +810,5 @@ pub unsafe fn luaD_protectedparser(
 }
 
 enum Func {
-    NonYieldableFp(fn(&mut Context) -> Result<(), Box<dyn core::error::Error>>),
+    NonYieldableFp(fn(&Context) -> Result<(), Box<dyn core::error::Error>>),
 }

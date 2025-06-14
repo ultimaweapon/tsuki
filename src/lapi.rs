@@ -562,7 +562,7 @@ pub unsafe fn lua_pushstring(L: *const Thread, mut s: *const libc::c_char) -> *c
 
 pub unsafe fn lua_pushcclosure(
     L: *const Thread,
-    fn_0: fn(&mut Context) -> Result<(), Box<dyn core::error::Error>>,
+    fn_0: fn(&Context) -> Result<(), Box<dyn core::error::Error>>,
     mut n: c_int,
 ) {
     let cl = luaF_newCclosure((*L).hdr.global, n);
