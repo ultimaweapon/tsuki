@@ -672,6 +672,7 @@ pub unsafe fn luaL_len(
     return Ok(l);
 }
 
+#[inline(never)]
 pub unsafe fn luaL_tolstring(
     L: *const Thread,
     mut idx: libc::c_int,

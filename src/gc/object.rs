@@ -50,6 +50,7 @@ impl Object {
         o
     }
 
+    #[inline(always)]
     pub fn global(&self) -> &Lua {
         unsafe { &*self.global }
     }

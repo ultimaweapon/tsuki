@@ -1,3 +1,4 @@
+use crate::lauxlib::luaL_tolstring;
 use crate::{Ref, Str, Thread};
 use alloc::boxed::Box;
 use core::ops::Deref;
@@ -34,8 +35,17 @@ impl Context {
     ///
     /// # Panics
     /// If `i` greater or equal [`Self::len()`].
+    #[inline(always)] // Remove assertion when the user already have a check.
     pub fn to_str(&self, i: usize) -> Result<Ref<Str>, Box<dyn core::error::Error>> {
-        todo!()
+        assert!(i < self.args);
+
+        let t = self.th;
+        let s = unsafe { luaL_tolstring(t, (i + 1) as i32)? };
+        let s = unsafe { Ref::new((*t).hdr.global_owned(), s) };
+
+        unsafe { (*t).top.sub(1) };
+
+        Ok(s)
     }
 }
 
