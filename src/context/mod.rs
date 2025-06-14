@@ -1,4 +1,5 @@
-use crate::Thread;
+use crate::{Ref, Str, Thread};
+use alloc::boxed::Box;
 use core::ops::Deref;
 
 /// Context to invoke Rust function.
@@ -13,10 +14,28 @@ impl Context {
         Self { th, args }
     }
 
+    /// Returns `true` if this call has no arguments.
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.args == 0
+    }
+
     /// Returns a number of arguments for this call.
     #[inline(always)]
-    pub fn args(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.args
+    }
+
+    /// Converts argument `i` to Lua string and return it.
+    ///
+    /// Note that `i` is **zero-based**, not one.
+    ///
+    /// This has the same semantic as `luaL_tolstring`.
+    ///
+    /// # Panics
+    /// If `i` greater or equal [`Self::len()`].
+    pub fn to_str(&self, i: usize) -> Result<Ref<Str>, Box<dyn core::error::Error>> {
+        todo!()
     }
 }
 
