@@ -50,7 +50,6 @@ fn math() {
 }
 
 #[test]
-#[ignore = "need Lua standard library"]
 fn print() {
     run("print.lua").unwrap();
 }

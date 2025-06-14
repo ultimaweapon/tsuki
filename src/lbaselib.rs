@@ -32,30 +32,6 @@ use std::ptr::{null, null_mut};
 use std::string::{String, ToString};
 use std::{format, print, println};
 
-unsafe fn luaB_print(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut n: libc::c_int = lua_gettop(L);
-    let mut i: libc::c_int = 0;
-    i = 1 as libc::c_int;
-    while i <= n {
-        let mut l: usize = 0;
-        let s: *const libc::c_char = luaL_tolstring(L, i, &mut l)?;
-        let s = std::slice::from_raw_parts(s.cast(), l);
-
-        if i > 1 {
-            print!("\t");
-        }
-
-        print!("{}", String::from_utf8_lossy(s));
-
-        lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-        i += 1;
-    }
-
-    println!();
-
-    return Ok(0 as libc::c_int);
-}
-
 unsafe fn luaB_warn(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut n: libc::c_int = lua_gettop(L);
     let mut i: libc::c_int = 0;
@@ -510,13 +486,6 @@ static mut base_funcs: [luaL_Reg; 21] = [
         let mut init = luaL_Reg {
             name: b"pcall\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_pcall),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"print\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_print),
         };
         init
     },

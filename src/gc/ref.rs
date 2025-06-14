@@ -43,6 +43,7 @@ impl<T> Ref<T> {
         Self { g, o }
     }
 
+    #[cold]
     #[inline(never)]
     fn too_many_refs() -> ! {
         panic!("too many strong references to Lua object");

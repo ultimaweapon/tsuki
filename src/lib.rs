@@ -31,6 +31,7 @@ use rustc_hash::FxBuildHasher;
 use thiserror::Error;
 
 mod builder;
+mod builtin;
 mod context;
 mod error;
 mod function;
@@ -202,6 +203,9 @@ impl Drop for Lua {
 
 /// Lua value.
 pub enum Value {}
+
+/// Non-Yieldable Rust function.
+pub type Fp = fn(&Context) -> Result<(), Box<dyn core::error::Error>>;
 
 /// Represents an error when arithmetic operation fails.
 #[derive(Debug, Error)]

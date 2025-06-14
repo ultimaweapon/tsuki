@@ -45,7 +45,19 @@ impl Table {
             panic!("attempt to set the table with value from a different Lua");
         }
 
-        // Set.
+        unsafe { self.set_unchecked(k, v) }
+    }
+
+    /// # Safety
+    /// `k` and `v` must come from the same [Lua](crate::Lua) instance.
+    pub unsafe fn set_unchecked(
+        &self,
+        k: impl Into<UnsafeValue>,
+        v: impl Into<UnsafeValue>,
+    ) -> Result<(), TableError> {
+        let k = k.into();
+        let v = v.into();
+
         unsafe { luaH_set(self, &k, &v)? };
 
         self.flags

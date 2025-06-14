@@ -2,7 +2,7 @@ use crate::llex::luaX_init;
 use crate::ltm::luaT_init;
 use crate::table::{luaH_new, luaH_resize};
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{Gc, Lua, Module, Object, StringTable};
+use crate::{Fp, Gc, Lua, Module, Object, Str, StringTable};
 use alloc::rc::Rc;
 use core::cell::{Cell, UnsafeCell};
 use core::marker::PhantomPinned;
@@ -136,6 +136,16 @@ impl Builder {
     }
 
     pub fn build(self) -> Pin<Rc<Lua>> {
+        let g = self.g.deref();
+        let set_global = |k: &str, v: UnsafeValue| unsafe {
+            let k = UnsafeValue::from_str(Str::new(g, k));
+
+            g.global().set_unchecked(k, v).unwrap();
+        };
+
+        #[cfg(feature = "std")]
+        set_global("print", (crate::builtin::print as Fp).into());
+
         self.g
     }
 }
