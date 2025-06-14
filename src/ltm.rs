@@ -55,7 +55,7 @@ pub const TM_GC: TMS = 2;
 pub const TM_NEWINDEX: TMS = 1;
 pub const TM_INDEX: TMS = 0;
 pub const luaT_typenames_: [&str; 12] = [
-    "no value", "nil", "boolean", "userdata", "number", "string", "table", "function", "userdata",
+    "no value", "nil", "boolean", "function", "number", "string", "table", "function", "userdata",
     "thread", "upvalue", "proto",
 ];
 

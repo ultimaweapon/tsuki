@@ -262,7 +262,7 @@ pub fn lua_typename(t: c_int) -> &'static str {
 
 pub unsafe fn lua_iscfunction(L: *mut Thread, idx: c_int) -> c_int {
     let o: *const UnsafeValue = index2value(L, idx);
-    return ((*o).tt_ as c_int == 6 as c_int | (1 as c_int) << 4 as c_int
+    return (((*o).tt_ & 0xF) == 2
         || (*o).tt_ as c_int
             == 6 as c_int | (2 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
         as c_int;
@@ -293,8 +293,8 @@ pub unsafe fn lua_isstring(L: *const Thread, idx: c_int) -> c_int {
 pub unsafe fn lua_isuserdata(L: *mut Thread, idx: c_int) -> c_int {
     let o: *const UnsafeValue = index2value(L, idx);
     return ((*o).tt_ as c_int
-        == 7 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int
-        || (*o).tt_ as c_int == 2 as c_int | (0 as c_int) << 4 as c_int) as c_int;
+        == 7 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
+        as c_int;
 }
 
 pub unsafe fn lua_rawequal(
@@ -457,7 +457,7 @@ pub unsafe fn lua_rawlen(L: *const Thread, idx: c_int) -> u64 {
 pub unsafe fn lua_tocfunction(L: *mut Thread, idx: c_int) -> Option<Fp> {
     let o: *const UnsafeValue = index2value(L, idx);
 
-    if (*o).tt_ as c_int == 6 as c_int | (1 as c_int) << 4 as c_int {
+    if ((*o).tt_ & 0xf) == 2 {
         Some((*o).value_.f)
     } else if (*o).tt_ as c_int == 6 as c_int | (2 as c_int) << 4 as c_int | (1 as c_int) << 6 {
         Some((*((*o).value_.gc as *mut CClosure)).f)
@@ -501,10 +501,10 @@ pub unsafe fn lua_tothread(L: *mut Thread, idx: c_int) -> *mut Thread {
 pub unsafe fn lua_topointer(L: *const Thread, idx: c_int) -> *const libc::c_void {
     let o: *const UnsafeValue = index2value(L, idx);
     match (*o).tt_ as c_int & 0x3f as c_int {
-        22 => {
+        2 | 18 | 34 | 50 => {
             return ::core::mem::transmute::<Fp, usize>((*o).value_.f) as *mut libc::c_void;
         }
-        7 | 2 => return touserdata(o),
+        7 => return touserdata(o),
         _ => {
             if (*o).tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {
                 return (*o).value_.gc as *const libc::c_void;
@@ -573,42 +573,35 @@ pub unsafe fn lua_pushstring(L: *const Thread, mut s: *const libc::c_char) -> *c
 }
 
 pub unsafe fn lua_pushcclosure(L: *const Thread, fn_0: Fp, mut n: c_int) {
-    if n == 0 as c_int {
-        let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-        (*io).value_.f = fn_0;
-        (*io).tt_ = (6 as c_int | (1 as c_int) << 4 as c_int) as u8;
-        api_incr_top(L);
-    } else {
-        let cl = luaF_newCclosure((*L).hdr.global, n);
+    let cl = luaF_newCclosure((*L).hdr.global, n);
 
-        (*cl).f = fn_0;
-        (*L).top.sub(n.try_into().unwrap());
+    (*cl).f = fn_0;
+    (*L).top.sub(n.try_into().unwrap());
 
-        loop {
-            let fresh2 = n;
-            n = n - 1;
-            if !(fresh2 != 0) {
-                break;
-            }
-            let io1: *mut UnsafeValue =
-                &raw mut *((*cl).upvalue).as_mut_ptr().offset(n as isize) as *mut UnsafeValue;
-            let io2: *const UnsafeValue = &raw mut (*((*L).top.get()).offset(n as isize)).val;
-            (*io1).value_ = (*io2).value_;
-            (*io1).tt_ = (*io2).tt_;
+    loop {
+        let fresh2 = n;
+        n = n - 1;
+        if !(fresh2 != 0) {
+            break;
         }
+        let io1: *mut UnsafeValue =
+            &raw mut *((*cl).upvalue).as_mut_ptr().offset(n as isize) as *mut UnsafeValue;
+        let io2: *const UnsafeValue = &raw mut (*((*L).top.get()).offset(n as isize)).val;
+        (*io1).value_ = (*io2).value_;
+        (*io1).tt_ = (*io2).tt_;
+    }
 
-        let io_0: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-        let x_: *mut CClosure = cl;
+    let io_0: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
+    let x_: *mut CClosure = cl;
 
-        (*io_0).value_.gc = x_ as *mut Object;
-        (*io_0).tt_ = (6 as c_int | (2 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int) as u8;
+    (*io_0).value_.gc = x_ as *mut Object;
+    (*io_0).tt_ = (6 as c_int | (2 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int) as u8;
 
-        api_incr_top(L);
+    api_incr_top(L);
 
-        if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
-            crate::gc::step((*L).hdr.global);
-        }
-    };
+    if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
+        crate::gc::step((*L).hdr.global);
+    }
 }
 
 pub unsafe fn lua_pushboolean(L: *const Thread, b: c_int) {
@@ -1463,7 +1456,7 @@ pub unsafe fn lua_upvalueid(L: *mut Thread, fidx: c_int, n: c_int) -> *mut libc:
                     as *mut libc::c_void;
             }
         }
-        22 => {}
+        2 | 18 | 34 | 50 => {}
         _ => return 0 as *mut libc::c_void,
     }
 

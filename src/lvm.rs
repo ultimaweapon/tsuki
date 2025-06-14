@@ -346,9 +346,11 @@ pub unsafe fn luaV_finishget(
                 return Ok(());
             }
         }
-        if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 6 as libc::c_int {
+
+        if ((*tm).tt_ & 0xf) == 2 || ((*tm).tt_ & 0xf) == 6 {
             return luaT_callTMres(L, tm, t, key, val);
         }
+
         t = tm;
         if if !((*t).tt_ as libc::c_int
             == 5 as libc::c_int
@@ -435,9 +437,11 @@ pub unsafe fn luaV_finishset(
                 luaG_typeerror(L, t, "index")?;
             }
         }
-        if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 6 as libc::c_int {
+
+        if ((*tm).tt_ & 0xf) == 2 || ((*tm).tt_ & 0xf) == 6 {
             return luaT_callTM(L, tm, t, key, val);
         }
+
         t = tm;
         if if !((*t).tt_ as libc::c_int
             == 5 as libc::c_int
@@ -700,7 +704,9 @@ pub unsafe fn luaV_equalobj(
         0 | 1 | 17 => return Ok(1 as libc::c_int),
         3 => return Ok(((*t1).value_.i == (*t2).value_.i) as libc::c_int),
         19 => return Ok(((*t1).value_.n == (*t2).value_.n) as libc::c_int),
-        22 => return Ok(core::ptr::fn_addr_eq((*t1).value_.f, (*t2).value_.f) as libc::c_int),
+        2 | 18 | 34 | 50 => {
+            return Ok(core::ptr::fn_addr_eq((*t1).value_.f, (*t2).value_.f) as libc::c_int);
+        }
         4 => {
             return Ok((((*t1).value_.gc as *mut Str) as *mut Str
                 == ((*t2).value_.gc as *mut Str) as *mut Str)

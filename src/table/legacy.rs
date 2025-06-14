@@ -137,7 +137,7 @@ unsafe fn mainpositionTV(t: *const Table, key: *const UnsafeValue) -> *mut Node 
                         - 1 as libc::c_int) as isize,
             ) as *mut Node;
         }
-        22 => {
+        2 | 18 | 34 | 50 => {
             let f: Fp = (*key).value_.f;
             return ((*t).node.get()).offset(
                 ((::core::mem::transmute::<Fp, usize>(f) & 0xffffffff) as libc::c_uint)
@@ -187,7 +187,7 @@ unsafe fn equalkey(k1: *const UnsafeValue, n2: *const Node, deadok: libc::c_int)
         0 | 1 | 17 => 1,
         3 => ((*k1).value_.i == (*n2).u.key_val.i) as libc::c_int,
         19 => ((*k1).value_.n == (*n2).u.key_val.n) as libc::c_int,
-        22 => core::ptr::fn_addr_eq((*k1).value_.f, (*n2).u.key_val.f) as libc::c_int,
+        2 | 18 | 34 | 50 => core::ptr::fn_addr_eq((*k1).value_.f, (*n2).u.key_val.f) as libc::c_int,
         84 => luaS_eqlngstr((*k1).value_.gc as *mut Str, (*n2).u.key_val.gc as *mut Str),
         _ => ((*k1).value_.gc == (*n2).u.key_val.gc) as libc::c_int,
     }

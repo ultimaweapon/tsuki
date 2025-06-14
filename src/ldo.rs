@@ -547,7 +547,9 @@ pub async unsafe fn luaD_pretailcall(
                 )
                 .await;
             }
-            22 => return precallC(L, func, -(1 as c_int), (*func).val.value_.f).await,
+            2 | 18 | 34 | 50 => {
+                return precallC(L, func, -(1 as c_int), (*func).val.value_.f).await;
+            }
             6 => {
                 let p: *mut Proto = (*(*func).val.value_.gc.cast::<LuaFn>()).p.get();
                 let fsize: c_int = (*p).maxstacksize as c_int;
@@ -615,7 +617,7 @@ pub async unsafe fn luaD_precall(
                 .await?;
                 return Ok(0 as *mut CallInfo);
             }
-            22 => {
+            2 | 18 | 34 | 50 => {
                 precallC(L, func, nresults, (*func).val.value_.f).await?;
                 return Ok(0 as *mut CallInfo);
             }

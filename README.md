@@ -10,7 +10,7 @@ Tsuki is a port of vanilla Lua 5.4 to Rust. This is porting, not binding; which 
 - Support both synchronous and asynchronous.
   - Coroutine can only yield within async context.
   - All metamethod and iterator function cannot be async and cannot yield.
-  - Each call into Rust async function from Lua incur one heap allocation.
+  - Each call into Rust async function from Lua always incur one heap allocation.
 - Safe and low overhead API.
 - Any error propagated to the caller via Rust `Result` instead of a long jump.
 - All values owned by Rust will exempt from GC automatically (no need to move it to Lua registry).
