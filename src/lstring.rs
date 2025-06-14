@@ -12,17 +12,9 @@ use crate::{Lua, Object, Str};
 use core::alloc::Layout;
 use core::mem::offset_of;
 use core::ptr::null;
-use libc::memcmp;
 
-pub unsafe fn luaS_eqlngstr(a: *mut Str, b: *mut Str) -> libc::c_int {
-    let len: usize = (*(*a).u.get()).lnglen;
-    return (a == b
-        || len == (*(*b).u.get()).lnglen
-            && memcmp(
-                ((*a).contents).as_mut_ptr() as *const libc::c_void,
-                ((*b).contents).as_mut_ptr() as *const libc::c_void,
-                len as _,
-            ) == 0 as libc::c_int) as libc::c_int;
+pub unsafe fn luaS_eqlngstr(a: *const Str, b: *const Str) -> libc::c_int {
+    (a == b || (*a).as_bytes() == (*b).as_bytes()).into()
 }
 
 pub unsafe fn luaS_hash(
@@ -45,12 +37,11 @@ pub unsafe fn luaS_hash(
 
 pub unsafe fn luaS_hashlongstr(ts: *mut Str) -> libc::c_uint {
     if (*ts).extra.get() as libc::c_int == 0 as libc::c_int {
-        let len: usize = (*(*ts).u.get()).lnglen;
-        (*ts).hash.set(luaS_hash(
-            ((*ts).contents).as_mut_ptr(),
-            len,
-            (*ts).hash.get(),
-        ));
+        let s = (*ts).as_bytes();
+
+        (*ts)
+            .hash
+            .set(luaS_hash(s.as_ptr().cast(), s.len(), (*ts).hash.get()));
         (*ts).extra.set(1 as libc::c_int as u8);
     }
     return (*ts).hash.get();

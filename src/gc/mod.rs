@@ -20,8 +20,7 @@ use crate::{Lua, LuaFn, Node, Str, Table, Thread};
 use core::alloc::Layout;
 use core::cell::Cell;
 use core::mem::offset_of;
-use core::ptr::null_mut;
-use libc::strchr;
+use core::ptr::{null, null_mut};
 
 mod mark;
 mod object;
@@ -416,54 +415,52 @@ unsafe fn traversestrongtable(g: *const Lua, h: *const Table) {
 }
 
 unsafe fn traversetable(g: *const Lua, h: *const Table) -> usize {
-    let mut weakkey: *const libc::c_char = 0 as *const libc::c_char;
-    let mut weakvalue: *const libc::c_char = 0 as *const libc::c_char;
-    let mode: *const UnsafeValue = if ((*h).metatable.get()).is_null() {
-        0 as *const UnsafeValue
+    // Get table mode.
+    let mode = if (*h).metatable.get().is_null() {
+        null()
     } else if (*(*h).metatable.get()).flags.get() & 1 << TM_MODE != 0 {
-        0 as *const UnsafeValue
+        null()
     } else {
-        luaT_gettm(
+        let s = luaT_gettm(
             (*h).metatable.get(),
             TM_MODE,
             (*g).tmname[TM_MODE as usize].get(),
-        )
+        );
+
+        if !s.is_null() && (*s).tt_ == 4 | 0 << 4 | 1 << 6 {
+            (*s).value_.gc.cast::<Str>()
+        } else {
+            null()
+        }
     };
 
-    let mut smode: *mut Str = 0 as *mut Str;
+    // Mark metatable.
     if !((*h).metatable.get()).is_null() {
         if (*(*h).metatable.get()).hdr.marked.get() as libc::c_int
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
         {
-            reallymarkobject(g, (*h).metatable.get() as *mut Object);
+            reallymarkobject(g, (*h).metatable.get().cast());
         }
     }
-    if !mode.is_null()
-        && (*mode).tt_ as libc::c_int
-            == 4 as libc::c_int
-                | (0 as libc::c_int) << 4 as libc::c_int
-                | (1 as libc::c_int) << 6 as libc::c_int
-        && {
-            smode = ((*mode).value_.gc as *mut Str) as *mut Str;
-            weakkey = strchr(((*smode).contents).as_mut_ptr(), 'k' as i32);
-            weakvalue = strchr(((*smode).contents).as_mut_ptr(), 'v' as i32);
-            !weakkey.is_null() || !weakvalue.is_null()
-        }
-    {
-        if weakkey.is_null() {
-            traverseweakvalue(g, h);
-        } else if weakvalue.is_null() {
+
+    // Traverse table.
+    let (wk, wv) = match mode.as_ref().map(|v| v.as_bytes()) {
+        Some(v) => (v.contains(&b'k'), v.contains(&b'v')),
+        None => (false, false),
+    };
+
+    match (wk, wv) {
+        (true, true) => linkgclist_(
+            h as *mut Object,
+            (*h).hdr.gclist.as_ptr(),
+            (*g).allweak.as_ptr(),
+        ),
+        (true, false) => {
             traverseephemeron(g, h, 0);
-        } else {
-            linkgclist_(
-                h as *mut Object,
-                (*h).hdr.gclist.as_ptr(),
-                (*g).allweak.as_ptr(),
-            );
         }
-    } else {
-        traversestrongtable(g, h);
+        (false, true) => traverseweakvalue(g, h),
+        (false, false) => traversestrongtable(g, h),
     }
 
     return (1 as libc::c_int as libc::c_uint)

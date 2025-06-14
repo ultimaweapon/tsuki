@@ -38,12 +38,11 @@ use crate::{ChunkInfo, Lua, LuaFn, Object, ParseError, Ref, Str};
 use alloc::borrow::Cow;
 use alloc::format;
 use alloc::rc::Rc;
-use core::ffi::CStr;
+use alloc::string::String;
 use core::fmt::Display;
 use core::ops::Deref;
 use core::pin::Pin;
 use core::ptr::null;
-use libc::strcmp;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -490,7 +489,7 @@ unsafe fn check_readonly(ls: *mut LexState, e: *mut expdesc) -> Result<(), Parse
             ls,
             format_args!(
                 "attempt to assign to const variable '{}'",
-                CStr::from_ptr(((*varname).contents).as_ptr()).to_string_lossy(),
+                String::from_utf8_lossy((*varname).as_bytes()),
             ),
         ));
     }
@@ -730,20 +729,18 @@ unsafe fn adjust_assign(
 }
 
 unsafe fn jumpscopeerror(ls: *mut LexState, gt: *mut Labeldesc) -> ParseError {
-    let varname: *const libc::c_char =
-        ((*(*getlocalvardesc((*ls).fs, (*gt).nactvar as libc::c_int))
-            .vd
-            .name)
-            .contents)
-            .as_ptr();
+    let varname = (*(*getlocalvardesc((*ls).fs, (*gt).nactvar as libc::c_int))
+        .vd
+        .name)
+        .as_bytes();
 
     luaK_semerror(
         ls,
         format_args!(
             "<goto {}> at line {} jumps into the scope of local '{}'",
-            CStr::from_ptr(((*(*gt).name).contents).as_ptr()).to_string_lossy(),
+            String::from_utf8_lossy((*(*gt).name).as_bytes()),
             (*gt).line,
-            CStr::from_ptr(varname).to_string_lossy(),
+            String::from_utf8_lossy(varname),
         ),
     )
 }
@@ -909,7 +906,7 @@ unsafe fn undefgoto(ls: *mut LexState, gt: *mut Labeldesc) -> ParseError {
             ls,
             format_args!(
                 "no visible label '{}' for <goto> at line {}",
-                CStr::from_ptr(((*(*gt).name).contents).as_ptr()).to_string_lossy(),
+                String::from_utf8_lossy((*(*gt).name).as_bytes()),
                 (*gt).line,
             ),
         )
@@ -2013,7 +2010,7 @@ unsafe fn checkrepeated(ls: *mut LexState, name: *const Str) -> Result<(), Parse
             ls,
             format_args!(
                 "label '{}' already defined on line {}",
-                CStr::from_ptr(((*name).contents).as_ptr()).to_string_lossy(),
+                String::from_utf8_lossy((*name).as_bytes()),
                 (*lb).line
             ),
         ));
@@ -2432,19 +2429,18 @@ unsafe fn localfunc(ls: *mut LexState) -> Result<(), ParseError> {
 
 unsafe fn getlocalattribute(ls: *mut LexState) -> Result<libc::c_int, ParseError> {
     if testnext(ls, '<' as i32)? != 0 {
-        let attr: *const libc::c_char = ((*str_checkname(ls)?).contents).as_ptr();
+        let attr = (*str_checkname(ls)?).as_bytes();
+
         checknext(ls, '>' as i32)?;
-        if strcmp(attr, b"const\0" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
+
+        if attr == b"const" {
             return Ok(1 as libc::c_int);
-        } else if strcmp(attr, b"close\0" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
+        } else if attr == b"close" {
             return Ok(2 as libc::c_int);
         } else {
             return Err(luaK_semerror(
                 ls,
-                format_args!(
-                    "unknown attribute '{}'",
-                    CStr::from_ptr(attr).to_string_lossy()
-                ),
+                format_args!("unknown attribute '{}'", String::from_utf8_lossy(attr)),
             ));
         }
     }

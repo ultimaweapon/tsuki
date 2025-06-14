@@ -32,10 +32,11 @@ use crate::{ArithError, LuaFn, NON_YIELDABLE_WAKER, Str, Table, Thread};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::cell::Cell;
+use core::cmp::Ordering;
 use core::pin::pin;
 use core::ptr::null;
 use core::task::{Context, Poll, Waker};
-use libc::{memcpy, strcoll, strlen};
+use libc::memcpy;
 use libm::{floor, fmod, pow};
 
 pub type F2Imod = libc::c_uint;
@@ -48,15 +49,16 @@ unsafe fn l_strton(obj: *const UnsafeValue, result: *mut UnsafeValue) -> libc::c
     if !((*obj).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int) {
         return 0 as libc::c_int;
     } else {
-        let st: *mut Str = (*obj).value_.gc as *mut Str;
-        return (luaO_str2num(((*st).contents).as_mut_ptr(), result)
+        let st = (*obj).value_.gc.cast::<Str>();
+
+        return (luaO_str2num((*st).contents.as_ptr(), result)
             == (if (*st).shrlen.get() as libc::c_int != 0xff as libc::c_int {
                 (*st).shrlen.get() as usize
             } else {
                 (*(*st).u.get()).lnglen
             })
             .wrapping_add(1 as libc::c_int as usize)) as libc::c_int;
-    };
+    }
 }
 
 pub unsafe fn luaV_tonumber_(obj: *const UnsafeValue, n: *mut f64) -> libc::c_int {
@@ -481,42 +483,15 @@ pub unsafe fn luaV_finishset(
     unreachable!("luaG_runerror always return Err");
 }
 
+#[inline(always)]
 unsafe fn l_strcmp(ts1: *const Str, ts2: *const Str) -> libc::c_int {
-    let mut s1: *const libc::c_char = ((*ts1).contents).as_ptr();
-    let mut rl1: usize = if (*ts1).shrlen.get() as libc::c_int != 0xff as libc::c_int {
-        (*ts1).shrlen.get() as usize
-    } else {
-        (*(*ts1).u.get()).lnglen
-    };
-    let mut s2: *const libc::c_char = ((*ts2).contents).as_ptr();
-    let mut rl2: usize = if (*ts2).shrlen.get() as libc::c_int != 0xff as libc::c_int {
-        (*ts2).shrlen.get() as usize
-    } else {
-        (*(*ts2).u.get()).lnglen
-    };
-    loop {
-        let temp: libc::c_int = strcoll(s1, s2);
-        if temp != 0 as libc::c_int {
-            return temp;
-        } else {
-            let mut zl1: usize = strlen(s1);
-            let mut zl2: usize = strlen(s2);
-            if zl2 == rl2 {
-                return if zl1 == rl1 {
-                    0 as libc::c_int
-                } else {
-                    1 as libc::c_int
-                };
-            } else if zl1 == rl1 {
-                return -(1 as libc::c_int);
-            }
-            zl1 = zl1.wrapping_add(1);
-            zl2 = zl2.wrapping_add(1);
-            s1 = s1.offset(zl1 as isize);
-            rl1 = rl1.wrapping_sub(zl1);
-            s2 = s2.offset(zl2 as isize);
-            rl2 = rl2.wrapping_sub(zl2);
-        }
+    let s1 = (*ts1).as_bytes();
+    let s2 = (*ts2).as_bytes();
+
+    match s1.cmp(s2) {
+        Ordering::Less => -1,
+        Ordering::Equal => 0,
+        Ordering::Greater => 1,
     }
 }
 

@@ -566,13 +566,6 @@ static mut base_funcs: [luaL_Reg; 21] = [
         };
         init
     },
-    {
-        let mut init = luaL_Reg {
-            name: 0 as *const libc::c_char,
-            func: None,
-        };
-        init
-    },
 ];
 
 pub unsafe fn luaopen_base(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {

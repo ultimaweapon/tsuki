@@ -16,7 +16,7 @@ use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{Lua, NON_YIELDABLE_WAKER, Str, Table, Thread};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
-use core::ffi::CStr;
+use alloc::string::String;
 use core::pin::pin;
 use core::ptr::null;
 use core::task::{Context, Poll, Waker};
@@ -152,11 +152,9 @@ pub unsafe fn luaT_objtypename(g: *const Lua, o: *const UnsafeValue) -> Cow<'sta
             }
     {
         let name: *const UnsafeValue = luaH_getshortstr(mt, Str::new(g, "__name"));
+
         if (*name).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int {
-            return CStr::from_ptr(((*((*name).value_.gc as *mut Str)).contents).as_mut_ptr())
-                .to_string_lossy()
-                .into_owned()
-                .into();
+            return String::from_utf8_lossy((*((*name).value_.gc.cast::<Str>())).as_bytes());
         }
     }
 
