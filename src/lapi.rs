@@ -27,7 +27,7 @@ use crate::{Context, LuaFn, Object, Str, Table, TableError, Thread, api_incr_top
 use alloc::boxed::Box;
 use core::ffi::{CStr, c_void};
 use core::mem::offset_of;
-use core::ptr::null_mut;
+use core::ptr::{null, null_mut};
 
 type c_int = i32;
 
@@ -415,32 +415,24 @@ pub unsafe fn lua_toboolean(L: *const Thread, idx: c_int) -> c_int {
         || (*o).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int;
 }
 
-pub unsafe fn lua_tolstring(L: *const Thread, idx: c_int, len: *mut usize) -> *const libc::c_char {
+pub unsafe fn lua_tolstring(L: *const Thread, idx: c_int) -> *const Str {
     let mut o = index2value(L, idx);
 
-    if !((*o).tt_ as c_int & 0xf as c_int == 4 as c_int) {
-        if !((*o).tt_ as c_int & 0xf as c_int == 3 as c_int) {
-            if !len.is_null() {
-                *len = 0 as c_int as usize;
-            }
-            return 0 as *const libc::c_char;
+    if !((*o).tt_ & 0xf == 4) {
+        if !((*o).tt_ & 0xf == 3) {
+            return null();
         }
+
         luaO_tostring((*L).hdr.global, o);
+
         if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
             crate::gc::step((*L).hdr.global);
         }
+
         o = index2value(L, idx);
     }
 
-    if !len.is_null() {
-        *len = if (*((*o).value_.gc as *mut Str)).shrlen.get() as c_int != 0xff {
-            (*((*o).value_.gc as *mut Str)).shrlen.get() as usize
-        } else {
-            (*(*((*o).value_.gc as *mut Str)).u.get()).lnglen
-        };
-    }
-
-    ((*((*o).value_.gc as *mut Str)).contents).as_mut_ptr()
+    (*o).value_.gc.cast::<Str>()
 }
 
 pub unsafe fn lua_rawlen(L: *const Thread, idx: c_int) -> u64 {

@@ -16,7 +16,7 @@ use crate::lapi::{
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::{CallInfo, lua_Debug};
-use crate::{NON_YIELDABLE_WAKER, Thread, lua_pop};
+use crate::{NON_YIELDABLE_WAKER, Str, Thread, lua_pop};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
@@ -26,7 +26,7 @@ use core::fmt::{Display, Write};
 use core::pin::pin;
 use core::ptr::{null, null_mut};
 use core::task::{Context, Poll, Waker};
-use libc::{strcmp, strlen, strncmp};
+use libc::strcmp;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -85,20 +85,23 @@ unsafe fn pushglobalfuncname(
         6,
         b"not enough stack\0" as *const u8 as *const libc::c_char,
     )?;
+
     if findfield(L, top + 1 as libc::c_int, 2 as libc::c_int)? != 0 {
-        let name: *const libc::c_char = lua_tolstring(L, -(1 as libc::c_int), 0 as *mut usize);
-        if strncmp(name, b"_G.\0" as *const u8 as *const libc::c_char, 3) == 0 as libc::c_int {
-            lua_pushstring(L, name.offset(3 as libc::c_int as isize));
+        let name = (*lua_tolstring(L, -1)).as_bytes();
+
+        if let Some(name) = name.strip_prefix(b"_G.") {
+            lua_pushlstring(L, name);
             lua_rotate(L, -(2 as libc::c_int), -(1 as libc::c_int));
             lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
         }
+
         lua_copy(L, -(1 as libc::c_int), top + 1 as libc::c_int);
         lua_settop(L, top + 1 as libc::c_int)?;
         return Ok(1 as libc::c_int);
     } else {
         lua_settop(L, top)?;
         return Ok(0 as libc::c_int);
-    };
+    }
 }
 
 unsafe fn pushfuncname(
@@ -107,7 +110,8 @@ unsafe fn pushfuncname(
     ar: &mut lua_Debug,
 ) -> Result<(), Box<dyn core::error::Error>> {
     if pushglobalfuncname(L, ar)? != 0 {
-        let n = CStr::from_ptr(lua_tolstring(L, -1, 0 as *mut usize)).to_string_lossy();
+        let n = lua_tolstring(L, -1);
+        let n = String::from_utf8_lossy((*n).as_bytes());
 
         dst.push_str("function '");
         dst.push_str(&n);
@@ -272,36 +276,36 @@ pub unsafe fn luaL_argerror(
         i_ci: 0 as *mut CallInfo,
     };
     if lua_getstack(L, 0 as libc::c_int, &mut ar) == 0 {
-        return luaL_error(L, format!("bad argument #{arg} ({extramsg})"));
+        return Err(luaL_error(L, format!("bad argument #{arg} ({extramsg})")));
     }
     lua_getinfo(L, b"n\0" as *const u8 as *const libc::c_char, &mut ar);
     if strcmp(ar.namewhat, b"method\0" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
         arg -= 1;
 
         if arg == 0 as libc::c_int {
-            return luaL_error(
+            return Err(luaL_error(
                 L,
                 format!(
                     "calling '{}' on bad self ({extramsg})",
                     CStr::from_ptr(ar.name).to_string_lossy()
                 ),
-            );
+            ));
         }
     }
     if (ar.name).is_null() {
         ar.name = if pushglobalfuncname(L, &mut ar)? != 0 {
-            lua_tolstring(L, -(1 as libc::c_int), 0 as *mut usize)
+            (*lua_tolstring(L, -1)).contents.as_ptr()
         } else {
             b"?\0" as *const u8 as *const libc::c_char
         };
     }
-    return luaL_error(
+    return Err(luaL_error(
         L,
         format!(
             "bad argument #{arg} to '{}' ({extramsg})",
             CStr::from_ptr(ar.name).to_string_lossy()
         ),
-    );
+    ));
 }
 
 pub unsafe fn luaL_typeerror(
@@ -310,9 +314,7 @@ pub unsafe fn luaL_typeerror(
     expect: impl Display,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     let actual = if luaL_getmetafield(L, arg, c"__name".as_ptr())? == 4 {
-        CStr::from_ptr(lua_tolstring(L, -1, 0 as *mut usize)).to_string_lossy()
-    } else if lua_type(L, arg) == 2 {
-        "light userdata".into()
+        String::from_utf8_lossy((*lua_tolstring(L, -1)).as_bytes())
     } else {
         lua_typename(lua_type(L, arg)).into()
     };
@@ -364,11 +366,8 @@ pub unsafe fn luaL_where(L: *const Thread, level: libc::c_int) -> Cow<'static, s
     "".into()
 }
 
-pub unsafe fn luaL_error(
-    L: *const Thread,
-    m: impl Display,
-) -> Result<libc::c_int, Box<dyn core::error::Error>> {
-    Err(format!("{}{}", luaL_where(L, 1), m).into())
+pub unsafe fn luaL_error(L: *const Thread, m: impl Display) -> Box<dyn core::error::Error> {
+    format!("{}{}", luaL_where(L, 1), m).into()
 }
 
 pub unsafe fn luaL_fileresult(
@@ -473,34 +472,6 @@ pub unsafe fn luaL_checkudata(
     return Ok(p);
 }
 
-pub unsafe fn luaL_checkoption<'a>(
-    L: *mut Thread,
-    arg: libc::c_int,
-    def: *const libc::c_char,
-    lst: impl IntoIterator<Item = &'a str>,
-) -> Result<libc::c_int, Box<dyn core::error::Error>> {
-    let name: *const libc::c_char = if !def.is_null() {
-        luaL_optlstring(L, arg, def, 0 as *mut usize)?
-    } else {
-        luaL_checklstring(L, arg, 0 as *mut usize)?
-    };
-
-    let name = CStr::from_ptr(name);
-
-    if let Some(i) = lst
-        .into_iter()
-        .position(|v| v.as_bytes() == name.to_bytes())
-    {
-        return Ok(i.try_into().unwrap());
-    }
-
-    return luaL_argerror(
-        L,
-        arg,
-        format_args!("invalid option '{}'", name.to_string_lossy()),
-    );
-}
-
 pub unsafe fn luaL_checkstack(
     L: *const Thread,
     space: usize,
@@ -508,12 +479,12 @@ pub unsafe fn luaL_checkstack(
 ) -> Result<(), Box<dyn core::error::Error>> {
     if lua_checkstack(L, space).is_err() {
         if !msg.is_null() {
-            luaL_error(
+            return Err(luaL_error(
                 L,
                 format!("stack overflow ({})", CStr::from_ptr(msg).to_string_lossy()),
-            )?;
+            ));
         } else {
-            luaL_error(L, "stack overflow")?;
+            return Err(luaL_error(L, "stack overflow"));
         }
     }
 
@@ -549,29 +520,25 @@ pub unsafe fn luaL_checkany(
 pub unsafe fn luaL_checklstring(
     L: *const Thread,
     arg: libc::c_int,
-    len: *mut usize,
-) -> Result<*const libc::c_char, Box<dyn core::error::Error>> {
-    let s: *const libc::c_char = lua_tolstring(L, arg, len);
+) -> Result<*const Str, Box<dyn core::error::Error>> {
+    let s = lua_tolstring(L, arg);
+
     if (s.is_null() as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long != 0 {
         tag_error(L, arg, 4 as libc::c_int)?;
     }
+
     return Ok(s);
 }
 
 pub unsafe fn luaL_optlstring(
     L: *const Thread,
     arg: libc::c_int,
-    def: *const libc::c_char,
-    len: *mut usize,
-) -> Result<*const libc::c_char, Box<dyn core::error::Error>> {
+) -> Result<*const Str, Box<dyn core::error::Error>> {
     if lua_type(L, arg) <= 0 as libc::c_int {
-        if !len.is_null() {
-            *len = if !def.is_null() { strlen(def) } else { 0 };
-        }
-        return Ok(def);
+        Ok(null())
     } else {
-        return luaL_checklstring(L, arg, len);
-    };
+        luaL_checklstring(L, arg)
+    }
 }
 
 pub unsafe fn luaL_checknumber(
@@ -699,7 +666,7 @@ pub unsafe fn luaL_len(
     lua_len(L, idx)?;
     l = lua_tointegerx(L, -(1 as libc::c_int), &mut isnum);
     if ((isnum == 0) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long != 0 {
-        luaL_error(L, "object length is not an integer")?;
+        return Err(luaL_error(L, "object length is not an integer"));
     }
     lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
     return Ok(l);
@@ -708,13 +675,12 @@ pub unsafe fn luaL_len(
 pub unsafe fn luaL_tolstring(
     L: *const Thread,
     mut idx: libc::c_int,
-    len: *mut usize,
-) -> Result<*const libc::c_char, Box<dyn core::error::Error>> {
+) -> Result<*const Str, Box<dyn core::error::Error>> {
     idx = lua_absindex(L, idx);
 
     if luaL_callmeta(L, idx, b"__tostring\0" as *const u8 as *const libc::c_char)? != 0 {
         if lua_isstring(L, -(1 as libc::c_int)) == 0 {
-            luaL_error(L, "'__tostring' must return a string")?;
+            return Err(luaL_error(L, "'__tostring' must return a string"));
         }
     } else {
         match lua_type(L, idx) {
@@ -750,7 +716,7 @@ pub unsafe fn luaL_tolstring(
             _ => {
                 let tt = luaL_getmetafield(L, idx, c"__name".as_ptr())?;
                 let kind = if tt == 4 {
-                    CStr::from_ptr(lua_tolstring(L, -1, 0 as *mut usize)).to_string_lossy()
+                    String::from_utf8_lossy((*lua_tolstring(L, -1)).as_bytes())
                 } else {
                     lua_typename(lua_type(L, idx)).into()
                 };
@@ -765,7 +731,7 @@ pub unsafe fn luaL_tolstring(
         }
     }
 
-    Ok(lua_tolstring(L, -(1 as libc::c_int), len))
+    Ok(lua_tolstring(L, -1))
 }
 
 pub unsafe fn luaL_getsubtable(
