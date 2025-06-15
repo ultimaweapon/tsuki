@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::LazyLock;
-use tsuki::{Builder, ChunkInfo};
+use tsuki::{Builder, CallError, ChunkInfo};
 
 #[test]
 #[ignore = "need Lua standard library"]
@@ -21,14 +21,16 @@ fn closure() {
 }
 
 #[test]
-#[ignore = "need Lua standard library"]
 fn error() {
-    assert!(
-        run("error.lua")
-            .unwrap_err()
-            .to_string()
-            .ends_with("error.lua:2: oh no")
-    );
+    let e = run("error.lua")
+        .unwrap_err()
+        .downcast::<CallError>()
+        .unwrap();
+    let (f, l) = e.location().unwrap();
+
+    assert!(f.ends_with("error.lua"));
+    assert_eq!(l, 2);
+    assert_eq!(e.to_string(), "oh no");
 }
 
 #[test]

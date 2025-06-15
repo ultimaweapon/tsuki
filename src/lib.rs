@@ -2,7 +2,6 @@
 
 pub use self::builder::*;
 pub use self::context::*;
-pub use self::error::*;
 pub use self::function::*;
 pub use self::gc::Ref;
 pub use self::module::*;
@@ -33,7 +32,6 @@ use thiserror::Error;
 mod builder;
 mod builtin;
 mod context;
-mod error;
 mod function;
 mod gc;
 mod lapi;
@@ -216,6 +214,11 @@ pub enum ArithError {
     #[error("attempt to divide by zero")]
     DivZero,
 }
+
+/// Represents an error when Lua stack is overflow.
+#[derive(Debug, Error)]
+#[error("stack overflow")]
+pub struct StackOverflow;
 
 static NON_YIELDABLE_WAKER: RawWakerVTable = RawWakerVTable::new(
     |_| unimplemented!(),

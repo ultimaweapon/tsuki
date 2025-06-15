@@ -6,11 +6,12 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use crate::lapi::PcallError;
 use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
 use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::lobject::StkId;
 use crate::{ChunkInfo, Thread};
-use alloc::boxed::Box;
+use core::ptr::{null, null_mut};
 
 pub type lua_Hook = Option<unsafe extern "C" fn(*const Thread, *mut lua_Debug) -> ()>;
 
@@ -31,6 +32,29 @@ pub struct lua_Debug {
     pub ftransfer: usize,
     pub ntransfer: usize,
     pub(crate) i_ci: *mut CallInfo,
+}
+
+impl Default for lua_Debug {
+    #[inline(always)]
+    fn default() -> Self {
+        Self {
+            event: 0,
+            name: null(),
+            namewhat: null(),
+            what: null(),
+            source: None,
+            currentline: 0,
+            linedefined: 0,
+            lastlinedefined: 0,
+            nups: 0,
+            nparams: 0,
+            isvararg: 0,
+            istailcall: 0,
+            ftransfer: 0,
+            ntransfer: 0,
+            i_ci: null_mut(),
+        }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -109,7 +133,7 @@ pub unsafe fn luaE_shrinkCI(L: *const Thread) {
     }
 }
 
-pub unsafe fn lua_closethread(L: *mut Thread) -> Result<(), Box<dyn core::error::Error>> {
+pub unsafe fn lua_closethread(L: *mut Thread) -> Result<(), PcallError> {
     (*L).ci.set((*L).base_ci.get());
     let ci: *mut CallInfo = (*L).ci.get();
 

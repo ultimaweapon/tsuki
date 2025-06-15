@@ -363,10 +363,8 @@ unsafe fn auxgetinfo(
     let mut status: libc::c_int = 1 as libc::c_int;
     while *what != 0 {
         match *what as u8 {
-            b'S' => {
-                funcinfo(ar, f);
-            }
-            108 => {
+            b'S' => funcinfo(ar, f),
+            b'l' => {
                 (*ar).currentline = if !ci.is_null()
                     && (*ci).callstatus as libc::c_int & (1 as libc::c_int) << 1 as libc::c_int == 0
                 {

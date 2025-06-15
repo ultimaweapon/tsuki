@@ -6,7 +6,8 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::ldebug::{luaG_callerror, luaG_runerror};
+use crate::lapi::PcallError;
+use crate::ldebug::luaG_callerror;
 use crate::lfunc::{luaF_close, luaF_initupvals};
 use crate::lmem::{luaM_free_, luaM_saferealloc_};
 use crate::lobject::{CClosure, Proto, StackValue, StkId, UpVal};
@@ -16,7 +17,7 @@ use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, Zio};
 use crate::value::UnsafeValue;
-use crate::{ChunkInfo, Context, Lua, LuaFn, ParseError, Ref, Thread};
+use crate::{ChunkInfo, Context, Lua, LuaFn, ParseError, Ref, StackOverflow, Thread};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
@@ -31,12 +32,6 @@ struct SParser {
     z: *mut ZIO,
     buff: Mbuffer,
     dyd: Dyndata,
-}
-
-#[repr(C)]
-pub struct CloseP {
-    pub level: StkId,
-    pub status: Result<(), Box<dyn core::error::Error>>,
 }
 
 unsafe fn relstack(L: *const Thread) {
@@ -133,14 +128,11 @@ pub unsafe fn luaD_reallocstack(th: *const Thread, newsize: usize) {
 }
 
 #[inline(never)]
-pub unsafe fn luaD_growstack(
-    L: *const Thread,
-    n: usize,
-) -> Result<(), Box<dyn core::error::Error>> {
+pub unsafe fn luaD_growstack(L: *const Thread, n: usize) -> Result<(), StackOverflow> {
     let size = ((*L).stack_last.get()).offset_from_unsigned((*L).stack.get());
 
     if size > 1000000 {
-        return luaG_runerror(L, "stack overflow");
+        return Err(StackOverflow);
     } else if n < 1000000 {
         let mut newsize = 2 * size;
         let needed = ((*L).top.get()).offset_from_unsigned((*L).stack.get()) + n;
@@ -159,7 +151,7 @@ pub unsafe fn luaD_growstack(
         }
     }
 
-    luaG_runerror(L, "stack overflow")
+    Err(StackOverflow)
 }
 
 unsafe fn stackinuse(L: *const Thread) -> usize {
@@ -703,25 +695,21 @@ pub async unsafe fn luaD_call(
 pub unsafe fn luaD_closeprotected(
     L: *const Thread,
     level: usize,
-    mut status: Result<(), Box<dyn core::error::Error>>,
-) -> Result<(), Box<dyn core::error::Error>> {
+    mut status: Result<(), PcallError>,
+) -> Result<(), PcallError> {
     let old_ci: *mut CallInfo = (*L).ci.get();
     let old_allowhooks: u8 = (*L).allowhook.get();
 
     loop {
-        let pcl = CloseP {
-            level: (*L).stack.get().byte_add(level),
-            status,
+        let e = match luaF_close(L, (*L).stack.get().byte_add(level)) {
+            Ok(_) => break status,
+            Err(e) => e,
         };
 
-        status = luaF_close(L, pcl.level).map(|_| ());
+        status = Err(PcallError::new(L, e));
 
-        if status.is_ok() {
-            return pcl.status;
-        } else {
-            (*L).ci.set(old_ci);
-            (*L).allowhook.set(old_allowhooks);
-        }
+        (*L).ci.set(old_ci);
+        (*L).allowhook.set(old_allowhooks);
     }
 }
 

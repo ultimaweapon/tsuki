@@ -7,7 +7,7 @@ use core::fmt::{Display, Formatter};
 /// Contains information for Lua chunk.
 #[derive(Default, Clone)]
 pub struct ChunkInfo {
-    name: String,
+    pub(crate) name: String,
 }
 
 impl ChunkInfo {
