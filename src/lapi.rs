@@ -273,6 +273,7 @@ pub unsafe fn lua_isinteger(L: *const Thread, idx: c_int) -> c_int {
     return ((*o).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int) as c_int;
 }
 
+#[inline(never)]
 pub unsafe fn lua_isnumber(L: *const Thread, idx: c_int) -> c_int {
     let mut n: f64 = 0.;
     let o: *const UnsafeValue = index2value(L, idx);
@@ -391,21 +392,21 @@ pub unsafe fn lua_tonumberx(L: *const Thread, idx: c_int, pisnum: *mut c_int) ->
     return n;
 }
 
+#[inline(never)]
 pub unsafe fn lua_tointegerx(L: *const Thread, idx: c_int, pisnum: *mut c_int) -> i64 {
     let mut res: i64 = 0 as c_int as i64;
     let o: *const UnsafeValue = index2value(L, idx);
-    let isnum: c_int = if (((*o).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int) as c_int
-        != 0 as c_int) as c_int as libc::c_long
-        != 0
-    {
+    let isnum: c_int = if (*o).tt_ == 3 | 0 << 4 {
         res = (*o).value_.i;
         1 as c_int
     } else {
         luaV_tointeger(o, &mut res, F2Ieq)
     };
+
     if !pisnum.is_null() {
         *pisnum = isnum;
     }
+
     return res;
 }
 
@@ -415,11 +416,12 @@ pub unsafe fn lua_toboolean(L: *const Thread, idx: c_int) -> c_int {
         || (*o).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int;
 }
 
-pub unsafe fn lua_tolstring(L: *const Thread, idx: c_int) -> *const Str {
+#[inline(never)]
+pub unsafe fn lua_tolstring(L: *const Thread, idx: c_int, convert: bool) -> *const Str {
     let mut o = index2value(L, idx);
 
     if !((*o).tt_ & 0xf == 4) {
-        if !((*o).tt_ & 0xf == 3) {
+        if !convert || !((*o).tt_ & 0xf == 3) {
             return null();
         }
 

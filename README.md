@@ -17,12 +17,18 @@ Tsuki is a port of vanilla Lua 5.4 to Rust. This is porting, not binding; which 
 
 ## Differences from vanilla Lua
 
-- Binary chunk is not supported and third argument of `load` must be `nil`.
+- Binary chunk is not supported.
 - Panic when memory allocation is failed without retry.
-- First argument of `error` and `load` accept only a string.
-- Second argument of `assert` accept only a string.
-- Chunk name does not have a prefix (e.g. `@`) and second argument of `load` will be empty when absent.
+- Chunk name does not have a prefix (e.g. `@`).
 - No `_VERSION`, `collectgarbage`, `dofile`, `loadfile`, `xpcall` and `string.dump`.
+- Second argument of `assert` accept only a string.
+- Arguments of `error`:
+  - First argument accept only a string.
+  - Second argument is not supported and it is always assume 1.
+- Arguments of `load`:
+  - First argument accept only a string.
+  - Second argument will be an empty string when absent.
+  - Third argument must be `nil`.
 - `warn` is enabled by default without message prefixes and does not support control message.
 - Second argument to `__close` metamethod always `nil`.
 - `__gc` metamethod is not supported.

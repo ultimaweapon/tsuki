@@ -22,9 +22,6 @@ impl Builder {
     /// or you can pass `0` as a seed if
     /// [HashDoS](https://en.wikipedia.org/wiki/Collision_attack#Hash_flooding) attack is not
     /// possible for your application.
-    ///
-    /// Use [`Self::enable_all()`] to enable all Lua built-in libraries. You can also enable only
-    /// selected library with `enable_*` (e.g. [`Self::enable_base()`]).
     pub fn new(seed: u32) -> Self {
         let g = Rc::pin(Lua {
             currentwhite: Cell::new(1 << 3),
@@ -143,6 +140,7 @@ impl Builder {
             g.global().set_unchecked(k, v).unwrap();
         };
 
+        set_global("error", (crate::builtin::error as Fp).into());
         #[cfg(feature = "std")]
         set_global("print", (crate::builtin::print as Fp).into());
 

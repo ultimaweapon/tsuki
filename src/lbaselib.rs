@@ -134,22 +134,6 @@ unsafe fn luaB_tonumber(mut L: *const Thread) -> Result<c_int, Box<dyn std::erro
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn luaB_error(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut len = 0;
-    let msg = luaL_checklstring(L, 1, &mut len)?;
-    let msg = std::slice::from_raw_parts(msg.cast(), len);
-    let msg = String::from_utf8_lossy(msg);
-    let lv = luaL_optinteger(L, 2, 1)? as libc::c_int;
-
-    lua_settop(L, 1)?;
-
-    if lv > 0 {
-        Err(format!("{}{}", luaL_where(L, lv), msg).into())
-    } else {
-        Err(msg.into())
-    }
-}
-
 unsafe fn luaB_getmetatable(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     luaL_checkany(L, 1 as libc::c_int)?;
     if lua_getmetatable(L, 1 as libc::c_int) == 0 {
@@ -437,13 +421,6 @@ static mut base_funcs: [luaL_Reg; 21] = [
         let mut init = luaL_Reg {
             name: b"assert\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_assert),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"error\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_error),
         };
         init
     },

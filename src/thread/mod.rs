@@ -135,12 +135,8 @@ impl Thread {
     }
 
     #[inline(always)]
-    pub(crate) unsafe fn get(&self, i: isize) -> UnsafeValue {
-        let v = if i < 0 {
-            unsafe { self.top.get().offset(i) }
-        } else {
-            unsafe { (*self.ci.get()).func.offset(i) }
-        };
+    pub(crate) unsafe fn get(&self, i: usize) -> UnsafeValue {
+        let v = unsafe { (*self.ci.get()).func.add(i) };
 
         unsafe { (*v).val }
     }
