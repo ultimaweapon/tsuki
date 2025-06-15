@@ -115,6 +115,7 @@ pub unsafe fn luaV_tointegerns(obj: *const UnsafeValue, p: *mut i64, mode: F2Imo
     };
 }
 
+#[inline(never)]
 pub unsafe fn luaV_tointeger(
     mut obj: *const UnsafeValue,
     p: *mut i64,

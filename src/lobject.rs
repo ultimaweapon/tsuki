@@ -733,7 +733,7 @@ pub unsafe fn luaO_utf8esc(buff: *mut c_char, mut x: libc::c_ulong) -> c_int {
     return n;
 }
 
-unsafe fn tostringbuff(obj: *mut UnsafeValue, buff: *mut c_char) -> c_int {
+unsafe fn tostringbuff(obj: *const UnsafeValue, buff: *mut c_char) -> c_int {
     if (*obj).tt_ == 3 | 0 << 4 {
         sprintf(
             buff,
@@ -760,6 +760,7 @@ unsafe fn tostringbuff(obj: *mut UnsafeValue, buff: *mut c_char) -> c_int {
     }
 }
 
+#[inline(never)]
 pub unsafe fn luaO_tostring(g: *const Lua, obj: *mut UnsafeValue) {
     let mut buff: [c_char; 44] = [0; 44];
     let len: c_int = tostringbuff(obj, buff.as_mut_ptr());

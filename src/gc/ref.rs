@@ -19,6 +19,7 @@ pub struct Ref<T> {
 }
 
 impl<T> Ref<T> {
+    #[inline(always)]
     pub(crate) unsafe fn new(g: Pin<Rc<Lua>>, o: *const T) -> Self {
         let h = o.cast::<Object>();
         let r = (*h).refs.get();

@@ -254,8 +254,7 @@ pub unsafe fn lua_type(L: *const Thread, idx: c_int) -> c_int {
     };
 }
 
-#[inline(always)]
-pub fn lua_typename(t: c_int) -> &'static str {
+pub const fn lua_typename(t: c_int) -> &'static str {
     luaT_typenames_[(t + 1) as usize]
 }
 
@@ -276,7 +275,7 @@ pub unsafe fn lua_isinteger(L: *const Thread, idx: c_int) -> c_int {
 pub unsafe fn lua_isnumber(L: *const Thread, idx: c_int) -> c_int {
     let mut n: f64 = 0.;
     let o: *const UnsafeValue = index2value(L, idx);
-    return if (*o).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
+    return if (*o).tt_ == 3 | 1 << 4 {
         n = (*o).value_.n;
         1 as c_int
     } else {

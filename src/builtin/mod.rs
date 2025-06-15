@@ -4,9 +4,9 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 pub fn error(cx: &Context) -> Result<(), Box<dyn core::error::Error>> {
-    let msg = cx.get_str(0, true)?;
+    let msg = cx.arg(1).get_str(true)?;
 
-    if cx.len() > 1 {
+    if cx.args() > 1 {
         return Err("second argument of 'error' is not supported".into());
     }
 
@@ -19,10 +19,10 @@ pub fn print(cx: &Context) -> Result<(), Box<dyn core::error::Error>> {
 
     // We can't print while converting the arguments to string since it can call into arbitrary
     // function, which may lock stdout.
-    let mut args = Vec::with_capacity(cx.len());
+    let mut args = Vec::with_capacity(cx.args());
 
-    for i in 0..cx.len() {
-        args.push(cx.to_str(i)?);
+    for i in 1..=cx.args() {
+        args.push(cx.arg(i).to_str()?);
     }
 
     // Print.

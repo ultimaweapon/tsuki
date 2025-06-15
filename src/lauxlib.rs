@@ -22,7 +22,8 @@ use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
 use core::ffi::{CStr, c_char, c_void};
-use core::fmt::{Display, Write};
+use core::fmt::{Display, Formatter, Write};
+use core::num::NonZero;
 use core::pin::pin;
 use core::ptr::{null, null_mut};
 use core::task::{Context, Poll, Waker};
@@ -249,46 +250,39 @@ pub unsafe fn luaL_traceback(
     Ok(())
 }
 
+/// `arg` is used only for display.
 #[inline(never)]
 pub unsafe fn luaL_argerror(
     L: *const Thread,
-    mut arg: libc::c_int,
-    extramsg: impl Display,
+    mut arg: NonZero<usize>,
+    reason: impl Into<Box<dyn core::error::Error>>,
 ) -> Box<dyn core::error::Error> {
-    let mut ar: lua_Debug = lua_Debug {
-        event: 0,
-        name: 0 as *const c_char,
-        namewhat: 0 as *const c_char,
-        what: 0 as *const c_char,
-        source: None,
-        currentline: 0,
-        linedefined: 0,
-        lastlinedefined: 0,
-        nups: 0,
-        nparams: 0,
-        isvararg: 0,
-        istailcall: 0,
-        ftransfer: 0,
-        ntransfer: 0,
-        i_ci: 0 as *mut CallInfo,
-    };
-    if lua_getstack(L, 0 as libc::c_int, &mut ar) == 0 {
-        return luaL_error(L, format!("bad argument #{arg} ({extramsg})"));
-    }
-    lua_getinfo(L, b"n\0" as *const u8 as *const c_char, &mut ar);
-    if strcmp(ar.namewhat, b"method\0" as *const u8 as *const c_char) == 0 as libc::c_int {
-        arg -= 1;
+    let mut ar = lua_Debug::default();
 
-        if arg == 0 as libc::c_int {
-            return luaL_error(
-                L,
-                format!(
-                    "calling '{}' on bad self ({extramsg})",
-                    CStr::from_ptr(ar.name).to_string_lossy()
-                ),
-            );
-        }
+    if lua_getstack(L, 0 as libc::c_int, &mut ar) == 0 {
+        return Box::new(ArgError {
+            message: format!("bad argument #{arg}"),
+            reason: reason.into(),
+        });
     }
+
+    lua_getinfo(L, b"n\0" as *const u8 as *const c_char, &mut ar);
+
+    if strcmp(ar.namewhat, b"method\0" as *const u8 as *const c_char) == 0 as libc::c_int {
+        arg = match NonZero::new(arg.get() - 1) {
+            Some(v) => v,
+            None => {
+                return Box::new(ArgError {
+                    message: format!(
+                        "calling '{}' on bad self",
+                        CStr::from_ptr(ar.name).to_string_lossy()
+                    ),
+                    reason: reason.into(),
+                });
+            }
+        };
+    }
+
     if (ar.name).is_null() {
         ar.name = match pushglobalfuncname(L, &mut ar) {
             Ok(0) => b"?\0" as *const u8 as *const c_char,
@@ -297,13 +291,13 @@ pub unsafe fn luaL_argerror(
         };
     }
 
-    luaL_error(
-        L,
-        format!(
-            "bad argument #{arg} to '{}' ({extramsg})",
+    Box::new(ArgError {
+        message: format!(
+            "bad argument #{arg} to '{}'",
             CStr::from_ptr(ar.name).to_string_lossy()
         ),
-    )
+        reason: reason.into(),
+    })
 }
 
 #[inline(never)]
@@ -318,7 +312,11 @@ pub unsafe fn luaL_typeerror(
         Err(e) => return e,
     };
 
-    return luaL_argerror(L, arg, format_args!("{expect} expected, got {actual}"));
+    return luaL_argerror(
+        L,
+        arg.try_into().and_then(|v: usize| v.try_into()).unwrap(),
+        format!("{expect} expected, got {actual}"),
+    );
 }
 
 unsafe fn tag_error(
@@ -511,7 +509,11 @@ pub unsafe fn luaL_checkany(
         as libc::c_long
         != 0
     {
-        return Err(luaL_argerror(L, arg, "value expected"));
+        return Err(luaL_argerror(
+            L,
+            arg.try_into().and_then(|v: usize| v.try_into()).unwrap(),
+            "value expected",
+        ));
     }
     Ok(())
 }
@@ -692,4 +694,25 @@ pub unsafe fn luaL_getsubtable(
         lua_setfield(L, idx, fname)?;
         return Ok(0 as libc::c_int);
     };
+}
+
+/// Represents an error when argument to Rust function is not valid.
+#[derive(Debug)]
+struct ArgError {
+    message: String,
+    reason: Box<dyn core::error::Error>,
+}
+
+impl core::error::Error for ArgError {
+    #[inline(always)]
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        Some(self.reason.as_ref())
+    }
+}
+
+impl Display for ArgError {
+    #[inline(always)]
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        self.message.fmt(f)
+    }
 }

@@ -13,6 +13,7 @@ pub use self::thread::*;
 use self::gc::{Gc, Object, luaC_barrier_, luaC_freeallobjects};
 use self::lapi::lua_settop;
 use self::ldo::luaD_protectedparser;
+use self::lobject::Udata;
 use self::lzio::Zio;
 use self::value::UnsafeValue;
 use alloc::boxed::Box;
@@ -177,6 +178,14 @@ impl Lua {
 
     pub fn create_table(&self) -> Ref<Table> {
         todo!()
+    }
+
+    unsafe fn get_mt(&self, o: *const UnsafeValue) -> *const Table {
+        match unsafe { (*o).tt_ & 0xf } {
+            5 => unsafe { (*(*o).value_.gc.cast::<Table>()).metatable.get() },
+            7 => unsafe { (*(*o).value_.gc.cast::<Udata>()).metatable },
+            v => self.primitive_mt[usize::from(v)].get(),
+        }
     }
 
     fn reset_gray(&self) {
