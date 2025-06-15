@@ -268,15 +268,13 @@ pub unsafe fn luaT_trybinTM(
     if callbinTM(L, p1, p2, res, event)? == 0 {
         match event as libc::c_uint {
             TM_BAND | TM_BOR | TM_BXOR | 16 | 17 | 19 => {
-                if (*p1).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
-                    && (*p2).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
-                {
+                if (*p1).tt_ & 0xf == 3 && (*p2).tt_ & 0xf == 3 {
                     luaG_tointerror(L, p1, p2)?;
                 } else {
-                    luaG_opinterror(L, p1, p2, "perform bitwise operation on")?;
+                    return Err(luaG_opinterror(L, p1, p2, "perform bitwise operation on"));
                 }
             }
-            _ => luaG_opinterror(L, p1, p2, "perform arithmetic on")?,
+            _ => return Err(luaG_opinterror(L, p1, p2, "perform arithmetic on")),
         }
     }
 
@@ -285,21 +283,20 @@ pub unsafe fn luaT_trybinTM(
 
 pub unsafe fn luaT_tryconcatTM(L: *const Thread) -> Result<(), Box<dyn core::error::Error>> {
     let top: StkId = (*L).top.get();
-    if ((callbinTM(
+
+    if callbinTM(
         L,
-        &mut (*top.offset(-(2 as libc::c_int as isize))).val,
-        &mut (*top.offset(-(1 as libc::c_int as isize))).val,
+        &raw const (*top.offset(-(2 as libc::c_int as isize))).val,
+        &raw const (*top.offset(-(1 as libc::c_int as isize))).val,
         top.offset(-(2 as libc::c_int as isize)),
         TM_CONCAT,
-    )? == 0) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
-        != 0
+    )? == 0
     {
-        luaG_concaterror(
+        return Err(luaG_concaterror(
             L,
-            &mut (*top.offset(-(2 as libc::c_int as isize))).val,
-            &mut (*top.offset(-(1 as libc::c_int as isize))).val,
-        )?;
+            &raw const (*top.offset(-(2 as libc::c_int as isize))).val,
+            &raw const (*top.offset(-(1 as libc::c_int as isize))).val,
+        ));
     }
 
     Ok(())

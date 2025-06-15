@@ -321,11 +321,9 @@ pub unsafe fn luaV_finishget(
     while loop_0 < 2000 as libc::c_int {
         if slot.is_null() {
             tm = luaT_gettmbyobj(L, t, TM_INDEX);
-            if (((*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) as libc::c_int
-                != 0 as libc::c_int) as libc::c_int as libc::c_long
-                != 0
-            {
-                luaG_typeerror(L, t, "index")?;
+
+            if (*tm).tt_ & 0xf == 0 {
+                return Err(luaG_typeerror(L, t, "index"));
             }
         } else {
             tm = if ((*((*t).value_.gc.cast::<Table>())).metatable.get()).is_null() {
@@ -433,11 +431,9 @@ pub unsafe fn luaV_finishset(
             }
         } else {
             tm = luaT_gettmbyobj(L, t, TM_NEWINDEX);
-            if (((*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) as libc::c_int
-                != 0 as libc::c_int) as libc::c_int as libc::c_long
-                != 0
-            {
-                luaG_typeerror(L, t, "index")?;
+
+            if (*tm).tt_ & 0xf == 0 {
+                return Err(luaG_typeerror(L, t, "index"));
             }
         }
 
@@ -1015,11 +1011,9 @@ pub unsafe fn luaV_objlen(
         }
         _ => {
             tm = luaT_gettmbyobj(L, rb, TM_LEN);
-            if (((*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) as libc::c_int
-                != 0 as libc::c_int) as libc::c_int as libc::c_long
-                != 0
-            {
-                luaG_typeerror(L, rb, "get length of")?;
+
+            if (*tm).tt_ & 0xf == 0 {
+                return Err(luaG_typeerror(L, rb, "get length of"));
             }
         }
     }

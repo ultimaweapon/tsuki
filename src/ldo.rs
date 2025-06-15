@@ -350,12 +350,11 @@ unsafe fn tryfuncTM(
         func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
     }
     tm = luaT_gettmbyobj(L, &mut (*func).val, TM_CALL);
-    if (((*tm).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int != 0 as c_int) as c_int
-        as libc::c_long
-        != 0
-    {
-        luaG_callerror(L, &mut (*func).val)?;
+
+    if (*tm).tt_ & 0xf == 0 {
+        return Err(luaG_callerror(L, &raw const (*func).val));
     }
+
     p = (*L).top.get();
     while p > func {
         let io1: *mut UnsafeValue = &mut (*p).val;

@@ -938,24 +938,24 @@ unsafe fn typeerror(
     o: *const UnsafeValue,
     op: impl Display,
     extra: impl Display,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Box<dyn core::error::Error> {
     let t = luaT_objtypename((*L).hdr.global, o);
 
-    luaG_runerror(L, format_args!("attempt to {op} a {t} value{extra}"))
+    format!("attempt to {op} a {t} value{extra}").into()
 }
 
 pub unsafe fn luaG_typeerror(
     L: *const Thread,
     o: *const UnsafeValue,
     op: impl Display,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Box<dyn core::error::Error> {
     typeerror(L, o, op, varinfo(L, o))
 }
 
 pub unsafe fn luaG_callerror(
     L: *const Thread,
     o: *const UnsafeValue,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Box<dyn core::error::Error> {
     let ci: *mut CallInfo = (*L).ci.get();
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
     let kind: *const libc::c_char = funcnamefromcall(L, ci, &mut name);
@@ -987,7 +987,7 @@ pub unsafe fn luaG_concaterror(
     L: *const Thread,
     mut p1: *const UnsafeValue,
     p2: *const UnsafeValue,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Box<dyn core::error::Error> {
     if (*p1).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int
         || (*p1).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int
     {
@@ -1002,7 +1002,7 @@ pub unsafe fn luaG_opinterror(
     p1: *const UnsafeValue,
     mut p2: *const UnsafeValue,
     msg: impl Display,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Box<dyn core::error::Error> {
     if !((*p1).tt_ as libc::c_int & 0xf as libc::c_int == 3 as libc::c_int) {
         p2 = p1;
     }

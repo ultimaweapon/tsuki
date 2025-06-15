@@ -1493,7 +1493,7 @@ impl PcallError {
         // Traverse up until reaching a Lua function.
         let mut chunk = None;
 
-        for level in 1.. {
+        for level in 0.. {
             let mut ar = lua_Debug::default();
 
             if lua_getstack(th, level, &mut ar) == 0 {
