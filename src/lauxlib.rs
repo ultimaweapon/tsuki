@@ -7,12 +7,12 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::lapi::{
-    lua_absindex, lua_checkstack, lua_concat, lua_copy, lua_createtable, lua_getfield,
-    lua_getmetatable, lua_gettop, lua_isinteger, lua_isstring, lua_len, lua_next, lua_pcall,
-    lua_pushboolean, lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushstring, lua_pushvalue,
-    lua_rawequal, lua_rawget, lua_rotate, lua_setfield, lua_setmetatable, lua_settop,
-    lua_toboolean, lua_tointegerx, lua_tolstring, lua_tonumberx, lua_topointer, lua_touserdata,
-    lua_type, lua_typename,
+    lua_absindex, lua_call, lua_checkstack, lua_concat, lua_copy, lua_createtable, lua_getfield,
+    lua_getmetatable, lua_gettop, lua_isinteger, lua_isstring, lua_len, lua_next, lua_pushboolean,
+    lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushstring, lua_pushvalue, lua_rawequal,
+    lua_rawget, lua_rotate, lua_setfield, lua_setmetatable, lua_settop, lua_toboolean,
+    lua_tointegerx, lua_tolstring, lua_tonumberx, lua_topointer, lua_touserdata, lua_type,
+    lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::{CallInfo, lua_Debug};
@@ -21,7 +21,7 @@ use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
-use core::ffi::{CStr, c_void};
+use core::ffi::{CStr, c_char, c_void};
 use core::fmt::{Display, Write};
 use core::pin::pin;
 use core::ptr::{null, null_mut};
@@ -31,7 +31,7 @@ use libc::strcmp;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct LoadS {
-    pub s: *const libc::c_char,
+    pub s: *const c_char,
     pub size: usize,
 }
 
@@ -57,7 +57,7 @@ unsafe fn findfield(
                 lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
                 return Ok(1 as libc::c_int);
             } else if findfield(L, objidx, level - 1 as libc::c_int)? != 0 {
-                lua_pushstring(L, b".\0" as *const u8 as *const libc::c_char);
+                lua_pushstring(L, b".\0" as *const u8 as *const c_char);
                 lua_copy(L, -(1 as libc::c_int), -(3 as libc::c_int));
                 lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
                 lua_concat(L, 3 as libc::c_int)?;
@@ -74,17 +74,13 @@ unsafe fn pushglobalfuncname(
     ar: &mut lua_Debug,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     let top: libc::c_int = lua_gettop(L);
-    lua_getinfo(L, b"f\0" as *const u8 as *const libc::c_char, ar);
+    lua_getinfo(L, b"f\0" as *const u8 as *const c_char, ar);
     lua_getfield(
         L,
         -(1000000 as libc::c_int) - 1000 as libc::c_int,
         "_LOADED",
     )?;
-    luaL_checkstack(
-        L,
-        6,
-        b"not enough stack\0" as *const u8 as *const libc::c_char,
-    )?;
+    luaL_checkstack(L, 6, b"not enough stack\0" as *const u8 as *const c_char)?;
 
     if findfield(L, top + 1 as libc::c_int, 2 as libc::c_int)? != 0 {
         let name = (*lua_tolstring(L, -1, true)).as_bytes();
@@ -137,9 +133,9 @@ unsafe fn pushfuncname(
 unsafe fn lastlevel(L: *mut Thread) -> libc::c_int {
     let mut ar: lua_Debug = lua_Debug {
         event: 0,
-        name: 0 as *const libc::c_char,
-        namewhat: 0 as *const libc::c_char,
-        what: 0 as *const libc::c_char,
+        name: 0 as *const c_char,
+        namewhat: 0 as *const c_char,
+        what: 0 as *const c_char,
         source: None,
         currentline: 0,
         linedefined: 0,
@@ -172,15 +168,15 @@ unsafe fn lastlevel(L: *mut Thread) -> libc::c_int {
 pub unsafe fn luaL_traceback(
     L: *mut Thread,
     L1: *mut Thread,
-    msg: *const libc::c_char,
+    msg: *const c_char,
     mut level: libc::c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let mut b = String::new();
     let mut ar: lua_Debug = lua_Debug {
         event: 0,
-        name: 0 as *const libc::c_char,
-        namewhat: 0 as *const libc::c_char,
-        what: 0 as *const libc::c_char,
+        name: 0 as *const c_char,
+        namewhat: 0 as *const c_char,
+        what: 0 as *const c_char,
         source: None,
         currentline: 0,
         linedefined: 0,
@@ -222,7 +218,7 @@ pub unsafe fn luaL_traceback(
 
             level += n;
         } else {
-            lua_getinfo(L1, b"Slnt\0" as *const u8 as *const libc::c_char, &mut ar);
+            lua_getinfo(L1, b"Slnt\0" as *const u8 as *const c_char, &mut ar);
 
             if ar.currentline <= 0 {
                 write!(
@@ -261,9 +257,9 @@ pub unsafe fn luaL_argerror(
 ) -> Box<dyn core::error::Error> {
     let mut ar: lua_Debug = lua_Debug {
         event: 0,
-        name: 0 as *const libc::c_char,
-        namewhat: 0 as *const libc::c_char,
-        what: 0 as *const libc::c_char,
+        name: 0 as *const c_char,
+        namewhat: 0 as *const c_char,
+        what: 0 as *const c_char,
         source: None,
         currentline: 0,
         linedefined: 0,
@@ -279,8 +275,8 @@ pub unsafe fn luaL_argerror(
     if lua_getstack(L, 0 as libc::c_int, &mut ar) == 0 {
         return luaL_error(L, format!("bad argument #{arg} ({extramsg})"));
     }
-    lua_getinfo(L, b"n\0" as *const u8 as *const libc::c_char, &mut ar);
-    if strcmp(ar.namewhat, b"method\0" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
+    lua_getinfo(L, b"n\0" as *const u8 as *const c_char, &mut ar);
+    if strcmp(ar.namewhat, b"method\0" as *const u8 as *const c_char) == 0 as libc::c_int {
         arg -= 1;
 
         if arg == 0 as libc::c_int {
@@ -295,7 +291,7 @@ pub unsafe fn luaL_argerror(
     }
     if (ar.name).is_null() {
         ar.name = match pushglobalfuncname(L, &mut ar) {
-            Ok(0) => b"?\0" as *const u8 as *const libc::c_char,
+            Ok(0) => b"?\0" as *const u8 as *const c_char,
             Ok(_) => (*lua_tolstring(L, -1, true)).contents.as_ptr(),
             Err(e) => return e,
         };
@@ -336,9 +332,9 @@ unsafe fn tag_error(
 pub unsafe fn luaL_where(L: *const Thread, level: libc::c_int) -> Cow<'static, str> {
     let mut ar: lua_Debug = lua_Debug {
         event: 0,
-        name: 0 as *const libc::c_char,
-        namewhat: 0 as *const libc::c_char,
-        what: 0 as *const libc::c_char,
+        name: 0 as *const c_char,
+        namewhat: 0 as *const c_char,
+        what: 0 as *const c_char,
         source: None,
         currentline: 0,
         linedefined: 0,
@@ -353,7 +349,7 @@ pub unsafe fn luaL_where(L: *const Thread, level: libc::c_int) -> Cow<'static, s
     };
 
     if lua_getstack(L, level, &mut ar) != 0 {
-        lua_getinfo(L, b"Sl\0" as *const u8 as *const libc::c_char, &mut ar);
+        lua_getinfo(L, b"Sl\0" as *const u8 as *const c_char, &mut ar);
 
         if ar.currentline > 0 {
             return format!(
@@ -375,7 +371,7 @@ pub unsafe fn luaL_error(L: *const Thread, m: impl Display) -> Box<dyn core::err
 pub unsafe fn luaL_fileresult(
     L: *mut Thread,
     stat: libc::c_int,
-    fname: *const libc::c_char,
+    fname: *const c_char,
 ) -> libc::c_int {
     let en = std::io::Error::last_os_error();
 
@@ -401,7 +397,7 @@ pub unsafe fn luaL_fileresult(
 
 pub unsafe fn luaL_newmetatable(
     L: *mut Thread,
-    tname: *const libc::c_char,
+    tname: *const c_char,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     if lua_getfield(
         L,
@@ -417,7 +413,7 @@ pub unsafe fn luaL_newmetatable(
     lua_setfield(
         L,
         -(2 as libc::c_int),
-        b"__name\0" as *const u8 as *const libc::c_char,
+        b"__name\0" as *const u8 as *const c_char,
     )?;
     lua_pushvalue(L, -(1 as libc::c_int));
     lua_setfield(L, -(1000000 as libc::c_int) - 1000 as libc::c_int, tname)?;
@@ -426,7 +422,7 @@ pub unsafe fn luaL_newmetatable(
 
 pub unsafe fn luaL_setmetatable(
     L: *mut Thread,
-    tname: *const libc::c_char,
+    tname: *const c_char,
 ) -> Result<(), Box<dyn core::error::Error>> {
     lua_getfield(
         L,
@@ -478,7 +474,7 @@ pub unsafe fn luaL_checkudata(
 pub unsafe fn luaL_checkstack(
     L: *const Thread,
     space: usize,
-    msg: *const libc::c_char,
+    msg: *const c_char,
 ) -> Result<(), Box<dyn core::error::Error>> {
     if lua_checkstack(L, space).is_err() {
         if !msg.is_null() {
@@ -547,10 +543,10 @@ pub unsafe fn luaL_optnumber(
 unsafe fn getS(
     ud: *mut c_void,
     size: *mut usize,
-) -> Result<*const libc::c_char, Box<dyn core::error::Error>> {
+) -> Result<*const c_char, Box<dyn core::error::Error>> {
     let ls: *mut LoadS = ud as *mut LoadS;
     if (*ls).size == 0 as libc::c_int as usize {
-        return Ok(0 as *const libc::c_char);
+        return Ok(0 as *const c_char);
     }
     *size = (*ls).size;
     (*ls).size = 0 as libc::c_int as usize;
@@ -560,7 +556,7 @@ unsafe fn getS(
 pub unsafe fn luaL_getmetafield(
     L: *const Thread,
     obj: libc::c_int,
-    event: *const libc::c_char,
+    event: *const c_char,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     if lua_getmetatable(L, obj) == 0 {
         return Ok(0 as libc::c_int);
@@ -581,7 +577,7 @@ pub unsafe fn luaL_getmetafield(
 pub unsafe fn luaL_callmeta(
     L: *const Thread,
     mut obj: libc::c_int,
-    event: *const libc::c_char,
+    event: *const c_char,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     obj = lua_absindex(L, obj);
 
@@ -592,7 +588,7 @@ pub unsafe fn luaL_callmeta(
     lua_pushvalue(L, obj);
 
     // Invoke.
-    let f = pin!(lua_pcall(L, 1, 1));
+    let f = pin!(lua_call(L, 1, 1));
     let w = Waker::new(null(), &NON_YIELDABLE_WAKER);
 
     match f.poll(&mut Context::from_waker(&w)) {
@@ -625,7 +621,7 @@ pub unsafe fn luaL_tolstring(
 ) -> Result<*const Str, Box<dyn core::error::Error>> {
     idx = lua_absindex(L, idx);
 
-    if luaL_callmeta(L, idx, b"__tostring\0" as *const u8 as *const libc::c_char)? != 0 {
+    if luaL_callmeta(L, idx, b"__tostring\0" as *const u8 as *const c_char)? != 0 {
         if lua_isstring(L, -(1 as libc::c_int)) == 0 {
             return Err(luaL_error(L, "'__tostring' must return a string"));
         }
@@ -651,14 +647,14 @@ pub unsafe fn luaL_tolstring(
                 lua_pushstring(
                     L,
                     if lua_toboolean(L, idx) != 0 {
-                        b"true\0" as *const u8 as *const libc::c_char
+                        b"true\0" as *const u8 as *const c_char
                     } else {
-                        b"false\0" as *const u8 as *const libc::c_char
+                        b"false\0" as *const u8 as *const c_char
                     },
                 );
             }
             0 => {
-                lua_pushstring(L, b"nil\0" as *const u8 as *const libc::c_char);
+                lua_pushstring(L, b"nil\0" as *const u8 as *const c_char);
             }
             _ => {
                 let tt = luaL_getmetafield(L, idx, c"__name".as_ptr())?;
@@ -684,7 +680,7 @@ pub unsafe fn luaL_tolstring(
 pub unsafe fn luaL_getsubtable(
     L: *const Thread,
     mut idx: libc::c_int,
-    fname: *const libc::c_char,
+    fname: *const c_char,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     if lua_getfield(L, idx, CStr::from_ptr(fname).to_bytes())? == 5 {
         return Ok(1 as libc::c_int);

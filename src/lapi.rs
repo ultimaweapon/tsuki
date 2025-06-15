@@ -1210,6 +1210,23 @@ pub unsafe fn lua_setiuservalue(L: *mut Thread, idx: c_int, n: c_int) -> c_int {
     return res;
 }
 
+pub async unsafe fn lua_call(
+    L: *const Thread,
+    nargs: usize,
+    nresults: c_int,
+) -> Result<(), Box<dyn core::error::Error>> {
+    let func = (*L).top.get().sub(nargs + 1);
+
+    luaD_call(L, func, nresults).await?;
+
+    // Adjust current CI.
+    if nresults <= -1 && (*(*L).ci.get()).top < (*L).top.get() {
+        (*(*L).ci.get()).top = (*L).top.get();
+    }
+
+    Ok(())
+}
+
 pub async unsafe fn lua_pcall(
     L: *const Thread,
     nargs: usize,
