@@ -7,7 +7,6 @@ use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
 use crate::lobject::{StackValue, StkId, UpVal};
 use crate::lstate::{CallInfo, lua_Hook};
-use crate::value::UnsafeValue;
 use crate::{Lua, LuaFn, NON_YIELDABLE_WAKER, Object, Ref, Value};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
@@ -139,13 +138,6 @@ impl Thread {
         }
 
         Ok(Vec::new())
-    }
-
-    #[inline(always)]
-    pub(crate) unsafe fn get(&self, i: usize) -> UnsafeValue {
-        let v = unsafe { (*self.ci.get()).func.add(i) };
-
-        unsafe { (*v).val }
     }
 }
 

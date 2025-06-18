@@ -1,9 +1,10 @@
-use crate::Context;
+use crate::{Args, Context, TryCall};
 use alloc::boxed::Box;
-use alloc::string::String;
+use alloc::format;
+use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
-pub fn error(cx: &Context) -> Result<(), Box<dyn core::error::Error>> {
+pub fn error(cx: Context<Args>) -> Result<Context<()>, Box<dyn core::error::Error>> {
     let msg = cx.arg(1).get_str(true)?;
 
     if cx.args() > 1 {
@@ -13,8 +14,27 @@ pub fn error(cx: &Context) -> Result<(), Box<dyn core::error::Error>> {
     Err(String::from_utf8_lossy(msg.as_bytes()).into())
 }
 
+pub fn pcall(cx: Context<Args>) -> Result<Context<()>, Box<dyn core::error::Error>> {
+    let r = match cx.try_forward(1)? {
+        TryCall::Ok(r) => {
+            r.insert(1, true)?;
+            r
+        }
+        TryCall::Err(cx, chunk, e) => {
+            cx.push(false)?;
+            cx.push_str(match chunk {
+                Some((s, l)) => format!("{s}:{l}: {e}"),
+                None => e.to_string(),
+            })?;
+            cx.into()
+        }
+    };
+
+    Ok(r)
+}
+
 #[cfg(feature = "std")]
-pub fn print(cx: &Context) -> Result<(), Box<dyn core::error::Error>> {
+pub fn print(cx: Context<Args>) -> Result<Context<()>, Box<dyn core::error::Error>> {
     use std::io::Write;
 
     // We can't print while converting the arguments to string since it can call into arbitrary
@@ -38,5 +58,5 @@ pub fn print(cx: &Context) -> Result<(), Box<dyn core::error::Error>> {
 
     writeln!(stdout)?;
 
-    Ok(())
+    Ok(cx.into())
 }

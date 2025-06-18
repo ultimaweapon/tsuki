@@ -412,7 +412,7 @@ pub unsafe fn luaV_finishset(
 
                 if let Err(e) = luaH_finishset(h, key, slot, val) {
                     (*L).top.sub(1);
-                    luaG_runerror(L, e)?;
+                    return Err(Box::new(e));
                 }
 
                 (*L).top.sub(1);

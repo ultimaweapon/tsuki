@@ -8,11 +8,10 @@
 
 use crate::lapi::{
     lua_absindex, lua_call, lua_checkstack, lua_concat, lua_copy, lua_createtable, lua_getfield,
-    lua_getmetatable, lua_gettop, lua_isinteger, lua_isstring, lua_len, lua_next, lua_pushboolean,
-    lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushstring, lua_pushvalue, lua_rawequal,
-    lua_rawget, lua_rotate, lua_setfield, lua_setmetatable, lua_settop, lua_toboolean,
-    lua_tointegerx, lua_tolstring, lua_tonumberx, lua_topointer, lua_touserdata, lua_type,
-    lua_typename,
+    lua_getmetatable, lua_gettop, lua_isinteger, lua_isstring, lua_len, lua_next, lua_pushlstring,
+    lua_pushnil, lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawget, lua_rotate, lua_setfield,
+    lua_setmetatable, lua_settop, lua_toboolean, lua_tointegerx, lua_tolstring, lua_tonumberx,
+    lua_topointer, lua_touserdata, lua_type, lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::{CallInfo, lua_Debug};
@@ -366,33 +365,6 @@ pub unsafe fn luaL_error(L: *const Thread, m: impl Display) -> Box<dyn core::err
     format!("{}{}", luaL_where(L, 1), m).into()
 }
 
-pub unsafe fn luaL_fileresult(
-    L: *mut Thread,
-    stat: libc::c_int,
-    fname: *const c_char,
-) -> libc::c_int {
-    let en = std::io::Error::last_os_error();
-
-    if stat != 0 {
-        lua_pushboolean(L, 1 as libc::c_int);
-        return 1 as libc::c_int;
-    } else {
-        lua_pushnil(L);
-
-        if !fname.is_null() {
-            lua_pushlstring(
-                L,
-                format!("{}: {}", CStr::from_ptr(fname).to_string_lossy(), en),
-            );
-        } else {
-            lua_pushlstring(L, en.to_string());
-        }
-
-        lua_pushinteger(L, en.raw_os_error().unwrap().into());
-        return 3 as libc::c_int;
-    };
-}
-
 pub unsafe fn luaL_newmetatable(
     L: *mut Thread,
     tname: *const c_char,
@@ -505,10 +477,7 @@ pub unsafe fn luaL_checkany(
     L: *const Thread,
     arg: libc::c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    if ((lua_type(L, arg) == -(1 as libc::c_int)) as libc::c_int != 0 as libc::c_int) as libc::c_int
-        as libc::c_long
-        != 0
-    {
+    if lua_type(L, arg) == -1 {
         return Err(luaL_argerror(
             L,
             arg.try_into().and_then(|v: usize| v.try_into()).unwrap(),

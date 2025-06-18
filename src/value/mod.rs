@@ -1,5 +1,4 @@
-use crate::{AsyncContext, Fp, Object, Str, YieldContext};
-use std::boxed::Box;
+use crate::{Fp, Object, Str};
 
 /// The outside **must** never be able to construct or have the value of this type.
 #[repr(C)]
@@ -19,6 +18,19 @@ impl UnsafeValue {
     }
 }
 
+impl From<bool> for UnsafeValue {
+    #[inline(always)]
+    fn from(value: bool) -> Self {
+        Self {
+            value_: UntaggedValue { i: 0 },
+            tt_: match value {
+                true => 1 | 1 << 4,
+                false => 1 | 0 << 4,
+            },
+        }
+    }
+}
+
 impl From<Fp> for UnsafeValue {
     #[inline(always)]
     fn from(value: Fp) -> Self {
@@ -26,21 +38,6 @@ impl From<Fp> for UnsafeValue {
             value_: UntaggedValue { f: value },
             tt_: 2 | 0 << 4,
         }
-    }
-}
-
-impl From<fn(YieldContext) -> Result<(), Box<dyn core::error::Error>>> for UnsafeValue {
-    fn from(value: fn(YieldContext) -> Result<(), Box<dyn core::error::Error>>) -> Self {
-        todo!()
-    }
-}
-
-impl<'a, F> From<fn(AsyncContext<'a>) -> F> for UnsafeValue
-where
-    F: Future<Output = Result<(), Box<dyn core::error::Error>>> + 'a,
-{
-    fn from(value: fn(AsyncContext<'a>) -> F) -> Self {
-        todo!()
     }
 }
 

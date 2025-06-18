@@ -393,23 +393,6 @@ unsafe fn luaB_select(mut L: *const Thread) -> Result<c_int, Box<dyn std::error:
     };
 }
 
-unsafe fn luaB_pcall(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    luaL_checkany(L, 1 as libc::c_int)?;
-    lua_pushboolean(L, 1 as libc::c_int);
-    lua_rotate(L, 1 as libc::c_int, 1 as libc::c_int);
-
-    Ok(
-        match lua_pcall(L, (lua_gettop(L) - 2).try_into().unwrap(), -1) {
-            Ok(_) => lua_gettop(L),
-            Err(e) => {
-                lua_pushboolean(L, 0 as libc::c_int);
-                lua_pushlstring(L, e.to_string());
-                2
-            }
-        },
-    )
-}
-
 unsafe fn luaB_tostring(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     luaL_checkany(L, 1 as libc::c_int)?;
     luaL_tolstring(L, 1 as libc::c_int, 0 as *mut usize)?;
@@ -456,13 +439,6 @@ static mut base_funcs: [luaL_Reg; 21] = [
         let mut init = luaL_Reg {
             name: b"pairs\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_pairs),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"pcall\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_pcall),
         };
         init
     },

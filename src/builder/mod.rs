@@ -141,6 +141,7 @@ impl Builder {
         };
 
         set_global("error", (crate::builtin::error as Fp).into());
+        set_global("pcall", (crate::builtin::pcall as Fp).into());
         #[cfg(feature = "std")]
         set_global("print", (crate::builtin::print as Fp).into());
 

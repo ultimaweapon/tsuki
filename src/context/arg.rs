@@ -1,4 +1,4 @@
-use super::Context;
+use super::{Args, Context};
 use crate::lapi::lua_typename;
 use crate::lauxlib::{luaL_argerror, luaL_tolstring};
 use crate::lobject::luaO_tostring;
@@ -16,15 +16,28 @@ use core::num::NonZero;
 use core::ptr::null_mut;
 
 /// Argument passed from Lua to Rust function.
-pub struct Arg<'a> {
-    cx: &'a Context,
+pub struct Arg<'a, 'b> {
+    cx: &'a Context<'b, Args>,
     index: NonZero<usize>,
 }
 
-impl<'a> Arg<'a> {
+impl<'a, 'b> Arg<'a, 'b> {
     #[inline(always)]
-    pub(super) fn new(cx: &'a Context, index: NonZero<usize>) -> Self {
+    pub(super) fn new(cx: &'a Context<'b, Args>, index: NonZero<usize>) -> Self {
         Self { cx, index }
+    }
+
+    /// Check if this argument exists.
+    ///
+    /// Other methods like [`Self::get_str()`] already validate if the argument exists. This method
+    /// can be used in case you want to verify if the argument exists but don't need its value.
+    #[inline(always)]
+    pub fn exists(&self) -> Result<(), Box<dyn core::error::Error>> {
+        if self.index.get() > self.cx.payload.0 {
+            Err(self.error("value expected"))
+        } else {
+            Ok(())
+        }
     }
 
     /// Checks if this argument is Lua string and return it.
@@ -35,7 +48,7 @@ impl<'a> Arg<'a> {
 
         match unsafe { (*v).tt_ & 0xf } {
             4 => (),
-            3 if convert => unsafe { luaO_tostring(self.cx.thread().hdr.global, v) },
+            3 if convert => unsafe { luaO_tostring(self.cx.th.hdr.global, v) },
             _ => return Err(unsafe { self.type_error(expect, v) }),
         }
 
@@ -60,7 +73,7 @@ impl<'a> Arg<'a> {
         match unsafe { (*v).tt_ & 0xf } {
             0 => return Ok(None),
             4 => (),
-            3 if convert => unsafe { luaO_tostring(self.cx.thread().hdr.global, v) },
+            3 if convert => unsafe { luaO_tostring(self.cx.th.hdr.global, v) },
             _ => return Err(unsafe { self.type_error(lua_typename(4), v) }),
         }
 
@@ -120,8 +133,8 @@ impl<'a> Arg<'a> {
     /// This has the same semantic as `luaL_tolstring`, which mean it does not modify the argument.
     #[inline(never)]
     pub fn to_str(&self) -> Result<Ref<Str>, Box<dyn core::error::Error>> {
-        let a = min(self.index.get(), self.cx.args + 1);
-        let t = self.cx.thread();
+        let a = min(self.index.get(), self.cx.payload.0 + 1);
+        let t = self.cx.th;
         let s = unsafe { luaL_tolstring(t, a as i32)? };
         let s = unsafe { Ref::new(t.hdr.global_owned(), s) };
 
@@ -148,9 +161,9 @@ impl<'a> Arg<'a> {
         expect: impl Display,
     ) -> Result<*mut UnsafeValue, Box<dyn core::error::Error>> {
         let th = self.cx.th;
-        let ci = unsafe { (*th).ci.get() };
+        let ci = th.ci.get();
 
-        if self.index.get() > self.cx.args {
+        if self.index.get() > self.cx.payload.0 {
             Err(self.invalid_type(expect, lua_typename(-1)))
         } else {
             Ok(unsafe { &raw mut (*(*ci).func.add(self.index.get())).val })
@@ -160,9 +173,9 @@ impl<'a> Arg<'a> {
     #[inline(always)]
     fn get_raw_or_null(&self) -> *mut UnsafeValue {
         let th = self.cx.th;
-        let ci = unsafe { (*th).ci.get() };
+        let ci = th.ci.get();
 
-        if self.index.get() > self.cx.args {
+        if self.index.get() > self.cx.payload.0 {
             null_mut()
         } else {
             unsafe { &raw mut (*(*ci).func.add(self.index.get())).val }
@@ -175,7 +188,7 @@ impl<'a> Arg<'a> {
         expect: impl Display,
         actual: *const UnsafeValue,
     ) -> Box<dyn core::error::Error> {
-        let g = self.cx.thread().hdr.global();
+        let g = self.cx.th.hdr.global();
         let mt = unsafe { g.get_mt(actual) };
         let actual: Cow<str> = if mt.is_null() {
             lua_typename(unsafe { ((*actual).tt_ & 0xf).into() }).into()

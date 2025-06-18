@@ -17,7 +17,7 @@ use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, Zio};
 use crate::value::UnsafeValue;
-use crate::{ChunkInfo, Context, Lua, LuaFn, ParseError, Ref, StackOverflow, Thread};
+use crate::{Args, ChunkInfo, Context, Lua, LuaFn, ParseError, Ref, StackOverflow, Thread};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
@@ -515,21 +515,13 @@ async unsafe fn precallC(
     }
 
     // Invoke Rust function.
-    let cx = Context::new(L, narg);
-    let ret = (*L).top.get().offset_from_unsigned((*L).stack.get()); // Rust may move the stack.
-
-    match f {
-        Func::NonYieldableFp(f) => f(&cx)?,
-    }
+    let cx = Context::new(&*L, Args::new(narg));
+    let cx = match f {
+        Func::NonYieldableFp(f) => f(cx)?,
+    };
 
     // Get number of results.
-    let n = (*L)
-        .top
-        .get()
-        .offset_from((*L).stack.get().add(ret))
-        .clamp(0, isize::MAX)
-        .try_into()
-        .unwrap();
+    let n = cx.into_results().try_into().unwrap();
 
     luaD_poscall(L, ci, n)?;
 
@@ -705,7 +697,7 @@ pub unsafe fn luaD_closeprotected(
             Err(e) => e,
         };
 
-        status = Err(PcallError::new(L, e));
+        status = Err(PcallError::new(L, old_ci, e));
 
         (*L).ci.set(old_ci);
         (*L).allowhook.set(old_allowhooks);
@@ -797,5 +789,7 @@ pub unsafe fn luaD_protectedparser(
 }
 
 enum Func {
-    NonYieldableFp(fn(&Context) -> Result<(), Box<dyn core::error::Error>>),
+    NonYieldableFp(
+        for<'a> fn(Context<'a, Args>) -> Result<Context<'a, ()>, Box<dyn core::error::Error>>,
+    ),
 }

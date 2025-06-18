@@ -7,7 +7,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::gc::{luaC_barrier_, luaC_barrierback_};
-use crate::ldebug::{lua_getinfo, lua_getstack};
+use crate::ldebug::lua_getinfo;
 use crate::ldo::{luaD_call, luaD_closeprotected, luaD_growstack, luaD_shrinkstack};
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::{
@@ -24,7 +24,9 @@ use crate::table::{
     luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_new, luaH_next, luaH_resize, luaH_setint,
 };
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{Context, LuaFn, Object, StackOverflow, Str, Table, TableError, Thread, api_incr_top};
+use crate::{
+    Args, Context, LuaFn, Object, StackOverflow, Str, Table, TableError, Thread, api_incr_top,
+};
 use alloc::boxed::Box;
 use alloc::string::String;
 use core::ffi::{CStr, c_void};
@@ -75,6 +77,7 @@ unsafe fn index2stack(L: *const Thread, idx: c_int) -> StkId {
     };
 }
 
+#[inline(always)]
 pub unsafe fn lua_checkstack(L: *const Thread, n: usize) -> Result<(), StackOverflow> {
     let ci = (*L).ci.get();
 
@@ -554,7 +557,7 @@ pub unsafe fn lua_pushstring(L: *const Thread, mut s: *const libc::c_char) -> *c
 
 pub unsafe fn lua_pushcclosure(
     L: *const Thread,
-    fn_0: fn(&Context) -> Result<(), Box<dyn core::error::Error>>,
+    fn_0: for<'a> fn(Context<'a, Args>) -> Result<Context<'a, ()>, Box<dyn core::error::Error>>,
     mut n: c_int,
 ) {
     let cl = luaF_newCclosure((*L).hdr.global, n);
@@ -586,15 +589,6 @@ pub unsafe fn lua_pushcclosure(
     if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
         crate::gc::step((*L).hdr.global);
     }
-}
-
-pub unsafe fn lua_pushboolean(L: *const Thread, b: c_int) {
-    if b != 0 {
-        (*(*L).top.get()).val.tt_ = (1 as c_int | (1 as c_int) << 4 as c_int) as u8;
-    } else {
-        (*(*L).top.get()).val.tt_ = (1 as c_int | (0 as c_int) << 4 as c_int) as u8;
-    }
-    api_incr_top(L);
 }
 
 pub unsafe fn lua_pushthread(L: *mut Thread) {
@@ -1236,7 +1230,7 @@ pub async unsafe fn lua_pcall(
     let old_allowhooks: u8 = (*L).allowhook.get();
     let mut status = luaD_call(L, func, nresults)
         .await
-        .map_err(move |e| PcallError::new(L, e));
+        .map_err(move |e| PcallError::new(L, old_ci, e));
 
     if status.is_err() {
         (*L).ci.set(old_ci);
@@ -1489,16 +1483,20 @@ pub struct PcallError {
 }
 
 impl PcallError {
-    pub unsafe fn new(th: *const Thread, reason: Box<dyn core::error::Error>) -> Self {
+    pub unsafe fn new(
+        th: *const Thread,
+        caller: *mut CallInfo,
+        reason: Box<dyn core::error::Error>,
+    ) -> Self {
         // Traverse up until reaching a Lua function.
+        let mut ci = (*th).ci.get();
         let mut chunk = None;
 
-        for level in 0.. {
-            let mut ar = lua_Debug::default();
-
-            if lua_getstack(th, level, &mut ar) == 0 {
-                break;
-            }
+        while ci != caller && ci != (*th).base_ci.get() {
+            let mut ar = lua_Debug {
+                i_ci: ci,
+                ..Default::default()
+            };
 
             lua_getinfo(th, c"Sl".as_ptr(), &mut ar);
 
@@ -1506,6 +1504,8 @@ impl PcallError {
                 chunk = Some((v.name, u32::try_from(ar.currentline).unwrap()));
                 break;
             }
+
+            ci = (*ci).previous;
         }
 
         Self { chunk, reason }
