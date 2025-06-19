@@ -140,10 +140,10 @@ impl Builder {
             g.global().set_unchecked(k, v).unwrap();
         };
 
-        set_global("error", (crate::builtin::error as Fp).into());
-        set_global("pcall", (crate::builtin::pcall as Fp).into());
+        set_global("error", Fp(crate::builtin::error).into());
+        set_global("pcall", Fp(crate::builtin::pcall).into());
         #[cfg(feature = "std")]
-        set_global("print", (crate::builtin::print as Fp).into());
+        set_global("print", Fp(crate::builtin::print).into());
 
         self.g
     }

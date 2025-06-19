@@ -212,9 +212,20 @@ impl Drop for Lua {
 pub enum Value {}
 
 /// Non-Yieldable Rust function.
-pub type Fp = for<'a> fn(Context<'a, Args>) -> Result<Context<'a, ()>, Box<dyn core::error::Error>>;
-pub type YieldFp = fn();
-pub type AsyncFp = fn();
+#[derive(Clone, Copy)]
+pub struct Fp(pub fn(Context<Args>) -> Result<Context<()>, Box<dyn core::error::Error>>);
+
+#[derive(Clone, Copy)]
+pub struct YieldFp(pub fn(Context<Args>) -> Result<Context<()>, Box<dyn core::error::Error>>);
+
+#[derive(Clone, Copy)]
+pub struct AsyncFp(
+    pub  for<'a> fn(
+        Context<'a, Args>,
+    ) -> Box<
+        dyn Future<Output = Result<Context<'a, ()>, Box<dyn core::error::Error>>> + 'a,
+    >,
+);
 
 /// Represents an error when arithmetic operation fails.
 #[derive(Debug, Error)]
