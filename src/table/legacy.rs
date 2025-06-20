@@ -659,7 +659,7 @@ unsafe fn rehash(t: *const Table, ek: *const UnsafeValue) {
     luaH_resize(t, asize, (totaluse as libc::c_uint).wrapping_sub(na))
 }
 
-pub unsafe fn luaH_new(g: *const Lua) -> *mut Table {
+pub unsafe fn luaH_new(g: *const Lua) -> *const Table {
     let layout = Layout::new::<Table>();
     let o = Object::new(g, 5 | 0 << 4, layout).cast::<Table>();
 

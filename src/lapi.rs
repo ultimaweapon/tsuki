@@ -784,9 +784,8 @@ pub unsafe fn lua_rawgeti(L: *const Thread, idx: c_int, n: i64) -> c_int {
 pub unsafe fn lua_createtable(L: *const Thread, narray: c_int, nrec: c_int) {
     let t = luaH_new((*L).hdr.global);
     let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-    let x_: *mut Table = t;
 
-    (*io).value_.gc = x_ as *mut Object;
+    (*io).value_.gc = t.cast();
     (*io).tt_ = (5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int) as u8;
 
     api_incr_top(L);
