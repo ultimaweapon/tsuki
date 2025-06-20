@@ -16,10 +16,10 @@ use crate::ltm::{
     TM_BNOT, TM_CLOSE, TM_CONCAT, TM_EQ, TM_INDEX, TM_LE, TM_LEN, TM_LT, TM_NEWINDEX, TM_UNM, TMS,
     luaT_objtypename,
 };
-use crate::table::{luaH_new, luaH_setint};
+use crate::table::luaH_setint;
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{F2Ieq, luaV_tointegerns};
-use crate::{ChunkInfo, LuaFn, Object, Str, Thread, api_incr_top};
+use crate::{ChunkInfo, LuaFn, Object, Str, Table, Thread, api_incr_top};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
@@ -307,7 +307,7 @@ unsafe fn collectvalidlines(L: *const Thread, f: *const Object) {
     } else {
         let p: *const Proto = (*f.cast::<LuaFn>()).p.get();
         let mut currentline: libc::c_int = (*p).linedefined;
-        let t = luaH_new((*L).hdr.global);
+        let t = Table::new((*L).hdr.global);
         let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
 
         (*io).value_.gc = t.cast();

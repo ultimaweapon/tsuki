@@ -200,7 +200,7 @@ impl Lua {
         });
 
         // Setup registry.
-        let registry = unsafe { luaH_new(g.deref()) };
+        let registry = unsafe { Table::new(g.deref()) };
         let io: *mut UnsafeValue = g.l_registry.get();
 
         unsafe { (*io).value_.gc = registry as *mut Object };
@@ -211,13 +211,13 @@ impl Lua {
         // Create dummy object for LUA_RIDX_MAINTHREAD.
         let io_0 = unsafe { (*registry).array.get().offset(1 - 1) as *mut UnsafeValue };
 
-        unsafe { (*io_0).value_.gc = luaH_new(g.deref()).cast() };
+        unsafe { (*io_0).value_.gc = Table::new(g.deref()).cast() };
         unsafe { (*io_0).tt_ = 5 | 0 << 4 | 1 << 6 };
 
         // Create LUA_RIDX_GLOBALS.
         let io_1 = unsafe { (*registry).array.get().offset(2 - 1) as *mut UnsafeValue };
 
-        unsafe { (*io_1).value_.gc = luaH_new(g.deref()).cast() };
+        unsafe { (*io_1).value_.gc = Table::new(g.deref()).cast() };
         unsafe { (*io_1).tt_ = 5 | 0 << 4 | 1 << 6 };
 
         // Initialize internal module.

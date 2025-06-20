@@ -17,7 +17,7 @@ use crate::lstate::{CallInfo, lua_Debug};
 use crate::lstring::luaS_newudata;
 use crate::ltm::{TM_GC, luaT_gettm, luaT_typenames_};
 use crate::table::{
-    luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_new, luaH_next, luaH_resize, luaH_setint,
+    luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_next, luaH_resize, luaH_setint,
 };
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{
@@ -782,7 +782,7 @@ pub unsafe fn lua_rawgeti(L: *const Thread, idx: c_int, n: i64) -> c_int {
 }
 
 pub unsafe fn lua_createtable(L: *const Thread, narray: c_int, nrec: c_int) {
-    let t = luaH_new((*L).hdr.global);
+    let t = Table::new((*L).hdr.global);
     let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
 
     (*io).value_.gc = t.cast();

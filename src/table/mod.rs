@@ -3,8 +3,10 @@ pub(crate) use self::node::*;
 
 use crate::gc::luaC_barrierback_;
 use crate::ltm::TM_EQ;
-use crate::{Object, UnsafeValue};
+use crate::{Lua, Object, UnsafeValue};
+use core::alloc::Layout;
 use core::cell::Cell;
+use core::ptr::{addr_of_mut, null_mut};
 use thiserror::Error;
 
 mod legacy;
@@ -24,6 +26,23 @@ pub struct Table {
 }
 
 impl Table {
+    pub(crate) unsafe fn new(g: *const Lua) -> *const Self {
+        let layout = Layout::new::<Self>();
+        let o = unsafe { Object::new(g, 5 | 0 << 4, layout).cast::<Self>() };
+
+        unsafe {
+            addr_of_mut!((*o).flags).write(Cell::new(!(!(0 as libc::c_uint) << TM_EQ + 1) as u8))
+        };
+        unsafe { addr_of_mut!((*o).lsizenode).write(Cell::new(0)) };
+        unsafe { addr_of_mut!((*o).alimit).write(Cell::new(0)) };
+        unsafe { addr_of_mut!((*o).array).write(Cell::new(null_mut())) };
+        unsafe { addr_of_mut!((*o).node).write(Cell::new(&raw mut dummynode_)) };
+        unsafe { addr_of_mut!((*o).lastfree).write(Cell::new(null_mut())) };
+        unsafe { addr_of_mut!((*o).metatable).write(Cell::new(null_mut())) };
+
+        o
+    }
+
     /// # Panics
     /// If `k` or `v` come from different [Lua](crate::Lua) instance.
     pub fn set(

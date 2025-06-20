@@ -24,7 +24,7 @@ use crate::ltm::{
     luaT_getvarargs, luaT_trybinTM, luaT_trybinassocTM, luaT_trybiniTM, luaT_tryconcatTM,
 };
 use crate::table::{
-    luaH_finishset, luaH_get, luaH_getint, luaH_getn, luaH_getshortstr, luaH_getstr, luaH_new,
+    luaH_finishset, luaH_get, luaH_getint, luaH_getn, luaH_getshortstr, luaH_getstr,
     luaH_realasize, luaH_resize, luaH_resizearray,
 };
 use crate::value::{UnsafeValue, UntaggedValue};
@@ -1880,7 +1880,7 @@ pub async unsafe fn luaV_execute(
                         (*L).top.set(ra_17.offset(1 as c_int as isize));
 
                         // Create table.
-                        let t = luaH_new((*L).hdr.global);
+                        let t = Table::new((*L).hdr.global);
                         let io_3: *mut UnsafeValue = &raw mut (*ra_17).val;
 
                         (*io_3).value_.gc = t.cast();

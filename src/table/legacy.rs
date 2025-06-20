@@ -11,17 +11,15 @@ use crate::ldebug::luaG_runerror;
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
 use crate::lobject::{StkId, luaO_ceillog2};
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
-use crate::ltm::TM_EQ;
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{F2Ieq, luaV_flttointeger};
-use crate::{Lua, Node, NodeKey, Str, Table, TableError, Thread};
+use crate::{Node, NodeKey, Str, Table, TableError, Thread};
 use alloc::boxed::Box;
 use core::alloc::Layout;
 use core::cell::Cell;
-use core::ptr::{addr_of_mut, null_mut};
 use libm::frexp;
 
-static mut dummynode_: Node = Node {
+pub(super) static mut dummynode_: Node = Node {
     u: {
         let init = NodeKey {
             value_: UntaggedValue {
@@ -657,22 +655,6 @@ unsafe fn rehash(t: *const Table, ek: *const UnsafeValue) {
     totaluse += 1;
     asize = computesizes(nums.as_mut_ptr(), &mut na);
     luaH_resize(t, asize, (totaluse as libc::c_uint).wrapping_sub(na))
-}
-
-pub unsafe fn luaH_new(g: *const Lua) -> *const Table {
-    let layout = Layout::new::<Table>();
-    let o = Object::new(g, 5 | 0 << 4, layout).cast::<Table>();
-
-    addr_of_mut!((*o).flags).write(Cell::new(!(!(0 as libc::c_uint) << TM_EQ + 1) as u8));
-    addr_of_mut!((*o).lsizenode).write(Cell::new(0));
-    addr_of_mut!((*o).alimit).write(Cell::new(0));
-    addr_of_mut!((*o).array).write(Cell::new(null_mut()));
-    addr_of_mut!((*o).node).write(Cell::new(null_mut()));
-    addr_of_mut!((*o).lastfree).write(Cell::new(null_mut()));
-    addr_of_mut!((*o).metatable).write(Cell::new(null_mut()));
-
-    setnodevector(o, 0);
-    o
 }
 
 pub unsafe fn luaH_free(t: *mut Table) {
