@@ -16,14 +16,14 @@ use crate::lobject::{
 use crate::lstate::{CallInfo, lua_Debug};
 use crate::lstring::luaS_newudata;
 use crate::ltm::{TM_GC, luaT_gettm, luaT_typenames_};
-use crate::lvm::{
-    F2Ieq, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_lessequal,
-    luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
-};
 use crate::table::{
     luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_new, luaH_next, luaH_resize, luaH_setint,
 };
 use crate::value::{UnsafeValue, UntaggedValue};
+use crate::vm::{
+    F2Ieq, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_lessequal,
+    luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_,
+};
 use crate::{
     Args, Context, LuaFn, Object, Ret, StackOverflow, Str, Table, TableError, Thread, api_incr_top,
 };

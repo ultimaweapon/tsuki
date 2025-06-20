@@ -24,9 +24,9 @@ use crate::lparser::{
     luaY_nvarstack,
 };
 use crate::ltm::{TM_ADD, TM_SHL, TM_SHR, TM_SUB, TMS};
-use crate::lvm::{F2Ieq, luaV_equalobj, luaV_flttointeger, luaV_tointegerns};
 use crate::table::{luaH_finishset, luaH_get};
 use crate::value::{UnsafeValue, UntaggedValue};
+use crate::vm::{F2Ieq, luaV_equalobj, luaV_flttointeger, luaV_tointegerns};
 use crate::{ArithError, Object, ParseError, Str, Thread};
 use core::fmt::Display;
 use core::ops::Deref;

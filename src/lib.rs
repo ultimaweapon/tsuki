@@ -50,13 +50,13 @@ mod lparser;
 mod lstate;
 mod lstring;
 mod ltm;
-mod lvm;
 mod lzio;
 mod parser;
 mod string;
 mod table;
 mod thread;
 mod value;
+mod vm;
 
 extern crate alloc;
 #[cfg(feature = "std")]
