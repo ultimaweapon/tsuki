@@ -17,7 +17,7 @@ use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lvm::luaV_execute;
 use crate::lzio::{Mbuffer, ZIO, Zio};
 use crate::value::UnsafeValue;
-use crate::{Args, ChunkInfo, Context, Lua, LuaFn, ParseError, Ref, StackOverflow, Thread};
+use crate::{Args, ChunkInfo, Context, Lua, LuaFn, ParseError, Ref, Ret, StackOverflow, Thread};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
@@ -521,7 +521,9 @@ async unsafe fn precallC(
     };
 
     // Get number of results.
-    let n = cx.into_results().try_into().unwrap();
+    let n = cx.results().try_into().unwrap();
+
+    drop(cx);
 
     luaD_poscall(L, ci, n)?;
 
@@ -790,6 +792,6 @@ pub unsafe fn luaD_protectedparser(
 
 enum Func {
     NonYieldableFp(
-        for<'a> fn(Context<'a, Args>) -> Result<Context<'a, ()>, Box<dyn core::error::Error>>,
+        for<'a> fn(Context<'a, Args>) -> Result<Context<'a, Ret>, Box<dyn core::error::Error>>,
     ),
 }

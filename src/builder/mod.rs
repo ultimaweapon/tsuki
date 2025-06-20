@@ -134,16 +134,17 @@ impl Builder {
 
     pub fn build(self) -> Pin<Rc<Lua>> {
         let g = self.g.deref();
-        let set_global = |k: &str, v: UnsafeValue| unsafe {
+        let global = |k: &str, v: UnsafeValue| unsafe {
             let k = UnsafeValue::from_str(Str::new(g, k));
 
             g.global().set_unchecked(k, v).unwrap();
         };
 
-        set_global("error", Fp(crate::builtin::error).into());
-        set_global("pcall", Fp(crate::builtin::pcall).into());
+        global("assert", Fp(crate::builtin::assert).into());
+        global("error", Fp(crate::builtin::error).into());
+        global("pcall", Fp(crate::builtin::pcall).into());
         #[cfg(feature = "std")]
-        set_global("print", Fp(crate::builtin::print).into());
+        global("print", Fp(crate::builtin::print).into());
 
         self.g
     }

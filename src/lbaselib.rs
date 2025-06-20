@@ -353,23 +353,6 @@ unsafe fn dofilecont(mut L: *mut Thread, mut d1: libc::c_int) -> libc::c_int {
     return lua_gettop(L) - 1 as libc::c_int;
 }
 
-unsafe fn luaB_assert(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    if (lua_toboolean(L, 1 as libc::c_int) != 0 as libc::c_int) as libc::c_int as libc::c_long != 0
-    {
-        return Ok(lua_gettop(L));
-    } else {
-        luaL_checkany(L, 1 as libc::c_int)?;
-        lua_rotate(L, 1 as libc::c_int, -(1 as libc::c_int));
-        lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-        lua_pushstring(
-            L,
-            b"assertion failed!\0" as *const u8 as *const libc::c_char,
-        );
-        lua_settop(L, 1 as libc::c_int)?;
-        return luaB_error(L);
-    };
-}
-
 unsafe fn luaB_select(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut n: libc::c_int = lua_gettop(L);
     if lua_type(L, 1 as libc::c_int) == 4 as libc::c_int
@@ -400,13 +383,6 @@ unsafe fn luaB_tostring(mut L: *const Thread) -> Result<c_int, Box<dyn std::erro
 }
 
 static mut base_funcs: [luaL_Reg; 21] = [
-    {
-        let mut init = luaL_Reg {
-            name: b"assert\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_assert),
-        };
-        init
-    },
     {
         let mut init = luaL_Reg {
             name: b"getmetatable\0" as *const u8 as *const libc::c_char,
@@ -527,11 +503,6 @@ pub unsafe fn luaopen_base(mut L: *const Thread) -> Result<c_int, Box<dyn std::e
         -(1000000 as libc::c_int) - 1000 as libc::c_int,
         2 as libc::c_int as i64,
     );
-    luaL_setfuncs(
-        L,
-        &raw const base_funcs as *const luaL_Reg,
-        0 as libc::c_int,
-    )?;
     lua_pushvalue(L, -(1 as libc::c_int));
     lua_setfield(
         L,

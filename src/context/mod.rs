@@ -95,7 +95,7 @@ impl<'a, T> Context<'a, T> {
         let cx = Context {
             th: self.th,
             ret: Cell::new(0),
-            payload: (),
+            payload: Ret(rem),
         };
 
         match f.poll(&mut core::task::Context::from_waker(&w)) {
@@ -112,10 +112,37 @@ impl<'a, T> Context<'a, T> {
 
         Ok(TryCall::Ok(cx))
     }
+
+    /// Converts all values start at `i` to call results.
+    ///
+    /// # Panics
+    /// If `i` is not a valid stack index.
+    #[inline(always)]
+    pub fn into_results(self, i: impl TryInto<NonZero<usize>>) -> Context<'a, Ret> {
+        // Get start index.
+        let i = match i.try_into() {
+            Ok(v) => v,
+            Err(_) => panic!("zero is not a valid stack index"),
+        };
+
+        // Check if index valid.
+        let ci = self.th.ci.get();
+        let top = unsafe { self.th.top.get().offset_from_unsigned((*ci).func) };
+        let ret = match top.checked_sub(i.get()) {
+            Some(v) => v,
+            None => panic!("{i} is not a valid stack index"),
+        };
+
+        Context {
+            th: self.th,
+            ret: Cell::new(ret),
+            payload: Ret(i.get() - 1),
+        }
+    }
 }
 
 impl<'a> Context<'a, Args> {
-    /// Returns a number of arguments for this call.
+    /// Returns number of arguments for this call.
     #[inline(always)]
     pub fn args(&self) -> usize {
         self.payload.0
@@ -137,77 +164,69 @@ impl<'a> Context<'a, Args> {
     }
 }
 
-impl<'a> Context<'a, ()> {
+impl<'a> Context<'a, Ret> {
     /// Insert `v` at `i` by shift all above values.
     ///
     /// # Panics
-    /// If `i` is not valid stack index.
-    #[inline(always)]
+    /// If `i` is lower than the first result or not a valid stack index.
     pub fn insert(
         &self,
         i: impl TryInto<NonZero<usize>>,
         v: impl Into<UnsafeValue>,
     ) -> Result<(), StackOverflow> {
+        // Check if index lower than the first result.
         let i = match i.try_into() {
             Ok(v) => v,
             Err(_) => panic!("zero is not a valid stack index"),
         };
 
-        #[inline(never)]
-        fn insert(
-            th: &Thread,
-            i: NonZero<usize>,
-            v: impl Into<UnsafeValue>,
-        ) -> Result<(), StackOverflow> {
-            // Check if index valid.
-            let ci = th.ci.get();
-            let top = unsafe { th.top.get().offset_from_unsigned((*ci).func) };
-
-            if i.get() > top {
-                panic!("{i} is not a valid stack index");
-            }
-
-            unsafe { lua_checkstack(th, 1)? };
-
-            // Insert the value.
-            let src = unsafe { (*ci).func.add(i.get()) };
-            let dst = unsafe { (*ci).func.add(i.get() + 1) };
-
-            unsafe { src.copy_to(dst, top - i.get()) };
-            unsafe { src.write(StackValue { val: v.into() }) };
-            unsafe { th.top.add(1) };
-
-            Ok(())
+        if i.get() <= self.payload.0 {
+            panic!("{i} is lower than the first result");
         }
 
-        insert(self.th, i, v)?;
+        // Check if index valid.
+        let ci = self.th.ci.get();
+        let top = unsafe { self.th.top.get().offset_from_unsigned((*ci).func) };
+
+        if i.get() > top {
+            panic!("{i} is not a valid stack index");
+        }
+
+        unsafe { lua_checkstack(self.th, 1)? };
+
+        // Insert the value.
+        let src = unsafe { (*ci).func.add(i.get()) };
+        let dst = unsafe { (*ci).func.add(i.get() + 1) };
+
+        unsafe { src.copy_to(dst, top - i.get()) };
+        unsafe { src.write(StackValue { val: v.into() }) };
+        unsafe { self.th.top.add(1) };
         self.ret.set(self.ret.get() + 1);
 
         Ok(())
     }
 
-    #[inline(always)]
-    pub(crate) fn into_results(self) -> usize {
-        self.ret.into_inner()
+    pub(crate) fn results(&self) -> usize {
+        self.ret.get()
     }
 }
 
-impl<'a> From<Context<'a, Args>> for Context<'a, ()> {
+impl<'a> From<Context<'a, Args>> for Context<'a, Ret> {
     #[inline(always)]
     fn from(value: Context<'a, Args>) -> Self {
         Self {
             th: value.th,
             ret: value.ret,
-            payload: (),
+            payload: Ret(value.payload.0),
         }
     }
 }
 
 /// Success result of [`Context::try_forward()`].
 pub enum TryCall<'a> {
-    Ok(Context<'a, ()>),
+    Ok(Context<'a, Ret>),
     Err(
-        Context<'a, ()>,
+        Context<'a, Ret>,
         Option<(String, u32)>,
         Box<dyn core::error::Error>,
     ),
@@ -222,3 +241,6 @@ impl Args {
         Self(v)
     }
 }
+
+/// Call results encapsulated in [`Context`];
+pub struct Ret(usize);

@@ -25,7 +25,7 @@ use crate::table::{
 };
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{
-    Args, Context, LuaFn, Object, StackOverflow, Str, Table, TableError, Thread, api_incr_top,
+    Args, Context, LuaFn, Object, Ret, StackOverflow, Str, Table, TableError, Thread, api_incr_top,
 };
 use alloc::boxed::Box;
 use alloc::string::String;
@@ -413,8 +413,8 @@ pub unsafe fn lua_tointegerx(L: *const Thread, idx: c_int, pisnum: *mut c_int) -
 
 pub unsafe fn lua_toboolean(L: *const Thread, idx: c_int) -> c_int {
     let o: *const UnsafeValue = index2value(L, idx);
-    return !((*o).tt_ as c_int == 1 as c_int | (0 as c_int) << 4 as c_int
-        || (*o).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int;
+
+    return !((*o).tt_ == 1 | 0 << 4 || (*o).tt_ & 0xf == 0) as c_int;
 }
 
 #[inline(never)]
@@ -557,7 +557,7 @@ pub unsafe fn lua_pushstring(L: *const Thread, mut s: *const libc::c_char) -> *c
 
 pub unsafe fn lua_pushcclosure(
     L: *const Thread,
-    fn_0: for<'a> fn(Context<'a, Args>) -> Result<Context<'a, ()>, Box<dyn core::error::Error>>,
+    fn_0: for<'a> fn(Context<'a, Args>) -> Result<Context<'a, Ret>, Box<dyn core::error::Error>>,
     mut n: c_int,
 ) {
     let cl = luaF_newCclosure((*L).hdr.global, n);

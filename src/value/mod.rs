@@ -1,4 +1,4 @@
-use crate::{Args, Context, Fp, Object, Str};
+use crate::{Args, Context, Fp, Object, Ret, Str};
 use alloc::boxed::Box;
 
 /// The outside **must** never be able to construct or have the value of this type.
@@ -46,7 +46,7 @@ impl From<Fp> for UnsafeValue {
 #[derive(Copy, Clone)]
 pub union UntaggedValue {
     pub gc: *const Object,
-    pub f: for<'a> fn(Context<'a, Args>) -> Result<Context<'a, ()>, Box<dyn core::error::Error>>,
+    pub f: for<'a> fn(Context<'a, Args>) -> Result<Context<'a, Ret>, Box<dyn core::error::Error>>,
     pub i: i64,
     pub n: f64,
 }

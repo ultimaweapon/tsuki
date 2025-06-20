@@ -1,10 +1,30 @@
-use crate::{Args, Context, TryCall};
+use crate::{Args, Context, Ret, TryCall};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
-pub fn error(cx: Context<Args>) -> Result<Context<()>, Box<dyn core::error::Error>> {
+pub fn assert(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+    // Check condition.
+    if cx.arg(1).to_bool() {
+        return Ok(cx.into_results(1));
+    }
+
+    cx.arg(1).exists()?;
+
+    // Raise error.
+    let m = if cx.args() > 1 {
+        let m = cx.arg(2).get_str(true)?;
+
+        String::from_utf8_lossy(m.as_bytes()).into()
+    } else {
+        "assertion failed!".into()
+    };
+
+    Err(m)
+}
+
+pub fn error(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
     let msg = cx.arg(1).get_str(true)?;
 
     if cx.args() > 1 {
@@ -14,7 +34,7 @@ pub fn error(cx: Context<Args>) -> Result<Context<()>, Box<dyn core::error::Erro
     Err(String::from_utf8_lossy(msg.as_bytes()).into())
 }
 
-pub fn pcall(cx: Context<Args>) -> Result<Context<()>, Box<dyn core::error::Error>> {
+pub fn pcall(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
     let r = match cx.try_forward(1)? {
         TryCall::Ok(r) => {
             r.insert(1, true)?;
@@ -34,7 +54,7 @@ pub fn pcall(cx: Context<Args>) -> Result<Context<()>, Box<dyn core::error::Erro
 }
 
 #[cfg(feature = "std")]
-pub fn print(cx: Context<Args>) -> Result<Context<()>, Box<dyn core::error::Error>> {
+pub fn print(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
     use std::io::Write;
 
     // We can't print while converting the arguments to string since it can call into arbitrary

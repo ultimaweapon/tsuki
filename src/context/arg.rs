@@ -80,6 +80,20 @@ impl<'a, 'b> Arg<'a, 'b> {
         Ok(Some(unsafe { &*(*v).value_.gc.cast::<Str>() }))
     }
 
+    /// Gets the argument and convert it to Lua boolean.
+    ///
+    /// This has the same semantic as `lua_toboolean`.
+    #[inline(always)]
+    pub fn to_bool(&self) -> bool {
+        let raw = self.get_raw_or_null();
+
+        if unsafe { raw.is_null() || (*raw).tt_ == 1 | 0 << 4 || (*raw).tt_ & 0xf == 0 } {
+            false
+        } else {
+            true
+        }
+    }
+
     /// Gets the argument and convert it to Lua integer.
     #[inline(always)]
     pub fn to_int(&self) -> Result<i64, Box<dyn core::error::Error>> {

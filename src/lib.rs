@@ -213,18 +213,17 @@ pub enum Value {}
 
 /// Non-Yieldable Rust function.
 #[derive(Clone, Copy)]
-pub struct Fp(pub fn(Context<Args>) -> Result<Context<()>, Box<dyn core::error::Error>>);
+pub struct Fp(pub fn(Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>>);
 
 #[derive(Clone, Copy)]
-pub struct YieldFp(pub fn(Context<Args>) -> Result<Context<()>, Box<dyn core::error::Error>>);
+pub struct YieldFp(pub fn(Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>>);
 
 #[derive(Clone, Copy)]
 pub struct AsyncFp(
-    pub  for<'a> fn(
-        Context<'a, Args>,
-    ) -> Box<
-        dyn Future<Output = Result<Context<'a, ()>, Box<dyn core::error::Error>>> + 'a,
-    >,
+    pub  fn(
+        Context<Args>,
+    )
+        -> Box<dyn Future<Output = Result<Context<Ret>, Box<dyn core::error::Error>>> + '_>,
 );
 
 /// Represents an error when arithmetic operation fails.
