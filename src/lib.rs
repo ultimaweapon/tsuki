@@ -252,9 +252,17 @@ impl Lua {
 
         // Set global.
         let k = unsafe { UnsafeValue::from_obj(Str::new(self, "string").cast()) };
-        let v = unsafe { UnsafeValue::from_obj(g.cast()) };
+        let g = unsafe { UnsafeValue::from_obj(g.cast()) };
 
-        self.global().set(k, v).unwrap();
+        unsafe { self.global().set_unchecked(k, g).unwrap() };
+
+        // Set metatable.
+        let mt = unsafe { Table::new(self) };
+        let k = unsafe { UnsafeValue::from_obj(Str::new(self, "__index").cast()) };
+
+        unsafe { (*mt).set_unchecked(k, g).unwrap() };
+
+        self.primitive_mt[4].set(mt);
     }
 
     /// Load a Lua chunk.

@@ -69,6 +69,7 @@ impl Str {
         }
     }
 
+    /// Returns the length of this string, in bytes.
     #[inline(always)]
     pub fn len(&self) -> usize {
         match self.shrlen.get() {
@@ -77,6 +78,12 @@ impl Str {
         }
     }
 
+    /// Returns [`str`] if this string is UTF-8.
+    pub fn as_str(&self) -> Option<&str> {
+        core::str::from_utf8(self.as_bytes()).ok()
+    }
+
+    /// Returns byte slice of this string.
     #[inline(always)]
     pub fn as_bytes(&self) -> &[u8] {
         unsafe { core::slice::from_raw_parts(self.contents.as_ptr().cast(), self.len()) }

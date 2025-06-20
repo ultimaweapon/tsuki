@@ -584,13 +584,10 @@ unsafe fn isneg(s: *mut *const c_char) -> c_int {
     return 0 as c_int;
 }
 
-unsafe fn l_str2dloc(s: *const c_char, result: *mut f64, mode: c_int) -> *const c_char {
+unsafe fn l_str2dloc(s: *const c_char, result: *mut f64) -> *const c_char {
+    // TODO: How to handle hex floating point in Rust?
     let mut endptr: *mut c_char = 0 as *mut c_char;
-    *result = if mode == 'x' as i32 {
-        strtod(s, &mut endptr)
-    } else {
-        strtod(s, &mut endptr)
-    };
+    *result = strtod(s, &mut endptr);
     if endptr == s as *mut c_char {
         return 0 as *const c_char;
     }
@@ -619,7 +616,7 @@ unsafe fn l_str2d(s: *const c_char, result: *mut f64) -> *const c_char {
         return 0 as *const c_char;
     }
 
-    l_str2dloc(s, result, mode)
+    l_str2dloc(s, result)
 }
 
 unsafe fn l_str2int(mut s: *const c_char, result: *mut i64) -> *const c_char {
@@ -691,8 +688,8 @@ unsafe fn l_str2int(mut s: *const c_char, result: *mut i64) -> *const c_char {
 pub unsafe fn luaO_str2num(s: *const c_char, o: *mut UnsafeValue) -> usize {
     let mut i: i64 = 0;
     let mut n: f64 = 0.;
-    let mut e: *const c_char = 0 as *const c_char;
-    e = l_str2int(s, &mut i);
+    let mut e = l_str2int(s, &mut i);
+
     if !e.is_null() {
         let io: *mut UnsafeValue = o;
         (*io).value_.i = i;
@@ -707,7 +704,8 @@ pub unsafe fn luaO_str2num(s: *const c_char, o: *mut UnsafeValue) -> usize {
             return 0 as c_int as usize;
         }
     }
-    return (e.offset_from(s) as libc::c_long + 1 as c_int as libc::c_long) as usize;
+
+    e.offset_from_unsigned(s) + 1
 }
 
 pub unsafe fn luaO_utf8esc(buff: *mut c_char, mut x: libc::c_ulong) -> c_int {

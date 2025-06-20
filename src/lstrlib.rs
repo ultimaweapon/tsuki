@@ -471,13 +471,6 @@ static mut stringmetamethods: [luaL_Reg; 10] = [
     },
     {
         let mut init = luaL_Reg {
-            name: b"__index\0" as *const u8 as *const libc::c_char,
-            func: None,
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
             name: 0 as *const libc::c_char,
             func: None,
         };
@@ -2747,43 +2740,3 @@ static mut strlib: [luaL_Reg; 17] = [
         init
     },
 ];
-
-unsafe fn createmetatable(mut L: *const Thread) -> Result<(), Box<dyn std::error::Error>> {
-    lua_createtable(
-        L,
-        0 as libc::c_int,
-        (::core::mem::size_of::<[luaL_Reg; 10]>() as libc::c_ulong)
-            .wrapping_div(::core::mem::size_of::<luaL_Reg>() as libc::c_ulong)
-            .wrapping_sub(1 as libc::c_int as libc::c_ulong) as libc::c_int,
-    );
-    luaL_setfuncs(
-        L,
-        &raw const stringmetamethods as *const luaL_Reg,
-        0 as libc::c_int,
-    )?;
-    lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char);
-    lua_pushvalue(L, -(2 as libc::c_int));
-    lua_setmetatable(L, -(2 as libc::c_int))?;
-    lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-    lua_pushvalue(L, -(2 as libc::c_int));
-    lua_setfield(
-        L,
-        -(2 as libc::c_int),
-        b"__index\0" as *const u8 as *const libc::c_char,
-    )?;
-    lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-    Ok(())
-}
-
-pub unsafe fn luaopen_string(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    lua_createtable(
-        L,
-        0 as libc::c_int,
-        (::core::mem::size_of::<[luaL_Reg; 18]>() as libc::c_ulong)
-            .wrapping_div(::core::mem::size_of::<luaL_Reg>() as libc::c_ulong)
-            .wrapping_sub(1 as libc::c_int as libc::c_ulong) as libc::c_int,
-    );
-    luaL_setfuncs(L, &raw const strlib as *const luaL_Reg, 0 as libc::c_int)?;
-    createmetatable(L)?;
-    return Ok(1 as libc::c_int);
-}
