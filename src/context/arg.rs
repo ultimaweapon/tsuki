@@ -207,7 +207,7 @@ impl<'a, 'b> Arg<'a, 'b> {
         let actual: Cow<str> = if mt.is_null() {
             lua_typename(unsafe { ((*actual).tt_ & 0xf).into() }).into()
         } else {
-            let key = unsafe { UnsafeValue::from_str(Str::new(g, "__name")) };
+            let key = unsafe { UnsafeValue::from_obj(Str::new(g, "__name").cast()) };
             let val = unsafe { luaH_get(mt, &key) };
 
             match unsafe { (*val).tt_ & 0xf } {

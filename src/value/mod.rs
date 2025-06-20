@@ -1,4 +1,4 @@
-use crate::{Args, Context, Fp, Object, Ret, Str};
+use crate::{Args, Context, Fp, Object, Ret};
 use alloc::boxed::Box;
 
 /// The outside **must** never be able to construct or have the value of this type.
@@ -11,10 +11,10 @@ pub struct UnsafeValue {
 
 impl UnsafeValue {
     #[inline(always)]
-    pub(crate) unsafe fn from_str(s: *const Str) -> Self {
+    pub(crate) unsafe fn from_obj(s: *const Object) -> Self {
         Self {
-            value_: UntaggedValue { gc: s.cast() },
-            tt_: unsafe { (*s).hdr.tt | 1 << 6 },
+            value_: UntaggedValue { gc: s },
+            tt_: unsafe { (*s).tt | 1 << 6 },
         }
     }
 }

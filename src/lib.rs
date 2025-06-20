@@ -234,7 +234,7 @@ impl Lua {
     pub fn setup_base(&self) {
         let g = self.global();
         let global = |k: &str, v: UnsafeValue| unsafe {
-            let k = UnsafeValue::from_str(Str::new(self, k));
+            let k = UnsafeValue::from_obj(Str::new(self, k).cast());
 
             g.set_unchecked(k, v).unwrap();
         };
@@ -244,6 +244,17 @@ impl Lua {
         global("pcall", Fp(crate::builtin::base::pcall).into());
         #[cfg(feature = "std")]
         global("print", Fp(crate::builtin::base::print).into());
+    }
+
+    /// Setup [string library](https://www.lua.org/manual/5.4/manual.html#6.4).
+    pub fn setup_string(&self) {
+        let g = unsafe { Table::new(self) };
+
+        // Set global.
+        let k = unsafe { UnsafeValue::from_obj(Str::new(self, "string").cast()) };
+        let v = unsafe { UnsafeValue::from_obj(g.cast()) };
+
+        self.global().set(k, v).unwrap();
     }
 
     /// Load a Lua chunk.

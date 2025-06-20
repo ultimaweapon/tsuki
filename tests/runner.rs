@@ -86,6 +86,7 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     let lua = Lua::new();
 
     lua.setup_base();
+    lua.setup_string();
 
     // Run.
     let chunk = lua.load(ChunkInfo::new(path.to_string_lossy().into_owned()), content)?;

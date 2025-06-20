@@ -58,7 +58,7 @@ impl<'a, T> Context<'a, T> {
         // Create string.
         let s = unsafe { Str::new(self.th.hdr.global, v.as_ref()) };
 
-        unsafe { self.th.top.write(UnsafeValue::from_str(s)) };
+        unsafe { self.th.top.write(UnsafeValue::from_obj(s.cast())) };
         unsafe { self.th.top.add(1) };
         self.ret.set(self.ret.get() + 1);
 
