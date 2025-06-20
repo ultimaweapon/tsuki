@@ -4,7 +4,6 @@ pub use self::builder::*;
 pub use self::context::*;
 pub use self::function::*;
 pub use self::gc::Ref;
-pub use self::module::*;
 pub use self::parser::*;
 pub use self::string::*;
 pub use self::table::*;
@@ -30,8 +29,9 @@ use hashbrown::HashMap;
 use rustc_hash::FxBuildHasher;
 use thiserror::Error;
 
+pub mod builtin;
+
 mod builder;
-mod builtin;
 mod context;
 mod function;
 mod gc;
@@ -52,7 +52,6 @@ mod lstring;
 mod ltm;
 mod lvm;
 mod lzio;
-mod module;
 mod parser;
 mod string;
 mod table;

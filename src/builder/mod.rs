@@ -2,7 +2,7 @@ use crate::llex::luaX_init;
 use crate::ltm::luaT_init;
 use crate::table::{luaH_new, luaH_resize};
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{Fp, Gc, Lua, Module, Object, Str, StringTable};
+use crate::{Fp, Gc, Lua, Object, Str, StringTable};
 use alloc::rc::Rc;
 use core::cell::{Cell, UnsafeCell};
 use core::marker::PhantomPinned;
@@ -22,6 +22,8 @@ impl Builder {
     /// or you can pass `0` as a seed if
     /// [HashDoS](https://en.wikipedia.org/wiki/Collision_attack#Hash_flooding) attack is not
     /// possible for your application.
+    ///
+    /// Note that all built-in functions (e.g. `print`) are not enabled by default.
     pub fn new(seed: u32) -> Self {
         let g = Rc::pin(Lua {
             currentwhite: Cell::new(1 << 3),
@@ -126,13 +128,10 @@ impl Builder {
         Self { g }
     }
 
-    /// # Panics
-    /// If module with the same name already added.
-    pub fn add_module<T: Module>(self, m: T) -> Self {
-        todo!()
-    }
-
-    pub fn build(self) -> Pin<Rc<Lua>> {
+    /// Enable [basic library](https://www.lua.org/manual/5.4/manual.html#6.1).
+    ///
+    /// Note that `print` only available with `std` feature.
+    pub fn enable_base(self) -> Self {
         let g = self.g.deref();
         let global = |k: &str, v: UnsafeValue| unsafe {
             let k = UnsafeValue::from_str(Str::new(g, k));
@@ -140,12 +139,17 @@ impl Builder {
             g.global().set_unchecked(k, v).unwrap();
         };
 
-        global("assert", Fp(crate::builtin::assert).into());
-        global("error", Fp(crate::builtin::error).into());
-        global("pcall", Fp(crate::builtin::pcall).into());
+        global("assert", Fp(crate::builtin::base::assert).into());
+        global("error", Fp(crate::builtin::base::error).into());
+        global("pcall", Fp(crate::builtin::base::pcall).into());
         #[cfg(feature = "std")]
-        global("print", Fp(crate::builtin::print).into());
+        global("print", Fp(crate::builtin::base::print).into());
 
+        self
+    }
+
+    #[inline(always)]
+    pub fn build(self) -> Pin<Rc<Lua>> {
         self.g
     }
 }
