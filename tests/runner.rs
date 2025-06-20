@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::LazyLock;
-use tsuki::{Builder, CallError, ChunkInfo};
+use tsuki::{CallError, ChunkInfo, Lua};
 
 #[test]
 #[ignore = "need Lua standard library"]
@@ -83,10 +83,12 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     // Setup Lua.
     let content = std::fs::read(&path).unwrap();
-    let lua = Builder::default().enable_base().build();
-    let chunk = lua.load(ChunkInfo::new(path.to_string_lossy().into_owned()), content)?;
+    let lua = Lua::new();
+
+    lua.setup_base();
 
     // Run.
+    let chunk = lua.load(ChunkInfo::new(path.to_string_lossy().into_owned()), content)?;
     let th = lua.spawn();
 
     th.call(&chunk, ())?;

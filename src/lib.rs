@@ -1,6 +1,5 @@
 #![no_std]
 
-pub use self::builder::*;
 pub use self::context::*;
 pub use self::function::*;
 pub use self::gc::Ref;
@@ -12,9 +11,11 @@ pub use self::thread::*;
 use self::gc::{Gc, Object, luaC_barrier_, luaC_freeallobjects};
 use self::lapi::lua_settop;
 use self::ldo::luaD_protectedparser;
+use self::llex::luaX_init;
 use self::lobject::Udata;
+use self::ltm::luaT_init;
 use self::lzio::Zio;
-use self::value::UnsafeValue;
+use self::value::{UnsafeValue, UntaggedValue};
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use core::any::TypeId;
@@ -23,7 +24,7 @@ use core::ffi::c_int;
 use core::marker::PhantomPinned;
 use core::ops::Deref;
 use core::pin::Pin;
-use core::ptr::null_mut;
+use core::ptr::{null, null_mut};
 use core::task::RawWakerVTable;
 use hashbrown::HashMap;
 use rustc_hash::FxBuildHasher;
@@ -31,7 +32,6 @@ use thiserror::Error;
 
 pub mod builtin;
 
-mod builder;
 mod context;
 mod function;
 mod gc;
@@ -77,8 +77,6 @@ unsafe fn api_incr_top(th: *const Thread) {
 }
 
 /// Global states shared with all Lua threads.
-///
-/// Use [`Builder`] to get an instance of this type.
 pub struct Lua {
     currentwhite: Cell<u8>,
     all: Cell<*const Object>,
@@ -111,12 +109,145 @@ pub struct Lua {
 }
 
 impl Lua {
+    /// Create a new [`Lua`] with random seed to hash Lua string.
+    ///
+    /// Note that all built-in functions (e.g. `print`) are not enabled by default.
+    #[cfg(feature = "rand")]
+    pub fn new() -> Pin<Rc<Self>> {
+        Self::with_seed(rand::random())
+    }
+
+    /// Create a new [`Lua`] with a seed to hash Lua string.
+    ///
+    /// You can use [`Lua::new()`] instead if `rand` feature is enabled (which is default) or you
+    /// can pass `0` as a seed if
+    /// [HashDoS](https://en.wikipedia.org/wiki/Collision_attack#Hash_flooding) attack is not
+    /// possible for your application.
+    ///
+    /// Note that all built-in functions (e.g. `print`) are not enabled by default.
+    pub fn with_seed(seed: u32) -> Pin<Rc<Self>> {
+        let g = Rc::pin(Lua {
+            currentwhite: Cell::new(1 << 3),
+            all: Cell::new(null()),
+            refs: Cell::new(null()),
+            gc: Gc::new(size_of::<Self>()),
+            GCestimate: Cell::new(0), // TODO: Lua does not initialize this.
+            lastatomic: Cell::new(0),
+            strt: StringTable::new(),
+            l_registry: UnsafeCell::new(UnsafeValue {
+                value_: UntaggedValue { i: 0 },
+                tt_: (0 | 0 << 4),
+            }),
+            nilvalue: UnsafeCell::new(UnsafeValue {
+                value_: UntaggedValue { i: 0 },
+                tt_: (0 | 0 << 4),
+            }),
+            seed,
+            gcstate: Cell::new(8),
+            gcstopem: Cell::new(0),
+            gcstp: Cell::new(2),
+            gcpause: Cell::new((200 as libc::c_int / 4 as libc::c_int) as u8),
+            gcstepmul: Cell::new((100 as libc::c_int / 4 as libc::c_int) as u8),
+            gcstepsize: Cell::new(13 as libc::c_int as u8),
+            sweepgc: Cell::new(null_mut()),
+            gray: Cell::new(null_mut()),
+            grayagain: Cell::new(null_mut()),
+            weak: Cell::new(null_mut()),
+            ephemeron: Cell::new(null_mut()),
+            allweak: Cell::new(null_mut()),
+            fixedgc: Cell::new(null()),
+            twups: Cell::new(null_mut()),
+            tmname: [
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+            ],
+            primitive_mt: [
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+                Cell::new(null_mut()),
+            ],
+            userdata_mt: Default::default(),
+            _phantom: PhantomPinned,
+        });
+
+        // Setup registry.
+        let registry = unsafe { luaH_new(g.deref()) };
+        let io: *mut UnsafeValue = g.l_registry.get();
+
+        unsafe { (*io).value_.gc = registry as *mut Object };
+        unsafe { (*io).tt_ = 5 | 0 << 4 | 1 << 6 };
+
+        unsafe { luaH_resize(registry, 2, 0) };
+
+        // Create dummy object for LUA_RIDX_MAINTHREAD.
+        let io_0 = unsafe { (*registry).array.get().offset(1 - 1) as *mut UnsafeValue };
+
+        unsafe { (*io_0).value_.gc = luaH_new(g.deref()).cast() };
+        unsafe { (*io_0).tt_ = 5 | 0 << 4 | 1 << 6 };
+
+        // Create LUA_RIDX_GLOBALS.
+        let io_1 = unsafe { (*registry).array.get().offset(2 - 1) as *mut UnsafeValue };
+
+        unsafe { (*io_1).value_.gc = luaH_new(g.deref()).cast() };
+        unsafe { (*io_1).tt_ = 5 | 0 << 4 | 1 << 6 };
+
+        // Initialize internal module.
+        unsafe { luaT_init(g.deref()) };
+        unsafe { luaX_init(g.deref()) };
+
+        g.gcstp.set(0);
+        g
+    }
+
+    /// Setup [basic library](https://www.lua.org/manual/5.4/manual.html#6.1).
+    ///
+    /// Note that `print` only available with `std` feature.
+    pub fn setup_base(&self) {
+        let g = self.global();
+        let global = |k: &str, v: UnsafeValue| unsafe {
+            let k = UnsafeValue::from_str(Str::new(self, k));
+
+            g.set_unchecked(k, v).unwrap();
+        };
+
+        global("assert", Fp(crate::builtin::base::assert).into());
+        global("error", Fp(crate::builtin::base::error).into());
+        global("pcall", Fp(crate::builtin::base::pcall).into());
+        #[cfg(feature = "std")]
+        global("print", Fp(crate::builtin::base::print).into());
+    }
+
     /// Load a Lua chunk.
-    pub fn load(
-        self: &Pin<Rc<Self>>,
-        info: ChunkInfo,
-        chunk: impl AsRef<[u8]>,
-    ) -> Result<Ref<LuaFn>, ParseError> {
+    pub fn load(&self, info: ChunkInfo, chunk: impl AsRef<[u8]>) -> Result<Ref<LuaFn>, ParseError> {
         let chunk = chunk.as_ref();
         let z = Zio {
             n: chunk.len(),
@@ -144,9 +275,7 @@ impl Lua {
                     (*(*f).upvals[0].get()).hdr.marked.get() & 1 << 5 != 0
                         && (*(*gt).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
                 } {
-                    unsafe {
-                        luaC_barrier_(self.deref(), (*f).upvals[0].get().cast(), (*gt).value_.gc)
-                    };
+                    unsafe { luaC_barrier_(self, (*f).upvals[0].get().cast(), (*gt).value_.gc) };
                 }
             }
         }
@@ -156,8 +285,8 @@ impl Lua {
 
     /// Create a new Lua thread (AKA coroutine).
     #[inline(always)]
-    pub fn spawn(self: &Pin<Rc<Self>>) -> Ref<Thread> {
-        Thread::new(self)
+    pub fn spawn(&self) -> Ref<Thread> {
+        unsafe { Ref::new(self.to_rc(), Thread::new(self)) }
     }
 
     /// Returns a global table.

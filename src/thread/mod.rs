@@ -7,10 +7,9 @@ use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
 use crate::lobject::{StackValue, StkId, UpVal};
 use crate::lstate::{CallInfo, lua_Hook};
-use crate::{Lua, LuaFn, NON_YIELDABLE_WAKER, Object, Ref, Value};
+use crate::{Lua, LuaFn, NON_YIELDABLE_WAKER, Object, Value};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
-use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::alloc::Layout;
@@ -18,7 +17,7 @@ use core::cell::{Cell, UnsafeCell};
 use core::fmt::{Display, Formatter};
 use core::marker::PhantomPinned;
 use core::ops::Deref;
-use core::pin::{Pin, pin};
+use core::pin::pin;
 use core::ptr::{addr_of_mut, null, null_mut};
 use core::task::{Context, Poll, Waker};
 
@@ -49,7 +48,7 @@ pub struct Thread {
 
 impl Thread {
     #[inline(never)]
-    pub(crate) fn new(g: &Pin<Rc<Lua>>) -> Ref<Self> {
+    pub(crate) fn new(g: &Lua) -> *const Self {
         // Create new thread.
         let layout = Layout::new::<Thread>();
         let th = unsafe { Object::new(g.deref(), 8, layout).cast::<Thread>() };
@@ -97,7 +96,7 @@ impl Thread {
         unsafe { (*ci).top = ((*th).top.get()).offset(20) };
         unsafe { (*th).ci.set(ci) };
 
-        unsafe { Ref::new(g.clone(), th) }
+        th
     }
 
     /// Call a Lua function.

@@ -37,11 +37,9 @@ use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{ChunkInfo, Lua, LuaFn, Object, ParseError, Ref, Str};
 use alloc::borrow::Cow;
 use alloc::format;
-use alloc::rc::Rc;
 use alloc::string::String;
 use core::fmt::Display;
 use core::ops::Deref;
-use core::pin::Pin;
 use core::ptr::null;
 
 #[derive(Copy, Clone)]
@@ -2732,7 +2730,7 @@ unsafe fn mainfunc(ls: &mut LexState, fs: &mut FuncState) -> Result<(), ParseErr
 }
 
 pub unsafe fn luaY_parser(
-    g: &Pin<Rc<Lua>>,
+    g: &Lua,
     z: *mut ZIO,
     buff: *mut Mbuffer,
     dyd: *mut Dyndata,
@@ -2740,7 +2738,7 @@ pub unsafe fn luaY_parser(
     firstchar: libc::c_int,
 ) -> Result<Ref<LuaFn>, ParseError> {
     let mut funcstate = FuncState::default();
-    let cl = Ref::new(g.clone(), luaF_newLclosure(g.deref(), 1));
+    let cl = Ref::new(g.to_rc(), luaF_newLclosure(g, 1));
     let mut lexstate = LexState {
         current: 0,
         linenumber: 0,
@@ -2754,17 +2752,17 @@ pub unsafe fn luaY_parser(
             seminfo: SemInfo { r: 0. },
         },
         fs: 0 as *mut FuncState,
-        g: g.clone(),
+        g: g.to_rc(),
         z: 0 as *mut ZIO,
         buff: 0 as *mut Mbuffer,
-        h: Ref::new(g.clone(), luaH_new(g.deref())),
+        h: Ref::new(g.to_rc(), luaH_new(g)),
         dyd: 0 as *mut Dyndata,
         source: info.clone(),
         envn: 0 as *mut Str,
         level: 0,
     };
 
-    (*cl).p.set(luaF_newproto(g.deref(), info));
+    (*cl).p.set(luaF_newproto(g, info));
     funcstate.f = (*cl).p.get();
 
     if (*cl).hdr.marked.get() as libc::c_int & (1 as libc::c_int) << 5 as libc::c_int != 0
@@ -2772,7 +2770,7 @@ pub unsafe fn luaY_parser(
             & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
             != 0
     {
-        luaC_barrier_(g.deref(), &cl.hdr, (*cl).p.get().cast());
+        luaC_barrier_(g, &cl.hdr, (*cl).p.get().cast());
     }
 
     lexstate.buff = buff;

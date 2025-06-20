@@ -20,10 +20,8 @@ use crate::value::UnsafeValue;
 use crate::{Args, ChunkInfo, Context, Lua, LuaFn, ParseError, Ref, Ret, StackOverflow, Thread};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
-use alloc::rc::Rc;
 use core::alloc::Layout;
 use core::ops::Deref;
-use core::pin::Pin;
 
 type c_int = i32;
 
@@ -707,7 +705,7 @@ pub unsafe fn luaD_closeprotected(
 }
 
 pub unsafe fn luaD_protectedparser(
-    g: &Pin<Rc<Lua>>,
+    g: &Lua,
     mut z: Zio,
     info: ChunkInfo,
 ) -> Result<Ref<LuaFn>, ParseError> {
@@ -761,28 +759,28 @@ pub unsafe fn luaD_protectedparser(
     let status = luaY_parser(g, p.z, &raw mut p.buff, &raw mut p.dyd, info, c);
 
     if let Ok(cl) = &status {
-        luaF_initupvals(g.deref(), cl.deref());
+        luaF_initupvals(g, cl.deref());
     }
 
     p.buff.buffer = luaM_saferealloc_(
-        g.deref(),
+        g,
         p.buff.buffer as *mut libc::c_void,
         (p.buff.buffsize).wrapping_mul(::core::mem::size_of::<libc::c_char>()),
         0usize.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
     ) as *mut libc::c_char;
     p.buff.buffsize = 0 as c_int as usize;
     luaM_free_(
-        g.deref(),
+        g,
         p.dyd.actvar.arr as *mut libc::c_void,
         (p.dyd.actvar.size as usize).wrapping_mul(::core::mem::size_of::<Vardesc>()),
     );
     luaM_free_(
-        g.deref(),
+        g,
         p.dyd.gt.arr as *mut libc::c_void,
         (p.dyd.gt.size as usize).wrapping_mul(::core::mem::size_of::<Labeldesc>()),
     );
     luaM_free_(
-        g.deref(),
+        g,
         p.dyd.label.arr as *mut libc::c_void,
         (p.dyd.label.size as usize).wrapping_mul(::core::mem::size_of::<Labeldesc>()),
     );
