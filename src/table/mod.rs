@@ -3,7 +3,7 @@ pub(crate) use self::node::*;
 
 use crate::gc::luaC_barrierback_;
 use crate::ltm::TM_EQ;
-use crate::{Lua, Object, UnsafeValue};
+use crate::{Lua, Object, Str, UnsafeValue};
 use core::alloc::Layout;
 use core::cell::Cell;
 use core::ptr::{addr_of_mut, null_mut};
@@ -43,6 +43,8 @@ impl Table {
         o
     }
 
+    /// Inserts a key-value pair into this table.
+    ///
     /// # Panics
     /// If `k` or `v` come from different [Lua](crate::Lua) instance.
     pub fn set(
@@ -89,6 +91,28 @@ impl Table {
         }
 
         Ok(())
+    }
+
+    /// Inserts a value with string key into this table.
+    ///
+    /// # Panics
+    /// If `v` come from different [Lua](crate::Lua) instance.
+    pub fn set_str_key(&self, k: impl AsRef<str>, v: impl Into<UnsafeValue>) {
+        let k = unsafe { Str::new(self.hdr.global, k.as_ref()) };
+        let k = unsafe { UnsafeValue::from_obj(k.cast()) };
+
+        unsafe { self.set(k, v).unwrap_unchecked() };
+    }
+
+    /// Inserts a value with string key into this table.
+    ///
+    /// # Safety
+    /// `v` must come from the same [Lua](crate::Lua) instance.
+    pub unsafe fn set_str_key_unchecked(&self, k: impl AsRef<str>, v: impl Into<UnsafeValue>) {
+        let k = unsafe { Str::new(self.hdr.global, k.as_ref()) };
+        let k = unsafe { UnsafeValue::from_obj(k.cast()) };
+
+        unsafe { self.set_unchecked(k, v).unwrap_unchecked() };
     }
 }
 

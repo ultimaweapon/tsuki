@@ -95,7 +95,8 @@ impl<'a, 'b> Arg<'a, 'b> {
     }
 
     /// Gets the argument and convert it to Lua integer.
-    #[inline(always)]
+    ///
+    /// This has the same semantic as `luaL_checkinteger`.
     pub fn to_int(&self) -> Result<i64, Box<dyn core::error::Error>> {
         // Check if integer.
         let expect = lua_typename(3);
@@ -119,7 +120,8 @@ impl<'a, 'b> Arg<'a, 'b> {
 
     /// Gets the argument and convert it to Lua integer. Returns [`None`] if this argument is `nil`
     /// or does not exists.
-    #[inline(always)]
+    ///
+    /// This has the same semantic as `luaL_optinteger`.
     pub fn to_nilable_int(&self) -> Result<Option<i64>, Box<dyn core::error::Error>> {
         // Check type.
         let raw = self.get_raw_or_null();

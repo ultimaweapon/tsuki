@@ -39,9 +39,20 @@ impl<'a, T> Context<'a, T> {
     }
 
     /// Push value to the result of this call.
+    ///
+    /// # Panics
+    /// If `v` come from different [Lua](crate::Lua) instance.
     pub fn push(&self, v: impl Into<UnsafeValue>) -> Result<(), StackOverflow> {
+        // Check if value come from the same Lua.
+        let v = v.into();
+
+        if unsafe { (v.tt_ & 1 << 6 != 0) && (*v.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to push a value created from a different Lua");
+        }
+
+        // Push.
         unsafe { lua_checkstack(self.th, 1)? };
-        unsafe { self.th.top.write(v.into()) };
+        unsafe { self.th.top.write(v) };
         unsafe { self.th.top.add(1) };
         self.ret.set(self.ret.get() + 1);
 
@@ -57,6 +68,20 @@ impl<'a, T> Context<'a, T> {
 
         // Create string.
         let s = unsafe { Str::new(self.th.hdr.global, v.as_ref()) };
+
+        unsafe { self.th.top.write(UnsafeValue::from_obj(s.cast())) };
+        unsafe { self.th.top.add(1) };
+        self.ret.set(self.ret.get() + 1);
+
+        Ok(())
+    }
+
+    /// Push a byte slice as Lua string to the result of this call.
+    pub fn push_bytes(&self, v: impl AsRef<[u8]>) -> Result<(), StackOverflow> {
+        unsafe { lua_checkstack(self.th, 1)? };
+
+        // Create string.
+        let s = unsafe { Str::new(self.th.hdr.global, v) };
 
         unsafe { self.th.top.write(UnsafeValue::from_obj(s.cast())) };
         unsafe { self.th.top.add(1) };
@@ -168,7 +193,8 @@ impl<'a> Context<'a, Ret> {
     /// Insert `v` at `i` by shift all above values.
     ///
     /// # Panics
-    /// If `i` is lower than the first result or not a valid stack index.
+    /// - If `i` is lower than the first result or not a valid stack index.
+    /// - If `v` come from different [Lua](crate::Lua) instance.
     pub fn insert(
         &self,
         i: impl TryInto<NonZero<usize>>,
@@ -192,6 +218,13 @@ impl<'a> Context<'a, Ret> {
             panic!("{i} is not a valid stack index");
         }
 
+        // Check if value come from the same Lua.
+        let v = v.into();
+
+        if unsafe { (v.tt_ & 1 << 6 != 0) && (*v.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to push a value created from a different Lua");
+        }
+
         unsafe { lua_checkstack(self.th, 1)? };
 
         // Insert the value.
@@ -199,7 +232,7 @@ impl<'a> Context<'a, Ret> {
         let dst = unsafe { (*ci).func.add(i.get() + 1) };
 
         unsafe { src.copy_to(dst, top - i.get()) };
-        unsafe { src.write(StackValue { val: v.into() }) };
+        unsafe { src.write(StackValue { val: v }) };
         unsafe { self.th.top.add(1) };
         self.ret.set(self.ret.get() + 1);
 

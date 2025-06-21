@@ -248,19 +248,20 @@ impl Lua {
 
     /// Setup [string library](https://www.lua.org/manual/5.4/manual.html#6.4).
     pub fn setup_string(&self) {
+        // Setup string table.
         let g = unsafe { Table::new(self) };
 
+        unsafe { (*g).set_str_key_unchecked("sub", Fp(crate::builtin::string::sub)) };
+
         // Set global.
-        let k = unsafe { UnsafeValue::from_obj(Str::new(self, "string").cast()) };
         let g = unsafe { UnsafeValue::from_obj(g.cast()) };
 
-        unsafe { self.global().set_unchecked(k, g).unwrap() };
+        unsafe { self.global().set_str_key_unchecked("string", g) };
 
         // Set metatable.
         let mt = unsafe { Table::new(self) };
-        let k = unsafe { UnsafeValue::from_obj(Str::new(self, "__index").cast()) };
 
-        unsafe { (*mt).set_unchecked(k, g).unwrap() };
+        unsafe { (*mt).set_str_key_unchecked("__index", g) };
 
         self.primitive_mt[4].set(mt);
     }

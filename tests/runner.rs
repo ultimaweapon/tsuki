@@ -3,7 +3,6 @@ use std::sync::LazyLock;
 use tsuki::{CallError, ChunkInfo, Lua};
 
 #[test]
-#[ignore = "need Lua standard library"]
 fn badkey() {
     run("badkey.lua").unwrap();
 }

@@ -108,46 +108,6 @@ unsafe fn posrelatI(mut pos: i64, mut len: usize) -> usize {
     };
 }
 
-unsafe fn getendpos(
-    mut L: *const Thread,
-    mut arg: libc::c_int,
-    mut def: i64,
-    mut len: usize,
-) -> Result<usize, Box<dyn std::error::Error>> {
-    let mut pos: i64 = luaL_optinteger(L, arg, def)?;
-    if pos > len as i64 {
-        return Ok(len);
-    } else if pos >= 0 as libc::c_int as i64 {
-        return Ok(pos as usize);
-    } else if pos < -(len as i64) {
-        return Ok(0 as libc::c_int as usize);
-    } else {
-        return Ok(len
-            .wrapping_add(pos as usize)
-            .wrapping_add(1 as libc::c_int as usize));
-    };
-}
-
-unsafe fn str_sub(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut l: usize = 0;
-    let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
-    let mut start: usize = posrelatI(luaL_checkinteger(L, 2 as libc::c_int)?, l);
-    let mut end: usize = getendpos(L, 3 as libc::c_int, -(1 as libc::c_int) as i64, l)?;
-
-    if start <= end {
-        let s = std::slice::from_raw_parts(
-            s.offset(start as isize).offset(-1).cast(),
-            end.wrapping_sub(start).wrapping_add(1),
-        );
-
-        lua_pushlstring(L, s);
-    } else {
-        lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char);
-    }
-
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn str_reverse(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut l: usize = 0;
     let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
@@ -2699,13 +2659,6 @@ static mut strlib: [luaL_Reg; 17] = [
     },
     {
         let mut init = luaL_Reg {
-            name: b"sub\0" as *const u8 as *const libc::c_char,
-            func: Some(str_sub),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
             name: b"upper\0" as *const u8 as *const libc::c_char,
             func: Some(str_upper),
         };
@@ -2729,13 +2682,6 @@ static mut strlib: [luaL_Reg; 17] = [
         let mut init = luaL_Reg {
             name: b"unpack\0" as *const u8 as *const libc::c_char,
             func: Some(str_unpack),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: 0 as *const libc::c_char,
-            func: None,
         };
         init
     },
