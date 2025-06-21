@@ -4,7 +4,7 @@ use crate::lauxlib::{luaL_argerror, luaL_tolstring};
 use crate::lobject::luaO_tostring;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_tointeger};
-use crate::{Ref, Str, Table, luaH_get};
+use crate::{Ref, Str, Table, Type, luaH_get};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
@@ -29,14 +29,40 @@ impl<'a, 'b> Arg<'a, 'b> {
 
     /// Check if this argument exists.
     ///
+    /// Use [`Self::exists()`] if you want to return an error if this argument does not exists.
+    #[inline(always)]
+    pub fn is_exists(&self) -> bool {
+        self.index.get() <= self.cx.payload.0
+    }
+
+    /// Check if this argument exists.
+    ///
     /// Other methods like [`Self::get_str()`] already validate if the argument exists. This method
     /// can be used in case you want to verify if the argument exists but don't need its value.
+    ///
+    /// Use [`Self::is_exists()`] if you want to check if this argument exists without returning an
+    /// error since it is more efficient due to the error object created by this method more
+    /// expensive to construct.
+    ///
+    /// This has the same semantic as `luaL_checkany`.
     #[inline(always)]
     pub fn exists(&self) -> Result<(), Box<dyn core::error::Error>> {
         if self.index.get() > self.cx.payload.0 {
             Err(self.error("value expected"))
         } else {
             Ok(())
+        }
+    }
+
+    /// Returns type of this argument.
+    #[inline(always)]
+    pub fn ty(&self) -> Result<Type, Box<dyn core::error::Error>> {
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            Err(self.error("value expected"))
+        } else {
+            Ok(Type::from_tt(unsafe { (*v).tt_ }))
         }
     }
 

@@ -112,3 +112,12 @@ pub fn setmetatable(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::err
 
     Ok(cx)
 }
+
+/// Implementation of [type](https://www.lua.org/manual/5.4/manual.html#pdf-type).
+pub fn r#type(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+    let t = cx.arg(1).ty()?;
+
+    cx.push_str(t.to_string())?;
+
+    Ok(cx.into())
+}

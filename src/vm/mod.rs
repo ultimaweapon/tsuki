@@ -48,6 +48,7 @@ pub const F2Ieq: F2Imod = 0;
 
 type c_int = i32;
 type c_uint = u32;
+type c_longlong = i64;
 
 unsafe fn l_strton(obj: *const UnsafeValue, result: *mut UnsafeValue) -> c_int {
     if !((*obj).tt_ as c_int & 0xf as c_int == 4 as c_int) {
@@ -96,13 +97,11 @@ pub unsafe fn luaV_flttointeger(n: f64, p: *mut i64, mode: F2Imod) -> c_int {
             f += 1 as c_int as f64;
         }
     }
-    return (f
-        >= (-(0x7fffffffffffffff as libc::c_longlong) - 1 as c_int as libc::c_longlong)
-            as libc::c_double
-        && f < -((-(0x7fffffffffffffff as libc::c_longlong) - 1 as c_int as libc::c_longlong)
+    return (f >= (-(0x7fffffffffffffff as c_longlong) - 1 as c_int as c_longlong) as libc::c_double
+        && f < -((-(0x7fffffffffffffff as c_longlong) - 1 as c_int as c_longlong)
             as libc::c_double)
         && {
-            *p = f as libc::c_longlong;
+            *p = f as c_longlong;
             1 as c_int != 0
         }) as c_int;
 }
@@ -163,12 +162,12 @@ unsafe fn forlimit(
             if step < 0 as c_int as i64 {
                 return Ok(1 as c_int);
             }
-            *p = 0x7fffffffffffffff as libc::c_longlong;
+            *p = 0x7fffffffffffffff as c_longlong;
         } else {
             if step > 0 as c_int as i64 {
                 return Ok(1 as c_int);
             }
-            *p = -(0x7fffffffffffffff as libc::c_longlong) - 1 as c_int as libc::c_longlong;
+            *p = -(0x7fffffffffffffff as c_longlong) - 1 as c_int as c_longlong;
         }
     }
     return if step > 0 as c_int as i64 {
@@ -903,7 +902,7 @@ pub unsafe fn luaV_concat(
                     {
                         !(0 as c_int as usize)
                     } else {
-                        0x7fffffffffffffff as libc::c_longlong as usize
+                        0x7fffffffffffffff as c_longlong as usize
                     })
                     .wrapping_sub(::core::mem::size_of::<Str>())
                     .wrapping_sub(tl)) as c_int

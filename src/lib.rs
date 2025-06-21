@@ -7,6 +7,7 @@ pub use self::parser::*;
 pub use self::string::*;
 pub use self::table::*;
 pub use self::thread::*;
+pub use self::ty::*;
 
 use self::gc::{Gc, Object, luaC_barrier_, luaC_freeallobjects};
 use self::lapi::lua_settop;
@@ -55,6 +56,7 @@ mod parser;
 mod string;
 mod table;
 mod thread;
+mod ty;
 mod value;
 mod vm;
 
@@ -242,6 +244,7 @@ impl Lua {
             g.set_str_key_unchecked("print", Fp(crate::builtin::base::print))
         };
         unsafe { g.set_str_key_unchecked("setmetatable", Fp(crate::builtin::base::setmetatable)) };
+        unsafe { g.set_str_key_unchecked("type", Fp(crate::builtin::base::r#type)) };
     }
 
     /// Setup [string library](https://www.lua.org/manual/5.4/manual.html#6.4).

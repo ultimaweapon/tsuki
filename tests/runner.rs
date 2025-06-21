@@ -8,7 +8,6 @@ fn badkey() {
 }
 
 #[test]
-#[ignore = "need Lua standard library"]
 fn close() {
     run("close.lua").unwrap();
 }
