@@ -40,13 +40,14 @@ use core::task::{Context, Poll, Waker};
 use libc::memcpy;
 use libm::{floor, fmod, pow};
 
-pub type F2Imod = libc::c_uint;
+pub type F2Imod = c_uint;
 
 pub const F2Iceil: F2Imod = 2;
 pub const F2Ifloor: F2Imod = 1;
 pub const F2Ieq: F2Imod = 0;
 
 type c_int = i32;
+type c_uint = u32;
 
 unsafe fn l_strton(obj: *const UnsafeValue, result: *mut UnsafeValue) -> c_int {
     if !((*obj).tt_ as c_int & 0xf as c_int == 4 as c_int) {
@@ -89,9 +90,9 @@ pub unsafe fn luaV_tonumber_(obj: *const UnsafeValue, n: *mut f64) -> c_int {
 pub unsafe fn luaV_flttointeger(n: f64, p: *mut i64, mode: F2Imod) -> c_int {
     let mut f: f64 = floor(n);
     if n != f {
-        if mode as libc::c_uint == F2Ieq as c_int as libc::c_uint {
+        if mode as c_uint == F2Ieq as c_int as c_uint {
             return 0 as c_int;
-        } else if mode as libc::c_uint == F2Iceil as c_int as libc::c_uint {
+        } else if mode as c_uint == F2Iceil as c_int as c_uint {
             f += 1 as c_int as f64;
         }
     }
@@ -204,8 +205,8 @@ unsafe fn forprep(L: *const Thread, ra: StkId) -> Result<c_int, Box<dyn core::er
                 }
             } else {
                 count = (init as u64).wrapping_sub(limit as u64);
-                count = count
-                    / (-(step + 1 as c_int as i64) as u64).wrapping_add(1 as libc::c_uint as u64);
+                count =
+                    count / (-(step + 1 as c_int as i64) as u64).wrapping_add(1 as c_uint as u64);
             }
             let io_0: *mut UnsafeValue = plimit;
             (*io_0).value_.i = count as i64;
@@ -320,8 +321,8 @@ pub unsafe fn luaV_finishget(
                 0 as *const UnsafeValue
             } else if (*(*((*t).value_.gc.cast::<Table>())).metatable.get())
                 .flags
-                .get() as libc::c_uint
-                & (1 as libc::c_uint) << TM_INDEX as c_int
+                .get() as c_uint
+                & (1 as c_uint) << TM_INDEX as c_int
                 != 0
             {
                 0 as *const UnsafeValue
@@ -381,8 +382,8 @@ pub unsafe fn luaV_finishset(
 
             tm = if ((*h).metatable.get()).is_null() {
                 0 as *const UnsafeValue
-            } else if (*(*h).metatable.get()).flags.get() as libc::c_uint
-                & (1 as libc::c_uint) << TM_NEWINDEX as c_int
+            } else if (*(*h).metatable.get()).flags.get() as c_uint
+                & (1 as c_uint) << TM_NEWINDEX as c_int
                 != 0
             {
                 0 as *const UnsafeValue
@@ -405,7 +406,7 @@ pub unsafe fn luaV_finishset(
 
                 (*L).top.sub(1);
                 (*h).flags
-                    .set(((*h).flags.get() as libc::c_uint & !!(!0 << TM_EQ + 1)) as u8);
+                    .set(((*h).flags.get() as c_uint & !!(!0 << TM_EQ + 1)) as u8);
 
                 if (*val).tt_ & 1 << 6 != 0 {
                     if (*h).hdr.marked.get() & 1 << 5 != 0
@@ -679,8 +680,8 @@ pub unsafe fn luaV_equalobj(
             }
             tm = if ((*((*t1).value_.gc as *mut Udata)).metatable).is_null() {
                 0 as *const UnsafeValue
-            } else if (*(*((*t1).value_.gc as *mut Udata)).metatable).flags.get() as libc::c_uint
-                & (1 as libc::c_uint) << TM_EQ as c_int
+            } else if (*(*((*t1).value_.gc as *mut Udata)).metatable).flags.get() as c_uint
+                & (1 as c_uint) << TM_EQ as c_int
                 != 0
             {
                 0 as *const UnsafeValue
@@ -694,9 +695,8 @@ pub unsafe fn luaV_equalobj(
             if tm.is_null() {
                 tm = if ((*((*t2).value_.gc as *mut Udata)).metatable).is_null() {
                     0 as *const UnsafeValue
-                } else if (*(*((*t2).value_.gc as *mut Udata)).metatable).flags.get()
-                    as libc::c_uint
-                    & (1 as libc::c_uint) << TM_EQ as c_int
+                } else if (*(*((*t2).value_.gc as *mut Udata)).metatable).flags.get() as c_uint
+                    & (1 as c_uint) << TM_EQ as c_int
                     != 0
                 {
                     0 as *const UnsafeValue
@@ -721,8 +721,8 @@ pub unsafe fn luaV_equalobj(
                 0 as *const UnsafeValue
             } else if (*(*((*t1).value_.gc as *mut Table)).metatable.get())
                 .flags
-                .get() as libc::c_uint
-                & (1 as libc::c_uint) << TM_EQ as c_int
+                .get() as c_uint
+                & (1 as c_uint) << TM_EQ as c_int
                 != 0
             {
                 0 as *const UnsafeValue
@@ -738,8 +738,8 @@ pub unsafe fn luaV_equalobj(
                     0 as *const UnsafeValue
                 } else if (*(*((*t2).value_.gc as *mut Table)).metatable.get())
                     .flags
-                    .get() as libc::c_uint
-                    & (1 as libc::c_uint) << TM_EQ as c_int
+                    .get() as c_uint
+                    & (1 as c_uint) << TM_EQ as c_int
                     != 0
                 {
                     0 as *const UnsafeValue
@@ -944,8 +944,8 @@ pub unsafe fn luaV_objlen(
             let h: *mut Table = (*rb).value_.gc as *mut Table;
             tm = if ((*h).metatable.get()).is_null() {
                 0 as *const UnsafeValue
-            } else if (*(*h).metatable.get()).flags.get() as libc::c_uint
-                & (1 as libc::c_uint) << TM_LEN as c_int
+            } else if (*(*h).metatable.get()).flags.get() as c_uint
+                & (1 as c_uint) << TM_LEN as c_int
                 != 0
             {
                 0 as *const UnsafeValue
@@ -988,8 +988,8 @@ pub unsafe fn luaV_objlen(
 
 /// Returns [`None`] if `n` is zero.
 pub fn luaV_idiv(m: i64, n: i64) -> Option<i64> {
-    if (((n as u64).wrapping_add(1 as libc::c_uint as u64) <= 1 as libc::c_uint as u64) as c_int
-        != 0 as c_int) as c_int as libc::c_long
+    if (((n as u64).wrapping_add(1 as c_uint as u64) <= 1 as c_uint as u64) as c_int != 0 as c_int)
+        as c_int as libc::c_long
         != 0
     {
         if n == 0 as c_int as i64 {
@@ -1007,8 +1007,8 @@ pub fn luaV_idiv(m: i64, n: i64) -> Option<i64> {
 
 /// Returns [`None`] if `n` is zero.
 pub fn luaV_mod(m: i64, n: i64) -> Option<i64> {
-    if (((n as u64).wrapping_add(1 as libc::c_uint as u64) <= 1 as libc::c_uint as u64) as c_int
-        != 0 as c_int) as c_int as libc::c_long
+    if (((n as u64).wrapping_add(1 as c_uint as u64) <= 1 as c_uint as u64) as c_int != 0 as c_int)
+        as c_int as libc::c_long
         != 0
     {
         if n == 0 as c_int as i64 {
@@ -1139,7 +1139,7 @@ pub async unsafe fn luaV_execute(
                 pc = pc.offset(1);
                 i = *fresh2;
                 match (i >> 0 as c_int & !(!(0 as c_int as u32) << 7 as c_int) << 0 as c_int)
-                    as OpCode as libc::c_uint
+                    as OpCode as c_uint
                 {
                     0 => {
                         let ra: StkId = base.offset(
@@ -1394,7 +1394,7 @@ pub async unsafe fn luaV_execute(
                                 slot_0 = 0 as *const UnsafeValue;
                                 0 as c_int
                             } else {
-                                slot_0 = if n.wrapping_sub(1 as libc::c_uint as u64)
+                                slot_0 = if n.wrapping_sub(1 as c_uint as u64)
                                     < (*((*rb_1).value_.gc as *mut Table)).alimit.get() as u64
                                 {
                                     (*((*rb_1).value_.gc as *mut Table))
@@ -1451,7 +1451,7 @@ pub async unsafe fn luaV_execute(
                             slot_1 = 0 as *const UnsafeValue;
                             0 as c_int
                         } else {
-                            slot_1 = if (c as u64).wrapping_sub(1 as libc::c_uint as u64)
+                            slot_1 = if (c as u64).wrapping_sub(1 as c_uint as u64)
                                 < (*((*rb_2).value_.gc as *mut Table)).alimit.get() as u64
                             {
                                 (*((*rb_2).value_.gc as *mut Table))
@@ -1540,32 +1540,31 @@ pub async unsafe fn luaV_execute(
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                 as c_int as isize,
                         );
-                        let rc_2: *mut UnsafeValue = if (i
-                            & (1 as libc::c_uint) << 0 as c_int + 7 as c_int + 8 as c_int)
-                            as c_int
-                            != 0
-                        {
-                            k.offset(
-                                (i >> 0 as c_int
-                                    + 7 as c_int
-                                    + 8 as c_int
-                                    + 1 as c_int
-                                    + 8 as c_int
-                                    & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                    as c_int as isize,
-                            )
-                        } else {
-                            &mut (*base.offset(
-                                (i >> 0 as c_int
-                                    + 7 as c_int
-                                    + 8 as c_int
-                                    + 1 as c_int
-                                    + 8 as c_int
-                                    & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                    as c_int as isize,
-                            ))
-                            .val
-                        };
+                        let rc_2: *mut UnsafeValue =
+                            if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int
+                                != 0
+                            {
+                                k.offset(
+                                    (i >> 0 as c_int
+                                        + 7 as c_int
+                                        + 8 as c_int
+                                        + 1 as c_int
+                                        + 8 as c_int
+                                        & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                                        as c_int as isize,
+                                )
+                            } else {
+                                &mut (*base.offset(
+                                    (i >> 0 as c_int
+                                        + 7 as c_int
+                                        + 8 as c_int
+                                        + 1 as c_int
+                                        + 8 as c_int
+                                        & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                                        as c_int as isize,
+                                ))
+                                .val
+                            };
                         let key_2: *mut Str = (*rb_4).value_.gc as *mut Str;
                         if if !((*upval_0).tt_ as c_int
                             == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
@@ -1613,32 +1612,31 @@ pub async unsafe fn luaV_execute(
                                 as c_int as isize,
                         ))
                         .val;
-                        let rc_3: *mut UnsafeValue = if (i
-                            & (1 as libc::c_uint) << 0 as c_int + 7 as c_int + 8 as c_int)
-                            as c_int
-                            != 0
-                        {
-                            k.offset(
-                                (i >> 0 as c_int
-                                    + 7 as c_int
-                                    + 8 as c_int
-                                    + 1 as c_int
-                                    + 8 as c_int
-                                    & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                    as c_int as isize,
-                            )
-                        } else {
-                            &mut (*base.offset(
-                                (i >> 0 as c_int
-                                    + 7 as c_int
-                                    + 8 as c_int
-                                    + 1 as c_int
-                                    + 8 as c_int
-                                    & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                    as c_int as isize,
-                            ))
-                            .val
-                        };
+                        let rc_3: *mut UnsafeValue =
+                            if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int
+                                != 0
+                            {
+                                k.offset(
+                                    (i >> 0 as c_int
+                                        + 7 as c_int
+                                        + 8 as c_int
+                                        + 1 as c_int
+                                        + 8 as c_int
+                                        & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                                        as c_int as isize,
+                                )
+                            } else {
+                                &mut (*base.offset(
+                                    (i >> 0 as c_int
+                                        + 7 as c_int
+                                        + 8 as c_int
+                                        + 1 as c_int
+                                        + 8 as c_int
+                                        & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                                        as c_int as isize,
+                                ))
+                                .val
+                            };
                         let mut n_0: u64 = 0;
                         if if (*rb_5).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
                             n_0 = (*rb_5).value_.i as u64;
@@ -1650,7 +1648,7 @@ pub async unsafe fn luaV_execute(
                                 slot_4 = 0 as *const UnsafeValue;
                                 0 as c_int
                             } else {
-                                slot_4 = if n_0.wrapping_sub(1 as libc::c_uint as u64)
+                                slot_4 = if n_0.wrapping_sub(1 as c_uint as u64)
                                     < (*((*ra_14).val.value_.gc as *mut Table)).alimit.get() as u64
                                 {
                                     (*((*ra_14).val.value_.gc as *mut Table))
@@ -1705,39 +1703,38 @@ pub async unsafe fn luaV_execute(
                         let c_0: c_int = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int;
-                        let rc_4: *mut UnsafeValue = if (i
-                            & (1 as libc::c_uint) << 0 as c_int + 7 as c_int + 8 as c_int)
-                            as c_int
-                            != 0
-                        {
-                            k.offset(
-                                (i >> 0 as c_int
-                                    + 7 as c_int
-                                    + 8 as c_int
-                                    + 1 as c_int
-                                    + 8 as c_int
-                                    & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                    as c_int as isize,
-                            )
-                        } else {
-                            &mut (*base.offset(
-                                (i >> 0 as c_int
-                                    + 7 as c_int
-                                    + 8 as c_int
-                                    + 1 as c_int
-                                    + 8 as c_int
-                                    & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                    as c_int as isize,
-                            ))
-                            .val
-                        };
+                        let rc_4: *mut UnsafeValue =
+                            if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int
+                                != 0
+                            {
+                                k.offset(
+                                    (i >> 0 as c_int
+                                        + 7 as c_int
+                                        + 8 as c_int
+                                        + 1 as c_int
+                                        + 8 as c_int
+                                        & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                                        as c_int as isize,
+                                )
+                            } else {
+                                &mut (*base.offset(
+                                    (i >> 0 as c_int
+                                        + 7 as c_int
+                                        + 8 as c_int
+                                        + 1 as c_int
+                                        + 8 as c_int
+                                        & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                                        as c_int as isize,
+                                ))
+                                .val
+                            };
                         if if !((*ra_15).val.tt_ as c_int
                             == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
                         {
                             slot_5 = 0 as *const UnsafeValue;
                             0 as c_int
                         } else {
-                            slot_5 = if (c_0 as u64).wrapping_sub(1 as libc::c_uint as u64)
+                            slot_5 = if (c_0 as u64).wrapping_sub(1 as c_uint as u64)
                                 < (*((*ra_15).val.value_.gc as *mut Table)).alimit.get() as u64
                             {
                                 (*((*ra_15).val.value_.gc as *mut Table))
@@ -1794,32 +1791,31 @@ pub async unsafe fn luaV_execute(
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                 as c_int as isize,
                         );
-                        let rc_5: *mut UnsafeValue = if (i
-                            & (1 as libc::c_uint) << 0 as c_int + 7 as c_int + 8 as c_int)
-                            as c_int
-                            != 0
-                        {
-                            k.offset(
-                                (i >> 0 as c_int
-                                    + 7 as c_int
-                                    + 8 as c_int
-                                    + 1 as c_int
-                                    + 8 as c_int
-                                    & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                    as c_int as isize,
-                            )
-                        } else {
-                            &mut (*base.offset(
-                                (i >> 0 as c_int
-                                    + 7 as c_int
-                                    + 8 as c_int
-                                    + 1 as c_int
-                                    + 8 as c_int
-                                    & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                    as c_int as isize,
-                            ))
-                            .val
-                        };
+                        let rc_5: *mut UnsafeValue =
+                            if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int
+                                != 0
+                            {
+                                k.offset(
+                                    (i >> 0 as c_int
+                                        + 7 as c_int
+                                        + 8 as c_int
+                                        + 1 as c_int
+                                        + 8 as c_int
+                                        & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                                        as c_int as isize,
+                                )
+                            } else {
+                                &mut (*base.offset(
+                                    (i >> 0 as c_int
+                                        + 7 as c_int
+                                        + 8 as c_int
+                                        + 1 as c_int
+                                        + 8 as c_int
+                                        & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                                        as c_int as isize,
+                                ))
+                                .val
+                            };
                         let key_4: *mut Str = (*rb_6).value_.gc as *mut Str;
                         if if !((*ra_16).val.tt_ as c_int
                             == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
@@ -1872,9 +1868,7 @@ pub async unsafe fn luaV_execute(
                         if b_3 > 0 as c_int {
                             b_3 = (1 as c_int) << b_3 - 1 as c_int;
                         }
-                        if (i & (1 as libc::c_uint) << 0 as c_int + 7 as c_int + 8 as c_int)
-                            as c_int
-                            != 0
+                        if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0
                         {
                             c_1 += (*pc >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
@@ -1893,7 +1887,7 @@ pub async unsafe fn luaV_execute(
                         (*io_3).tt_ = 5 | 0 << 4 | 1 << 6;
 
                         if b_3 != 0 as c_int || c_1 != 0 as c_int {
-                            luaH_resize(t, c_1 as libc::c_uint, b_3 as libc::c_uint);
+                            luaH_resize(t, c_1 as c_uint, b_3 as c_uint);
                         }
 
                         if (*(*L).hdr.global).gc.debt() > 0 {
@@ -1918,32 +1912,31 @@ pub async unsafe fn luaV_execute(
                                 as c_int as isize,
                         ))
                         .val;
-                        let rc_6: *mut UnsafeValue = if (i
-                            & (1 as libc::c_uint) << 0 as c_int + 7 as c_int + 8 as c_int)
-                            as c_int
-                            != 0
-                        {
-                            k.offset(
-                                (i >> 0 as c_int
-                                    + 7 as c_int
-                                    + 8 as c_int
-                                    + 1 as c_int
-                                    + 8 as c_int
-                                    & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                    as c_int as isize,
-                            )
-                        } else {
-                            &mut (*base.offset(
-                                (i >> 0 as c_int
-                                    + 7 as c_int
-                                    + 8 as c_int
-                                    + 1 as c_int
-                                    + 8 as c_int
-                                    & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                    as c_int as isize,
-                            ))
-                            .val
-                        };
+                        let rc_6: *mut UnsafeValue =
+                            if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int
+                                != 0
+                            {
+                                k.offset(
+                                    (i >> 0 as c_int
+                                        + 7 as c_int
+                                        + 8 as c_int
+                                        + 1 as c_int
+                                        + 8 as c_int
+                                        & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                                        as c_int as isize,
+                                )
+                            } else {
+                                &mut (*base.offset(
+                                    (i >> 0 as c_int
+                                        + 7 as c_int
+                                        + 8 as c_int
+                                        + 1 as c_int
+                                        + 8 as c_int
+                                        & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                                        as c_int as isize,
+                                ))
+                                .val
+                            };
                         let key_5: *mut Str = (*rc_6).value_.gc as *mut Str;
                         let io1_12: *mut UnsafeValue =
                             &raw mut (*ra_18.offset(1 as c_int as isize)).val;
@@ -4176,9 +4169,7 @@ pub async unsafe fn luaV_execute(
                             b_5 = ((*L).top.get()).offset_from(ra_66) as libc::c_long as c_int;
                         }
                         (*ci).u.savedpc = pc;
-                        if (i & (1 as libc::c_uint) << 0 as c_int + 7 as c_int + 8 as c_int)
-                            as c_int
-                            != 0
+                        if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0
                         {
                             luaF_closeupval(L, base);
                         }
@@ -4210,9 +4201,7 @@ pub async unsafe fn luaV_execute(
                             n_3 = ((*L).top.get()).offset_from(ra_67) as libc::c_long as c_int;
                         }
                         (*ci).u.savedpc = pc;
-                        if (i & (1 as libc::c_uint) << 0 as c_int + 7 as c_int + 8 as c_int)
-                            as c_int
-                            != 0
+                        if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0
                         {
                             (*ci).u2.nres = n_3;
                             if (*L).top.get() < (*ci).top {
@@ -4406,10 +4395,10 @@ pub async unsafe fn luaV_execute(
                             >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int;
-                        let mut last: libc::c_uint =
-                            (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
-                                & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                as c_int as libc::c_uint;
+                        let mut last: c_uint = (i
+                            >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
+                            & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                            as c_int as c_uint;
                         let h: *mut Table = (*ra_76).val.value_.gc as *mut Table;
                         if n_4 == 0 as c_int {
                             n_4 = ((*L).top.get()).offset_from(ra_76) as libc::c_long as c_int
@@ -4417,10 +4406,8 @@ pub async unsafe fn luaV_execute(
                         } else {
                             (*L).top.set((*ci).top);
                         }
-                        last = last.wrapping_add(n_4 as libc::c_uint);
-                        if (i & (1 as libc::c_uint) << 0 as c_int + 7 as c_int + 8 as c_int)
-                            as c_int
-                            != 0
+                        last = last.wrapping_add(n_4 as c_uint);
+                        if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0
                         {
                             last = last.wrapping_add(
                                 ((*pc >> 0 as c_int + 7 as c_int
@@ -4428,7 +4415,7 @@ pub async unsafe fn luaV_execute(
                                         << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
                                         << 0 as c_int) as c_int
                                     * (((1 as c_int) << 8 as c_int) - 1 as c_int + 1 as c_int))
-                                    as libc::c_uint,
+                                    as c_uint,
                             );
                             pc = pc.offset(1);
                         }

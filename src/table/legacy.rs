@@ -286,13 +286,11 @@ unsafe fn findindex(
         return Ok(i);
     } else {
         let n: *const UnsafeValue = getgeneric(t, key, 1 as libc::c_int);
-        if (((*n).tt_ as libc::c_int == 0 as libc::c_int | (2 as libc::c_int) << 4 as libc::c_int)
-            as libc::c_int
-            != 0 as libc::c_int) as libc::c_int as libc::c_long
-            != 0
-        {
+
+        if (*n).tt_ == 0 | 2 << 4 {
             luaG_runerror(L, "invalid key to 'next'")?;
         }
+
         i = (n as *mut Node)
             .offset_from(((*t).node.get()).offset(0 as libc::c_int as isize) as *mut Node)
             as libc::c_long as libc::c_int as libc::c_uint;

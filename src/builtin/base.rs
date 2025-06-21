@@ -88,3 +88,27 @@ pub fn print(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Err
 
     Ok(cx.into())
 }
+
+/// Implementation of [setmetatable](https://www.lua.org/manual/5.4/manual.html#pdf-setmetatable).
+pub fn setmetatable(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+    let t = cx.arg(1).get_table()?;
+    let mt = cx.arg(2).get_nilable_table(true)?;
+
+    if t.metatable()
+        .is_some_and(|v| v.contains_str_key("__metatable"))
+    {
+        return Err("cannot change a protected metatable".into());
+    }
+
+    match mt {
+        Some(v) => t.set_metatable(v)?,
+        None => t.remove_metatable(),
+    }
+
+    // Remove metatable and return the table.
+    let mut cx = cx.into_results(1);
+
+    cx.pop();
+
+    Ok(cx)
+}

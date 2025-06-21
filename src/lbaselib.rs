@@ -148,28 +148,6 @@ unsafe fn luaB_getmetatable(mut L: *const Thread) -> Result<c_int, Box<dyn std::
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn luaB_setmetatable(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut t: libc::c_int = lua_type(L, 2 as libc::c_int);
-    luaL_checktype(L, 1 as libc::c_int, 5 as libc::c_int)?;
-    (((t == 0 as libc::c_int || t == 5 as libc::c_int) as libc::c_int != 0 as libc::c_int)
-        as libc::c_int as libc::c_long
-        != 0
-        || luaL_typeerror(L, 2 as libc::c_int, "nil or table")? != 0) as libc::c_int;
-    if ((luaL_getmetafield(
-        L,
-        1 as libc::c_int,
-        b"__metatable\0" as *const u8 as *const libc::c_char,
-    )? != 0 as libc::c_int) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
-        != 0
-    {
-        return luaL_error(L, "cannot change a protected metatable");
-    }
-    lua_settop(L, 2 as libc::c_int)?;
-    lua_setmetatable(L, 1 as libc::c_int)?;
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn luaB_rawequal(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     luaL_checkany(L, 1 as libc::c_int)?;
     luaL_checkany(L, 2 as libc::c_int)?;
@@ -457,13 +435,6 @@ static mut base_funcs: [luaL_Reg; 21] = [
         let mut init = luaL_Reg {
             name: b"select\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_select),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"setmetatable\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_setmetatable),
         };
         init
     },

@@ -1,12 +1,12 @@
 pub(crate) use self::legacy::*;
 pub(crate) use self::node::*;
 
-use crate::gc::luaC_barrierback_;
-use crate::ltm::TM_EQ;
-use crate::{Lua, Object, Str, UnsafeValue};
+use crate::gc::{luaC_barrier_, luaC_barrierback_};
+use crate::ltm::{TM_EQ, TM_GC, luaT_gettm};
+use crate::{Lua, Object, Ref, Str, UnsafeValue};
 use core::alloc::Layout;
 use core::cell::Cell;
-use core::ptr::{addr_of_mut, null_mut};
+use core::ptr::{addr_of_mut, null, null_mut};
 use thiserror::Error;
 
 mod legacy;
@@ -22,7 +22,7 @@ pub struct Table {
     pub(crate) array: Cell<*mut UnsafeValue>,
     pub(crate) node: Cell<*mut Node>,
     pub(crate) lastfree: Cell<*mut Node>,
-    pub(crate) metatable: Cell<*mut Table>,
+    pub(crate) metatable: Cell<*const Table>,
 }
 
 impl Table {
@@ -41,6 +41,80 @@ impl Table {
         unsafe { addr_of_mut!((*o).metatable).write(Cell::new(null_mut())) };
 
         o
+    }
+
+    /// Returns metatable for this table.
+    pub fn metatable(&self) -> Option<Ref<Table>> {
+        let v = self.metatable.get();
+
+        match v.is_null() {
+            true => None,
+            false => Some(unsafe { Ref::new(self.hdr.global().to_rc(), v) }),
+        }
+    }
+
+    /// Set metatable for this table.
+    ///
+    /// Use [`Self::remove_metatable()`] if you want to remove the metatable.
+    ///
+    /// # Panics
+    /// If `v` come from different [Lua](crate::Lua) instance.
+    pub fn set_metatable(&self, v: &Table) -> Result<(), MetatableError> {
+        // Check if metatable come from the same Lua.
+        if v.hdr.global != self.hdr.global {
+            panic!("attempt to set metatable created from a different Lua");
+        }
+
+        // Prevent __gc metamethod.
+        if v.flags.get() & 1 << TM_GC == 0 {
+            let name = self.hdr.global().tmname[TM_GC as usize].get();
+
+            if unsafe { !luaT_gettm(v, TM_GC, name).is_null() } {
+                return Err(MetatableError::HasGc);
+            }
+        }
+
+        // Set metatable.
+        self.metatable.set(v);
+
+        if self.hdr.marked.get() & 1 << 5 != 0 && v.hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
+            unsafe { luaC_barrier_(self.hdr.global, &self.hdr, &v.hdr) };
+        }
+
+        Ok(())
+    }
+
+    /// Removes metatable from this table.
+    #[inline(always)]
+    pub fn remove_metatable(&self) {
+        self.metatable.set(null());
+    }
+
+    /// Returns `true` if the table contains a value for the specified key.
+    ///
+    /// # Panics
+    /// If `k` come from different [Lua](crate::Lua) instance.
+    pub fn contains_key(&self, k: impl Into<UnsafeValue>) -> bool {
+        // Check if key come from the same Lua.
+        let k = k.into();
+
+        if unsafe { (k.tt_ & 1 << 6 != 0) && (*k.value_.gc).global != self.hdr.global } {
+            panic!("attempt to check the table with key from a different Lua");
+        }
+
+        // Get value.
+        let v = unsafe { luaH_get(self, &k) };
+
+        unsafe { (*v).tt_ & 0xf != 0 }
+    }
+
+    /// Returns `true` if the table contains a value for the specified key.
+    pub fn contains_str_key(&self, k: impl AsRef<[u8]>) -> bool {
+        let k = unsafe { Str::from_bytes(self.hdr.global, k) };
+        let k = unsafe { UnsafeValue::from_obj(k.cast()) };
+        let v = unsafe { luaH_get(self, &k) };
+
+        unsafe { (*v).tt_ & 0xf != 0 }
     }
 
     /// Inserts a key-value pair into this table.
@@ -124,4 +198,11 @@ pub enum TableError {
 
     #[error("key is NaN")]
     NanKey,
+}
+
+/// Error when attempt to set an invalid metatable.
+#[derive(Debug, Error)]
+pub enum MetatableError {
+    #[error("the metatable contains __gc metamethod, which Tsuki does not support")]
+    HasGc,
 }

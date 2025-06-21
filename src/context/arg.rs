@@ -4,7 +4,7 @@ use crate::lauxlib::{luaL_argerror, luaL_tolstring};
 use crate::lobject::luaO_tostring;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_tointeger};
-use crate::{Ref, Str, luaH_get};
+use crate::{Ref, Str, Table, luaH_get};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
@@ -78,6 +78,44 @@ impl<'a, 'b> Arg<'a, 'b> {
         }
 
         Ok(Some(unsafe { &*(*v).value_.gc.cast::<Str>() }))
+    }
+
+    /// Checks if this argument is a table and return it.
+    #[inline(always)]
+    pub fn get_table(&self) -> Result<&'a Table, Box<dyn core::error::Error>> {
+        let expect = lua_typename(5);
+        let v = self.get_raw(expect)?;
+
+        match unsafe { (*v).tt_ & 0xf } {
+            5 => Ok(unsafe { &*(*v).value_.gc.cast() }),
+            _ => Err(unsafe { self.type_error(expect, v) }),
+        }
+    }
+
+    /// Checks if this argument is a table and return it. Returns [`None`] if this argument is
+    /// `nil` or does not exists and `required` is `false`.
+    #[inline(always)]
+    pub fn get_nilable_table(
+        &self,
+        required: bool,
+    ) -> Result<Option<&'a Table>, Box<dyn core::error::Error>> {
+        // Check if argument exists.
+        let expect = "nil or table";
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            match required {
+                true => return Err(self.invalid_type(expect, lua_typename(-1))),
+                false => return Ok(None),
+            }
+        }
+
+        // Check type.
+        match unsafe { (*v).tt_ & 0xf } {
+            0 => Ok(None),
+            5 => Ok(Some(unsafe { &*(*v).value_.gc.cast() })),
+            _ => Err(unsafe { self.type_error(expect, v) }),
+        }
     }
 
     /// Gets the argument and convert it to Lua boolean.

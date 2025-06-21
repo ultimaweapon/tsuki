@@ -233,17 +233,15 @@ impl Lua {
     /// Note that `print` only available with `std` feature.
     pub fn setup_base(&self) {
         let g = self.global();
-        let global = |k: &str, v: UnsafeValue| unsafe {
-            let k = UnsafeValue::from_obj(Str::from_str(self, k).cast());
 
-            g.set_unchecked(k, v).unwrap();
-        };
-
-        global("assert", Fp(crate::builtin::base::assert).into());
-        global("error", Fp(crate::builtin::base::error).into());
-        global("pcall", Fp(crate::builtin::base::pcall).into());
+        unsafe { g.set_str_key_unchecked("assert", Fp(crate::builtin::base::assert)) };
+        unsafe { g.set_str_key_unchecked("error", Fp(crate::builtin::base::error)) };
+        unsafe { g.set_str_key_unchecked("pcall", Fp(crate::builtin::base::pcall)) };
         #[cfg(feature = "std")]
-        global("print", Fp(crate::builtin::base::print).into());
+        unsafe {
+            g.set_str_key_unchecked("print", Fp(crate::builtin::base::print))
+        };
+        unsafe { g.set_str_key_unchecked("setmetatable", Fp(crate::builtin::base::setmetatable)) };
     }
 
     /// Setup [string library](https://www.lua.org/manual/5.4/manual.html#6.4).

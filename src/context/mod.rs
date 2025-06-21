@@ -239,6 +239,17 @@ impl<'a> Context<'a, Ret> {
         Ok(())
     }
 
+    /// Removes the last value from call results.
+    ///
+    /// # Panics
+    /// If results is empty.
+    pub fn pop(&mut self) {
+        let ret = self.ret.get().checked_sub(1).unwrap();
+
+        unsafe { self.th.top.sub(1) };
+        self.ret.set(ret);
+    }
+
     pub(crate) fn results(&self) -> usize {
         self.ret.get()
     }
