@@ -881,7 +881,7 @@ unsafe fn enterblock(fs: *mut FuncState, bl: *mut BlockCnt, isloop: u8) {
 }
 
 unsafe fn undefgoto(ls: *mut LexState, gt: *mut Labeldesc) -> ParseError {
-    if (*gt).name == Str::new((*ls).g.deref(), "break") {
+    if (*gt).name == Str::from_str((*ls).g.deref(), "break") {
         luaK_semerror(
             ls,
             format_args!("break outside loop at line {}", (*gt).line),
@@ -907,7 +907,7 @@ unsafe fn leaveblock(fs: *mut FuncState) -> Result<(), ParseError> {
     if (*bl).isloop != 0 {
         hasclose = createlabel(
             ls,
-            Str::new((*ls).g.deref(), "break"),
+            Str::from_str((*ls).g.deref(), "break"),
             0 as c_int,
             0 as c_int,
         )?;
@@ -1943,7 +1943,7 @@ unsafe fn breakstat(ls: *mut LexState) -> Result<(), ParseError> {
     luaX_next(ls)?;
     newgotoentry(
         ls,
-        Str::new((*ls).g.deref(), "break"),
+        Str::from_str((*ls).g.deref(), "break"),
         line,
         luaK_jump((*ls).fs)?,
     )?;
@@ -2304,7 +2304,7 @@ unsafe fn test_then_block(ls: *mut LexState, escapelist: *mut c_int) -> Result<(
         luaK_goiffalse((*ls).fs, &mut v)?;
         luaX_next(ls)?;
         enterblock(fs, &mut bl, 0 as c_int as u8);
-        newgotoentry(ls, Str::new((*ls).g.deref(), "break"), line, v.t)?;
+        newgotoentry(ls, Str::from_str((*ls).g.deref(), "break"), line, v.t)?;
         while testnext(ls, ';' as i32)? != 0 {}
         if block_follow(ls, 0 as c_int) != 0 {
             leaveblock(fs)?;

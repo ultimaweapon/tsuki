@@ -234,7 +234,7 @@ impl Lua {
     pub fn setup_base(&self) {
         let g = self.global();
         let global = |k: &str, v: UnsafeValue| unsafe {
-            let k = UnsafeValue::from_obj(Str::new(self, k).cast());
+            let k = UnsafeValue::from_obj(Str::from_str(self, k).cast());
 
             g.set_unchecked(k, v).unwrap();
         };
@@ -321,7 +321,7 @@ impl Lua {
 
     /// Create a Lua string.
     pub fn create_str(&self, v: impl AsRef<str>) -> Ref<Str> {
-        unsafe { Ref::new(self.to_rc(), Str::new(self, v.as_ref())) }
+        unsafe { Ref::new(self.to_rc(), Str::from_str(self, v)) }
     }
 
     pub fn create_table(&self) -> Ref<Table> {

@@ -33,7 +33,7 @@ impl<'a, T> Context<'a, T> {
 
     /// Create a Lua string.
     pub fn create_str(&self, v: impl AsRef<str>) -> Ref<Str> {
-        let s = unsafe { Str::new(self.th.hdr.global, v.as_ref()) };
+        let s = unsafe { Str::from_str(self.th.hdr.global, v) };
 
         unsafe { Ref::new(self.th.hdr.global_owned(), s) }
     }
@@ -67,7 +67,7 @@ impl<'a, T> Context<'a, T> {
         unsafe { lua_checkstack(self.th, 1)? };
 
         // Create string.
-        let s = unsafe { Str::new(self.th.hdr.global, v.as_ref()) };
+        let s = unsafe { Str::from_str(self.th.hdr.global, v) };
 
         unsafe { self.th.top.write(UnsafeValue::from_obj(s.cast())) };
         unsafe { self.th.top.add(1) };
@@ -81,7 +81,7 @@ impl<'a, T> Context<'a, T> {
         unsafe { lua_checkstack(self.th, 1)? };
 
         // Create string.
-        let s = unsafe { Str::new(self.th.hdr.global, v) };
+        let s = unsafe { Str::from_bytes(self.th.hdr.global, v) };
 
         unsafe { self.th.top.write(UnsafeValue::from_obj(s.cast())) };
         unsafe { self.th.top.add(1) };

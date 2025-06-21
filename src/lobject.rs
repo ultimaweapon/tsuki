@@ -762,11 +762,9 @@ unsafe fn tostringbuff(obj: *const UnsafeValue, buff: *mut c_char) -> c_int {
 pub unsafe fn luaO_tostring(g: *const Lua, obj: *mut UnsafeValue) {
     let mut buff: [c_char; 44] = [0; 44];
     let len: c_int = tostringbuff(obj, buff.as_mut_ptr());
+    let s = core::slice::from_raw_parts(buff.as_ptr().cast(), len as usize);
     let io: *mut UnsafeValue = obj;
-    let x_ = Str::new(
-        g,
-        core::slice::from_raw_parts(buff.as_ptr().cast(), len as usize),
-    );
+    let x_ = Str::from_str(g, core::str::from_utf8(s).unwrap()); // sprintf may effect by locale.
 
     (*io).value_.gc = x_.cast();
     (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;

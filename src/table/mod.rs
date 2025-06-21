@@ -98,7 +98,7 @@ impl Table {
     /// # Panics
     /// If `v` come from different [Lua](crate::Lua) instance.
     pub fn set_str_key(&self, k: impl AsRef<str>, v: impl Into<UnsafeValue>) {
-        let k = unsafe { Str::new(self.hdr.global, k.as_ref()) };
+        let k = unsafe { Str::from_str(self.hdr.global, k) };
         let k = unsafe { UnsafeValue::from_obj(k.cast()) };
 
         unsafe { self.set(k, v).unwrap_unchecked() };
@@ -109,7 +109,7 @@ impl Table {
     /// # Safety
     /// `v` must come from the same [Lua](crate::Lua) instance.
     pub unsafe fn set_str_key_unchecked(&self, k: impl AsRef<str>, v: impl Into<UnsafeValue>) {
-        let k = unsafe { Str::new(self.hdr.global, k.as_ref()) };
+        let k = unsafe { Str::from_str(self.hdr.global, k) };
         let k = unsafe { UnsafeValue::from_obj(k.cast()) };
 
         unsafe { self.set_unchecked(k, v).unwrap_unchecked() };

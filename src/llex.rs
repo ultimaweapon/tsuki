@@ -156,12 +156,12 @@ unsafe fn save(ls: *mut LexState, c: libc::c_int) {
 
 pub unsafe fn luaX_init(g: *const Lua) {
     let mut i: libc::c_int = 0;
-    let e = Str::new(g, "_ENV");
+    let e = Str::from_str(g, "_ENV");
     luaC_fix(&*g, e.cast());
     i = 0 as libc::c_int;
 
     while i < TK_WHILE as libc::c_int - (255 as libc::c_int + 1 as libc::c_int) + 1 as libc::c_int {
-        let ts = Str::new(g, luaX_tokens[i as usize]);
+        let ts = Str::from_str(g, luaX_tokens[i as usize]);
         luaC_fix(&*g, ts.cast());
         (*ts).extra.set((i + 1 as libc::c_int) as u8);
         i += 1;
@@ -222,7 +222,11 @@ pub unsafe fn luaX_syntaxerror(ls: *mut LexState, msg: impl Display) -> ParseErr
 }
 
 pub unsafe fn luaX_newstring(ls: *mut LexState, str: *const libc::c_char, l: usize) -> *const Str {
-    let mut ts = Str::new((*ls).g.deref(), core::slice::from_raw_parts(str.cast(), l));
+    let str = core::slice::from_raw_parts(str.cast(), l);
+    let mut ts = match core::str::from_utf8(str) {
+        Ok(v) => Str::from_str((*ls).g.deref(), v),
+        Err(_) => Str::from_bytes((*ls).g.deref(), str),
+    };
     let o: *const UnsafeValue = luaH_getstr((*ls).h.deref(), ts);
 
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
@@ -277,7 +281,7 @@ pub unsafe fn luaX_setinput(ls: &mut LexState, z: *mut ZIO, firstchar: libc::c_i
     (*ls).fs = 0 as *mut FuncState;
     (*ls).linenumber = 1 as libc::c_int;
     (*ls).lastline = 1 as libc::c_int;
-    (*ls).envn = Str::new((*ls).g.deref(), "_ENV");
+    (*ls).envn = Str::from_str((*ls).g.deref(), "_ENV");
     (*(*ls).buff).buffer = luaM_saferealloc_(
         (*ls).g.deref(),
         (*(*ls).buff).buffer as *mut libc::c_void,

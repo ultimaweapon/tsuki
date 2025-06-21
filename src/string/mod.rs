@@ -14,6 +14,7 @@ mod table;
 #[repr(C)]
 pub struct Str {
     pub(crate) hdr: Object,
+    unicode: bool,
     pub(crate) extra: Cell<u8>,
     pub(crate) shrlen: Cell<u8>,
     pub(crate) hash: Cell<u32>,
@@ -22,13 +23,24 @@ pub struct Str {
 }
 
 impl Str {
-    pub(crate) unsafe fn new(g: *const Lua, str: impl AsRef<[u8]>) -> *const Str {
+    #[inline(always)]
+    pub(crate) unsafe fn from_str(g: *const Lua, str: impl AsRef<str>) -> *const Str {
+        unsafe { Self::new(g, str.as_ref(), true) }
+    }
+
+    #[inline(always)]
+    pub(crate) unsafe fn from_bytes(g: *const Lua, str: impl AsRef<[u8]>) -> *const Str {
+        unsafe { Self::new(g, str, false) }
+    }
+
+    unsafe fn new(g: *const Lua, str: impl AsRef<[u8]>, unicode: bool) -> *const Str {
         // Check if long string.
         let str = str.as_ref();
 
         if str.len() > 40 {
             let s = unsafe { Self::alloc(g, str.len(), 4 | 1 << 4, (*g).seed) };
 
+            unsafe { addr_of_mut!((*s).unicode).write(unicode) };
             unsafe { addr_of_mut!((*s).shrlen).write(Cell::new(0xff)) };
             unsafe { (*(*s).u.get()).lnglen = str.len() };
             unsafe {
@@ -56,6 +68,7 @@ impl Str {
             Err(e) => unsafe {
                 let v = Self::alloc(g, str.len(), 4 | 0 << 4, h);
 
+                addr_of_mut!((*v).unicode).write(unicode);
                 addr_of_mut!((*v).shrlen).write(Cell::new(str.len().try_into().unwrap()));
                 (*v).contents
                     .as_mut_ptr()
@@ -69,6 +82,14 @@ impl Str {
         }
     }
 
+    /// Returns `true` if this string is UTF-8.
+    ///
+    /// Use [`Self::as_str()`] instead if you want [`str`] from this string.
+    #[inline(always)]
+    pub fn is_utf8(&self) -> bool {
+        self.unicode
+    }
+
     /// Returns the length of this string, in bytes.
     #[inline(always)]
     pub fn len(&self) -> usize {
@@ -79,8 +100,10 @@ impl Str {
     }
 
     /// Returns [`str`] if this string is UTF-8.
+    #[inline(always)]
     pub fn as_str(&self) -> Option<&str> {
-        core::str::from_utf8(self.as_bytes()).ok()
+        self.unicode
+            .then(|| unsafe { core::str::from_utf8_unchecked(self.as_bytes()) })
     }
 
     /// Returns byte slice of this string.

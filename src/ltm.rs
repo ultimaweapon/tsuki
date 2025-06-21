@@ -91,7 +91,7 @@ pub unsafe fn luaT_init(g: *const Lua) {
     i = 0 as libc::c_int;
 
     while i < TM_N as libc::c_int {
-        (*g).tmname[i as usize].set(Str::new(g, luaT_eventname[i as usize]));
+        (*g).tmname[i as usize].set(Str::from_str(g, luaT_eventname[i as usize]));
         luaC_fix(&*g, (*g).tmname[i as usize].get().cast());
         i += 1;
     }
@@ -151,7 +151,7 @@ pub unsafe fn luaT_objtypename(g: *const Lua, o: *const UnsafeValue) -> Cow<'sta
                 !mt.is_null()
             }
     {
-        let name: *const UnsafeValue = luaH_getshortstr(mt, Str::new(g, "__name"));
+        let name: *const UnsafeValue = luaH_getshortstr(mt, Str::from_str(g, "__name"));
 
         if (*name).tt_ as libc::c_int & 0xf as libc::c_int == 4 as libc::c_int {
             return String::from_utf8_lossy((*((*name).value_.gc.cast::<Str>())).as_bytes());

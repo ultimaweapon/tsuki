@@ -12,6 +12,9 @@ Tsuki is a port of vanilla Lua 5.4 to Rust. This is porting, not binding; which 
   - All metamethod and iterator function cannot be async and cannot yield.
   - Each call into Rust async function from Lua always incur one heap allocation.
 - Safe and low overhead API.
+  - Direct access to Lua object instead of access it via Lua stack.
+  - A call to small function get inlined due to all code are Rust.
+  - Fast path to get Rust string from Lua string without checking if UTF-8 on every access.
 - Any error propagated to the caller via Rust `Result` instead of a long jump.
 - All values owned by Rust will exempt from GC automatically (no need to move it to Lua registry).
 

@@ -30,6 +30,7 @@ use crate::table::{
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{ArithError, LuaFn, NON_YIELDABLE_WAKER, Str, Table, Thread};
 use alloc::boxed::Box;
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::cell::Cell;
 use core::cmp::Ordering;
@@ -765,13 +766,15 @@ pub unsafe fn luaV_equalobj(
     };
 }
 
-unsafe fn copy2buff(top: StkId, mut n: c_int, len: usize) -> Vec<u8> {
+unsafe fn copy2buff(th: *const Thread, top: StkId, mut n: c_int, len: usize) -> *const Str {
     let mut buf = Vec::with_capacity(len);
+    let mut bytes = false;
 
     loop {
         let st = (*top.offset(-(n as isize))).val.value_.gc.cast::<Str>();
 
         buf.extend_from_slice((*st).as_bytes());
+        bytes |= (*st).is_utf8() == false;
 
         n -= 1;
 
@@ -780,7 +783,10 @@ unsafe fn copy2buff(top: StkId, mut n: c_int, len: usize) -> Vec<u8> {
         }
     }
 
-    buf
+    match bytes {
+        true => Str::from_bytes((*th).hdr.global, buf),
+        false => Str::from_str((*th).hdr.global, String::from_utf8_unchecked(buf)),
+    }
 }
 
 pub unsafe fn luaV_concat(
@@ -911,7 +917,7 @@ pub unsafe fn luaV_concat(
                 n += 1;
             }
 
-            let ts = Str::new((*L).hdr.global, copy2buff(top, n, tl));
+            let ts = copy2buff(L, top, n, tl);
             let io: *mut UnsafeValue = &raw mut (*top.offset(-(n as isize))).val;
 
             (*io).value_.gc = ts.cast();
