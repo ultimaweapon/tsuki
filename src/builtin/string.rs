@@ -6,7 +6,7 @@ pub fn sub(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error
     let s = cx.arg(1).get_str(true)?.as_bytes();
     let start = cx.arg(2).to_int()?;
     let start = posrelatI(start, s.len().try_into().unwrap());
-    let end = cx.arg(3).to_nilable_int()?.unwrap_or(-1);
+    let end = cx.arg(3).to_nilable_int(false)?.unwrap_or(-1);
     let end = getendpos(end, s.len().try_into().unwrap());
     let s = if start <= end {
         let start = usize::try_from(start).unwrap();

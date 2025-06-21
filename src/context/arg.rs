@@ -81,18 +81,27 @@ impl<'a, 'b> Arg<'a, 'b> {
         Ok(unsafe { &*(*v).value_.gc.cast::<Str>() })
     }
 
-    /// Checks if this argument is Lua string and return it. Returns [`None`] if this argument is
-    /// `nil` or does not exists.
+    /// Checks if this argument is Lua string and return it.
+    ///
+    /// This method returns [`None`] in the following cases:
+    ///
+    /// - This argument is `nil`.
+    /// - This argument does not exists and `required` is `false`.
     #[inline(always)]
     pub fn get_nilable_str(
         &self,
+        required: bool,
         convert: bool,
     ) -> Result<Option<&'a Str>, Box<dyn core::error::Error>> {
         // Get argument.
+        let expect = "nil or string";
         let v = self.get_raw_or_null();
 
         if v.is_null() {
-            return Ok(None);
+            match required {
+                true => return Err(self.invalid_type(expect, lua_typename(-1))),
+                false => return Ok(None),
+            }
         }
 
         // Check type.
@@ -100,7 +109,7 @@ impl<'a, 'b> Arg<'a, 'b> {
             0 => return Ok(None),
             4 => (),
             3 if convert => unsafe { luaO_tostring(self.cx.th.hdr.global, v) },
-            _ => return Err(unsafe { self.type_error(lua_typename(4), v) }),
+            _ => return Err(unsafe { self.type_error(expect, v) }),
         }
 
         Ok(Some(unsafe { &*(*v).value_.gc.cast::<Str>() }))
@@ -118,8 +127,12 @@ impl<'a, 'b> Arg<'a, 'b> {
         }
     }
 
-    /// Checks if this argument is a table and return it. Returns [`None`] if this argument is
-    /// `nil` or does not exists and `required` is `false`.
+    /// Checks if this argument is a table and return it.
+    ///
+    /// This method returns [`None`] in the following cases:
+    ///
+    /// - This argument is `nil`.
+    /// - This argument does not exists and `required` is `false`.
     #[inline(always)]
     pub fn get_nilable_table(
         &self,
@@ -145,6 +158,15 @@ impl<'a, 'b> Arg<'a, 'b> {
     }
 
     /// Gets the argument and convert it to Lua boolean.
+    ///
+    /// This method has the same mechanism as Lua conditional check, which mean it only returns
+    /// `false` in the following cases:
+    ///
+    /// - This argument does not exists.
+    /// - This argument has `false` value.
+    /// - This argument is `nil`.
+    ///
+    /// All other values will cause this method to return `true`, including **zero**.
     ///
     /// This has the same semantic as `lua_toboolean`.
     #[inline(always)]
@@ -182,15 +204,28 @@ impl<'a, 'b> Arg<'a, 'b> {
         }
     }
 
-    /// Gets the argument and convert it to Lua integer. Returns [`None`] if this argument is `nil`
-    /// or does not exists.
+    /// Gets the argument and convert it to Lua integer.
+    ///
+    /// This method returns [`None`] in the following cases:
+    ///
+    /// - This argument is `nil`.
+    /// - This argument does not exists and `required` is `false`.
     ///
     /// This has the same semantic as `luaL_optinteger`.
-    pub fn to_nilable_int(&self) -> Result<Option<i64>, Box<dyn core::error::Error>> {
+    pub fn to_nilable_int(
+        &self,
+        required: bool,
+    ) -> Result<Option<i64>, Box<dyn core::error::Error>> {
         // Check type.
+        let expect = "nil or number";
         let raw = self.get_raw_or_null();
 
-        if unsafe { raw.is_null() || (*raw).tt_ & 0xf == 0 } {
+        if raw.is_null() {
+            match required {
+                true => return Err(self.invalid_type(expect, lua_typename(-1))),
+                false => return Ok(None),
+            }
+        } else if unsafe { (*raw).tt_ & 0xf == 0 } {
             return Ok(None);
         } else if unsafe { (*raw).tt_ == 3 | 0 << 4 } {
             return Ok(Some(unsafe { (*raw).value_.i }));
@@ -204,7 +239,7 @@ impl<'a, 'b> Arg<'a, 'b> {
         } else if unsafe { (*raw).tt_ == 3 | 1 << 4 } {
             Err(self.error("number has no integer representation"))
         } else {
-            Err(unsafe { self.type_error(lua_typename(3), raw) })
+            Err(unsafe { self.type_error(expect, raw) })
         }
     }
 

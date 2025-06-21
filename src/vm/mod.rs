@@ -49,6 +49,7 @@ pub const F2Ieq: F2Imod = 0;
 type c_int = i32;
 type c_uint = u32;
 type c_longlong = i64;
+type c_double = f64;
 
 unsafe fn l_strton(obj: *const UnsafeValue, result: *mut UnsafeValue) -> c_int {
     if !((*obj).tt_ as c_int & 0xf as c_int == 4 as c_int) {
@@ -97,9 +98,8 @@ pub unsafe fn luaV_flttointeger(n: f64, p: *mut i64, mode: F2Imod) -> c_int {
             f += 1 as c_int as f64;
         }
     }
-    return (f >= (-(0x7fffffffffffffff as c_longlong) - 1 as c_int as c_longlong) as libc::c_double
-        && f < -((-(0x7fffffffffffffff as c_longlong) - 1 as c_int as c_longlong)
-            as libc::c_double)
+    return (f >= (-(0x7fffffffffffffff as c_longlong) - 1 as c_int as c_longlong) as c_double
+        && f < -((-(0x7fffffffffffffff as c_longlong) - 1 as c_int as c_longlong) as c_double)
         && {
             *p = f as c_longlong;
             1 as c_int != 0
