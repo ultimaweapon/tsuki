@@ -49,6 +49,7 @@ pub const F2Ieq: F2Imod = 0;
 type c_int = i32;
 type c_uint = u32;
 type c_long = i64;
+type c_ulong = u64;
 type c_longlong = i64;
 type c_double = f64;
 
@@ -898,8 +899,8 @@ pub unsafe fn luaV_concat(
                     .lnglen
                 };
                 if ((l
-                    >= (if (::core::mem::size_of::<usize>() as libc::c_ulong)
-                        < ::core::mem::size_of::<i64>() as libc::c_ulong
+                    >= (if (::core::mem::size_of::<usize>() as c_ulong)
+                        < ::core::mem::size_of::<i64>() as c_ulong
                     {
                         !(0 as c_int as usize)
                     } else {
@@ -1040,16 +1041,16 @@ pub unsafe fn luaV_modf(m: f64, n: f64) -> f64 {
 
 pub unsafe fn luaV_shiftl(x: i64, y: i64) -> i64 {
     if y < 0 as c_int as i64 {
-        if y <= -((::core::mem::size_of::<i64>() as libc::c_ulong)
-            .wrapping_mul(8 as c_int as libc::c_ulong) as c_int) as i64
+        if y <= -((::core::mem::size_of::<i64>() as c_ulong).wrapping_mul(8 as c_int as c_ulong)
+            as c_int) as i64
         {
             return 0 as c_int as i64;
         } else {
             return (x as u64 >> -y as u64) as i64;
         }
     } else if y
-        >= (::core::mem::size_of::<i64>() as libc::c_ulong)
-            .wrapping_mul(8 as c_int as libc::c_ulong) as c_int as i64
+        >= (::core::mem::size_of::<i64>() as c_ulong).wrapping_mul(8 as c_int as c_ulong) as c_int
+            as i64
     {
         return 0 as c_int as i64;
     } else {

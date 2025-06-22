@@ -17,27 +17,33 @@ pub fn assert(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
 
     // Raise error.
     let m = if cx.args() > 1 {
-        let m = cx.arg(2).get_str(true)?;
+        let m = cx.arg(2);
 
-        String::from_utf8_lossy(m.as_bytes()).into()
+        m.get_str(true)?
+            .as_str()
+            .ok_or_else(|| m.error("expect UTF-8 string"))?
     } else {
-        "assertion failed!".into()
+        "assertion failed!"
     };
 
-    Err(m)
+    Err(m.into())
 }
 
 /// Implementation of [error](https://www.lua.org/manual/5.4/manual.html#pdf-error) function.
 ///
 /// Note that first argument accept only a string and second argument is not supported.
 pub fn error(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
-    let msg = cx.arg(1).get_str(true)?;
+    let msg = cx.arg(1);
+    let msg = msg
+        .get_str(true)?
+        .as_str()
+        .ok_or_else(|| msg.error("expect UTF-8 string"))?;
 
     if cx.args() > 1 {
         return Err("second argument of 'error' is not supported".into());
     }
 
-    Err(String::from_utf8_lossy(msg.as_bytes()).into())
+    Err(msg.into())
 }
 
 /// Implementation of [pcall](https://www.lua.org/manual/5.4/manual.html#pdf-pcall).

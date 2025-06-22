@@ -20,7 +20,7 @@ use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
-use core::ffi::{CStr, c_char, c_void};
+use core::ffi::{CStr, c_char};
 use core::fmt::{Display, Formatter, Write};
 use core::num::NonZero;
 use core::pin::pin;
@@ -495,19 +495,6 @@ pub unsafe fn luaL_optnumber(
     } else {
         luaL_checknumber(L, arg)
     };
-}
-
-unsafe fn getS(
-    ud: *mut c_void,
-    size: *mut usize,
-) -> Result<*const c_char, Box<dyn core::error::Error>> {
-    let ls: *mut LoadS = ud as *mut LoadS;
-    if (*ls).size == 0 as libc::c_int as usize {
-        return Ok(0 as *const c_char);
-    }
-    *size = (*ls).size;
-    (*ls).size = 0 as libc::c_int as usize;
-    return Ok((*ls).s);
 }
 
 pub unsafe fn luaL_getmetafield(
