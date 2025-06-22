@@ -2,6 +2,7 @@ pub(crate) use self::table::*;
 
 use crate::lstring::luaS_hash;
 use crate::{Lua, Object};
+use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::cell::{Cell, UnsafeCell};
 use core::ffi::c_char;
@@ -14,7 +15,7 @@ mod table;
 #[repr(C)]
 pub struct Str {
     pub(crate) hdr: Object,
-    unicode: bool,
+    utf8: bool,
     pub(crate) extra: Cell<u8>,
     pub(crate) shrlen: Cell<u8>,
     pub(crate) hash: Cell<u32>,
@@ -24,24 +25,34 @@ pub struct Str {
 
 impl Str {
     #[inline(always)]
-    pub(crate) unsafe fn from_str(g: *const Lua, str: impl AsRef<str>) -> *const Str {
-        unsafe { Self::new(g, str.as_ref(), true) }
+    pub(crate) unsafe fn from_str<T>(g: *const Lua, str: T) -> *const Str
+    where
+        T: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
+    {
+        unsafe { Self::new(g, str, true) }
     }
 
     #[inline(always)]
-    pub(crate) unsafe fn from_bytes(g: *const Lua, str: impl AsRef<[u8]>) -> *const Str {
+    pub(crate) unsafe fn from_bytes<T>(g: *const Lua, str: T) -> *const Str
+    where
+        T: AsRef<[u8]> + Into<Vec<u8>>,
+    {
         unsafe { Self::new(g, str, false) }
     }
 
     #[inline(never)]
-    unsafe fn new(g: *const Lua, str: impl AsRef<[u8]>, unicode: bool) -> *const Str {
+    unsafe fn new<T>(g: *const Lua, str: T, utf8: bool) -> *const Str
+    where
+        T: AsRef<[u8]> + Into<Vec<u8>>,
+    {
         // Check if long string.
-        let str = str.as_ref();
+        let s = str.as_ref();
 
-        if str.len() > 40 {
+        if s.len() > 40 {
+            let str = str.into();
             let s = unsafe { Self::alloc(g, str.len(), 4 | 1 << 4, (*g).seed) };
 
-            unsafe { addr_of_mut!((*s).unicode).write(unicode) };
+            unsafe { addr_of_mut!((*s).utf8).write(utf8) };
             unsafe { addr_of_mut!((*s).shrlen).write(Cell::new(0xff)) };
             unsafe { (*(*s).u.get()).lnglen = str.len() };
             unsafe {
@@ -54,9 +65,9 @@ impl Str {
         }
 
         // Add to string table.
-        let h = unsafe { luaS_hash(str.as_ptr().cast(), str.len(), (*g).seed) };
+        let h = unsafe { luaS_hash(s.as_ptr().cast(), s.len(), (*g).seed) };
 
-        match unsafe { (*g).strt.insert(h, str) } {
+        match unsafe { (*g).strt.insert(h, s) } {
             Ok(v) => unsafe {
                 if (*v).hdr.marked.is_dead((*g).currentwhite.get()) {
                     (*v).hdr
@@ -67,9 +78,10 @@ impl Str {
                 v
             },
             Err(e) => unsafe {
+                let str = str.into();
                 let v = Self::alloc(g, str.len(), 4 | 0 << 4, h);
 
-                addr_of_mut!((*v).unicode).write(unicode);
+                addr_of_mut!((*v).utf8).write(utf8);
                 addr_of_mut!((*v).shrlen).write(Cell::new(str.len().try_into().unwrap()));
                 (*v).contents
                     .as_mut_ptr()
@@ -88,7 +100,7 @@ impl Str {
     /// Use [`Self::as_str()`] instead if you want [`str`] from this string.
     #[inline(always)]
     pub fn is_utf8(&self) -> bool {
-        self.unicode
+        self.utf8
     }
 
     /// Returns the length of this string, in bytes.
@@ -103,7 +115,7 @@ impl Str {
     /// Returns [`str`] if this string is UTF-8.
     #[inline(always)]
     pub fn as_str(&self) -> Option<&str> {
-        self.unicode
+        self.utf8
             .then(|| unsafe { core::str::from_utf8_unchecked(self.as_bytes()) })
     }
 

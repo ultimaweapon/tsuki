@@ -521,7 +521,7 @@ pub unsafe fn lua_pushinteger(L: *const Thread, n: i64) {
 pub unsafe fn lua_pushlstring(L: *const Thread, s: impl AsRef<[u8]>) -> *const libc::c_char {
     let ts = match core::str::from_utf8(s.as_ref()) {
         Ok(v) => Str::from_str((*L).hdr.global, v),
-        Err(_) => Str::from_bytes((*L).hdr.global, s),
+        Err(_) => Str::from_bytes((*L).hdr.global, s.as_ref()),
     };
     let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
 

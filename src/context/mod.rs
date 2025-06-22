@@ -6,6 +6,7 @@ use crate::value::UnsafeValue;
 use crate::{NON_YIELDABLE_WAKER, Ref, StackOverflow, Str, Thread};
 use alloc::boxed::Box;
 use alloc::string::String;
+use alloc::vec::Vec;
 use core::cell::Cell;
 use core::num::NonZero;
 use core::pin::pin;
@@ -32,7 +33,10 @@ impl<'a, T> Context<'a, T> {
     }
 
     /// Create a Lua string.
-    pub fn create_str(&self, v: impl AsRef<str>) -> Ref<Str> {
+    pub fn create_str<V>(&self, v: V) -> Ref<Str>
+    where
+        V: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
+    {
         let s = unsafe { Str::from_str(self.th.hdr.global, v) };
 
         unsafe { Ref::new(self.th.hdr.global_owned(), s) }
@@ -63,7 +67,10 @@ impl<'a, T> Context<'a, T> {
     ///
     /// This method is more efficient than create a string with [`Self::create_str()`] and push it
     /// via [`Self::push()`].
-    pub fn push_str(&self, v: impl AsRef<str>) -> Result<(), StackOverflow> {
+    pub fn push_str<V>(&self, v: V) -> Result<(), StackOverflow>
+    where
+        V: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
+    {
         unsafe { lua_checkstack(self.th, 1)? };
 
         // Create string.
@@ -77,7 +84,10 @@ impl<'a, T> Context<'a, T> {
     }
 
     /// Push a byte slice as Lua string to the result of this call.
-    pub fn push_bytes(&self, v: impl AsRef<[u8]>) -> Result<(), StackOverflow> {
+    pub fn push_bytes<V>(&self, v: V) -> Result<(), StackOverflow>
+    where
+        V: AsRef<[u8]> + Into<Vec<u8>>,
+    {
         unsafe { lua_checkstack(self.th, 1)? };
 
         // Create string.

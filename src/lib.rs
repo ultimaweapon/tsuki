@@ -19,6 +19,7 @@ use self::lzio::Zio;
 use self::value::{UnsafeValue, UntaggedValue};
 use alloc::boxed::Box;
 use alloc::rc::Rc;
+use alloc::vec::Vec;
 use core::any::TypeId;
 use core::cell::{Cell, RefCell, UnsafeCell};
 use core::ffi::c_int;
@@ -321,7 +322,10 @@ impl Lua {
     }
 
     /// Create a Lua string.
-    pub fn create_str(&self, v: impl AsRef<str>) -> Ref<Str> {
+    pub fn create_str<T>(&self, v: T) -> Ref<Str>
+    where
+        T: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
+    {
         unsafe { Ref::new(self.to_rc(), Str::from_str(self, v)) }
     }
 

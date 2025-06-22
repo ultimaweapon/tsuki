@@ -4,6 +4,7 @@ pub(crate) use self::node::*;
 use crate::gc::{luaC_barrier_, luaC_barrierback_};
 use crate::ltm::{TM_EQ, TM_GC, luaT_gettm};
 use crate::{Lua, Object, Ref, Str, UnsafeValue, Value};
+use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::cell::Cell;
 use core::ptr::{addr_of_mut, null, null_mut};
@@ -109,7 +110,10 @@ impl Table {
     }
 
     /// Returns `true` if the table contains a value for the specified key.
-    pub fn contains_str_key(&self, k: impl AsRef<[u8]>) -> bool {
+    pub fn contains_str_key<K>(&self, k: K) -> bool
+    where
+        K: AsRef<[u8]> + Into<Vec<u8>>,
+    {
         let k = unsafe { Str::from_bytes(self.hdr.global, k) };
         let k = unsafe { UnsafeValue::from_obj(k.cast()) };
         let v = unsafe { luaH_get(self, &k) };
@@ -132,7 +136,10 @@ impl Table {
     }
 
     #[inline(always)]
-    pub(crate) fn get_raw_str_key(&self, k: impl AsRef<[u8]>) -> *const UnsafeValue {
+    pub(crate) fn get_raw_str_key<K>(&self, k: K) -> *const UnsafeValue
+    where
+        K: AsRef<[u8]> + Into<Vec<u8>>,
+    {
         let k = unsafe { UnsafeValue::from_obj(Str::from_bytes(self.hdr.global, k).cast()) };
 
         unsafe { luaH_get(self, &k) }
@@ -192,7 +199,10 @@ impl Table {
     ///
     /// # Panics
     /// If `v` come from different [Lua](crate::Lua) instance.
-    pub fn set_str_key(&self, k: impl AsRef<str>, v: impl Into<UnsafeValue>) {
+    pub fn set_str_key<K>(&self, k: K, v: impl Into<UnsafeValue>)
+    where
+        K: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
+    {
         let k = unsafe { Str::from_str(self.hdr.global, k) };
         let k = unsafe { UnsafeValue::from_obj(k.cast()) };
 
@@ -203,7 +213,10 @@ impl Table {
     ///
     /// # Safety
     /// `v` must come from the same [Lua](crate::Lua) instance.
-    pub unsafe fn set_str_key_unchecked(&self, k: impl AsRef<str>, v: impl Into<UnsafeValue>) {
+    pub unsafe fn set_str_key_unchecked<K>(&self, k: K, v: impl Into<UnsafeValue>)
+    where
+        K: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
+    {
         let k = unsafe { Str::from_str(self.hdr.global, k) };
         let k = unsafe { UnsafeValue::from_obj(k.cast()) };
 
