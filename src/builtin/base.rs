@@ -1,8 +1,8 @@
 use crate::{Args, Context, Ret, TryCall};
 use alloc::boxed::Box;
-use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+use core::fmt::Write;
 
 /// Implementation of [assert](https://www.lua.org/manual/5.4/manual.html#pdf-assert) function.
 ///
@@ -48,11 +48,26 @@ pub fn pcall(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Err
             r
         }
         TryCall::Err(cx, chunk, e) => {
+            // Write first error.
+            let mut m = String::with_capacity(128);
+
+            if let Some((s, l)) = chunk {
+                write!(m, "{s}:{l}: ").unwrap();
+            }
+
+            write!(m, "{e}").unwrap();
+
+            // Write nested errors.
+            let mut e = e.source();
+
+            while let Some(v) = e {
+                write!(m, " -> {v}").unwrap();
+                e = v.source();
+            }
+
+            // Push results.
             cx.push(false)?;
-            cx.push_str(match chunk {
-                Some((s, l)) => format!("{s}:{l}: {e}"),
-                None => e.to_string(),
-            })?;
+            cx.push_str(m)?;
             cx.into()
         }
     };

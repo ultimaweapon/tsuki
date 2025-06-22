@@ -48,6 +48,7 @@ pub const F2Ieq: F2Imod = 0;
 
 type c_int = i32;
 type c_uint = u32;
+type c_long = i64;
 type c_longlong = i64;
 type c_double = f64;
 
@@ -221,7 +222,7 @@ unsafe fn forprep(L: *const Thread, ra: StkId) -> Result<c_int, Box<dyn core::er
         } else {
             luaV_tonumber_(plimit, &mut limit_0)
         }) == 0) as c_int
-            != 0 as c_int) as c_int as libc::c_long
+            != 0 as c_int) as c_int as c_long
             != 0
         {
             luaG_forerror(L, plimit, "limit")?;
@@ -232,7 +233,7 @@ unsafe fn forprep(L: *const Thread, ra: StkId) -> Result<c_int, Box<dyn core::er
         } else {
             luaV_tonumber_(pstep, &mut step_0)
         }) == 0) as c_int
-            != 0 as c_int) as c_int as libc::c_long
+            != 0 as c_int) as c_int as c_long
             != 0
         {
             luaG_forerror(L, pstep, "step")?;
@@ -243,7 +244,7 @@ unsafe fn forprep(L: *const Thread, ra: StkId) -> Result<c_int, Box<dyn core::er
         } else {
             luaV_tonumber_(pinit, &mut init_0)
         }) == 0) as c_int
-            != 0 as c_int) as c_int as libc::c_long
+            != 0 as c_int) as c_int as c_long
             != 0
         {
             luaG_forerror(L, pinit, "initial value")?;
@@ -906,7 +907,7 @@ pub unsafe fn luaV_concat(
                     })
                     .wrapping_sub(::core::mem::size_of::<Str>())
                     .wrapping_sub(tl)) as c_int
-                    != 0 as c_int) as c_int as libc::c_long
+                    != 0 as c_int) as c_int as c_long
                     != 0
                 {
                     (*L).top.set(top.offset(-(total as isize)));
@@ -988,7 +989,7 @@ pub unsafe fn luaV_objlen(
 /// Returns [`None`] if `n` is zero.
 pub fn luaV_idiv(m: i64, n: i64) -> Option<i64> {
     if (((n as u64).wrapping_add(1 as c_uint as u64) <= 1 as c_uint as u64) as c_int != 0 as c_int)
-        as c_int as libc::c_long
+        as c_int as c_long
         != 0
     {
         if n == 0 as c_int as i64 {
@@ -1007,7 +1008,7 @@ pub fn luaV_idiv(m: i64, n: i64) -> Option<i64> {
 /// Returns [`None`] if `n` is zero.
 pub fn luaV_mod(m: i64, n: i64) -> Option<i64> {
     if (((n as u64).wrapping_add(1 as c_uint as u64) <= 1 as c_uint as u64) as c_int != 0 as c_int)
-        as c_int as libc::c_long
+        as c_int as c_long
         != 0
     {
         if n == 0 as c_int as i64 {
@@ -1122,7 +1123,7 @@ pub async unsafe fn luaV_execute(
             k = (*(*cl).p.get()).k;
             pc = (*ci).u.savedpc;
 
-            if (trap != 0 as c_int) as c_int as libc::c_long != 0 {
+            if (trap != 0 as c_int) as c_int as c_long != 0 {
                 trap = luaG_tracecall(L)?;
             }
 
@@ -1130,7 +1131,7 @@ pub async unsafe fn luaV_execute(
 
             loop {
                 i = 0;
-                if (trap != 0 as c_int) as c_int as libc::c_long != 0 {
+                if (trap != 0 as c_int) as c_int as c_long != 0 {
                     trap = luaG_traceexec(L, pc)?;
                     base = ((*ci).func).offset(1 as c_int as isize);
                 }
@@ -2448,7 +2449,7 @@ pub async unsafe fn luaV_execute(
                         let i2_4: i64 = (*v2_6).value_.i;
                         if if (((*v1_7).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int)
                             as c_int
-                            != 0 as c_int) as c_int as libc::c_long
+                            != 0 as c_int) as c_int as c_long
                             != 0
                         {
                             i1_4 = (*v1_7).value_.i;
@@ -2485,7 +2486,7 @@ pub async unsafe fn luaV_execute(
                         let i2_5: i64 = (*v2_7).value_.i;
                         if if (((*v1_8).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int)
                             as c_int
-                            != 0 as c_int) as c_int as libc::c_long
+                            != 0 as c_int) as c_int as c_long
                             != 0
                         {
                             i1_5 = (*v1_8).value_.i;
@@ -2522,7 +2523,7 @@ pub async unsafe fn luaV_execute(
                         let i2_6: i64 = (*v2_8).value_.i;
                         if if (((*v1_9).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int)
                             as c_int
-                            != 0 as c_int) as c_int as libc::c_long
+                            != 0 as c_int) as c_int as c_long
                             != 0
                         {
                             i1_6 = (*v1_9).value_.i;
@@ -2558,7 +2559,7 @@ pub async unsafe fn luaV_execute(
                         let mut ib: i64 = 0;
                         if if (((*rb_8).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int)
                             as c_int
-                            != 0 as c_int) as c_int as libc::c_long
+                            != 0 as c_int) as c_int as c_long
                             != 0
                         {
                             ib = (*rb_8).value_.i;
@@ -2594,7 +2595,7 @@ pub async unsafe fn luaV_execute(
                         let mut ib_0: i64 = 0;
                         if if (((*rb_9).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int)
                             as c_int
-                            != 0 as c_int) as c_int as libc::c_long
+                            != 0 as c_int) as c_int as c_long
                             != 0
                         {
                             ib_0 = (*rb_9).value_.i;
@@ -3085,7 +3086,7 @@ pub async unsafe fn luaV_execute(
                         let mut i2_12: i64 = 0;
                         if (if (((*v1_17).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int)
                             as c_int
-                            != 0 as c_int) as c_int as libc::c_long
+                            != 0 as c_int) as c_int as c_long
                             != 0
                         {
                             i1_12 = (*v1_17).value_.i;
@@ -3096,8 +3097,7 @@ pub async unsafe fn luaV_execute(
                             && (if (((*v2_16).tt_ as c_int
                                 == 3 as c_int | (0 as c_int) << 4 as c_int)
                                 as c_int
-                                != 0 as c_int) as c_int
-                                as libc::c_long
+                                != 0 as c_int) as c_int as c_long
                                 != 0
                             {
                                 i2_12 = (*v2_16).value_.i;
@@ -3135,7 +3135,7 @@ pub async unsafe fn luaV_execute(
                         let mut i2_13: i64 = 0;
                         if (if (((*v1_18).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int)
                             as c_int
-                            != 0 as c_int) as c_int as libc::c_long
+                            != 0 as c_int) as c_int as c_long
                             != 0
                         {
                             i1_13 = (*v1_18).value_.i;
@@ -3146,8 +3146,7 @@ pub async unsafe fn luaV_execute(
                             && (if (((*v2_17).tt_ as c_int
                                 == 3 as c_int | (0 as c_int) << 4 as c_int)
                                 as c_int
-                                != 0 as c_int) as c_int
-                                as libc::c_long
+                                != 0 as c_int) as c_int as c_long
                                 != 0
                             {
                                 i2_13 = (*v2_17).value_.i;
@@ -3185,7 +3184,7 @@ pub async unsafe fn luaV_execute(
                         let mut i2_14: i64 = 0;
                         if (if (((*v1_19).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int)
                             as c_int
-                            != 0 as c_int) as c_int as libc::c_long
+                            != 0 as c_int) as c_int as c_long
                             != 0
                         {
                             i1_14 = (*v1_19).value_.i;
@@ -3196,8 +3195,7 @@ pub async unsafe fn luaV_execute(
                             && (if (((*v2_18).tt_ as c_int
                                 == 3 as c_int | (0 as c_int) << 4 as c_int)
                                 as c_int
-                                != 0 as c_int) as c_int
-                                as libc::c_long
+                                != 0 as c_int) as c_int as c_long
                                 != 0
                             {
                                 i2_14 = (*v2_18).value_.i;
@@ -3235,7 +3233,7 @@ pub async unsafe fn luaV_execute(
                         let mut i2_15: i64 = 0;
                         if (if (((*v1_20).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int)
                             as c_int
-                            != 0 as c_int) as c_int as libc::c_long
+                            != 0 as c_int) as c_int as c_long
                             != 0
                         {
                             i1_15 = (*v1_20).value_.i;
@@ -3246,8 +3244,7 @@ pub async unsafe fn luaV_execute(
                             && (if (((*v2_19).tt_ as c_int
                                 == 3 as c_int | (0 as c_int) << 4 as c_int)
                                 as c_int
-                                != 0 as c_int) as c_int
-                                as libc::c_long
+                                != 0 as c_int) as c_int as c_long
                                 != 0
                             {
                                 i2_15 = (*v2_19).value_.i;
@@ -3288,7 +3285,7 @@ pub async unsafe fn luaV_execute(
                         let mut i2_16: i64 = 0;
                         if (if (((*v1_21).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int)
                             as c_int
-                            != 0 as c_int) as c_int as libc::c_long
+                            != 0 as c_int) as c_int as c_long
                             != 0
                         {
                             i1_16 = (*v1_21).value_.i;
@@ -3299,8 +3296,7 @@ pub async unsafe fn luaV_execute(
                             && (if (((*v2_20).tt_ as c_int
                                 == 3 as c_int | (0 as c_int) << 4 as c_int)
                                 as c_int
-                                != 0 as c_int) as c_int
-                                as libc::c_long
+                                != 0 as c_int) as c_int as c_long
                                 != 0
                             {
                                 i2_16 = (*v2_20).value_.i;
@@ -3460,7 +3456,7 @@ pub async unsafe fn luaV_execute(
                         let mut ib_2: i64 = 0;
                         if if (((*rb_12).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int)
                             as c_int
-                            != 0 as c_int) as c_int as libc::c_long
+                            != 0 as c_int) as c_int as c_long
                             != 0
                         {
                             ib_2 = (*rb_12).value_.i;
@@ -4165,7 +4161,7 @@ pub async unsafe fn luaV_execute(
                         if b_5 != 0 as c_int {
                             (*L).top.set(ra_66.offset(b_5 as isize));
                         } else {
-                            b_5 = ((*L).top.get()).offset_from(ra_66) as libc::c_long as c_int;
+                            b_5 = ((*L).top.get()).offset_from(ra_66) as c_long as c_int;
                         }
                         (*ci).u.savedpc = pc;
                         if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0
@@ -4197,7 +4193,7 @@ pub async unsafe fn luaV_execute(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int;
                         if n_3 < 0 as c_int {
-                            n_3 = ((*L).top.get()).offset_from(ra_67) as libc::c_long as c_int;
+                            n_3 = ((*L).top.get()).offset_from(ra_67) as c_long as c_int;
                         }
                         (*ci).u.savedpc = pc;
                         if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0
@@ -4208,7 +4204,7 @@ pub async unsafe fn luaV_execute(
                             }
                             luaF_close(L, base)?;
                             trap = (*ci).u.trap;
-                            if (trap != 0 as c_int) as c_int as libc::c_long != 0 {
+                            if (trap != 0 as c_int) as c_int as c_long != 0 {
                                 base = ((*ci).func).offset(1 as c_int as isize);
                                 ra_67 = base.offset(
                                     (i >> 0 as c_int + 7 as c_int
@@ -4227,7 +4223,7 @@ pub async unsafe fn luaV_execute(
                         break;
                     }
                     71 => {
-                        if ((*L).hookmask.get() != 0) as c_int as libc::c_long != 0 {
+                        if ((*L).hookmask.get() != 0) as c_int as c_long != 0 {
                             let ra_68: StkId = base.offset(
                                 (i >> 0 as c_int + 7 as c_int
                                     & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -4242,8 +4238,7 @@ pub async unsafe fn luaV_execute(
                             (*L).ci.set((*ci).previous);
                             (*L).top.set(base.offset(-(1 as c_int as isize)));
                             nres = (*ci).nresults as c_int;
-                            while ((nres > 0 as c_int) as c_int != 0 as c_int) as c_int
-                                as libc::c_long
+                            while ((nres > 0 as c_int) as c_int != 0 as c_int) as c_int as c_long
                                 != 0
                             {
                                 let fresh5 = (*L).top.get();
@@ -4255,7 +4250,7 @@ pub async unsafe fn luaV_execute(
                         break;
                     }
                     72 => {
-                        if ((*L).hookmask.get() != 0) as c_int as libc::c_long != 0 {
+                        if ((*L).hookmask.get() != 0) as c_int as c_long != 0 {
                             let ra_69: StkId = base.offset(
                                 (i >> 0 as c_int + 7 as c_int
                                     & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -4283,7 +4278,7 @@ pub async unsafe fn luaV_execute(
                                 (*io1_15).tt_ = (*io2_15).tt_;
                                 (*L).top.set(base);
                                 while ((nres_0 > 1 as c_int) as c_int != 0 as c_int) as c_int
-                                    as libc::c_long
+                                    as c_long
                                     != 0
                                 {
                                     let fresh6 = (*L).top.get();
@@ -4400,8 +4395,8 @@ pub async unsafe fn luaV_execute(
                             as c_int as c_uint;
                         let h: *mut Table = (*ra_76).val.value_.gc as *mut Table;
                         if n_4 == 0 as c_int {
-                            n_4 = ((*L).top.get()).offset_from(ra_76) as libc::c_long as c_int
-                                - 1 as c_int;
+                            n_4 =
+                                ((*L).top.get()).offset_from(ra_76) as c_long as c_int - 1 as c_int;
                         } else {
                             (*L).top.set((*ci).top);
                         }
@@ -4495,7 +4490,7 @@ pub async unsafe fn luaV_execute(
                             (*cl).p.get(),
                         )?;
                         trap = (*ci).u.trap;
-                        if (trap != 0 as c_int) as c_int as libc::c_long != 0 {
+                        if (trap != 0 as c_int) as c_int as c_long != 0 {
                             luaD_hookcall(L, ci)?;
                             (*L).oldpc.set(1);
                         }
@@ -4545,7 +4540,7 @@ pub async unsafe fn luaV_execute(
                         }
 
                         trap = (*ci).u.trap;
-                        if (trap != 0 as c_int) as c_int as libc::c_long != 0 {
+                        if (trap != 0 as c_int) as c_int as c_long != 0 {
                             base = ((*ci).func).offset(1 as c_int as isize);
                             ra_74 = base.offset(
                                 (i >> 0 as c_int + 7 as c_int
