@@ -3,7 +3,7 @@ pub(crate) use self::node::*;
 
 use crate::gc::{luaC_barrier_, luaC_barrierback_};
 use crate::ltm::{TM_EQ, TM_GC, luaT_gettm};
-use crate::{Lua, Object, Ref, Str, UnsafeValue};
+use crate::{Lua, Object, Ref, Str, UnsafeValue, Value};
 use core::alloc::Layout;
 use core::cell::Cell;
 use core::ptr::{addr_of_mut, null, null_mut};
@@ -115,6 +115,27 @@ impl Table {
         let v = unsafe { luaH_get(self, &k) };
 
         unsafe { (*v).tt_ & 0xf != 0 }
+    }
+
+    /// Returns a value corresponding to the key.
+    ///
+    /// # Panics
+    /// If `k` come from different [Lua](crate::Lua) instance.
+    pub fn get(&self, k: impl Into<UnsafeValue>) -> Value {
+        let k = k.into();
+
+        if unsafe { (k.tt_ & 1 << 6 != 0) && (*k.value_.gc).global != self.hdr.global } {
+            panic!("attempt to get the table with key from a different Lua");
+        }
+
+        unsafe { Value::from_unsafe(luaH_get(self, &k)) }
+    }
+
+    #[inline(always)]
+    pub(crate) fn get_raw_str_key(&self, k: impl AsRef<[u8]>) -> *const UnsafeValue {
+        let k = unsafe { UnsafeValue::from_obj(Str::from_bytes(self.hdr.global, k).cast()) };
+
+        unsafe { luaH_get(self, &k) }
     }
 
     /// Inserts a key-value pair into this table.

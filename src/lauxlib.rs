@@ -8,23 +8,23 @@
 
 use crate::lapi::{
     lua_absindex, lua_call, lua_checkstack, lua_concat, lua_copy, lua_createtable, lua_getfield,
-    lua_getmetatable, lua_gettop, lua_isinteger, lua_isstring, lua_len, lua_next, lua_pushlstring,
-    lua_pushnil, lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawget, lua_rotate, lua_setfield,
-    lua_setmetatable, lua_settop, lua_toboolean, lua_tointegerx, lua_tolstring, lua_tonumberx,
-    lua_topointer, lua_touserdata, lua_type, lua_typename,
+    lua_getmetatable, lua_gettop, lua_len, lua_next, lua_pushlstring, lua_pushnil, lua_pushstring,
+    lua_pushvalue, lua_rawequal, lua_rawget, lua_rotate, lua_setfield, lua_setmetatable,
+    lua_settop, lua_tointegerx, lua_tolstring, lua_tonumberx, lua_touserdata, lua_type,
+    lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::{CallInfo, lua_Debug};
-use crate::{NON_YIELDABLE_WAKER, Str, Thread, lua_pop};
+use crate::{NON_YIELDABLE_WAKER, Thread, lua_pop};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
-use alloc::string::{String, ToString};
+use alloc::string::String;
 use core::ffi::{CStr, c_char, c_void};
 use core::fmt::{Display, Formatter, Write};
 use core::num::NonZero;
 use core::pin::pin;
-use core::ptr::{null, null_mut};
+use core::ptr::null;
 use core::task::{Context, Poll, Waker};
 use libc::strcmp;
 
@@ -473,20 +473,6 @@ pub unsafe fn luaL_checktype(
     Ok(())
 }
 
-pub unsafe fn luaL_checkany(
-    L: *const Thread,
-    arg: libc::c_int,
-) -> Result<(), Box<dyn core::error::Error>> {
-    if lua_type(L, arg) == -1 {
-        return Err(luaL_argerror(
-            L,
-            arg.try_into().and_then(|v: usize| v.try_into()).unwrap(),
-            "value expected",
-        ));
-    }
-    Ok(())
-}
-
 pub unsafe fn luaL_checknumber(
     L: *const Thread,
     arg: libc::c_int,
@@ -583,69 +569,6 @@ pub unsafe fn luaL_len(
     }
     lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
     return Ok(l);
-}
-
-#[inline(never)]
-pub unsafe fn luaL_tolstring(
-    L: *const Thread,
-    mut idx: libc::c_int,
-) -> Result<*const Str, Box<dyn core::error::Error>> {
-    idx = lua_absindex(L, idx);
-
-    if luaL_callmeta(L, idx, b"__tostring\0" as *const u8 as *const c_char)? != 0 {
-        if lua_isstring(L, -(1 as libc::c_int)) == 0 {
-            return Err(luaL_error(L, "'__tostring' must return a string"));
-        }
-    } else {
-        match lua_type(L, idx) {
-            3 => {
-                if lua_isinteger(L, idx) != 0 {
-                    lua_pushlstring(L, lua_tointegerx(L, idx, 0 as *mut libc::c_int).to_string());
-                } else {
-                    // Lua expect 0.0 as "0.0". The problem is there is no way to force Rust to
-                    // output "0.0" so we need to do this manually.
-                    let v = lua_tonumberx(L, idx, null_mut());
-
-                    if v.fract() == 0.0 {
-                        lua_pushlstring(L, format!("{v:.1}"));
-                    } else {
-                        lua_pushlstring(L, v.to_string());
-                    }
-                }
-            }
-            4 => lua_pushvalue(L, idx),
-            1 => {
-                lua_pushstring(
-                    L,
-                    if lua_toboolean(L, idx) != 0 {
-                        b"true\0" as *const u8 as *const c_char
-                    } else {
-                        b"false\0" as *const u8 as *const c_char
-                    },
-                );
-            }
-            0 => {
-                lua_pushstring(L, b"nil\0" as *const u8 as *const c_char);
-            }
-            _ => {
-                let tt = luaL_getmetafield(L, idx, c"__name".as_ptr())?;
-                let kind = if tt == 4 {
-                    String::from_utf8_lossy((*lua_tolstring(L, -1, true)).as_bytes())
-                } else {
-                    lua_typename(lua_type(L, idx)).into()
-                };
-
-                lua_pushlstring(L, format!("{}: {:p}", kind, lua_topointer(L, idx)));
-
-                if tt != 0 as libc::c_int {
-                    lua_rotate(L, -(2 as libc::c_int), -(1 as libc::c_int));
-                    lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-                }
-            }
-        }
-    }
-
-    Ok(lua_tolstring(L, -1, false))
 }
 
 pub unsafe fn luaL_getsubtable(

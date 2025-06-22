@@ -360,6 +360,12 @@ impl Drop for Lua {
 /// Lua value.
 pub enum Value {}
 
+impl Value {
+    unsafe fn from_unsafe(v: *const UnsafeValue) -> Self {
+        todo!()
+    }
+}
+
 /// Non-Yieldable Rust function.
 #[derive(Clone, Copy)]
 pub struct Fp(pub fn(Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>>);

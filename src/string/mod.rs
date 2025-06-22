@@ -33,6 +33,7 @@ impl Str {
         unsafe { Self::new(g, str, false) }
     }
 
+    #[inline(never)]
     unsafe fn new(g: *const Lua, str: impl AsRef<[u8]>, unicode: bool) -> *const Str {
         // Check if long string.
         let str = str.as_ref();

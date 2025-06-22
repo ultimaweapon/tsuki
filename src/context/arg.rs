@@ -1,19 +1,20 @@
 use super::{Args, Context};
-use crate::lapi::lua_typename;
-use crate::lauxlib::{luaL_argerror, luaL_tolstring};
-use crate::lobject::luaO_tostring;
+use crate::lapi::{lua_pcall, lua_typename};
+use crate::lauxlib::luaL_argerror;
+use crate::lobject::{Udata, luaO_tostring};
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_tointeger};
-use crate::{Ref, Str, Table, Type, luaH_get};
+use crate::{NON_YIELDABLE_WAKER, Ref, Str, Table, Type, luaH_get};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
-use alloc::string::String;
-use core::cmp::min;
+use alloc::string::{String, ToString};
 use core::fmt::Display;
-use core::mem::MaybeUninit;
+use core::mem::{MaybeUninit, offset_of};
 use core::num::NonZero;
-use core::ptr::null_mut;
+use core::pin::pin;
+use core::ptr::{null, null_mut};
+use core::task::{Poll, Waker};
 
 /// Argument passed from Lua to Rust function.
 pub struct Arg<'a, 'b> {
@@ -246,16 +247,114 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// Gets the argument and convert it to Lua string.
     ///
     /// This has the same semantic as `luaL_tolstring`, which mean it does not modify the argument.
-    #[inline(never)]
     pub fn to_str(&self) -> Result<Ref<Str>, Box<dyn core::error::Error>> {
-        let a = min(self.index.get(), self.cx.payload.0 + 1);
+        // Try __tostring metamethod.
         let t = self.cx.th;
-        let s = unsafe { luaL_tolstring(t, a as i32)? };
-        let s = unsafe { Ref::new(t.hdr.global_owned(), s) };
+        let g = t.hdr.global();
+        let arg = self.get_raw_or_null();
+        let mt = match arg.is_null() {
+            true => null(),
+            false => unsafe { g.get_mt(arg) },
+        };
 
-        unsafe { (*t).top.sub(1) };
+        if !mt.is_null() {
+            let v = unsafe { (*mt).get_raw_str_key("__tostring") };
 
-        Ok(s)
+            if unsafe { (*v).tt_ & 0xf != 0 } {
+                // Assume extra stack.
+                unsafe { t.top.write(*v) };
+                unsafe { t.top.add(1) };
+                unsafe { t.top.write(*arg) };
+                unsafe { t.top.add(1) };
+
+                // Invoke.
+                let f = pin!(unsafe { lua_pcall(t, 1, 1) });
+                let w = unsafe { Waker::new(null(), &NON_YIELDABLE_WAKER) };
+
+                match f.poll(&mut core::task::Context::from_waker(&w)) {
+                    Poll::Ready(v) => v?,
+                    Poll::Pending => unreachable!(),
+                }
+
+                unsafe { t.top.sub(1) };
+
+                // Get result.
+                let mut r = unsafe { t.top.read(0) };
+
+                match r.tt_ & 0xf {
+                    3 => unsafe { luaO_tostring(g, &mut r) },
+                    4 => (),
+                    _ => return Err("'__tostring' must return a string".into()),
+                }
+
+                return Ok(unsafe { Ref::new(g.to_rc(), r.value_.gc.cast::<Str>()) });
+            }
+        }
+
+        // Get type.
+        let ty = match arg.is_null() {
+            true => None,
+            false => Some(unsafe { (*arg).tt_ & 0xf }),
+        };
+
+        // Check type.
+        let v = match ty {
+            Some(0) => unsafe { Str::from_str(g, "nil") },
+            Some(1) => match unsafe { ((*arg).tt_ >> 4) & 3 } {
+                0 => unsafe { Str::from_str(g, "false") },
+                _ => unsafe { Str::from_str(g, "true") },
+            },
+            Some(3) => match unsafe { ((*arg).tt_ >> 4) & 3 } {
+                0 => unsafe { Str::from_str(g, (*arg).value_.i.to_string()) },
+                1 => unsafe {
+                    // Lua expect 0.0 as "0.0". The problem is there is no way to force Rust to
+                    // output "0.0" so we need to do this manually.
+                    let v = (*arg).value_.n;
+
+                    if v.fract() == 0.0 {
+                        Str::from_str(g, format!("{v:.1}"))
+                    } else {
+                        Str::from_str(g, v.to_string())
+                    }
+                },
+                _ => unreachable!(),
+            },
+            Some(4) => unsafe { (*arg).value_.gc.cast::<Str>() },
+            Some(v) => unsafe {
+                // Get __name from metatable.
+                let kind = (mt.is_null() == false)
+                    .then(|| (*mt).get_raw_str_key("__name"))
+                    .filter(|&v| (*v).tt_ & 0xf == 4)
+                    .map(|v| (*v).value_.gc.cast::<Str>())
+                    .map(|v| match (*v).as_str() {
+                        Some(v) => Cow::Borrowed(v),
+                        None => String::from_utf8_lossy((*v).as_bytes()),
+                    })
+                    .unwrap_or_else(|| lua_typename(v.into()).into());
+                let v = match v {
+                    2 => (*arg).value_.f as *const (),
+                    18 | 34 | 50 => todo!(),
+                    5 | 6 | 8 => (*arg).value_.gc.cast(),
+                    7 => (*arg)
+                        .value_
+                        .gc
+                        .byte_add(
+                            offset_of!(Udata, uv)
+                                + size_of::<UnsafeValue>()
+                                    * usize::from((*((*arg).value_.gc.cast::<Udata>())).nuvalue),
+                        )
+                        .cast(),
+                    _ => unreachable!(),
+                };
+
+                Str::from_str(g, format!("{}: {:p}", kind, v))
+            },
+            None => unsafe {
+                Str::from_str(g, format!("{}: {:p}", lua_typename(-1), null::<()>()))
+            },
+        };
+
+        Ok(unsafe { Ref::new(g.to_rc(), v) })
     }
 
     /// Create an error for this argument.

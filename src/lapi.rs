@@ -30,6 +30,7 @@ use crate::{
 use alloc::boxed::Box;
 use alloc::string::String;
 use core::ffi::{CStr, c_void};
+use core::fmt::{Display, Formatter};
 use core::mem::offset_of;
 use core::ptr::{null, null_mut};
 
@@ -1478,7 +1479,8 @@ pub unsafe fn lua_upvaluejoin(L: *mut Thread, fidx1: c_int, n1: c_int, fidx2: c_
     }
 }
 
-/// Represents an error when [`lua_pcall()`] fails.
+/// Represents an error when a function called by [`lua_pcall()`] fails.
+#[derive(Debug)]
 pub struct PcallError {
     pub chunk: Option<(String, u32)>,
     pub reason: Box<dyn core::error::Error>,
@@ -1488,8 +1490,19 @@ impl PcallError {
     pub unsafe fn new(
         th: *const Thread,
         caller: *mut CallInfo,
-        reason: Box<dyn core::error::Error>,
+        mut reason: Box<dyn core::error::Error>,
     ) -> Self {
+        // Forward nested PcallError.
+        reason = match reason.downcast::<Self>() {
+            Ok(v) => {
+                return Self {
+                    chunk: v.chunk,
+                    reason: v.reason,
+                };
+            }
+            Err(e) => e,
+        };
+
         // Traverse up until reaching a Lua function.
         let mut ci = (*th).ci.get();
         let mut chunk = None;
@@ -1511,5 +1524,17 @@ impl PcallError {
         }
 
         Self { chunk, reason }
+    }
+}
+
+impl core::error::Error for PcallError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        self.reason.source()
+    }
+}
+
+impl Display for PcallError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        self.reason.fmt(f)
     }
 }

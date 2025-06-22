@@ -34,6 +34,11 @@ impl StackPtr {
     }
 
     #[inline(always)]
+    pub unsafe fn read(&self, i: isize) -> UnsafeValue {
+        unsafe { self.0.get().offset(i).read().val }
+    }
+
+    #[inline(always)]
     pub unsafe fn write(&self, val: UnsafeValue) {
         unsafe { self.0.get().write(StackValue { val }) };
     }
