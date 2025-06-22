@@ -232,7 +232,7 @@ pub unsafe fn luaX_newstring(ls: *mut LexState, str: *const libc::c_char, l: usi
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
         ts = (*(o as *mut Node)).u.key_val.gc as *mut Str;
     } else {
-        let ts = Ref::new((*ls).g.clone(), ts);
+        let ts = Ref::new(ts);
         let stv = UnsafeValue {
             value_: UntaggedValue { gc: &ts.hdr },
             tt_: ((*ts).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8,

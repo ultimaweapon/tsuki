@@ -50,7 +50,7 @@ impl Table {
 
         match v.is_null() {
             true => None,
-            false => Some(unsafe { Ref::new(self.hdr.global().to_rc(), v) }),
+            false => Some(unsafe { Ref::new(v) }),
         }
     }
 
@@ -133,6 +133,17 @@ impl Table {
         }
 
         unsafe { Value::from_unsafe(luaH_get(self, &k)) }
+    }
+
+    /// Returns a value corresponding to the key.
+    pub fn get_str_key<K>(&self, k: K) -> Value
+    where
+        K: AsRef<[u8]> + Into<Vec<u8>>,
+    {
+        let k = unsafe { UnsafeValue::from_obj(Str::from_bytes(self.hdr.global, k).cast()) };
+        let v = unsafe { luaH_get(self, &k) };
+
+        unsafe { Value::from_unsafe(v) }
     }
 
     #[inline(always)]

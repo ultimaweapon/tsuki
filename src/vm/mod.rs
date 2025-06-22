@@ -34,6 +34,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::cell::Cell;
 use core::cmp::Ordering;
+use core::ffi::c_void;
 use core::pin::pin;
 use core::ptr::null;
 use core::task::{Context, Poll, Waker};
@@ -4510,8 +4511,8 @@ pub async unsafe fn luaV_execute(
                                 as c_int as isize,
                         );
                         memcpy(
-                            ra_74.offset(4 as c_int as isize) as *mut libc::c_void,
-                            ra_74 as *const libc::c_void,
+                            ra_74.offset(4 as c_int as isize) as *mut c_void,
+                            ra_74 as *const c_void,
                             3usize.wrapping_mul(::core::mem::size_of::<StackValue>()),
                         );
                         (*L).top.set(

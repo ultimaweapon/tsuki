@@ -10,7 +10,7 @@ pub enum Type {
     Number,
     String,
     Table,
-    Closure,
+    Fn,
     UserData,
     Thread,
 }
@@ -28,7 +28,7 @@ impl Type {
             3 => Self::Number,
             4 => Self::String,
             5 => Self::Table,
-            6 => Self::Closure,
+            6 => Self::Fn,
             7 => Self::UserData,
             8 => Self::Thread,
             9 => panic!("upvalue cannot expose to external"),
@@ -43,7 +43,7 @@ impl Display for Type {
         let v = match self {
             Self::Nil => "nil",
             Self::Boolean => "boolean",
-            Self::Fp | Self::Closure => "function",
+            Self::Fp | Self::Fn => "function",
             Self::Number => "number",
             Self::String => "string",
             Self::Table => "table",

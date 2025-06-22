@@ -158,6 +158,30 @@ impl<'a, 'b> Arg<'a, 'b> {
         }
     }
 
+    /// Gets metatable for this argument.
+    ///
+    /// Returns [`None`] if the value of this argument does not have a metatable.
+    ///
+    /// This method will return [`Err`] if this argument does not exists.
+    pub fn get_metatable(&self) -> Result<Option<Ref<Table>>, Box<dyn core::error::Error>> {
+        // Get argument.
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            return Err(self.error("value expected"));
+        }
+
+        // Get metatable.
+        let g = self.cx.th.hdr.global();
+        let mt = unsafe { g.get_mt(v) };
+        let mt = match mt.is_null() {
+            true => None,
+            false => Some(unsafe { Ref::new(mt) }),
+        };
+
+        Ok(mt)
+    }
+
     /// Gets the argument and convert it to Lua boolean.
     ///
     /// This method has the same mechanism as Lua conditional check, which mean it only returns
@@ -287,7 +311,7 @@ impl<'a, 'b> Arg<'a, 'b> {
                     _ => return Err("'__tostring' must return a string".into()),
                 }
 
-                return Ok(unsafe { Ref::new(g.to_rc(), r.value_.gc.cast::<Str>()) });
+                return Ok(unsafe { Ref::new(r.value_.gc.cast::<Str>()) });
             }
         }
 
@@ -354,7 +378,7 @@ impl<'a, 'b> Arg<'a, 'b> {
             },
         };
 
-        Ok(unsafe { Ref::new(g.to_rc(), v) })
+        Ok(unsafe { Ref::new(v) })
     }
 
     /// Create an error for this argument.

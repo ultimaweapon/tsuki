@@ -134,20 +134,6 @@ unsafe fn luaB_tonumber(mut L: *const Thread) -> Result<c_int, Box<dyn std::erro
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn luaB_getmetatable(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    luaL_checkany(L, 1 as libc::c_int)?;
-    if lua_getmetatable(L, 1 as libc::c_int) == 0 {
-        lua_pushnil(L);
-        return Ok(1 as libc::c_int);
-    }
-    luaL_getmetafield(
-        L,
-        1 as libc::c_int,
-        b"__metatable\0" as *const u8 as *const libc::c_char,
-    )?;
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn luaB_rawequal(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     luaL_checkany(L, 1 as libc::c_int)?;
     luaL_checkany(L, 2 as libc::c_int)?;
@@ -354,13 +340,6 @@ unsafe fn luaB_tostring(mut L: *const Thread) -> Result<c_int, Box<dyn std::erro
 static mut base_funcs: [luaL_Reg; 21] = [
     {
         let mut init = luaL_Reg {
-            name: b"getmetatable\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_getmetatable),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
             name: b"ipairs\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_ipairs),
         };
@@ -443,27 +422,4 @@ static mut base_funcs: [luaL_Reg; 21] = [
         };
         init
     },
-    {
-        let mut init = luaL_Reg {
-            name: b"_G\0" as *const u8 as *const libc::c_char,
-            func: None,
-        };
-        init
-    },
 ];
-
-pub unsafe fn luaopen_base(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    lua_rawgeti(
-        L,
-        -(1000000 as libc::c_int) - 1000 as libc::c_int,
-        2 as libc::c_int as i64,
-    );
-    lua_pushvalue(L, -(1 as libc::c_int));
-    lua_setfield(
-        L,
-        -(2 as libc::c_int),
-        b"_G\0" as *const u8 as *const libc::c_char,
-    )?;
-
-    return Ok(1 as libc::c_int);
-}

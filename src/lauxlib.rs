@@ -518,31 +518,6 @@ pub unsafe fn luaL_getmetafield(
     };
 }
 
-pub unsafe fn luaL_callmeta(
-    L: *const Thread,
-    mut obj: libc::c_int,
-    event: *const c_char,
-) -> Result<libc::c_int, Box<dyn core::error::Error>> {
-    obj = lua_absindex(L, obj);
-
-    if luaL_getmetafield(L, obj, event)? == 0 as libc::c_int {
-        return Ok(0 as libc::c_int);
-    }
-
-    lua_pushvalue(L, obj);
-
-    // Invoke.
-    let f = pin!(lua_call(L, 1, 1));
-    let w = Waker::new(null(), &NON_YIELDABLE_WAKER);
-
-    match f.poll(&mut Context::from_waker(&w)) {
-        Poll::Ready(v) => v?,
-        Poll::Pending => unreachable!(),
-    }
-
-    return Ok(1);
-}
-
 pub unsafe fn luaL_len(
     L: *const Thread,
     idx: libc::c_int,

@@ -500,7 +500,7 @@ pub unsafe fn lua_topointer(L: *const Thread, idx: c_int) -> *const libc::c_void
 }
 
 pub unsafe fn lua_pushnil(L: *const Thread) {
-    (*(*L).top.get()).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
+    (*(*L).top.get()).val.tt_ = 0 | 0 << 4;
     api_incr_top(L);
 }
 
@@ -790,7 +790,7 @@ pub unsafe fn lua_createtable(L: *const Thread, narray: c_int, nrec: c_int) {
     let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
 
     (*io).value_.gc = t.cast();
-    (*io).tt_ = (5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int) as u8;
+    (*io).tt_ = 5 | 0 << 4 | 1 << 6;
 
     api_incr_top(L);
 

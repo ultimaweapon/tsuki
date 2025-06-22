@@ -1,4 +1,4 @@
-use crate::{Args, Context, Ret, TryCall};
+use crate::{Args, Context, Nil, Ret, TryCall, Type};
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -44,6 +44,27 @@ pub fn error(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Err
     }
 
     Err(msg.into())
+}
+
+/// Implementation of [getmetatable](https://www.lua.org/manual/5.4/manual.html#pdf-getmetatable).
+pub fn getmetatable(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+    // Get metatable.
+    let mt = cx.arg(1).get_metatable()?;
+    let mt = match mt {
+        Some(v) => v,
+        None => {
+            cx.push(Nil)?;
+            return Ok(cx.into());
+        }
+    };
+
+    // Get __metatable from metatable.
+    if cx.push_from_str_key(&mt, "__metatable")? == Type::Nil {
+        cx.push(mt)?;
+        Ok(cx.into_results(-1))
+    } else {
+        Ok(cx.into())
+    }
 }
 
 /// Implementation of [pcall](https://www.lua.org/manual/5.4/manual.html#pdf-pcall).

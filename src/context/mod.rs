@@ -3,7 +3,7 @@ pub use self::arg::*;
 use crate::lapi::{lua_checkstack, lua_pcall};
 use crate::lobject::StackValue;
 use crate::value::UnsafeValue;
-use crate::{NON_YIELDABLE_WAKER, Ref, StackOverflow, Str, Thread};
+use crate::{NON_YIELDABLE_WAKER, Ref, StackOverflow, Str, Table, Thread, Type};
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -39,7 +39,7 @@ impl<'a, T> Context<'a, T> {
     {
         let s = unsafe { Str::from_str(self.th.hdr.global, v) };
 
-        unsafe { Ref::new(self.th.hdr.global_owned(), s) }
+        unsafe { Ref::new(s) }
     }
 
     /// Push value to the result of this call.
@@ -100,6 +100,23 @@ impl<'a, T> Context<'a, T> {
         Ok(())
     }
 
+    /// Push a value for `k` from `t` to the result of this call.
+    pub fn push_from_str_key<K>(&self, t: &Table, k: K) -> Result<Type, StackOverflow>
+    where
+        K: AsRef<[u8]> + Into<Vec<u8>>,
+    {
+        unsafe { lua_checkstack(self.th, 1)? };
+
+        // Get value and push it.
+        let v = t.get_raw_str_key(k);
+
+        unsafe { self.th.top.write(*v) };
+        unsafe { self.th.top.add(1) };
+        self.ret.set(self.ret.get() + 1);
+
+        Ok(unsafe { Type::from_tt((*v).tt_) })
+    }
+
     /// Call `f` with values above it as arguments.
     ///
     /// # Panics
@@ -150,20 +167,31 @@ impl<'a, T> Context<'a, T> {
 
     /// Converts all values start at `i` to call results.
     ///
+    /// Use negative `i` to refer from the top of stack (e.g. `-1` mean one value from the top of
+    /// stack).
+    ///
     /// # Panics
     /// If `i` is not a valid stack index.
-    #[inline(always)]
-    pub fn into_results(self, i: impl TryInto<NonZero<usize>>) -> Context<'a, Ret> {
+    pub fn into_results(self, i: impl TryInto<NonZero<isize>>) -> Context<'a, Ret> {
         // Get start index.
         let i = match i.try_into() {
             Ok(v) => v,
             Err(_) => panic!("zero is not a valid stack index"),
         };
 
-        // Check if index valid.
+        // Convert negative index.
         let ci = self.th.ci.get();
         let top = unsafe { self.th.top.get().offset_from_unsigned((*ci).func) };
-        let ret = match top.checked_sub(i.get()) {
+        let off = match usize::try_from(i.get()) {
+            Ok(v) => v,
+            Err(_) => match top.saturating_sub(i.get().unsigned_abs()) {
+                0 => panic!("{i} is not a valid stack index"),
+                v => v,
+            },
+        };
+
+        // Check if index valid.
+        let ret = match top.checked_sub(off) {
             Some(v) => v,
             None => panic!("{i} is not a valid stack index"),
         };
@@ -171,7 +199,7 @@ impl<'a, T> Context<'a, T> {
         Context {
             th: self.th,
             ret: Cell::new(ret),
-            payload: Ret(i.get() - 1),
+            payload: Ret(off - 1),
         }
     }
 }

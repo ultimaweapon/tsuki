@@ -23,6 +23,7 @@ use alloc::vec::Vec;
 use core::any::TypeId;
 use core::cell::{Cell, RefCell, UnsafeCell};
 use core::ffi::c_int;
+use core::hint::unreachable_unchecked;
 use core::marker::PhantomPinned;
 use core::ops::Deref;
 use core::pin::Pin;
@@ -239,6 +240,7 @@ impl Lua {
 
         unsafe { g.set_str_key_unchecked("assert", Fp(crate::builtin::base::assert)) };
         unsafe { g.set_str_key_unchecked("error", Fp(crate::builtin::base::error)) };
+        unsafe { g.set_str_key_unchecked("getmetatable", Fp(crate::builtin::base::getmetatable)) };
         unsafe { g.set_str_key_unchecked("pcall", Fp(crate::builtin::base::pcall)) };
         #[cfg(feature = "std")]
         unsafe {
@@ -246,6 +248,7 @@ impl Lua {
         };
         unsafe { g.set_str_key_unchecked("setmetatable", Fp(crate::builtin::base::setmetatable)) };
         unsafe { g.set_str_key_unchecked("type", Fp(crate::builtin::base::r#type)) };
+        unsafe { g.set_str_key_unchecked("_G", g) };
     }
 
     /// Setup [string library](https://www.lua.org/manual/5.4/manual.html#6.4).
@@ -308,7 +311,7 @@ impl Lua {
     /// Create a new Lua thread (AKA coroutine).
     #[inline(always)]
     pub fn spawn(&self) -> Ref<Thread> {
-        unsafe { Ref::new(self.to_rc(), Thread::new(self)) }
+        unsafe { Ref::new(Thread::new(self)) }
     }
 
     /// Returns a global table.
@@ -326,7 +329,7 @@ impl Lua {
     where
         T: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
-        unsafe { Ref::new(self.to_rc(), Str::from_str(self, v)) }
+        unsafe { Ref::new(Str::from_str(self, v)) }
     }
 
     pub fn create_table(&self) -> Ref<Table> {
@@ -362,13 +365,53 @@ impl Drop for Lua {
 }
 
 /// Lua value.
-pub enum Value {}
+pub enum Value {
+    Nil,
+    Bool(bool),
+    Fp(fn(Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>>),
+    Int(i64),
+    Float(f64),
+    Str(Ref<Str>),
+    Table(Ref<Table>),
+    LuaFn(Ref<LuaFn>),
+    Thread(Ref<Thread>),
+}
 
 impl Value {
     unsafe fn from_unsafe(v: *const UnsafeValue) -> Self {
-        todo!()
+        match unsafe { (*v).tt_ & 0xf } {
+            0 => Self::Nil,
+            1 => Self::Bool(unsafe { ((*v).tt_ & 0x30) != 0 }),
+            2 => match unsafe { ((*v).tt_ >> 4) & 3 } {
+                0 => Self::Fp(unsafe { (*v).value_.f }),
+                1 => todo!(),
+                2 => todo!(),
+                3 => todo!(),
+                _ => unsafe { unreachable_unchecked() },
+            },
+            3 => match unsafe { ((*v).tt_ >> 4) & 3 } {
+                0 => Self::Int(unsafe { (*v).value_.i }),
+                1 => Self::Float(unsafe { (*v).value_.n }),
+                _ => unreachable!(),
+            },
+            4 => Self::Str(unsafe { Ref::new((*v).value_.gc.cast()) }),
+            5 => Self::Table(unsafe { Ref::new((*v).value_.gc.cast()) }),
+            6 => match unsafe { ((*v).tt_ >> 4) & 3 } {
+                0 => Self::LuaFn(unsafe { Ref::new((*v).value_.gc.cast()) }),
+                1 => todo!(),
+                2 => todo!(),
+                3 => todo!(),
+                _ => unsafe { unreachable_unchecked() },
+            },
+            7 => todo!(),
+            8 => Self::Thread(unsafe { Ref::new((*v).value_.gc.cast()) }),
+            _ => unreachable!(),
+        }
     }
 }
+
+/// Unit struct to create `nil` value.
+pub struct Nil;
 
 /// Non-Yieldable Rust function.
 #[derive(Clone, Copy)]

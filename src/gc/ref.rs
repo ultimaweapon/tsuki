@@ -19,13 +19,13 @@ pub struct Ref<T> {
 }
 
 impl<T> Ref<T> {
-    #[inline(always)]
-    pub(crate) unsafe fn new(g: Pin<Rc<Lua>>, o: *const T) -> Self {
+    pub(crate) unsafe fn new(o: *const T) -> Self {
         let h = o.cast::<Object>();
+        let g = (*h).global;
         let r = (*h).refs.get();
 
         if r == 0 {
-            let p = g.refs.get();
+            let p = (*g).refs.get();
 
             (*h).refs.set(1);
             (*h).refp.set(p);
@@ -34,14 +34,14 @@ impl<T> Ref<T> {
                 (*p).refn.set(h);
             }
 
-            g.refs.set(h);
+            (*g).refs.set(h);
         } else if let Some(v) = r.checked_add(1) {
             (*h).refs.set(v);
         } else {
             Self::too_many_refs();
         }
 
-        Self { g, o }
+        Self { g: (*g).to_rc(), o }
     }
 
     #[cold]

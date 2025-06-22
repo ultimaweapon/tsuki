@@ -2655,7 +2655,7 @@ pub unsafe fn luaY_parser(
     firstchar: c_int,
 ) -> Result<Ref<LuaFn>, ParseError> {
     let mut funcstate = FuncState::default();
-    let cl = Ref::new(g.to_rc(), luaF_newLclosure(g, 1));
+    let cl = Ref::new(luaF_newLclosure(g, 1));
     let mut lexstate = LexState {
         current: 0,
         linenumber: 0,
@@ -2672,7 +2672,7 @@ pub unsafe fn luaY_parser(
         g: g.to_rc(),
         z: 0 as *mut ZIO,
         buff: 0 as *mut Mbuffer,
-        h: Ref::new(g.to_rc(), Table::new(g)),
+        h: Ref::new(Table::new(g)),
         dyd: 0 as *mut Dyndata,
         source: info.clone(),
         envn: 0 as *mut Str,
