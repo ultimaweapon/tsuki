@@ -504,20 +504,6 @@ pub unsafe fn lua_pushnil(L: *const Thread) {
     api_incr_top(L);
 }
 
-pub unsafe fn lua_pushnumber(L: *const Thread, n: f64) {
-    let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-    (*io).value_.n = n;
-    (*io).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
-    api_incr_top(L);
-}
-
-pub unsafe fn lua_pushinteger(L: *const Thread, n: i64) {
-    let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-    (*io).value_.i = n;
-    (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
-    api_incr_top(L);
-}
-
 pub unsafe fn lua_pushlstring(L: *const Thread, s: impl AsRef<[u8]>) -> *const libc::c_char {
     let ts = match core::str::from_utf8(s.as_ref()) {
         Ok(v) => Str::from_str((*L).hdr.global, v),

@@ -1,4 +1,4 @@
-use crate::{Args, Context, Fp, Nil, Object, Ref, Ret, Table};
+use crate::{Args, Context, Fp, Nil, Object, Ref, Ret, Str, Table};
 use alloc::boxed::Box;
 
 /// The outside **must** never be able to construct or have the value of this type.
@@ -48,6 +48,45 @@ impl From<Fp> for UnsafeValue {
         Self {
             value_: UntaggedValue { f: value.0 },
             tt_: 2 | 0 << 4,
+        }
+    }
+}
+
+impl From<i64> for UnsafeValue {
+    #[inline(always)]
+    fn from(value: i64) -> Self {
+        Self {
+            value_: UntaggedValue { i: value },
+            tt_: 3 | 0 << 4,
+        }
+    }
+}
+
+impl From<f64> for UnsafeValue {
+    #[inline(always)]
+    fn from(value: f64) -> Self {
+        Self {
+            value_: UntaggedValue { n: value },
+            tt_: 3 | 1 << 4,
+        }
+    }
+}
+
+impl From<&Str> for UnsafeValue {
+    #[inline(always)]
+    fn from(value: &Str) -> Self {
+        Self {
+            value_: UntaggedValue { gc: &value.hdr },
+            tt_: value.hdr.tt | 1 << 6,
+        }
+    }
+}
+
+impl From<Ref<Str>> for UnsafeValue {
+    fn from(value: Ref<Str>) -> Self {
+        Self {
+            value_: UntaggedValue { gc: &value.hdr },
+            tt_: value.hdr.tt | 1 << 6,
         }
     }
 }

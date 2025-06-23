@@ -1,13 +1,73 @@
 use super::Thread;
-use crate::Object;
 use crate::value::UnsafeValue;
+use crate::{Context, Fp, Nil, Object, Ret, Str, Table};
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 /// Implementation of [`Args`] which size does not known at compile time.
+///
+/// The order of arguments is the same as push order (e.g. first argument pushed first).
+#[derive(Default)]
 pub struct DynamicArgs<'a> {
     list: Vec<UnsafeValue>,
     phantom: PhantomData<&'a Object>,
+}
+
+impl<'a> DynamicArgs<'a> {
+    /// Constructs a new, empty [`DynamicArgs`] with at least the specified capacity.
+    #[inline(always)]
+    pub fn with_capacity(cap: usize) -> Self {
+        Self {
+            list: Vec::with_capacity(cap),
+            phantom: PhantomData,
+        }
+    }
+
+    /// Push a `nil` value.
+    #[inline(always)]
+    pub fn push_nil(&mut self) {
+        self.list.push(UnsafeValue::from(Nil));
+    }
+
+    /// Push a `boolean` value.
+    #[inline(always)]
+    pub fn push_bool(&mut self, v: bool) {
+        self.list.push(UnsafeValue::from(v));
+    }
+
+    /// Push an `integer` value.
+    #[inline(always)]
+    pub fn push_int(&mut self, v: i64) {
+        self.list.push(UnsafeValue::from(v));
+    }
+
+    /// Push a `float` value.
+    #[inline(always)]
+    pub fn push_float(&mut self, v: f64) {
+        self.list.push(UnsafeValue::from(v));
+    }
+
+    /// Push a `string` value.
+    #[inline(always)]
+    pub fn push_str(&mut self, v: &'a Str) {
+        self.list.push(UnsafeValue::from(v));
+    }
+
+    /// Push a `table` value.
+    #[inline(always)]
+    pub fn push_table(&mut self, v: &'a Table) {
+        self.list.push(UnsafeValue::from(v));
+    }
+
+    /// Push a Rust function.
+    #[inline(always)]
+    pub fn push_fp(
+        &mut self,
+        v: fn(Context<crate::Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>>,
+    ) {
+        self.list.push(UnsafeValue::from(Fp(v)));
+    }
 }
 
 unsafe impl<'a> Args for DynamicArgs<'a> {
