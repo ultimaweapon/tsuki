@@ -686,8 +686,8 @@ pub async unsafe fn luaD_call(
 pub unsafe fn luaD_closeprotected(
     L: *const Thread,
     level: usize,
-    mut status: Result<(), PcallError>,
-) -> Result<(), PcallError> {
+    mut status: Result<(), Box<PcallError>>,
+) -> Result<(), Box<PcallError>> {
     let old_ci: *mut CallInfo = (*L).ci.get();
     let old_allowhooks: u8 = (*L).allowhook.get();
 

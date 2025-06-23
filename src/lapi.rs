@@ -1226,7 +1226,7 @@ pub async unsafe fn lua_pcall(
     L: *const Thread,
     nargs: usize,
     nresults: c_int,
-) -> Result<(), PcallError> {
+) -> Result<(), Box<PcallError>> {
     let func = ((*L).top.get()).sub(nargs + 1);
     let old_top = func.byte_offset_from_unsigned((*L).stack.get());
     let old_ci = (*L).ci.get();
@@ -1491,15 +1491,10 @@ impl PcallError {
         th: *const Thread,
         caller: *mut CallInfo,
         mut reason: Box<dyn core::error::Error>,
-    ) -> Self {
-        // Forward nested PcallError.
-        reason = match reason.downcast::<Self>() {
-            Ok(v) => {
-                return Self {
-                    chunk: v.chunk,
-                    reason: v.reason,
-                };
-            }
+    ) -> Box<Self> {
+        // Forward PcallError.
+        reason = match reason.downcast() {
+            Ok(v) => return v,
             Err(e) => e,
         };
 
@@ -1523,7 +1518,7 @@ impl PcallError {
             ci = (*ci).previous;
         }
 
-        Self { chunk, reason }
+        Box::new(Self { chunk, reason })
     }
 }
 

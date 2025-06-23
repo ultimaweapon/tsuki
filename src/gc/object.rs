@@ -3,9 +3,7 @@ use crate::Lua;
 use alloc::alloc::handle_alloc_error;
 use core::alloc::Layout;
 use core::cell::Cell;
-use core::pin::Pin;
 use core::ptr::null;
-use std::rc::Rc;
 
 /// Header of all object managed by Garbage Collector.
 ///
@@ -53,11 +51,6 @@ impl Object {
     #[inline(always)]
     pub fn global(&self) -> &Lua {
         unsafe { &*self.global }
-    }
-
-    pub fn global_owned(&self) -> Pin<Rc<Lua>> {
-        unsafe { Rc::increment_strong_count(self.global) };
-        unsafe { Pin::new_unchecked(Rc::from_raw(self.global)) }
     }
 }
 

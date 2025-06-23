@@ -16,7 +16,6 @@ use core::alloc::Layout;
 use core::cell::{Cell, UnsafeCell};
 use core::fmt::{Display, Formatter};
 use core::marker::PhantomPinned;
-use core::ops::Deref;
 use core::pin::pin;
 use core::ptr::{addr_of_mut, null, null_mut};
 use core::task::{Context, Poll, Waker};
@@ -51,7 +50,7 @@ impl Thread {
     pub(crate) fn new(g: &Lua) -> *const Self {
         // Create new thread.
         let layout = Layout::new::<Thread>();
-        let th = unsafe { Object::new(g.deref(), 8, layout).cast::<Thread>() };
+        let th = unsafe { Object::new(g, 8, layout).cast::<Thread>() };
 
         unsafe { addr_of_mut!((*th).stack).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*th).ci).write(Cell::new(null_mut())) };

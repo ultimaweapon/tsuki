@@ -11,6 +11,7 @@ use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
 use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::lobject::StkId;
 use crate::{ChunkInfo, Thread};
+use alloc::boxed::Box;
 use core::ptr::{null, null_mut};
 
 pub type lua_Hook = Option<unsafe extern "C" fn(*const Thread, *mut lua_Debug) -> ()>;
@@ -133,7 +134,7 @@ pub unsafe fn luaE_shrinkCI(L: *const Thread) {
     }
 }
 
-pub unsafe fn lua_closethread(L: *mut Thread) -> Result<(), PcallError> {
+pub unsafe fn lua_closethread(L: *const Thread) -> Result<(), Box<PcallError>> {
     (*L).ci.set((*L).base_ci.get());
     let ci: *mut CallInfo = (*L).ci.get();
 

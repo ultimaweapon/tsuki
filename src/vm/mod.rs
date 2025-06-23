@@ -4527,13 +4527,9 @@ pub async unsafe fn luaV_execute(
                         let f = pin!(luaD_call(
                             L,
                             ra_74.offset(4),
-                            (i >> 0 as libc::c_int
-                                + 7 as libc::c_int
-                                + 8 as libc::c_int
-                                + 1 as libc::c_int
-                                + 8 as libc::c_int
-                                & !(!(0 as libc::c_int as u32) << 8 as libc::c_int)
-                                    << 0 as libc::c_int) as libc::c_int,
+                            (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
+                                & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                                as c_int,
                         ));
 
                         match f.poll(&mut Context::from_waker(&w)) {
