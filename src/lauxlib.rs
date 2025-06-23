@@ -7,7 +7,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::lapi::{
-    lua_absindex, lua_call, lua_checkstack, lua_concat, lua_copy, lua_createtable, lua_getfield,
+    lua_absindex, lua_checkstack, lua_concat, lua_copy, lua_createtable, lua_getfield,
     lua_getmetatable, lua_gettop, lua_len, lua_next, lua_pushlstring, lua_pushnil, lua_pushstring,
     lua_pushvalue, lua_rawequal, lua_rawget, lua_rotate, lua_setfield, lua_setmetatable,
     lua_settop, lua_tointegerx, lua_tolstring, lua_tonumberx, lua_touserdata, lua_type,
@@ -15,7 +15,7 @@ use crate::lapi::{
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::{CallInfo, lua_Debug};
-use crate::{NON_YIELDABLE_WAKER, Thread, lua_pop};
+use crate::{Thread, lua_pop};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
@@ -23,24 +23,7 @@ use alloc::string::String;
 use core::ffi::{CStr, c_char};
 use core::fmt::{Display, Formatter, Write};
 use core::num::NonZero;
-use core::pin::pin;
-use core::ptr::null;
-use core::task::{Context, Poll, Waker};
 use libc::strcmp;
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LoadS {
-    pub s: *const c_char,
-    pub size: usize,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UBox {
-    pub box_0: *mut libc::c_void,
-    pub bsize: usize,
-}
 
 unsafe fn findfield(
     L: *const Thread,

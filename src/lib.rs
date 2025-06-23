@@ -271,6 +271,17 @@ impl Lua {
         self.primitive_mt[4].set(mt);
     }
 
+    /// Setup [mathematical library](https://www.lua.org/manual/5.4/manual.html#6.7).
+    pub fn setup_math(&self) {
+        // Setup math table.
+        let g = unsafe { Table::new(self) };
+
+        // Set global.
+        let g = unsafe { UnsafeValue::from_obj(g.cast()) };
+
+        unsafe { self.global().set_str_key_unchecked("math", g) };
+    }
+
     /// Load a Lua chunk.
     pub fn load(&self, info: ChunkInfo, chunk: impl AsRef<[u8]>) -> Result<Ref<LuaFn>, ParseError> {
         let chunk = chunk.as_ref();
@@ -314,16 +325,6 @@ impl Lua {
         unsafe { Ref::new(Thread::new(self)) }
     }
 
-    /// Returns a global table.
-    #[inline(always)]
-    pub fn global(&self) -> &Table {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
-        let tab = unsafe { (*reg).array.get().add(2 - 1) };
-        let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
-
-        unsafe { &*tab }
-    }
-
     /// Create a Lua string.
     pub fn create_str<T>(&self, v: T) -> Ref<Str>
     where
@@ -332,8 +333,19 @@ impl Lua {
         unsafe { Ref::new(Str::from_str(self, v)) }
     }
 
+    /// Create a Lua table.
     pub fn create_table(&self) -> Ref<Table> {
-        todo!()
+        unsafe { Ref::new(Table::new(self)) }
+    }
+
+    /// Returns a global table.
+    #[inline(always)]
+    pub fn global(&self) -> &Table {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
+        let tab = unsafe { (*reg).array.get().add(2 - 1) };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
+
+        unsafe { &*tab }
     }
 
     unsafe fn get_mt(&self, o: *const UnsafeValue) -> *const Table {
