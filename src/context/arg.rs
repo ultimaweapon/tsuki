@@ -4,7 +4,7 @@ use crate::lauxlib::luaL_argerror;
 use crate::lobject::{Udata, luaO_tostring};
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_tointeger};
-use crate::{NON_YIELDABLE_WAKER, Ref, Str, Table, Type, luaH_get};
+use crate::{NON_YIELDABLE_WAKER, Ref, Str, Table, Type, Value, luaH_get};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
@@ -64,6 +64,21 @@ impl<'a, 'b> Arg<'a, 'b> {
             Err(self.error("value expected"))
         } else {
             Ok(Type::from_tt(unsafe { (*v).tt_ }))
+        }
+    }
+
+    /// Returns the value of this argument.
+    ///
+    /// This method is expensive compared to a specialized method like [`Self::get_str()`]. Use this
+    /// method only when you need [`Value`]. If you want to check type of this argument use
+    /// [`Self::ty()`] instead since it much faster.
+    pub fn get(&self) -> Option<Value> {
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            None
+        } else {
+            Some(unsafe { Value::from_unsafe(v) })
         }
     }
 

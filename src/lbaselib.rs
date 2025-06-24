@@ -251,59 +251,6 @@ unsafe fn generic_reader(
     Ok(lua_tolstring(L, 5 as libc::c_int, size))
 }
 
-unsafe fn luaB_load(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut l: usize = 0;
-    let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
-    let mut mode: *const libc::c_char = luaL_optlstring(L, 3, null(), 0 as *mut usize)?;
-    let mut env: libc::c_int = if !(lua_type(L, 4 as libc::c_int) == -(1 as libc::c_int)) {
-        4 as libc::c_int
-    } else {
-        0 as libc::c_int
-    };
-
-    if !mode.is_null() {
-        return luaL_argerror(L, 3, "mode is not supported");
-    }
-
-    let name = luaL_optlstring(L, 2, null(), null_mut())?;
-    let s = std::slice::from_raw_parts(s.cast(), l);
-    let name = if name.is_null() {
-        String::new()
-    } else {
-        CStr::from_ptr(name).to_string_lossy().into_owned()
-    };
-
-    match (*L)
-        .hdr
-        .global_owned()
-        .load(ChunkInfo::new(name.clone()), s)
-    {
-        Ok(f) => {
-            if env != 0 as libc::c_int {
-                lua_pushvalue(L, env);
-                if (lua_setupvalue(L, -(2 as libc::c_int), 1 as libc::c_int)).is_null() {
-                    lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-                }
-            }
-
-            let io = &raw mut (*(*L).top.get()).val;
-
-            (*io).value_.gc = &f.hdr;
-            (*io).tt_ = f.hdr.tt | 1 << 6;
-
-            api_incr_top(L);
-
-            Ok(1)
-        }
-        Err(e) => {
-            lua_pushnil(L);
-            lua_pushlstring(L, format!("{}:{}: {}", name, e.line(), e));
-
-            Ok(2)
-        }
-    }
-}
-
 unsafe fn dofilecont(mut L: *mut Thread, mut d1: libc::c_int) -> libc::c_int {
     return lua_gettop(L) - 1 as libc::c_int;
 }
@@ -342,13 +289,6 @@ static mut base_funcs: [luaL_Reg; 21] = [
         let mut init = luaL_Reg {
             name: b"ipairs\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_ipairs),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"load\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_load),
         };
         init
     },

@@ -30,8 +30,8 @@ Tsuki is a port of vanilla Lua 5.4 to Rust. This is porting, not binding; which 
   - Second argument is not supported and it is always assume 1.
 - Arguments of `load`:
   - First argument accept only a string.
-  - Second argument will be an empty string when absent.
-  - Third argument must be `nil`.
+  - Second argument accept only a UTF-8 string and will be empty when absent.
+  - Third argument must be `nil` or `"t"`.
 - `warn` is enabled by default without message prefixes and does not support control message.
 - Second argument to `__close` metamethod always `nil`.
 - `__gc` metamethod is not supported.

@@ -1,5 +1,6 @@
-use crate::{Args, Context, Nil, Ret, TryCall, Type};
+use crate::{Args, ChunkInfo, Context, Nil, Ret, TryCall, Type};
 use alloc::boxed::Box;
+use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt::Write;
@@ -65,6 +66,55 @@ pub fn getmetatable(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::err
     } else {
         Ok(cx.into())
     }
+}
+
+/// Implementation of [load](https://www.lua.org/manual/5.4/manual.html#pdf-load).
+///
+/// The main differences from Lua is:
+///
+/// - First argument accept only a string.
+/// - Second argument accept only a UTF-8 string and will be empty when absent.
+/// - Third argument must be `nil` or `"t"`.
+pub fn load(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+    let s = cx.arg(1).get_str(true)?;
+
+    // Get name.
+    let name = cx.arg(2);
+    let name = match name.get_nilable_str(false, true)? {
+        Some(v) => v
+            .as_str()
+            .ok_or_else(|| name.error("expect UTF-8 string"))?,
+        None => "",
+    };
+
+    // Get mode.
+    let mode = cx.arg(3);
+
+    if let Some(v) = mode.get_nilable_str(false, true)? {
+        if v != "t" {
+            return Err(mode.error("mode other than 't' is not supported"));
+        }
+    }
+
+    // Load.
+    let f = match cx.load(ChunkInfo::new(name), s.as_bytes()) {
+        Ok(v) => v,
+        Err(e) => {
+            cx.push(Nil)?;
+            cx.push_str(format!("{}:{}: {}", name, e.line(), e))?;
+
+            return Ok(cx.into());
+        }
+    };
+
+    // Set environment.
+    if let Some(env) = cx.arg(4).get() {
+        drop(f.set_upvalue(1, env));
+    }
+
+    cx.push(f)?;
+
+    Ok(cx.into())
 }
 
 /// Implementation of [pcall](https://www.lua.org/manual/5.4/manual.html#pdf-pcall).

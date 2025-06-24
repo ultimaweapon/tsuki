@@ -3,7 +3,9 @@ pub use self::arg::*;
 use crate::lapi::{lua_checkstack, lua_pcall};
 use crate::lobject::StackValue;
 use crate::value::UnsafeValue;
-use crate::{NON_YIELDABLE_WAKER, Ref, StackOverflow, Str, Table, Thread, Type};
+use crate::{
+    ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, StackOverflow, Str, Table, Thread, Type,
+};
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -40,6 +42,11 @@ impl<'a, T> Context<'a, T> {
         let s = unsafe { Str::from_str(self.th.hdr.global, v) };
 
         unsafe { Ref::new(s) }
+    }
+
+    /// Load a Lua chunk.
+    pub fn load(&self, info: ChunkInfo, chunk: impl AsRef<[u8]>) -> Result<Ref<LuaFn>, ParseError> {
+        self.th.hdr.global().load(info, chunk)
     }
 
     /// Push value to the result of this call.

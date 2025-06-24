@@ -581,14 +581,6 @@ pub unsafe fn lua_pushcclosure(
     }
 }
 
-pub unsafe fn lua_pushthread(L: *mut Thread) {
-    let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
-    let x_: *mut Thread = L;
-    (*io).value_.gc = x_ as *mut Object;
-    (*io).tt_ = (8 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int) as u8;
-    api_incr_top(L);
-}
-
 unsafe fn auxgetstr(
     L: *const Thread,
     t: *const UnsafeValue,

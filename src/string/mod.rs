@@ -147,6 +147,13 @@ impl Drop for Str {
     }
 }
 
+impl PartialEq<str> for Str {
+    #[inline(always)]
+    fn eq(&self, other: &str) -> bool {
+        self.as_bytes() == other.as_bytes()
+    }
+}
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub(crate) union C2RustUnnamed_8 {

@@ -1,4 +1,4 @@
-use crate::{Args, Context, Fp, Nil, Object, Ref, Ret, Str, Table};
+use crate::{Args, Context, Fp, LuaFn, Nil, Object, Ref, Ret, Str, Table, Thread, Value};
 use alloc::boxed::Box;
 
 /// The outside **must** never be able to construct or have the value of this type.
@@ -106,6 +106,60 @@ impl From<Ref<Table>> for UnsafeValue {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: 5 | 0 << 4 | 1 << 6,
+        }
+    }
+}
+
+impl From<&LuaFn> for UnsafeValue {
+    #[inline(always)]
+    fn from(value: &LuaFn) -> Self {
+        Self {
+            value_: UntaggedValue { gc: &value.hdr },
+            tt_: value.hdr.tt | 1 << 6,
+        }
+    }
+}
+
+impl From<Ref<LuaFn>> for UnsafeValue {
+    fn from(value: Ref<LuaFn>) -> Self {
+        Self {
+            value_: UntaggedValue { gc: &value.hdr },
+            tt_: value.hdr.tt | 1 << 6,
+        }
+    }
+}
+
+impl From<&Thread> for UnsafeValue {
+    #[inline(always)]
+    fn from(value: &Thread) -> Self {
+        Self {
+            value_: UntaggedValue { gc: &value.hdr },
+            tt_: 8 | 0 << 4 | 1 << 6,
+        }
+    }
+}
+
+impl From<Ref<Thread>> for UnsafeValue {
+    fn from(value: Ref<Thread>) -> Self {
+        Self {
+            value_: UntaggedValue { gc: &value.hdr },
+            tt_: 8 | 0 << 4 | 1 << 6,
+        }
+    }
+}
+
+impl From<Value> for UnsafeValue {
+    fn from(value: Value) -> Self {
+        match value {
+            Value::Nil => Self::from(Nil),
+            Value::Bool(v) => Self::from(v),
+            Value::Fp(v) => Self::from(Fp(v)),
+            Value::Int(v) => Self::from(v),
+            Value::Float(v) => Self::from(v),
+            Value::Str(v) => Self::from(v),
+            Value::Table(v) => Self::from(v),
+            Value::LuaFn(v) => Self::from(v),
+            Value::Thread(v) => Self::from(v),
         }
     }
 }

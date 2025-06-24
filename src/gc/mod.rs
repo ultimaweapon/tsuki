@@ -27,6 +27,7 @@ mod object;
 mod r#ref;
 
 type c_int = i32;
+type c_uint = u32;
 
 /// # Safety
 /// After this function return any unreachable objects may be freed.
@@ -228,7 +229,7 @@ unsafe fn traverseweakvalue(g: *const Lua, h: *const Table) {
     let limit: *mut Node = ((*h).node.get())
         .offset(((1 as c_int) << (*h).lsizenode.get() as c_int) as usize as isize)
         as *mut Node;
-    let mut hasclears: c_int = ((*h).alimit.get() > 0 as c_int as libc::c_uint) as c_int;
+    let mut hasclears: c_int = ((*h).alimit.get() > 0 as c_int as c_uint) as c_int;
     n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node;
     while n < limit {
         if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
@@ -275,10 +276,10 @@ unsafe fn traverseephemeron(g: *const Lua, h: *const Table, inv: c_int) -> c_int
     let mut marked: c_int = 0 as c_int;
     let mut hasclears: c_int = 0 as c_int;
     let mut hasww: c_int = 0 as c_int;
-    let mut i: libc::c_uint = 0;
-    let asize: libc::c_uint = luaH_realasize(h);
-    let nsize: libc::c_uint = ((1 as c_int) << (*h).lsizenode.get() as c_int) as libc::c_uint;
-    i = 0 as c_int as libc::c_uint;
+    let mut i: c_uint = 0;
+    let asize: c_uint = luaH_realasize(h);
+    let nsize: c_uint = ((1 as c_int) << (*h).lsizenode.get() as c_int) as c_uint;
+    i = 0 as c_int as c_uint;
     while i < asize {
         if (*(*h).array.get().offset(i as isize)).tt_ as c_int & (1 as c_int) << 6 as c_int != 0
             && (*(*(*h).array.get().offset(i as isize)).value_.gc)
@@ -292,14 +293,12 @@ unsafe fn traverseephemeron(g: *const Lua, h: *const Table, inv: c_int) -> c_int
         }
         i = i.wrapping_add(1);
     }
-    i = 0 as c_int as libc::c_uint;
+    i = 0 as c_int as c_uint;
     while i < nsize {
         let n: *mut Node = if inv != 0 {
-            ((*h).node.get()).offset(
-                nsize
-                    .wrapping_sub(1 as c_int as libc::c_uint)
-                    .wrapping_sub(i) as isize,
-            ) as *mut Node
+            ((*h).node.get())
+                .offset(nsize.wrapping_sub(1 as c_int as c_uint).wrapping_sub(i) as isize)
+                as *mut Node
         } else {
             ((*h).node.get()).offset(i as isize) as *mut Node
         };
@@ -361,9 +360,9 @@ unsafe fn traversestrongtable(g: *const Lua, h: *const Table) {
     let limit: *mut Node = ((*h).node.get())
         .offset(((1 as c_int) << (*h).lsizenode.get() as c_int) as usize as isize)
         as *mut Node;
-    let mut i: libc::c_uint = 0;
-    let asize: libc::c_uint = luaH_realasize(h);
-    i = 0 as c_int as libc::c_uint;
+    let mut i: c_uint = 0;
+    let asize: c_uint = luaH_realasize(h);
+    i = 0 as c_int as c_uint;
     while i < asize {
         if (*(*h).array.get().offset(i as isize)).tt_ as c_int & (1 as c_int) << 6 as c_int != 0
             && (*(*(*h).array.get().offset(i as isize)).value_.gc)
@@ -450,7 +449,7 @@ unsafe fn traversetable(g: *const Lua, h: *const Table) -> usize {
         (false, false) => traversestrongtable(g, h),
     }
 
-    return (1 as c_int as libc::c_uint)
+    return (1 as c_int as c_uint)
         .wrapping_add((*h).alimit.get())
         .wrapping_add(
             (2 as c_int
@@ -458,7 +457,7 @@ unsafe fn traversetable(g: *const Lua, h: *const Table) -> usize {
                     0 as c_int
                 } else {
                     (1 as c_int) << (*h).lsizenode.get() as c_int
-                })) as libc::c_uint,
+                })) as c_uint,
         ) as usize;
 }
 
@@ -739,9 +738,9 @@ unsafe fn clearbyvalues(g: *const Lua, mut l: *const Object, f: *const Object) {
         let limit: *mut Node = ((*h).node.get())
             .offset(((1 as c_int) << (*h).lsizenode.get() as c_int) as usize as isize)
             as *mut Node;
-        let mut i: libc::c_uint = 0;
-        let asize: libc::c_uint = luaH_realasize(h);
-        i = 0 as c_int as libc::c_uint;
+        let mut i: c_uint = 0;
+        let asize: c_uint = luaH_realasize(h);
+        i = 0 as c_int as c_uint;
         while i < asize {
             let o: *mut UnsafeValue = (*h).array.get().offset(i as isize) as *mut UnsafeValue;
             if iscleared(
