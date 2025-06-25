@@ -28,6 +28,7 @@ mod r#ref;
 
 type c_int = i32;
 type c_uint = u32;
+type c_long = i64;
 
 /// # Safety
 /// After this function return any unreachable objects may be freed.
@@ -644,7 +645,7 @@ unsafe fn traversethread(g: *const Lua, th: *const Thread) -> c_int {
         }
     }
 
-    1 + ((*th).stack_last.get()).offset_from((*th).stack.get()) as libc::c_long as c_int
+    1 + ((*th).stack_last.get()).offset_from((*th).stack.get()) as c_long as c_int
 }
 
 unsafe fn propagatemark(g: &Lua) -> usize {
