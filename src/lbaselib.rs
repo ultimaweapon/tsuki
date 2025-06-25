@@ -278,12 +278,6 @@ unsafe fn luaB_select(mut L: *const Thread) -> Result<c_int, Box<dyn std::error:
     };
 }
 
-unsafe fn luaB_tostring(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    luaL_checkany(L, 1 as libc::c_int)?;
-    luaL_tolstring(L, 1 as libc::c_int, 0 as *mut usize)?;
-    return Ok(1 as libc::c_int);
-}
-
 static mut base_funcs: [luaL_Reg; 21] = [
     {
         let mut init = luaL_Reg {
@@ -352,13 +346,6 @@ static mut base_funcs: [luaL_Reg; 21] = [
         let mut init = luaL_Reg {
             name: b"tonumber\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_tonumber),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"tostring\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_tostring),
         };
         init
     },

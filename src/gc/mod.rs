@@ -29,6 +29,7 @@ mod r#ref;
 type c_int = i32;
 type c_uint = u32;
 type c_long = i64;
+type c_ulong = u64;
 
 /// # Safety
 /// After this function return any unreachable objects may be freed.
@@ -1073,19 +1074,19 @@ unsafe fn singlestep(g: &Lua) -> usize {
 /// After this function return any unreachable objects may be freed.
 unsafe fn incstep(g: &Lua) {
     let stepmul = g.gcstepmul.get() * 4 | 1;
-    let mut debt: isize = (g.gc.debt.get() as libc::c_ulong)
-        .wrapping_div(size_of::<UnsafeValue>() as libc::c_ulong)
-        .wrapping_mul(stepmul as libc::c_ulong) as isize;
-    let stepsize: isize = (if (*g).gcstepsize.get() as libc::c_ulong
-        <= (::core::mem::size_of::<isize>() as libc::c_ulong)
-            .wrapping_mul(8 as c_int as libc::c_ulong)
-            .wrapping_sub(2 as c_int as libc::c_ulong)
+    let mut debt: isize = (g.gc.debt.get() as c_ulong)
+        .wrapping_div(size_of::<UnsafeValue>() as c_ulong)
+        .wrapping_mul(stepmul as c_ulong) as isize;
+    let stepsize: isize = (if (*g).gcstepsize.get() as c_ulong
+        <= (::core::mem::size_of::<isize>() as c_ulong)
+            .wrapping_mul(8 as c_int as c_ulong)
+            .wrapping_sub(2 as c_int as c_ulong)
     {
-        (((1 as c_int as isize) << (*g).gcstepsize.get() as c_int) as libc::c_ulong)
-            .wrapping_div(::core::mem::size_of::<UnsafeValue>() as libc::c_ulong)
-            .wrapping_mul(stepmul as libc::c_ulong)
+        (((1 as c_int as isize) << (*g).gcstepsize.get() as c_int) as c_ulong)
+            .wrapping_div(::core::mem::size_of::<UnsafeValue>() as c_ulong)
+            .wrapping_mul(stepmul as c_ulong)
     } else {
-        (!(0 as c_int as usize) >> 1 as c_int) as isize as libc::c_ulong
+        (!(0 as c_int as usize) >> 1 as c_int) as isize as c_ulong
     }) as isize;
     loop {
         let work: usize = singlestep(g);
@@ -1099,9 +1100,8 @@ unsafe fn incstep(g: &Lua) {
     if (*g).gcstate.get() == 8 {
         setpause(g);
     } else {
-        debt = ((debt / stepmul as isize) as libc::c_ulong)
-            .wrapping_mul(::core::mem::size_of::<UnsafeValue>() as libc::c_ulong)
-            as isize;
+        debt = ((debt / stepmul as isize) as c_ulong)
+            .wrapping_mul(::core::mem::size_of::<UnsafeValue>() as c_ulong) as isize;
         (*g).gc.set_debt(debt);
     };
 }

@@ -205,6 +205,21 @@ pub fn setmetatable(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::err
     Ok(cx)
 }
 
+/// Implementation of [tostring](https://www.lua.org/manual/5.4/manual.html#pdf-tostring).
+pub fn tostring(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+    // Check if argument exists.
+    let v = cx.arg(1);
+
+    v.exists()?;
+
+    // Convert to string.
+    let v = v.to_str()?;
+
+    cx.push(v)?;
+
+    Ok(cx.into())
+}
+
 /// Implementation of [type](https://www.lua.org/manual/5.4/manual.html#pdf-type).
 pub fn r#type(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
     let t = cx.arg(1).ty()?;
