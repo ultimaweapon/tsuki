@@ -6,6 +6,8 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+pub use self::opcode::*;
+
 use crate::gc::{Object, luaC_barrier_, luaC_barrierback_};
 use crate::ldebug::{luaG_forerror, luaG_runerror, luaG_tracecall, luaG_traceexec, luaG_typeerror};
 use crate::ldo::{luaD_call, luaD_hookcall, luaD_poscall, luaD_precall, luaD_pretailcall};
@@ -15,7 +17,6 @@ use crate::lfunc::{
 use crate::lobject::{
     Proto, StackValue, StkId, Udata, UpVal, Upvaldesc, luaO_str2num, luaO_tostring,
 };
-use crate::lopcodes::{OP_CALL, OP_NEWTABLE, OP_TAILCALL, OP_TFORCALL, OpCode};
 use crate::lstate::CallInfo;
 use crate::lstring::luaS_eqlngstr;
 use crate::ltm::{
@@ -53,6 +54,8 @@ type c_long = i64;
 type c_ulong = u64;
 type c_longlong = i64;
 type c_double = f64;
+
+mod opcode;
 
 unsafe fn l_strton(obj: *const UnsafeValue, result: *mut UnsafeValue) -> c_int {
     if !((*obj).tt_ as c_int & 0xf as c_int == 4 as c_int) {

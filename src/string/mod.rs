@@ -133,7 +133,7 @@ impl Str {
 
         unsafe { addr_of_mut!((*o).hash).write(Cell::new(h)) };
         unsafe { addr_of_mut!((*o).extra).write(Cell::new(0)) };
-        unsafe { *((*o).contents).as_mut_ptr().offset(l as isize) = '\0' as i32 as libc::c_char };
+        unsafe { (*o).contents.as_mut_ptr().add(l).write(0) };
 
         o
     }

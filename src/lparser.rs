@@ -27,12 +27,12 @@ use crate::llex::{
 };
 use crate::lmem::{luaM_growaux_, luaM_shrinkvector_};
 use crate::lobject::{AbsLineInfo, LocVar, Proto, Upvaldesc};
-use crate::lopcodes::{
+use crate::lzio::{Mbuffer, ZIO};
+use crate::value::{UnsafeValue, UntaggedValue};
+use crate::vm::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_FORLOOP, OP_FORPREP, OP_GETUPVAL, OP_MOVE, OP_NEWTABLE,
     OP_TAILCALL, OP_TBC, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_VARARG, OP_VARARGPREP, OpCode,
 };
-use crate::lzio::{Mbuffer, ZIO};
-use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{ChunkInfo, Lua, LuaFn, Object, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;

@@ -48,7 +48,6 @@ mod lfunc;
 mod llex;
 mod lmem;
 mod lobject;
-mod lopcodes;
 mod lparser;
 mod lstate;
 mod lstring;

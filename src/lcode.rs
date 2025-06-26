@@ -10,14 +10,6 @@ use crate::gc::luaC_barrier_;
 use crate::llex::{LexState, luaX_syntaxerror};
 use crate::lmem::luaM_growaux_;
 use crate::lobject::{AbsLineInfo, Proto, luaO_ceillog2, luaO_rawarith};
-use crate::lopcodes::{
-    OP_ADD, OP_ADDI, OP_ADDK, OP_CONCAT, OP_EQ, OP_EQI, OP_EQK, OP_EXTRAARG, OP_GETFIELD, OP_GETI,
-    OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI, OP_JMP, OP_LFALSESKIP, OP_LOADF, OP_LOADFALSE,
-    OP_LOADI, OP_LOADK, OP_LOADKX, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI, OP_MMBIN, OP_MMBINI,
-    OP_MMBINK, OP_MOVE, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_RETURN1, OP_SELF,
-    OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_SHLI, OP_SHRI,
-    OP_TEST, OP_TESTSET, OP_UNM, OpCode, luaP_opmodes,
-};
 use crate::lparser::{
     C2RustUnnamed_11, FuncState, VCALL, VFALSE, VINDEXED, VINDEXI, VINDEXSTR, VINDEXUP, VJMP, VK,
     VKFLT, VKINT, VKSTR, VLOCAL, VNIL, VNONRELOC, VRELOC, VTRUE, VUPVAL, VVARARG, expdesc,
@@ -26,7 +18,15 @@ use crate::lparser::{
 use crate::ltm::{TM_ADD, TM_SHL, TM_SHR, TM_SUB, TMS};
 use crate::table::{luaH_finishset, luaH_get};
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::vm::{F2Ieq, luaV_equalobj, luaV_flttointeger, luaV_tointegerns};
+use crate::vm::{
+    F2Ieq, OP_ADD, OP_ADDI, OP_ADDK, OP_CONCAT, OP_EQ, OP_EQI, OP_EQK, OP_EXTRAARG, OP_GETFIELD,
+    OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI, OP_JMP, OP_LFALSESKIP, OP_LOADF,
+    OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADKX, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI, OP_MMBIN,
+    OP_MMBINI, OP_MMBINK, OP_MOVE, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_RETURN1, OP_SELF,
+    OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_SHLI, OP_SHRI,
+    OP_TEST, OP_TESTSET, OP_UNM, OpCode, luaP_opmodes, luaV_equalobj, luaV_flttointeger,
+    luaV_tointegerns,
+};
 use crate::{ArithError, Object, ParseError, Str, Thread};
 use core::fmt::Display;
 use core::ops::Deref;
