@@ -85,6 +85,7 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     lua.setup_base();
     lua.setup_string();
+    lua.setup_table();
     lua.setup_math();
 
     // Run.

@@ -21,6 +21,7 @@ use libm::frexp;
 
 type c_int = i32;
 type c_uint = u32;
+type c_ulong = u64;
 type c_longlong = i64;
 type c_double = f64;
 
@@ -241,15 +242,15 @@ unsafe fn getgeneric(
 unsafe fn arrayindex(k: i64) -> c_uint {
     if (k as u64).wrapping_sub(1 as c_uint as u64)
         < (if ((1 as c_uint)
-            << (::core::mem::size_of::<c_int>() as libc::c_ulong)
-                .wrapping_mul(8 as c_int as libc::c_ulong)
-                .wrapping_sub(1 as c_int as libc::c_ulong) as c_int) as usize
+            << (::core::mem::size_of::<c_int>() as c_ulong)
+                .wrapping_mul(8 as c_int as c_ulong)
+                .wrapping_sub(1 as c_int as c_ulong) as c_int) as usize
             <= (!(0 as c_int as usize)).wrapping_div(::core::mem::size_of::<UnsafeValue>())
         {
             (1 as c_uint)
-                << (::core::mem::size_of::<c_int>() as libc::c_ulong)
-                    .wrapping_mul(8 as c_int as libc::c_ulong)
-                    .wrapping_sub(1 as c_int as libc::c_ulong) as c_int
+                << (::core::mem::size_of::<c_int>() as c_ulong)
+                    .wrapping_mul(8 as c_int as c_ulong)
+                    .wrapping_sub(1 as c_int as c_ulong) as c_int
         } else {
             (!(0 as c_int as usize)).wrapping_div(::core::mem::size_of::<UnsafeValue>()) as c_uint
         }) as u64
@@ -383,9 +384,9 @@ unsafe fn numusearray(t: *const Table, nums: *mut c_uint) -> c_uint {
     lg = 0 as c_int;
     ttlg = 1 as c_int as c_uint;
     while lg
-        <= (::core::mem::size_of::<c_int>() as libc::c_ulong)
-            .wrapping_mul(8 as c_int as libc::c_ulong)
-            .wrapping_sub(1 as c_int as libc::c_ulong) as c_int
+        <= (::core::mem::size_of::<c_int>() as c_ulong)
+            .wrapping_mul(8 as c_int as c_ulong)
+            .wrapping_sub(1 as c_int as c_ulong) as c_int
     {
         let mut lc: c_uint = 0 as c_int as c_uint;
         let mut lim: c_uint = ttlg;
@@ -445,23 +446,22 @@ unsafe fn setnodevector(t: *const Table, mut size: c_uint) {
         let mut i: c_int = 0;
         let lsize: c_int = luaO_ceillog2(size);
         if lsize
-            > (::core::mem::size_of::<c_int>() as libc::c_ulong)
-                .wrapping_mul(8 as c_int as libc::c_ulong)
-                .wrapping_sub(1 as c_int as libc::c_ulong) as c_int
+            > (::core::mem::size_of::<c_int>() as c_ulong)
+                .wrapping_mul(8 as c_int as c_ulong)
+                .wrapping_sub(1 as c_int as c_ulong) as c_int
                 - 1 as c_int
             || (1 as c_uint) << lsize
                 > (if ((1 as c_uint)
-                    << (::core::mem::size_of::<c_int>() as libc::c_ulong)
-                        .wrapping_mul(8 as c_int as libc::c_ulong)
-                        .wrapping_sub(1 as c_int as libc::c_ulong) as c_int
+                    << (::core::mem::size_of::<c_int>() as c_ulong)
+                        .wrapping_mul(8 as c_int as c_ulong)
+                        .wrapping_sub(1 as c_int as c_ulong) as c_int
                         - 1 as c_int) as usize
                     <= (!(0 as c_int as usize)).wrapping_div(::core::mem::size_of::<Node>())
                 {
                     (1 as c_uint)
-                        << (::core::mem::size_of::<c_int>() as libc::c_ulong)
-                            .wrapping_mul(8 as c_int as libc::c_ulong)
-                            .wrapping_sub(1 as c_int as libc::c_ulong)
-                            as c_int
+                        << (::core::mem::size_of::<c_int>() as c_ulong)
+                            .wrapping_mul(8 as c_int as c_ulong)
+                            .wrapping_sub(1 as c_int as c_ulong) as c_int
                             - 1 as c_int
                 } else {
                     (!(0 as c_int as usize)).wrapping_div(::core::mem::size_of::<Node>()) as c_uint
@@ -612,9 +612,9 @@ unsafe fn rehash(t: *const Table, ek: *const UnsafeValue) {
     let mut totaluse: c_int = 0;
     i = 0 as c_int;
     while i
-        <= (::core::mem::size_of::<c_int>() as libc::c_ulong)
-            .wrapping_mul(8 as c_int as libc::c_ulong)
-            .wrapping_sub(1 as c_int as libc::c_ulong) as c_int
+        <= (::core::mem::size_of::<c_int>() as c_ulong)
+            .wrapping_mul(8 as c_int as c_ulong)
+            .wrapping_sub(1 as c_int as c_ulong) as c_int
     {
         nums[i as usize] = 0 as c_int as c_uint;
         i += 1;

@@ -275,6 +275,17 @@ impl Lua {
         self.primitive_mt[4].set(mt);
     }
 
+    /// Setup [table library](https://www.lua.org/manual/5.4/manual.html#6.6).
+    pub fn setup_table(&self) {
+        // Setup table table.
+        let g = unsafe { Table::new(self) };
+
+        // Set global.
+        let g = unsafe { UnsafeValue::from_obj(g.cast()) };
+
+        unsafe { self.global().set_str_key_unchecked("table", g) };
+    }
+
     /// Setup [mathematical library](https://www.lua.org/manual/5.4/manual.html#6.7).
     pub fn setup_math(&self) {
         // Setup math table.
