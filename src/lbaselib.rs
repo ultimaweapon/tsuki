@@ -255,29 +255,6 @@ unsafe fn dofilecont(mut L: *mut Thread, mut d1: libc::c_int) -> libc::c_int {
     return lua_gettop(L) - 1 as libc::c_int;
 }
 
-unsafe fn luaB_select(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut n: libc::c_int = lua_gettop(L);
-    if lua_type(L, 1 as libc::c_int) == 4 as libc::c_int
-        && *lua_tolstring(L, 1 as libc::c_int, 0 as *mut usize) as libc::c_int == '#' as i32
-    {
-        lua_pushinteger(L, (n - 1 as libc::c_int) as i64);
-        return Ok(1 as libc::c_int);
-    } else {
-        let mut i: i64 = luaL_checkinteger(L, 1 as libc::c_int)?;
-        if i < 0 as libc::c_int as i64 {
-            i = n as i64 + i;
-        } else if i > n as i64 {
-            i = n as i64;
-        }
-        (((1 as libc::c_int as i64 <= i) as libc::c_int != 0 as libc::c_int) as libc::c_int
-            as libc::c_long
-            != 0
-            || luaL_argerror(L, 1 as libc::c_int, "index out of range")? != 0)
-            as libc::c_int;
-        return Ok(n - i as libc::c_int);
-    };
-}
-
 static mut base_funcs: [luaL_Reg; 21] = [
     {
         let mut init = luaL_Reg {
@@ -332,13 +309,6 @@ static mut base_funcs: [luaL_Reg; 21] = [
         let mut init = luaL_Reg {
             name: b"rawset\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_rawset),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"select\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_select),
         };
         init
     },

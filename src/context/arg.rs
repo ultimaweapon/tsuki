@@ -15,6 +15,7 @@ use core::num::NonZero;
 use core::pin::pin;
 use core::ptr::{null, null_mut};
 use core::task::{Poll, Waker};
+use thiserror::Error;
 
 /// Argument passed from Lua to Rust function.
 pub struct Arg<'a, 'b> {
@@ -29,41 +30,20 @@ impl<'a, 'b> Arg<'a, 'b> {
     }
 
     /// Check if this argument exists.
-    ///
-    /// Use [`Self::exists()`] if you want to return an error if this argument does not exists.
     #[inline(always)]
     pub fn is_exists(&self) -> bool {
         self.index.get() <= self.cx.payload.0
     }
 
-    /// Check if this argument exists.
-    ///
-    /// Other methods like [`Self::get_str()`] already validate if the argument exists. This method
-    /// can be used in case you want to verify if the argument exists but don't need its value.
-    ///
-    /// Use [`Self::is_exists()`] if you want to check if this argument exists without returning an
-    /// error since it is more efficient due to the error object created by this method more
-    /// expensive to construct.
-    ///
-    /// This has the same semantic as `luaL_checkany`.
-    #[inline(always)]
-    pub fn exists(&self) -> Result<(), Box<dyn core::error::Error>> {
-        if self.index.get() > self.cx.payload.0 {
-            Err(self.error("value expected"))
-        } else {
-            Ok(())
-        }
-    }
-
     /// Returns type of this argument.
     #[inline(always)]
-    pub fn ty(&self) -> Result<Type, Box<dyn core::error::Error>> {
+    pub fn ty(&self) -> Option<Type> {
         let v = self.get_raw_or_null();
 
         if v.is_null() {
-            Err(self.error("value expected"))
+            None
         } else {
-            Ok(Type::from_tt(unsafe { (*v).tt_ }))
+            Some(Type::from_tt(unsafe { (*v).tt_ }))
         }
     }
 
@@ -82,32 +62,37 @@ impl<'a, 'b> Arg<'a, 'b> {
         }
     }
 
-    /// Checks if this argument is Lua string and return it.
+    /// Checks if this argument is Lua string or number and return it as string.
+    ///
+    /// This has the same semantic as `luaL_checklstring`, which mean if this argument is a number
+    /// it will convert to string **in-place**.
     #[inline(always)]
-    pub fn get_str(&self, convert: bool) -> Result<&'a Str, Box<dyn core::error::Error>> {
+    pub fn get_str(&self) -> Result<&'a Str, Box<dyn core::error::Error>> {
         let expect = lua_typename(4);
         let v = self.get_raw(expect)?;
 
         match unsafe { (*v).tt_ & 0xf } {
+            3 => unsafe { luaO_tostring(self.cx.th.hdr.global, v) },
             4 => (),
-            3 if convert => unsafe { luaO_tostring(self.cx.th.hdr.global, v) },
             _ => return Err(unsafe { self.type_error(expect, v) }),
         }
 
         Ok(unsafe { &*(*v).value_.gc.cast::<Str>() })
     }
 
-    /// Checks if this argument is Lua string and return it.
+    /// Checks if this argument is Lua string or number and return it as string.
     ///
     /// This method returns [`None`] in the following cases:
     ///
     /// - This argument is `nil`.
     /// - This argument does not exists and `required` is `false`.
+    ///
+    /// This has the same semantic as `luaL_optlstring`, which mean if this argument is a number it
+    /// will convert to string **in-place**.
     #[inline(always)]
     pub fn get_nilable_str(
         &self,
         required: bool,
-        convert: bool,
     ) -> Result<Option<&'a Str>, Box<dyn core::error::Error>> {
         // Get argument.
         let expect = "nil or string";
@@ -123,8 +108,8 @@ impl<'a, 'b> Arg<'a, 'b> {
         // Check type.
         match unsafe { (*v).tt_ & 0xf } {
             0 => return Ok(None),
+            3 => unsafe { luaO_tostring(self.cx.th.hdr.global, v) },
             4 => (),
-            3 if convert => unsafe { luaO_tostring(self.cx.th.hdr.global, v) },
             _ => return Err(unsafe { self.type_error(expect, v) }),
         }
 
@@ -174,16 +159,12 @@ impl<'a, 'b> Arg<'a, 'b> {
     }
 
     /// Gets metatable for this argument.
-    ///
-    /// Returns [`None`] if the value of this argument does not have a metatable.
-    ///
-    /// This method will return [`Err`] if this argument does not exists.
-    pub fn get_metatable(&self) -> Result<Option<Ref<Table>>, Box<dyn core::error::Error>> {
+    pub fn get_metatable(&self) -> Option<Option<Ref<Table>>> {
         // Get argument.
         let v = self.get_raw_or_null();
 
         if v.is_null() {
-            return Err(self.error("value expected"));
+            return None;
         }
 
         // Get metatable.
@@ -194,7 +175,7 @@ impl<'a, 'b> Arg<'a, 'b> {
             false => Some(unsafe { Ref::new(mt) }),
         };
 
-        Ok(mt)
+        Some(mt)
     }
 
     /// Gets the argument and convert it to Lua boolean.
@@ -202,21 +183,23 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// This method has the same mechanism as Lua conditional check, which mean it only returns
     /// `false` in the following cases:
     ///
-    /// - This argument does not exists.
     /// - This argument has `false` value.
     /// - This argument is `nil`.
     ///
     /// All other values will cause this method to return `true`, including **zero**.
     ///
-    /// This has the same semantic as `lua_toboolean`.
+    /// This has the same semantic as `lua_toboolean`, except it return [`None`] if the argument
+    /// does not exists instead of `false`.
     #[inline(always)]
-    pub fn to_bool(&self) -> bool {
+    pub fn to_bool(&self) -> Option<bool> {
         let raw = self.get_raw_or_null();
 
-        if unsafe { raw.is_null() || (*raw).tt_ == 1 | 0 << 4 || (*raw).tt_ & 0xf == 0 } {
-            false
+        if raw.is_null() {
+            None
+        } else if unsafe { (*raw).tt_ == 1 | 0 << 4 || (*raw).tt_ & 0xf == 0 } {
+            Some(false)
         } else {
-            true
+            Some(true)
         }
     }
 
@@ -283,10 +266,11 @@ impl<'a, 'b> Arg<'a, 'b> {
         }
     }
 
-    /// Gets the argument and convert it to Lua string.
+    /// Gets the argument and convert it to Lua string suitable for display.
     ///
-    /// This has the same semantic as `luaL_tolstring`, which mean it does not modify the argument.
-    pub fn to_str(&self) -> Result<Ref<Str>, Box<dyn core::error::Error>> {
+    /// This has the same semantic as `luaL_tolstring`, which mean it does not modify the argument
+    /// and treat non-existent argument as `nil`.
+    pub fn display(&self) -> Result<Ref<Str>, Box<dyn core::error::Error>> {
         // Try __tostring metamethod.
         let t = self.cx.th;
         let g = t.hdr.global();
@@ -400,6 +384,8 @@ impl<'a, 'b> Arg<'a, 'b> {
     ///
     /// `reason` will become the value of [`core::error::Error::source()`] on the returned error.
     /// The [`core::fmt::Display`] that implemented on the returned error does not include `reason`.
+    ///
+    /// Use [`ArgNotFound`] if this argument is required but does not exists.
     #[inline(always)]
     pub fn error(
         &self,
@@ -469,3 +455,8 @@ impl<'a, 'b> Arg<'a, 'b> {
         self.error(format!("{expect} expected, got {actual}"))
     }
 }
+
+/// Represents an error when [`Arg`] does not exists.
+#[derive(Debug, Error)]
+#[error("value expected")]
+pub struct ArgNotFound;

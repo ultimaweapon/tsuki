@@ -1,4 +1,4 @@
-use crate::{Args, ChunkInfo, Context, Nil, Ret, TryCall, Type};
+use crate::{ArgNotFound, Args, ChunkInfo, Context, Nil, Ret, TryCall, Type};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -10,17 +10,17 @@ use core::fmt::Write;
 /// Note that second argument accept only a string.
 pub fn assert(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
     // Check condition.
-    if cx.arg(1).to_bool() {
+    let c = cx.arg(1);
+
+    if c.to_bool().ok_or_else(|| c.error(ArgNotFound))? {
         return Ok(cx.into_results(1));
     }
-
-    cx.arg(1).exists()?;
 
     // Raise error.
     let m = if cx.args() > 1 {
         let m = cx.arg(2);
 
-        m.get_str(true)?
+        m.get_str()?
             .as_str()
             .ok_or_else(|| m.error("expect UTF-8 string"))?
     } else {
@@ -36,7 +36,7 @@ pub fn assert(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
 pub fn error(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
     let msg = cx.arg(1);
     let msg = msg
-        .get_str(true)?
+        .get_str()?
         .as_str()
         .ok_or_else(|| msg.error("expect UTF-8 string"))?;
 
@@ -50,7 +50,8 @@ pub fn error(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Err
 /// Implementation of [getmetatable](https://www.lua.org/manual/5.4/manual.html#pdf-getmetatable).
 pub fn getmetatable(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
     // Get metatable.
-    let mt = cx.arg(1).get_metatable()?;
+    let mt = cx.arg(1);
+    let mt = mt.get_metatable().ok_or_else(|| mt.error(ArgNotFound))?;
     let mt = match mt {
         Some(v) => v,
         None => {
@@ -76,11 +77,11 @@ pub fn getmetatable(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::err
 /// - Second argument accept only a UTF-8 string and will be empty when absent.
 /// - Third argument must be `nil` or `"t"`.
 pub fn load(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
-    let s = cx.arg(1).get_str(true)?;
+    let s = cx.arg(1).get_str()?;
 
     // Get name.
     let name = cx.arg(2);
-    let name = match name.get_nilable_str(false, true)? {
+    let name = match name.get_nilable_str(false)? {
         Some(v) => v
             .as_str()
             .ok_or_else(|| name.error("expect UTF-8 string"))?,
@@ -90,7 +91,7 @@ pub fn load(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Erro
     // Get mode.
     let mode = cx.arg(3);
 
-    if let Some(v) = mode.get_nilable_str(false, true)? {
+    if let Some(v) = mode.get_nilable_str(false)? {
         if v != "t" {
             return Err(mode.error("mode other than 't' is not supported"));
         }
@@ -162,7 +163,7 @@ pub fn print(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Err
     let mut args = Vec::with_capacity(cx.args());
 
     for i in 1..=cx.args() {
-        args.push(cx.arg(i).to_str()?);
+        args.push(cx.arg(i).display()?);
     }
 
     // Print.
@@ -179,6 +180,36 @@ pub fn print(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Err
     writeln!(stdout)?;
 
     Ok(cx.into())
+}
+
+/// Implementation of [select](https://www.lua.org/manual/5.4/manual.html#pdf-select).
+pub fn select(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+    // Check if first argument is '#'. We check only first byte to match with Lua behavior.
+    let n = cx.args().wrapping_sub(1);
+    let i = cx.arg(1);
+
+    if i.ty() == Some(Type::String) && i.get_str()?.as_bytes().starts_with(b"#") {
+        cx.push(n as i64)?;
+        return Ok(cx.into());
+    }
+
+    // Adjust index.
+    let i = i
+        .to_int()?
+        .try_into()
+        .ok()
+        .and_then(move |i: isize| {
+            if i < 0 {
+                if i.unsigned_abs() > n { None } else { Some(i) }
+            } else if i == 0 || i > n as isize {
+                None
+            } else {
+                Some(1 + i)
+            }
+        })
+        .ok_or_else(|| i.error("index out of range"))?;
+
+    Ok(cx.into_results(i))
 }
 
 /// Implementation of [setmetatable](https://www.lua.org/manual/5.4/manual.html#pdf-setmetatable).
@@ -207,22 +238,21 @@ pub fn setmetatable(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::err
 
 /// Implementation of [tostring](https://www.lua.org/manual/5.4/manual.html#pdf-tostring).
 pub fn tostring(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
-    // Check if argument exists.
     let v = cx.arg(1);
 
-    v.exists()?;
+    if !v.is_exists() {
+        return Err(v.error(ArgNotFound));
+    }
 
-    // Convert to string.
-    let v = v.to_str()?;
-
-    cx.push(v)?;
+    cx.push(v.display()?)?;
 
     Ok(cx.into())
 }
 
 /// Implementation of [type](https://www.lua.org/manual/5.4/manual.html#pdf-type).
 pub fn r#type(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
-    let t = cx.arg(1).ty()?;
+    let v = cx.arg(1);
+    let t = v.ty().ok_or_else(|| v.error(ArgNotFound))?;
 
     cx.push_str(t.to_string())?;
 
