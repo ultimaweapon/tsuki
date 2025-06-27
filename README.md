@@ -23,7 +23,7 @@ Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all
 - Binary chunk is not supported.
 - Panic when memory allocation is failed without retry (Rust behavior).
 - Chunk name does not have a prefix (e.g. `@`).
-- No `_VERSION`, `collectgarbage`, `dofile`, `loadfile`, `xpcall` and `string.dump`.
+- No `_VERSION`, `collectgarbage`, `dofile`, `loadfile`, `xpcall`, `string.dump` and debug library.
 - Second argument of `assert` accept only a UTF-8 string.
 - Arguments of `error`:
   - First argument accept only a UTF-8 string.
