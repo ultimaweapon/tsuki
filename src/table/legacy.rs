@@ -21,6 +21,7 @@ use libm::frexp;
 
 type c_int = i32;
 type c_uint = u32;
+type c_longlong = i64;
 
 pub(super) static mut dummynode_: Node = Node {
     u: {
@@ -70,13 +71,11 @@ unsafe fn l_hashfloat(mut n: f64) -> c_int {
     let mut ni: i64 = 0;
     (n, i) = frexp(n);
     n = n * -((-(2147483647 as c_int) - 1 as c_int) as f64);
-    if !(n
-        >= (-(0x7fffffffffffffff as libc::c_longlong) - 1 as c_int as libc::c_longlong)
-            as libc::c_double
-        && n < -((-(0x7fffffffffffffff as libc::c_longlong) - 1 as c_int as libc::c_longlong)
+    if !(n >= (-(0x7fffffffffffffff as c_longlong) - 1 as c_int as c_longlong) as libc::c_double
+        && n < -((-(0x7fffffffffffffff as c_longlong) - 1 as c_int as c_longlong)
             as libc::c_double)
         && {
-            ni = n as libc::c_longlong;
+            ni = n as c_longlong;
             1 as c_int != 0
         })
     {
@@ -882,13 +881,13 @@ unsafe fn hash_search(t: *mut Table, mut j: u64) -> u64 {
     }
     loop {
         i = j;
-        if j <= 0x7fffffffffffffff as libc::c_longlong as u64 / 2 as c_int as u64 {
+        if j <= 0x7fffffffffffffff as c_longlong as u64 / 2 as c_int as u64 {
             j = j * 2 as c_int as u64;
             if (*luaH_getint(t, j as i64)).tt_ as c_int & 0xf as c_int == 0 as c_int {
                 break;
             }
         } else {
-            j = 0x7fffffffffffffff as libc::c_longlong as u64;
+            j = 0x7fffffffffffffff as c_longlong as u64;
             if (*luaH_getint(t, j as i64)).tt_ as c_int & 0xf as c_int == 0 as c_int {
                 break;
             }

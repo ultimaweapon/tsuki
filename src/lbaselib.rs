@@ -151,19 +151,6 @@ unsafe fn luaB_rawlen(mut L: *const Thread) -> Result<c_int, Box<dyn std::error:
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn luaB_rawset(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    luaL_checktype(L, 1 as libc::c_int, 5 as libc::c_int)?;
-    luaL_checkany(L, 2 as libc::c_int)?;
-    luaL_checkany(L, 3 as libc::c_int)?;
-    lua_settop(L, 3 as libc::c_int)?;
-
-    if let Err(e) = lua_rawset(L, 1) {
-        luaG_runerror(L, e)?;
-    }
-
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn luaB_next(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     luaL_checktype(L, 1 as libc::c_int, 5 as libc::c_int)?;
     lua_settop(L, 2 as libc::c_int)?;
@@ -287,13 +274,6 @@ static mut base_funcs: [luaL_Reg; 21] = [
         let mut init = luaL_Reg {
             name: b"rawlen\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_rawlen),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"rawset\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_rawset),
         };
         init
     },

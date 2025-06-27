@@ -196,6 +196,28 @@ pub fn rawget(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
     Ok(cx.into())
 }
 
+/// Implementation of [rawset](https://www.lua.org/manual/5.4/manual.html#pdf-rawset).
+pub fn rawset(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+    let t = cx.arg(1).get_table()?;
+    let k = cx.arg(2);
+    let v = cx.arg(3);
+
+    if !k.is_exists() {
+        return Err(k.error(ArgNotFound));
+    }
+
+    if !v.is_exists() {
+        return Err(v.error(ArgNotFound));
+    }
+
+    // SAFETY: t, k and v passed from Lua, which mean it is guarantee to be created from the same
+    // Lua instance.
+    unsafe { t.set_unchecked(k, v)? };
+    unsafe { cx.push_unchecked(t)? };
+
+    Ok(cx.into())
+}
+
 /// Implementation of [select](https://www.lua.org/manual/5.4/manual.html#pdf-select).
 pub fn select(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
     // Check if first argument is '#'. We check only first byte to match with Lua behavior.

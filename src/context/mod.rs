@@ -70,6 +70,22 @@ impl<'a, T> Context<'a, T> {
         Ok(())
     }
 
+    /// Push value to the result of this call without checking if `v` created from different
+    /// [Lua](crate::Lua) instance.
+    ///
+    /// # Safety
+    /// `v` must created from the same [Lua](crate::Lua) instance.
+    pub unsafe fn push_unchecked(&self, v: impl Into<UnsafeValue>) -> Result<(), StackOverflow> {
+        let v = v.into();
+
+        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { self.th.top.write(v) };
+        unsafe { self.th.top.add(1) };
+        self.ret.set(self.ret.get() + 1);
+
+        Ok(())
+    }
+
     /// Push a string to the result of this call.
     ///
     /// This method is more efficient than create a string with [`Self::create_str()`] and push it

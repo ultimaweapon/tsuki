@@ -232,10 +232,11 @@ impl Table {
         unsafe { self.set(k, v).unwrap_unchecked() };
     }
 
-    /// Inserts a value with string key into this table.
+    /// Inserts a value with string key into this table without checking if `v` created from the
+    /// same [`Lua`] instance.
     ///
     /// # Safety
-    /// `v` must come from the same [Lua](crate::Lua) instance.
+    /// `v` must created from the same [`Lua`] instance.
     pub unsafe fn set_str_key_unchecked<K>(&self, k: K, v: impl Into<UnsafeValue>)
     where
         K: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,

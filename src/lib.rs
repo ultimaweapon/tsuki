@@ -247,6 +247,7 @@ impl Lua {
             g.set_str_key_unchecked("print", Fp(crate::builtin::base::print))
         };
         unsafe { g.set_str_key_unchecked("rawget", Fp(crate::builtin::base::rawget)) };
+        unsafe { g.set_str_key_unchecked("rawset", Fp(crate::builtin::base::rawset)) };
         unsafe { g.set_str_key_unchecked("select", Fp(crate::builtin::base::select)) };
         unsafe { g.set_str_key_unchecked("setmetatable", Fp(crate::builtin::base::setmetatable)) };
         unsafe { g.set_str_key_unchecked("tostring", Fp(crate::builtin::base::tostring)) };
