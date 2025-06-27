@@ -21,6 +21,7 @@ use libm::frexp;
 
 type c_int = i32;
 type c_uint = u32;
+type c_long = i64;
 type c_ulong = u64;
 type c_longlong = i64;
 type c_double = f64;
@@ -286,7 +287,7 @@ unsafe fn findindex(
         }
 
         i = (n as *mut Node).offset_from(((*t).node.get()).offset(0 as c_int as isize) as *mut Node)
-            as libc::c_long as c_int as c_uint;
+            as c_long as c_int as c_uint;
         return Ok(i.wrapping_add(1 as c_int as c_uint).wrapping_add(asize));
     };
 }
@@ -572,7 +573,7 @@ pub unsafe fn luaH_resize(t: *const Table, newasize: c_uint, nhsize: c_uint) {
     ) as *mut UnsafeValue;
 
     if ((newarray.is_null() && newasize > 0 as c_int as c_uint) as c_int != 0 as c_int) as c_int
-        as libc::c_long
+        as c_long
         != 0
     {
         freehash(&raw const newt);
@@ -706,19 +707,19 @@ unsafe fn luaH_newkey(
             while othern.offset((*othern).u.next as isize) != mp {
                 othern = othern.offset((*othern).u.next as isize);
             }
-            (*othern).u.next = f_0.offset_from(othern) as libc::c_long as c_int;
+            (*othern).u.next = f_0.offset_from(othern) as c_long as c_int;
             *f_0 = *mp;
             if (*mp).u.next != 0 as c_int {
-                (*f_0).u.next += mp.offset_from(f_0) as libc::c_long as c_int;
+                (*f_0).u.next += mp.offset_from(f_0) as c_long as c_int;
                 (*mp).u.next = 0 as c_int;
             }
             (*mp).i_val.tt_ = (0 as c_int | (1 as c_int) << 4 as c_int) as u8;
         } else {
             if (*mp).u.next != 0 as c_int {
                 (*f_0).u.next =
-                    mp.offset((*mp).u.next as isize).offset_from(f_0) as libc::c_long as c_int;
+                    mp.offset((*mp).u.next as isize).offset_from(f_0) as c_long as c_int;
             }
-            (*mp).u.next = f_0.offset_from(mp) as libc::c_long as c_int;
+            (*mp).u.next = f_0.offset_from(mp) as c_long as c_int;
             mp = f_0;
         }
     }

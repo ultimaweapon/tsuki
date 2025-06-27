@@ -41,6 +41,48 @@ pub(crate) unsafe fn step(g: *const Lua) {
     }
 }
 
+unsafe fn restart(g: &Lua) {
+    g.reset_gray();
+    mark_roots(g);
+}
+
+unsafe fn mark_roots(g: &Lua) {
+    // Mark object with strong references.
+    let mut o = g.refs.get();
+
+    while !o.is_null() {
+        if ((*o).marked.get() & (1 << 3 | 1 << 4)) != 0 {
+            reallymarkobject(g, o);
+        }
+
+        o = (*o).refp.get();
+    }
+
+    // Mark registry.
+    if (*(*g.l_registry.get()).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0 {
+        reallymarkobject(g, (*g.l_registry.get()).value_.gc);
+    }
+
+    // Mark primitive metatable.
+    for mt in g
+        .primitive_mt
+        .iter()
+        .map(|v| v.get())
+        .filter(|v| !v.is_null())
+    {
+        if (*mt).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
+            reallymarkobject(g, mt.cast());
+        }
+    }
+
+    // Mark userdata metatable.
+    for mt in g.userdata_mt.borrow().values().copied() {
+        if (*mt).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
+            reallymarkobject(g, mt.cast());
+        }
+    }
+}
+
 #[inline(always)]
 unsafe fn getgclist(o: *const Object) -> *mut *const Object {
     match (*o).tt {
@@ -950,42 +992,7 @@ unsafe fn atomic(g: &Lua) -> usize {
     g.grayagain.set(null_mut());
     g.gcstate.set(2);
 
-    // Mark object with strong references.
-    let mut o = g.refs.get();
-
-    while !o.is_null() {
-        if ((*o).marked.get() & (1 << 3 | 1 << 4)) != 0 {
-            reallymarkobject(g, o);
-        }
-
-        o = (*o).refp.get();
-    }
-
-    // Mark registry.
-    if (*g.l_registry.get()).tt_ & 1 << 6 != 0
-        && (*(*g.l_registry.get()).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
-    {
-        reallymarkobject(g, (*g.l_registry.get()).value_.gc);
-    }
-
-    // Mark primitive metatable.
-    for mt in g
-        .primitive_mt
-        .iter()
-        .map(|v| v.get())
-        .filter(|v| !v.is_null())
-    {
-        if (*mt).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
-            reallymarkobject(g, mt.cast());
-        }
-    }
-
-    // Mark userdata metatable.
-    for mt in g.userdata_mt.borrow().values().copied() {
-        if (*mt).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
-            reallymarkobject(g, mt.cast());
-        }
-    }
+    mark_roots(g);
 
     work = work.wrapping_add(propagateall(g));
     work = work.wrapping_add(remarkupvals(g) as usize);
@@ -1035,7 +1042,7 @@ unsafe fn singlestep(g: &Lua) -> usize {
 
     match g.gcstate.get() {
         8 => {
-            g.reset_gray();
+            restart(g);
             g.gcstate.set(0);
             work = 1;
         }
