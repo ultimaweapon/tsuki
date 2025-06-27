@@ -22,6 +22,7 @@ use libm::frexp;
 type c_int = i32;
 type c_uint = u32;
 type c_longlong = i64;
+type c_double = f64;
 
 pub(super) static mut dummynode_: Node = Node {
     u: {
@@ -71,9 +72,8 @@ unsafe fn l_hashfloat(mut n: f64) -> c_int {
     let mut ni: i64 = 0;
     (n, i) = frexp(n);
     n = n * -((-(2147483647 as c_int) - 1 as c_int) as f64);
-    if !(n >= (-(0x7fffffffffffffff as c_longlong) - 1 as c_int as c_longlong) as libc::c_double
-        && n < -((-(0x7fffffffffffffff as c_longlong) - 1 as c_int as c_longlong)
-            as libc::c_double)
+    if !(n >= (-(0x7fffffffffffffff as c_longlong) - 1 as c_int as c_longlong) as c_double
+        && n < -((-(0x7fffffffffffffff as c_longlong) - 1 as c_int as c_longlong) as c_double)
         && {
             ni = n as c_longlong;
             1 as c_int != 0

@@ -280,6 +280,8 @@ impl Lua {
         // Setup math table.
         let g = unsafe { Table::new(self) };
 
+        unsafe { (*g).set_str_key_unchecked("mininteger", i64::MIN) };
+
         // Set global.
         let g = unsafe { UnsafeValue::from_obj(g.cast()) };
 
