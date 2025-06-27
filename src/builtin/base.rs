@@ -182,6 +182,20 @@ pub fn print(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Err
     Ok(cx.into())
 }
 
+/// Implementation of [rawget](https://www.lua.org/manual/5.4/manual.html#pdf-rawget).
+pub fn rawget(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+    let t = cx.arg(1).get_table()?;
+    let k = cx.arg(2);
+
+    if !k.is_exists() {
+        return Err(k.error(ArgNotFound));
+    }
+
+    cx.push_from_key(t, k)?;
+
+    Ok(cx.into())
+}
+
 /// Implementation of [select](https://www.lua.org/manual/5.4/manual.html#pdf-select).
 pub fn select(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
     // Check if first argument is '#'. We check only first byte to match with Lua behavior.

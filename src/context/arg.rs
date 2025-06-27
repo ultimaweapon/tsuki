@@ -410,7 +410,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     }
 
     #[inline(always)]
-    fn get_raw_or_null(&self) -> *mut UnsafeValue {
+    pub(crate) fn get_raw_or_null(&self) -> *mut UnsafeValue {
         let th = self.cx.th;
         let ci = th.ci.get();
 

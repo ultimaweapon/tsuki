@@ -108,6 +108,27 @@ impl<'a, T> Context<'a, T> {
     }
 
     /// Push a value for `k` from `t` to the result of this call.
+    ///
+    /// # Panics
+    /// If `k` come from different [Lua](crate::Lua) instance.
+    pub fn push_from_key(
+        &self,
+        t: &Table,
+        k: impl Into<UnsafeValue>,
+    ) -> Result<Type, StackOverflow> {
+        unsafe { lua_checkstack(self.th, 1)? };
+
+        // Get value and push it.
+        let v = t.get_raw(k);
+
+        unsafe { self.th.top.write(*v) };
+        unsafe { self.th.top.add(1) };
+        self.ret.set(self.ret.get() + 1);
+
+        Ok(unsafe { Type::from_tt((*v).tt_) })
+    }
+
+    /// Push a value for `k` from `t` to the result of this call.
     pub fn push_from_str_key<K>(&self, t: &Table, k: K) -> Result<Type, StackOverflow>
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,

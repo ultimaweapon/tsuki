@@ -1,4 +1,4 @@
-use crate::{Args, Context, Fp, LuaFn, Nil, Object, Ref, Ret, Str, Table, Thread, Value};
+use crate::{Arg, Args, Context, Fp, LuaFn, Nil, Object, Ref, Ret, Str, Table, Thread, Value};
 use alloc::boxed::Box;
 
 /// The outside **must** never be able to construct or have the value of this type.
@@ -160,6 +160,19 @@ impl From<Value> for UnsafeValue {
             Value::Table(v) => Self::from(v),
             Value::LuaFn(v) => Self::from(v),
             Value::Thread(v) => Self::from(v),
+        }
+    }
+}
+
+impl<'a, 'b> From<Arg<'a, 'b>> for UnsafeValue {
+    #[inline(always)]
+    fn from(value: Arg<'a, 'b>) -> Self {
+        let v = value.get_raw_or_null();
+
+        if v.is_null() {
+            Self::from(Nil)
+        } else {
+            unsafe { v.read() }
         }
     }
 }

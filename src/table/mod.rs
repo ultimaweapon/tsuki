@@ -146,6 +146,18 @@ impl Table {
         unsafe { Value::from_unsafe(v) }
     }
 
+    /// # Panics
+    /// If `k` come from different [Lua](crate::Lua) instance.
+    pub(crate) fn get_raw(&self, k: impl Into<UnsafeValue>) -> *const UnsafeValue {
+        let k = k.into();
+
+        if unsafe { (k.tt_ & 1 << 6 != 0) && (*k.value_.gc).global != self.hdr.global } {
+            panic!("attempt to get the table with key from a different Lua");
+        }
+
+        unsafe { luaH_get(self, &k) }
+    }
+
     #[inline(always)]
     pub(crate) fn get_raw_str_key<K>(&self, k: K) -> *const UnsafeValue
     where
