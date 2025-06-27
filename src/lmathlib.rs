@@ -46,11 +46,6 @@ unsafe fn math_abs(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Er
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn math_sin(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    lua_pushnumber(L, sin(luaL_checknumber(L, 1 as libc::c_int)?));
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn math_cos(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     lua_pushnumber(L, cos(luaL_checknumber(L, 1 as libc::c_int)?));
     return Ok(1 as libc::c_int);
@@ -561,13 +556,6 @@ static mut mathlib: [luaL_Reg; 28] = [
         let mut init = luaL_Reg {
             name: b"rad\0" as *const u8 as *const libc::c_char,
             func: Some(math_rad),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"sin\0" as *const u8 as *const libc::c_char,
-            func: Some(math_sin),
         };
         init
     },

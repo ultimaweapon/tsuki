@@ -292,6 +292,7 @@ impl Lua {
         let g = unsafe { Table::new(self) };
 
         unsafe { (*g).set_str_key_unchecked("mininteger", i64::MIN) };
+        unsafe { (*g).set_str_key_unchecked("sin", Fp(crate::builtin::math::sin)) };
 
         // Set global.
         let g = unsafe { UnsafeValue::from_obj(g.cast()) };

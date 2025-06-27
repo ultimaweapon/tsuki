@@ -3,7 +3,7 @@ use crate::lapi::{lua_pcall, lua_typename};
 use crate::lauxlib::luaL_argerror;
 use crate::lobject::{Udata, luaO_tostring};
 use crate::value::UnsafeValue;
-use crate::vm::{F2Ieq, luaV_tointeger};
+use crate::vm::{F2Ieq, luaV_tointeger, luaV_tonumber_};
 use crate::{NON_YIELDABLE_WAKER, Ref, Str, Table, Type, Value, luaH_get};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
@@ -206,6 +206,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// Gets the argument and convert it to Lua integer.
     ///
     /// This has the same semantic as `luaL_checkinteger`.
+    #[inline(always)]
     pub fn to_int(&self) -> Result<i64, Box<dyn core::error::Error>> {
         // Check if integer.
         let expect = lua_typename(3);
@@ -261,6 +262,29 @@ impl<'a, 'b> Arg<'a, 'b> {
             Ok(Some(unsafe { val.assume_init() }))
         } else if unsafe { (*raw).tt_ == 3 | 1 << 4 } {
             Err(self.error("number has no integer representation"))
+        } else {
+            Err(unsafe { self.type_error(expect, raw) })
+        }
+    }
+
+    /// Gets the argument and convert it to Lua number.
+    ///
+    /// This has the same semantic as `luaL_checknumber`.
+    #[inline(always)]
+    pub fn to_num(&self) -> Result<f64, Box<dyn core::error::Error>> {
+        // Check if number.
+        let expect = lua_typename(3);
+        let raw = self.get_raw(expect)?;
+
+        if unsafe { (*raw).tt_ == 3 | 1 << 4 } {
+            return Ok(unsafe { (*raw).value_.n });
+        }
+
+        // Convert to number.
+        let mut val = MaybeUninit::uninit();
+
+        if unsafe { luaV_tonumber_(raw, val.as_mut_ptr()) != 0 } {
+            Ok(unsafe { val.assume_init() })
         } else {
             Err(unsafe { self.type_error(expect, raw) })
         }

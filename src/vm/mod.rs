@@ -73,6 +73,7 @@ unsafe fn l_strton(obj: *const UnsafeValue, result: *mut UnsafeValue) -> c_int {
     }
 }
 
+#[inline(never)]
 pub unsafe fn luaV_tonumber_(obj: *const UnsafeValue, n: *mut f64) -> c_int {
     let mut v: UnsafeValue = UnsafeValue {
         value_: UntaggedValue {

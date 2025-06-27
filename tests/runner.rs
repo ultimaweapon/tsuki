@@ -13,7 +13,6 @@ fn close() {
 }
 
 #[test]
-#[ignore = "need Lua standard library"]
 fn closure() {
     run("closure.lua").unwrap();
 }
