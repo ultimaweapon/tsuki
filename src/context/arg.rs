@@ -30,9 +30,35 @@ impl<'a, 'b> Arg<'a, 'b> {
     }
 
     /// Check if this argument exists.
+    ///
+    /// You can use [`Self::exists()`] if you want to return an error if this argument does not
+    /// exists.
     #[inline(always)]
     pub fn is_exists(&self) -> bool {
         self.index.get() <= self.cx.payload.0
+    }
+
+    /// Check if this argument exists.
+    ///
+    /// This has the same effect as:
+    ///
+    /// ```ignore
+    /// if !arg.is_exists() {
+    ///     return Err(arg.error(ArgNotFound));
+    /// }
+    /// ```
+    ///
+    /// Other methods like [`Self::get_str()`] already validate if the argument exists. This method
+    /// can be used in case you want to verify if the argument exists but don't need its value.
+    ///
+    /// This has the same semantic as `luaL_checkany`.
+    #[inline(always)]
+    pub fn exists(self) -> Result<Self, Box<dyn core::error::Error>> {
+        if self.is_exists() {
+            Ok(self)
+        } else {
+            Err(self.error(ArgNotFound))
+        }
     }
 
     /// Returns type of this argument.

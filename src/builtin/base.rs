@@ -185,11 +185,7 @@ pub fn print(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Err
 /// Implementation of [rawget](https://www.lua.org/manual/5.4/manual.html#pdf-rawget).
 pub fn rawget(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
     let t = cx.arg(1).get_table()?;
-    let k = cx.arg(2);
-
-    if !k.is_exists() {
-        return Err(k.error(ArgNotFound));
-    }
+    let k = cx.arg(2).exists()?;
 
     cx.push_from_key(t, k)?;
 
@@ -199,16 +195,8 @@ pub fn rawget(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
 /// Implementation of [rawset](https://www.lua.org/manual/5.4/manual.html#pdf-rawset).
 pub fn rawset(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
     let t = cx.arg(1).get_table()?;
-    let k = cx.arg(2);
-    let v = cx.arg(3);
-
-    if !k.is_exists() {
-        return Err(k.error(ArgNotFound));
-    }
-
-    if !v.is_exists() {
-        return Err(v.error(ArgNotFound));
-    }
+    let k = cx.arg(2).exists()?;
+    let v = cx.arg(3).exists()?;
 
     // SAFETY: t, k and v passed from Lua, which mean it is guarantee to be created from the same
     // Lua instance.
@@ -274,11 +262,7 @@ pub fn setmetatable(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::err
 
 /// Implementation of [tostring](https://www.lua.org/manual/5.4/manual.html#pdf-tostring).
 pub fn tostring(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
-    let v = cx.arg(1);
-
-    if !v.is_exists() {
-        return Err(v.error(ArgNotFound));
-    }
+    let v = cx.arg(1).exists()?;
 
     cx.push(v.display()?)?;
 

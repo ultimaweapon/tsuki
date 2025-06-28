@@ -17,6 +17,7 @@ use crate::{Node, NodeKey, Str, Table, TableError, Thread};
 use alloc::boxed::Box;
 use core::alloc::Layout;
 use core::cell::Cell;
+use core::ffi::c_void;
 use libm::frexp;
 
 type c_int = i32;
@@ -337,7 +338,7 @@ unsafe fn freehash(t: *const Table) {
     if !((*t).lastfree.get()).is_null() {
         luaM_free_(
             (*t).hdr.global,
-            (*t).node.get() as *mut libc::c_void,
+            (*t).node.get() as *mut c_void,
             (((1 as c_int) << (*t).lsizenode.get() as c_int) as usize)
                 .wrapping_mul(size_of::<Node>()),
         );
@@ -567,7 +568,7 @@ pub unsafe fn luaH_resize(t: *const Table, newasize: c_uint, nhsize: c_uint) {
 
     newarray = luaM_realloc_(
         (*t).hdr.global,
-        (*t).array.get() as *mut libc::c_void,
+        (*t).array.get() as *mut c_void,
         (oldasize as usize).wrapping_mul(::core::mem::size_of::<UnsafeValue>()),
         (newasize as usize).wrapping_mul(::core::mem::size_of::<UnsafeValue>()),
     ) as *mut UnsafeValue;
@@ -639,7 +640,7 @@ pub unsafe fn luaH_free(t: *mut Table) {
     freehash(t);
     luaM_free_(
         g,
-        (*t).array.get() as *mut libc::c_void,
+        (*t).array.get() as *mut c_void,
         (luaH_realasize(t) as usize).wrapping_mul(size_of::<UnsafeValue>()),
     );
 
