@@ -316,6 +316,44 @@ impl<'a, 'b> Arg<'a, 'b> {
         }
     }
 
+    /// Gets the argument and convert it to Lua number.
+    ///
+    /// This method returns [`None`] in the following cases:
+    ///
+    /// - This argument is `nil`.
+    /// - This argument does not exists and `required` is `false`.
+    ///
+    /// This has the same semantic as `luaL_optnumber`.
+    #[inline(always)]
+    pub fn to_nilable_num(
+        &self,
+        required: bool,
+    ) -> Result<Option<f64>, Box<dyn core::error::Error>> {
+        // Check type.
+        let expect = "nil or number";
+        let raw = self.get_raw_or_null();
+
+        if raw.is_null() {
+            match required {
+                true => return Err(self.invalid_type(expect, lua_typename(-1))),
+                false => return Ok(None),
+            }
+        } else if unsafe { (*raw).tt_ & 0xf == 0 } {
+            return Ok(None);
+        } else if unsafe { (*raw).tt_ == 3 | 1 << 4 } {
+            return Ok(Some(unsafe { (*raw).value_.n }));
+        };
+
+        // Convert to number.
+        let mut val = MaybeUninit::uninit();
+
+        if unsafe { luaV_tonumber_(raw, val.as_mut_ptr()) != 0 } {
+            Ok(Some(unsafe { val.assume_init() }))
+        } else {
+            Err(unsafe { self.type_error(expect, raw) })
+        }
+    }
+
     /// Gets the argument and convert it to Lua string suitable for display.
     ///
     /// This has the same semantic as `luaL_tolstring`, which mean it does not modify the argument

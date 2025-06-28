@@ -291,6 +291,7 @@ impl Lua {
         // Setup math table.
         let g = unsafe { Table::new(self) };
 
+        unsafe { (*g).set_str_key_unchecked("log", Fp(crate::builtin::math::log)) };
         unsafe { (*g).set_str_key_unchecked("mininteger", i64::MIN) };
         unsafe { (*g).set_str_key_unchecked("sin", Fp(crate::builtin::math::sin)) };
 

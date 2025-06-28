@@ -19,7 +19,7 @@ pub struct Table {
     pub(crate) hdr: Object,
     pub(crate) flags: Cell<u8>,
     pub(crate) lsizenode: Cell<u8>,
-    pub(crate) alimit: Cell<libc::c_uint>,
+    pub(crate) alimit: Cell<u32>,
     pub(crate) array: Cell<*mut UnsafeValue>,
     pub(crate) node: Cell<*mut Node>,
     pub(crate) lastfree: Cell<*mut Node>,
@@ -31,9 +31,7 @@ impl Table {
         let layout = Layout::new::<Self>();
         let o = unsafe { Object::new(g, 5 | 0 << 4, layout).cast::<Self>() };
 
-        unsafe {
-            addr_of_mut!((*o).flags).write(Cell::new(!(!(0 as libc::c_uint) << TM_EQ + 1) as u8))
-        };
+        unsafe { addr_of_mut!((*o).flags).write(Cell::new(!(!(0 as u32) << TM_EQ + 1) as u8)) };
         unsafe { addr_of_mut!((*o).lsizenode).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*o).alimit).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*o).array).write(Cell::new(null_mut())) };
@@ -207,7 +205,7 @@ impl Table {
         unsafe { luaH_set(self, &k, &v)? };
 
         self.flags
-            .set((self.flags.get() as libc::c_uint & !!(!(0 as libc::c_uint) << TM_EQ + 1)) as u8);
+            .set((self.flags.get() as u32 & !!(!(0 as u32) << TM_EQ + 1)) as u8);
 
         if (v.tt_ & 1 << 6 != 0) && (self.hdr.marked.get() & 1 << 5 != 0) {
             if unsafe { (*v.value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0 } {

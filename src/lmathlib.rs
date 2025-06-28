@@ -178,25 +178,6 @@ unsafe fn math_ult(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Er
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn math_log(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut x: f64 = luaL_checknumber(L, 1 as libc::c_int)?;
-    let mut res: f64 = 0.;
-    if lua_type(L, 2 as libc::c_int) <= 0 as libc::c_int {
-        res = log(x);
-    } else {
-        let mut base: f64 = luaL_checknumber(L, 2 as libc::c_int)?;
-        if base == 2.0f64 {
-            res = log2(x);
-        } else if base == 10.0f64 {
-            res = log10(x);
-        } else {
-            res = log(x) / log(base);
-        }
-    }
-    lua_pushnumber(L, res);
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn math_exp(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     lua_pushnumber(L, exp(luaL_checknumber(L, 1 as libc::c_int)?));
     return Ok(1 as libc::c_int);
@@ -521,13 +502,6 @@ static mut mathlib: [luaL_Reg; 28] = [
         let mut init = luaL_Reg {
             name: b"ult\0" as *const u8 as *const libc::c_char,
             func: Some(math_ult),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"log\0" as *const u8 as *const libc::c_char,
-            func: Some(math_log),
         };
         init
     },

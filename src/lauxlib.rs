@@ -468,18 +468,6 @@ pub unsafe fn luaL_checknumber(
     return Ok(d);
 }
 
-pub unsafe fn luaL_optnumber(
-    L: *const Thread,
-    arg: libc::c_int,
-    def: f64,
-) -> Result<f64, Box<dyn core::error::Error>> {
-    return if lua_type(L, arg) <= 0 as libc::c_int {
-        Ok(def)
-    } else {
-        luaL_checknumber(L, arg)
-    };
-}
-
 pub unsafe fn luaL_getmetafield(
     L: *const Thread,
     obj: libc::c_int,
