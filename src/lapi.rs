@@ -270,11 +270,6 @@ pub unsafe fn lua_iscfunction(L: *mut Thread, idx: c_int) -> c_int {
         as c_int;
 }
 
-pub unsafe fn lua_isinteger(L: *const Thread, idx: c_int) -> c_int {
-    let o: *const UnsafeValue = index2value(L, idx);
-    return ((*o).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int) as c_int;
-}
-
 #[inline(never)]
 pub unsafe fn lua_isnumber(L: *const Thread, idx: c_int) -> c_int {
     let mut n: f64 = 0.;

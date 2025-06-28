@@ -85,33 +85,6 @@ unsafe fn math_toint(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn pushnumint(mut L: *const Thread, mut d: f64) {
-    let mut n: i64 = 0;
-    if d >= (-(0x7fffffffffffffff as libc::c_longlong) - 1 as libc::c_int as libc::c_longlong)
-        as libc::c_double
-        && d < -((-(0x7fffffffffffffff as libc::c_longlong) - 1 as libc::c_int as libc::c_longlong)
-            as libc::c_double)
-        && {
-            n = d as libc::c_longlong;
-            1 as libc::c_int != 0
-        }
-    {
-        lua_pushinteger(L, n);
-    } else {
-        lua_pushnumber(L, d);
-    };
-}
-
-unsafe fn math_floor(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    if lua_isinteger(L, 1 as libc::c_int) != 0 {
-        lua_settop(L, 1 as libc::c_int)?;
-    } else {
-        let mut d: f64 = floor(luaL_checknumber(L, 1 as libc::c_int)?);
-        pushnumint(L, d);
-    }
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn math_ceil(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     if lua_isinteger(L, 1 as libc::c_int) != 0 {
         lua_settop(L, 1 as libc::c_int)?;
@@ -481,13 +454,6 @@ static mut mathlib: [luaL_Reg; 28] = [
         let mut init = luaL_Reg {
             name: b"tointeger\0" as *const u8 as *const libc::c_char,
             func: Some(math_toint),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"floor\0" as *const u8 as *const libc::c_char,
-            func: Some(math_floor),
         };
         init
     },

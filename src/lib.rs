@@ -291,6 +291,7 @@ impl Lua {
         // Setup math table.
         let g = unsafe { Table::new(self) };
 
+        unsafe { (*g).set_str_key_unchecked("floor", Fp(crate::builtin::math::floor)) };
         unsafe { (*g).set_str_key_unchecked("log", Fp(crate::builtin::math::log)) };
         unsafe { (*g).set_str_key_unchecked("maxinteger", i64::MAX) };
         unsafe { (*g).set_str_key_unchecked("mininteger", i64::MIN) };
@@ -402,7 +403,7 @@ pub enum Value {
     Bool(bool),
     Fp(fn(Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>>),
     Int(i64),
-    Float(f64),
+    Num(f64),
     Str(Ref<Str>),
     Table(Ref<Table>),
     LuaFn(Ref<LuaFn>),
@@ -423,7 +424,7 @@ impl Value {
             },
             3 => match unsafe { ((*v).tt_ >> 4) & 3 } {
                 0 => Self::Int(unsafe { (*v).value_.i }),
-                1 => Self::Float(unsafe { (*v).value_.n }),
+                1 => Self::Num(unsafe { (*v).value_.n }),
                 _ => unreachable!(),
             },
             4 => Self::Str(unsafe { Ref::new((*v).value_.gc.cast()) }),

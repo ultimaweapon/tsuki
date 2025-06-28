@@ -332,6 +332,19 @@ impl<'a> Context<'a, Ret> {
         self.ret.set(ret);
     }
 
+    /// Shortens the call results, keeping the first `len` values and remove the rest.
+    ///
+    /// This has no effect if `len` is equal or greater than call results.
+    pub fn truncate(&mut self, len: usize) {
+        let remove = match self.ret.get().checked_sub(len) {
+            Some(v) => v,
+            None => return,
+        };
+
+        unsafe { self.th.top.sub(remove) };
+        self.ret.set(len);
+    }
+
     pub(crate) fn results(&self) -> usize {
         self.ret.get()
     }

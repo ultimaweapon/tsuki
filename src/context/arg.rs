@@ -62,6 +62,8 @@ impl<'a, 'b> Arg<'a, 'b> {
     }
 
     /// Returns type of this argument.
+    ///
+    /// Use [`Self::is_int()`] if you want to check if argument is Lua integer.
     #[inline(always)]
     pub fn ty(&self) -> Option<Type> {
         let v = self.get_raw_or_null();
@@ -70,6 +72,21 @@ impl<'a, 'b> Arg<'a, 'b> {
             None
         } else {
             Some(Type::from_tt(unsafe { (*v).tt_ }))
+        }
+    }
+
+    /// Check if this argument is Lua integer.
+    ///
+    /// This has the same semantic as `lua_isinteger`, except it return [`None`] if the argument
+    /// does not exists instead of `false`.
+    #[inline(always)]
+    pub fn is_int(&self) -> Option<bool> {
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            None
+        } else {
+            Some(unsafe { (*v).tt_ == 3 | 0 << 4 })
         }
     }
 

@@ -38,10 +38,10 @@ pub struct Thread {
     pub(crate) twups: Cell<*const Thread>,
     pub(crate) base_ci: UnsafeCell<CallInfo>,
     pub(crate) hook: Cell<lua_Hook>,
-    pub(crate) oldpc: Cell<libc::c_int>,
-    pub(crate) basehookcount: Cell<libc::c_int>,
-    pub(crate) hookcount: Cell<libc::c_int>,
-    pub(crate) hookmask: Cell<libc::c_int>,
+    pub(crate) oldpc: Cell<i32>,
+    pub(crate) basehookcount: Cell<i32>,
+    pub(crate) hookcount: Cell<i32>,
+    pub(crate) hookmask: Cell<i32>,
     phantom: PhantomPinned,
 }
 

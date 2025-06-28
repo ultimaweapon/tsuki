@@ -155,7 +155,7 @@ impl From<Value> for UnsafeValue {
             Value::Bool(v) => Self::from(v),
             Value::Fp(v) => Self::from(Fp(v)),
             Value::Int(v) => Self::from(v),
-            Value::Float(v) => Self::from(v),
+            Value::Num(v) => Self::from(v),
             Value::Str(v) => Self::from(v),
             Value::Table(v) => Self::from(v),
             Value::LuaFn(v) => Self::from(v),
