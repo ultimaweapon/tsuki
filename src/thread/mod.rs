@@ -28,7 +28,7 @@ mod stack;
 pub struct Thread {
     pub(crate) hdr: Object,
     pub(crate) allowhook: Cell<u8>,
-    pub(crate) nci: Cell<libc::c_ushort>,
+    pub(crate) nci: Cell<u16>,
     pub(crate) top: StackPtr,
     pub(crate) ci: Cell<*mut CallInfo>,
     pub(crate) stack_last: Cell<StkId>,

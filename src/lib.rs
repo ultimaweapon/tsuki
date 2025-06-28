@@ -112,7 +112,7 @@ pub struct Lua {
 }
 
 impl Lua {
-    /// Create a new [`Lua`] with random seed to hash Lua string.
+    /// Create a new [`Lua`] with a random seed to hash Lua string.
     ///
     /// Note that all built-in functions (e.g. `print`) are not enabled by default.
     #[cfg(feature = "rand")]
@@ -292,6 +292,7 @@ impl Lua {
         let g = unsafe { Table::new(self) };
 
         unsafe { (*g).set_str_key_unchecked("log", Fp(crate::builtin::math::log)) };
+        unsafe { (*g).set_str_key_unchecked("maxinteger", i64::MAX) };
         unsafe { (*g).set_str_key_unchecked("mininteger", i64::MIN) };
         unsafe { (*g).set_str_key_unchecked("sin", Fp(crate::builtin::math::sin)) };
 
@@ -299,6 +300,29 @@ impl Lua {
         let g = unsafe { UnsafeValue::from_obj(g.cast()) };
 
         unsafe { self.global().set_str_key_unchecked("math", g) };
+    }
+
+    /// Returns a global table.
+    #[inline(always)]
+    pub fn global(&self) -> &Table {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
+        let tab = unsafe { (*reg).array.get().add(2 - 1) };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
+
+        unsafe { &*tab }
+    }
+
+    /// Create a Lua string.
+    pub fn create_str<T>(&self, v: T) -> Ref<Str>
+    where
+        T: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
+    {
+        unsafe { Ref::new(Str::from_str(self, v)) }
+    }
+
+    /// Create a Lua table.
+    pub fn create_table(&self) -> Ref<Table> {
+        unsafe { Ref::new(Table::new(self)) }
     }
 
     /// Load a Lua chunk.
@@ -342,29 +366,6 @@ impl Lua {
     #[inline(always)]
     pub fn spawn(&self) -> Ref<Thread> {
         unsafe { Ref::new(Thread::new(self)) }
-    }
-
-    /// Create a Lua string.
-    pub fn create_str<T>(&self, v: T) -> Ref<Str>
-    where
-        T: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
-    {
-        unsafe { Ref::new(Str::from_str(self, v)) }
-    }
-
-    /// Create a Lua table.
-    pub fn create_table(&self) -> Ref<Table> {
-        unsafe { Ref::new(Table::new(self)) }
-    }
-
-    /// Returns a global table.
-    #[inline(always)]
-    pub fn global(&self) -> &Table {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
-        let tab = unsafe { (*reg).array.get().add(2 - 1) };
-        let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
-
-        unsafe { &*tab }
     }
 
     unsafe fn get_mt(&self, o: *const UnsafeValue) -> *const Table {
