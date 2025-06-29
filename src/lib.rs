@@ -297,6 +297,7 @@ impl Lua {
         unsafe { (*g).set_str_key_unchecked("maxinteger", i64::MAX) };
         unsafe { (*g).set_str_key_unchecked("mininteger", i64::MIN) };
         unsafe { (*g).set_str_key_unchecked("sin", Fp(crate::builtin::math::sin)) };
+        unsafe { (*g).set_str_key_unchecked("type", Fp(crate::builtin::math::r#type)) };
 
         // Set global.
         let g = unsafe { UnsafeValue::from_obj(g.cast()) };

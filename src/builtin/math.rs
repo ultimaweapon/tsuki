@@ -1,4 +1,4 @@
-use crate::{Args, Context, Ret, Value};
+use crate::{ArgNotFound, Args, Context, Nil, Ret, Type, Value};
 use alloc::boxed::Box;
 
 /// Implementation of [math.floor](https://www.lua.org/manual/5.4/manual.html#pdf-math.floor).
@@ -36,6 +36,23 @@ pub fn sin(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error
     let v = cx.arg(1).to_num()?;
 
     cx.push(v.sin())?;
+
+    Ok(cx.into())
+}
+
+/// Implementation of [math.type](https://www.lua.org/manual/5.4/manual.html#pdf-math.type).
+pub fn r#type(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+    let v = cx.arg(1);
+
+    if v.ty().ok_or_else(|| v.error(ArgNotFound))? == Type::Number {
+        if v.is_int() == Some(true) {
+            cx.push_str("integer")?;
+        } else {
+            cx.push_str("float")?;
+        }
+    } else {
+        cx.push(Nil)?;
+    }
 
     Ok(cx.into())
 }

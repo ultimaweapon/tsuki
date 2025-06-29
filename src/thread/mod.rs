@@ -164,13 +164,7 @@ impl Drop for Thread {
 
             next = unsafe { (*ci).next };
 
-            unsafe {
-                luaM_free_(
-                    self.hdr.global,
-                    ci as *mut libc::c_void,
-                    size_of::<CallInfo>(),
-                )
-            };
+            unsafe { luaM_free_(self.hdr.global, ci.cast(), size_of::<CallInfo>()) };
             self.nci.set(self.nci.get().wrapping_sub(1));
         }
 

@@ -210,23 +210,6 @@ unsafe fn math_max(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Er
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn math_type(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    if lua_type(L, 1 as libc::c_int) == 3 as libc::c_int {
-        lua_pushstring(
-            L,
-            if lua_isinteger(L, 1 as libc::c_int) != 0 {
-                b"integer\0" as *const u8 as *const libc::c_char
-            } else {
-                b"float\0" as *const u8 as *const libc::c_char
-            },
-        );
-    } else {
-        luaL_checkany(L, 1 as libc::c_int)?;
-        lua_pushnil(L);
-    }
-    return Ok(1 as libc::c_int);
-}
-
 unsafe extern "C" fn rotl(mut x: libc::c_ulong, mut n: libc::c_int) -> libc::c_ulong {
     return x << n | (x & 0xffffffffffffffff as libc::c_ulong) >> 64 as libc::c_int - n;
 }
@@ -510,13 +493,6 @@ static mut mathlib: [luaL_Reg; 28] = [
         let mut init = luaL_Reg {
             name: b"tan\0" as *const u8 as *const libc::c_char,
             func: Some(math_tan),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"type\0" as *const u8 as *const libc::c_char,
-            func: Some(math_type),
         };
         init
     },
