@@ -260,6 +260,7 @@ impl Lua {
         // Setup string table.
         let g = unsafe { Table::new(self) };
 
+        unsafe { (*g).set_str_key_unchecked("format", Fp(crate::builtin::string::format)) };
         unsafe { (*g).set_str_key_unchecked("sub", Fp(crate::builtin::string::sub)) };
 
         // Set global.

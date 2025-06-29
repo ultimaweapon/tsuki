@@ -477,23 +477,6 @@ pub unsafe fn lua_tothread(L: *mut Thread, idx: c_int) -> *mut Thread {
     };
 }
 
-pub unsafe fn lua_topointer(L: *const Thread, idx: c_int) -> *const libc::c_void {
-    let o: *const UnsafeValue = index2value(L, idx);
-
-    match (*o).tt_ as c_int & 0x3f as c_int {
-        2 => (*o).value_.f as *const libc::c_void,
-        18 | 34 | 50 => todo!(),
-        7 => return touserdata(o),
-        _ => {
-            if (*o).tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {
-                return (*o).value_.gc as *const libc::c_void;
-            } else {
-                return 0 as *const libc::c_void;
-            }
-        }
-    }
-}
-
 pub unsafe fn lua_pushnil(L: *const Thread) {
     (*(*L).top.get()).val.tt_ = 0 | 0 << 4;
     api_incr_top(L);

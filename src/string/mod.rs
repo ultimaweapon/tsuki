@@ -125,6 +125,11 @@ impl Str {
         unsafe { core::slice::from_raw_parts(self.contents.as_ptr().cast(), self.len()) }
     }
 
+    #[inline(always)]
+    pub(crate) fn as_ptr(&self) -> *const c_char {
+        self.contents.as_ptr()
+    }
+
     unsafe fn alloc(g: *const Lua, l: usize, tag: u8, h: u32) -> *mut Str {
         let size = offset_of!(Str, contents) + l + 1;
         let align = align_of::<Str>();

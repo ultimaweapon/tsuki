@@ -3,18 +3,12 @@
 Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all code are Rust and can be using without C compiler. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that the port was done **without** compatibility with the previous version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
 
 > [!IMPORTANT]
-> Tsuki currently does not support multi-threading. There is a plan for this but it is unlikely to be feasible in a near future.
+> Tsuki does not support multi-threading and no plan to support this.
 
 ## Features
 
 - Support both synchronous and asynchronous.
-  - Coroutine can only yield within async context.
-  - All metamethod and iterator function cannot be async and cannot yield.
-  - Each call into Rust async function from Lua always incur one heap allocation.
 - Safe and low overhead API.
-  - Direct access to Lua object instead of access it via Lua stack.
-  - A call to small function get inlined due to all code are Rust.
-  - Fast path to get Rust string from Lua string without checking if UTF-8 on every access.
 - Any error propagated to the caller via Rust `Result` instead of a long jump.
 - All values owned by Rust will exempt from GC automatically (no need to move it to Lua registry).
 

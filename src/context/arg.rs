@@ -29,6 +29,31 @@ impl<'a, 'b> Arg<'a, 'b> {
         Self { cx, index }
     }
 
+    /// Get address of argument value (if any).
+    ///
+    /// This has the same semantic as `lua_topointer`, except it does not return the address of
+    /// userdata.
+    #[inline(always)]
+    pub fn as_ptr(&self) -> *const u8 {
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            return null();
+        }
+
+        match unsafe { (*v).tt_ & 0x3f } {
+            2 => unsafe { (*v).value_.f as *const u8 },
+            18 | 34 | 50 => todo!(),
+            _ => unsafe {
+                if (*v).tt_ & 1 << 6 != 0 {
+                    (*v).value_.gc.cast()
+                } else {
+                    null()
+                }
+            },
+        }
+    }
+
     /// Check if this argument exists.
     ///
     /// You can use [`Self::exists()`] if you want to return an error if this argument does not
