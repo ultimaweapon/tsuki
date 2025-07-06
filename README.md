@@ -27,8 +27,11 @@ Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all
   - Second argument accept only a UTF-8 string and will be empty when absent.
   - Third argument must be `nil` or `"t"`.
 - `warn` is enabled by default without message prefixes and does not support control message.
+- `string.format` requires UTF-8 string for both format string and format value.
 - Second argument to `__close` metamethod always `nil`.
 - `__gc` metamethod is not supported.
+- `__name` metavalue must be UTF-8 string.
+- `__tostring` metamethod must return a UTF-8 string.
 - Native module is not supported.
 - Environment variable `LUA_PATH` and `LUA_PATH_5_4` is ignored.
 - `LUA_NOENV` in registry is ignored.

@@ -9,7 +9,7 @@ use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
-use core::fmt::Display;
+use core::fmt::{Display, Write};
 use core::mem::{MaybeUninit, offset_of};
 use core::num::NonZero;
 use core::pin::pin;
@@ -426,8 +426,13 @@ impl<'a, 'b> Arg<'a, 'b> {
 
     /// Gets the argument and convert it to Lua string suitable for display.
     ///
-    /// This has the same semantic as `luaL_tolstring`, which mean it does not modify the argument
-    /// and treat non-existent argument as `nil`.
+    /// This method does not modify the argument and treat non-existent argument as `nil` the same
+    /// as `luaL_tolstring`. Note that this method requires `__tostring` metamethod to return a
+    /// UTF-8 string. It also required `__name` metavalue to be UTF-8 string.
+    ///
+    /// The returned [`Str`] guarantee to be a UTF-8 string. If this argument is a string but it is
+    /// not UTF-8 this method will return a new [`Str`] with content `string: CONTENT_IN_LOWER_HEX`
+    /// instead.
     pub fn display(&self) -> Result<Ref<Str>, Box<dyn core::error::Error>> {
         // Try __tostring metamethod.
         let t = self.cx.th;
@@ -464,7 +469,11 @@ impl<'a, 'b> Arg<'a, 'b> {
 
                 match r.tt_ & 0xf {
                     3 => unsafe { luaO_tostring(g, &mut r) },
-                    4 => (),
+                    4 => unsafe {
+                        if !(*r.value_.gc.cast::<Str>()).is_utf8() {
+                            return Err(self.error("'__tostring' must return a UTF-8 string"));
+                        }
+                    },
                     _ => return Err("'__tostring' must return a string".into()),
                 }
 
@@ -500,35 +509,55 @@ impl<'a, 'b> Arg<'a, 'b> {
                 },
                 _ => unreachable!(),
             },
-            Some(4) => unsafe { (*arg).value_.gc.cast::<Str>() },
+            Some(4) if unsafe { (*(*arg).value_.gc.cast::<Str>()).is_utf8() } => unsafe {
+                (*arg).value_.gc.cast::<Str>()
+            },
             Some(v) => unsafe {
                 // Get __name from metatable.
-                let kind = (mt.is_null() == false)
-                    .then(|| (*mt).get_raw_str_key("__name"))
+                let kind = match (mt.is_null() == false)
+                    .then(move || (*mt).get_raw_str_key("__name"))
                     .filter(|&v| (*v).tt_ & 0xf == 4)
                     .map(|v| (*v).value_.gc.cast::<Str>())
-                    .map(|v| match (*v).as_str() {
-                        Some(v) => Cow::Borrowed(v),
-                        None => String::from_utf8_lossy((*v).as_bytes()),
-                    })
-                    .unwrap_or_else(|| lua_typename(v.into()).into());
-                let v = match v {
-                    2 => (*arg).value_.f as *const (),
+                {
+                    Some(v) => (*v)
+                        .as_str()
+                        .ok_or_else(|| self.error("'__name' must be UTF-8 string"))?,
+                    None => lua_typename(v.into()),
+                };
+
+                // Build value.
+                let mut buf = String::with_capacity(kind.len() + 2 + 18);
+
+                write!(buf, "{kind}: ").unwrap();
+
+                match v {
+                    2 => write!(buf, "{:p}", (*arg).value_.f).unwrap(),
                     18 | 34 | 50 => todo!(),
-                    5 | 6 | 8 => (*arg).value_.gc.cast(),
-                    7 => (*arg)
-                        .value_
-                        .gc
-                        .byte_add(
+                    4 => {
+                        let v = (*arg).value_.gc.cast::<Str>();
+                        let v = (*v).as_bytes();
+
+                        buf.reserve(v.len().saturating_mul(2).saturating_sub(18));
+
+                        for b in v {
+                            write!(buf, "{b:x}").unwrap();
+                        }
+                    }
+                    5 | 6 | 8 => write!(buf, "{:p}", (*arg).value_.gc).unwrap(),
+                    7 => write!(
+                        buf,
+                        "{:p}",
+                        (*arg).value_.gc.byte_add(
                             offset_of!(Udata, uv)
                                 + size_of::<UnsafeValue>()
                                     * usize::from((*((*arg).value_.gc.cast::<Udata>())).nuvalue),
                         )
-                        .cast(),
+                    )
+                    .unwrap(),
                     _ => unreachable!(),
-                };
+                }
 
-                Str::from_str(g, format!("{}: {:p}", kind, v))
+                Str::from_str(g, buf)
             },
             None => unsafe {
                 Str::from_str(g, format!("{}: {:p}", lua_typename(-1), null::<()>()))

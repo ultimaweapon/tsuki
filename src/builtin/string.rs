@@ -7,23 +7,30 @@ use libc::snprintf;
 
 /// Implementation of [string.format](https://www.lua.org/manual/5.4/manual.html#pdf-string.format).
 pub fn format(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+    // Get format.
     let mut arg = 1;
-    let fmt = cx.arg(arg).get_str()?.as_bytes();
-    let mut buf = Vec::with_capacity(fmt.len() * 2);
-    let mut iter = fmt.into_iter();
+    let fmt = cx.arg(arg);
+    let fmt = fmt
+        .get_str()?
+        .as_str()
+        .ok_or_else(|| fmt.error("expect UTF-8 string"))?;
+
+    // Parse format.
+    let mut buf = String::with_capacity(fmt.len() * 2);
+    let mut iter = fmt.chars();
     let mut form = Vec::with_capacity(32);
 
-    while let Some(b) = iter.next().copied() {
+    while let Some(ch) = iter.next() {
         // Check if '%'.
-        if b != b'%' {
-            buf.push(b);
+        if ch != '%' {
+            buf.push(ch);
             continue;
         }
 
         // Check next character.
-        let mut b = match iter.next().copied() {
-            Some(b'%') => {
-                buf.push(b'%');
+        let mut ch = match iter.next() {
+            Some('%') => {
+                buf.push('%');
                 continue;
             }
             v => v,
@@ -40,19 +47,14 @@ pub fn format(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
         form.clear();
         form.push(b'%');
 
-        while let Some(v) = b {
-            form.push(v);
+        while let Some(v) = ch {
+            form.extend_from_slice(v.encode_utf8(&mut [0; 4]).as_bytes());
 
             if form.len() >= (32 - 10) {
                 return Err("invalid format (too long)".into());
-            } else if v.is_ascii_digit()
-                || v == b'-'
-                || v == b'+'
-                || v == b'#'
-                || v == b' '
-                || v == b'.'
+            } else if v.is_ascii_digit() || v == '-' || v == '+' || v == '#' || v == ' ' || v == '.'
             {
-                b = iter.next().copied();
+                ch = iter.next();
             } else {
                 break;
             }
@@ -62,10 +64,10 @@ pub fn format(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
         let arg = cx.arg(arg);
         let mut flags = None::<&[u8]>;
         let mut buff = [0u8; 418];
-        let mut nb: libc::c_int = 0 as libc::c_int;
+        let mut nb = 0;
 
-        match b {
-            Some(99) => unsafe {
+        match ch {
+            Some('c') => unsafe {
                 checkformat(&form, b"-", false)?;
 
                 form.push(0);
@@ -74,13 +76,13 @@ pub fn format(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
                     buff.as_mut_ptr().cast(),
                     buff.len(),
                     form.as_ptr().cast(),
-                    arg.to_int()? as i32,
+                    arg.to_int()? as i32, // Preserve Lua behavior.
                 );
             },
-            Some(100) | Some(105) => flags = Some(b"-+0 "),
-            Some(117) => flags = Some(b"-0"),
-            Some(111) | Some(120) | Some(88) => flags = Some(b"-#0"),
-            Some(b'a') | Some(b'A') => unsafe {
+            Some('d') | Some('i') => flags = Some(b"-+0 "),
+            Some('u') => flags = Some(b"-0"),
+            Some('o') | Some('x') | Some('X') => flags = Some(b"-#0"),
+            Some('a') | Some('A') => unsafe {
                 checkformat(&form, b"-+#0 ", true)?;
 
                 form.push(0);
@@ -92,7 +94,7 @@ pub fn format(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
                     arg.to_num()?,
                 );
             },
-            Some(b'f') | Some(101) | Some(69) | Some(103) | Some(71) => unsafe {
+            Some('f') | Some('e') | Some('E') | Some('g') | Some('G') => unsafe {
                 let n_0 = arg.to_num()?;
 
                 checkformat(&form, b"-+#0 ", true)?;
@@ -105,7 +107,7 @@ pub fn format(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
                     n_0,
                 );
             },
-            Some(b'p') => unsafe {
+            Some('p') => unsafe {
                 let mut p = arg.as_ptr();
 
                 checkformat(&form, b"-", false)?;
@@ -125,51 +127,53 @@ pub fn format(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
                     p,
                 );
             },
-            Some(b'q') => {
+            Some('q') => {
                 if form.len() != 2 {
                     return Err("specifier '%q' cannot have modifiers".into());
                 }
 
                 match arg.ty() {
                     Some(Type::String) => unsafe {
-                        let s = arg.get_str()?;
-                        let mut iter = s.as_bytes().iter().copied().peekable();
+                        let s = arg
+                            .get_str()?
+                            .as_str()
+                            .ok_or_else(|| arg.error("specifier '%q' requires UTF-8 string"))?;
+                        let mut iter = s.chars().peekable();
 
-                        buf.push(b'"');
+                        buf.push('"');
 
-                        while let Some(b) = iter.next() {
-                            if b == b'"' || b == b'\\' || b == b'\n' {
-                                buf.push(b'\\');
-                                buf.push(b);
-                            } else if b.is_ascii_control() {
+                        while let Some(ch) = iter.next() {
+                            if ch == '"' || ch == '\\' || ch == '\n' {
+                                buf.push('\\');
+                                buf.push(ch);
+                            } else if ch.is_ascii_control() {
                                 let mut buff = [0; 10];
                                 let l = if iter.peek().is_none_or(|&b| !b.is_ascii_digit()) {
                                     snprintf(
                                         buff.as_mut_ptr().cast(),
                                         10,
                                         c"\\%d".as_ptr(),
-                                        b as i32,
+                                        ch as i32,
                                     )
                                 } else {
                                     snprintf(
                                         buff.as_mut_ptr().cast(),
                                         10,
                                         c"\\%03d".as_ptr(),
-                                        b as i32,
+                                        ch as i32,
                                     )
                                 };
 
-                                buf.extend_from_slice(&buff[..(l as usize)]);
+                                buf.push_str(core::str::from_utf8(&buff[..(l as usize)]).unwrap());
                             } else {
-                                buf.push(b);
+                                buf.push(ch);
                             }
                         }
 
-                        buf.push(b'"');
+                        buf.push('"');
                     },
                     Some(Type::Number) => {
-                        let mut buff = [0; 120];
-                        let nb = if arg.is_int() == Some(true) {
+                        nb = if arg.is_int() == Some(true) {
                             let n = arg.to_int()?;
                             let f = if n == i64::MIN {
                                 c"0x%llx".as_ptr()
@@ -177,7 +181,7 @@ pub fn format(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
                                 c"%lld".as_ptr()
                             };
 
-                            unsafe { snprintf(buff.as_mut_ptr().cast(), 120, f, n) }
+                            unsafe { snprintf(buff.as_mut_ptr().cast(), buff.len(), f, n) }
                         } else {
                             let n = arg.to_num()?;
                             let f = if n == f64::INFINITY {
@@ -190,26 +194,25 @@ pub fn format(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
                                 c"%a".as_ptr()
                             };
 
-                            unsafe { snprintf(buff.as_mut_ptr().cast(), 120, f, n) }
+                            unsafe { snprintf(buff.as_mut_ptr().cast(), buff.len(), f, n) }
                         };
-
-                        buf.extend_from_slice(&buff[..nb as usize]);
                     }
                     Some(Type::Nil) | Some(Type::Boolean) => {
+                        // Use display() to honor metatable (if any).
                         let s = arg.display()?;
 
-                        buf.extend_from_slice(s.as_bytes());
+                        buf.push_str(s.as_str().unwrap());
                     }
                     _ => return Err(arg.error("value has no literal form")),
                 }
             }
-            Some(b's') => unsafe {
+            Some('s') => unsafe {
                 let s = arg.display()?;
-                let v = s.as_bytes();
+                let v = s.as_str().unwrap();
 
                 if form.len() == 2 {
-                    buf.extend_from_slice(v);
-                } else if v.contains(&0) {
+                    buf.push_str(v);
+                } else if v.contains('\0') {
                     return Err(arg.error("string contains zeros"));
                 } else {
                     checkformat(&form, b"-", true)?;
@@ -217,7 +220,7 @@ pub fn format(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
                     form.push(0);
 
                     if !form.contains(&b'.') && v.len() >= 100 {
-                        buf.extend_from_slice(v);
+                        buf.push_str(v);
                     } else {
                         nb = snprintf(
                             buff.as_mut_ptr().cast(),
@@ -231,7 +234,7 @@ pub fn format(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
             _ => {
                 return Err(format!(
                     "invalid conversion '{}' to 'format'",
-                    String::from_utf8_lossy(&form)
+                    core::str::from_utf8(&form).unwrap()
                 )
                 .into());
             }
@@ -263,14 +266,10 @@ pub fn format(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
             };
         }
 
-        buf.extend_from_slice(&buff[..nb as usize]);
+        buf.push_str(core::str::from_utf8(&buff[..nb as usize]).unwrap());
     }
 
-    // Check if result is UTF-8.
-    match String::from_utf8(buf) {
-        Ok(v) => cx.push_str(v)?,
-        Err(e) => cx.push_bytes(e.into_bytes())?,
-    }
+    cx.push_str(buf)?;
 
     Ok(cx.into())
 }
