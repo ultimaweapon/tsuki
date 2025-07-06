@@ -164,9 +164,9 @@ impl From<Value> for UnsafeValue {
     }
 }
 
-impl<'a, 'b> From<Arg<'a, 'b>> for UnsafeValue {
+impl<'a, 'b> From<&Arg<'a, 'b>> for UnsafeValue {
     #[inline(always)]
-    fn from(value: Arg<'a, 'b>) -> Self {
+    fn from(value: &Arg<'a, 'b>) -> Self {
         let v = value.get_raw_or_null();
 
         if v.is_null() {
@@ -174,6 +174,13 @@ impl<'a, 'b> From<Arg<'a, 'b>> for UnsafeValue {
         } else {
             unsafe { v.read() }
         }
+    }
+}
+
+impl<'a, 'b> From<Arg<'a, 'b>> for UnsafeValue {
+    #[inline(always)]
+    fn from(value: Arg<'a, 'b>) -> Self {
+        Self::from(&value)
     }
 }
 

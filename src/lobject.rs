@@ -8,13 +8,13 @@
 
 use crate::gc::Object;
 use crate::lctype::luai_ctype_;
-use crate::ldebug::luaG_runerror;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
 use crate::{Args, ArithError, ChunkInfo, Context, Lua, Ret, Str, Table, Thread};
 use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
+use core::mem::MaybeUninit;
 use libc::{c_char, c_int, sprintf, strpbrk, strspn, strtod};
 use libm::{floor, pow};
 
@@ -552,18 +552,15 @@ pub unsafe fn luaO_arith(
     op: c_int,
     p1: *const UnsafeValue,
     p2: *const UnsafeValue,
-    res: StkId,
-) -> Result<(), Box<dyn core::error::Error>> {
-    let r = match luaO_rawarith(op, p1, p2, &mut (*res).val) {
-        Ok(v) => v,
-        Err(e) => return luaG_runerror(L, e),
-    };
+) -> Result<UnsafeValue, Box<dyn core::error::Error>> {
+    let mut v = MaybeUninit::uninit();
+    let r = luaO_rawarith(op, p1, p2, v.as_mut_ptr())?;
 
     if r == 0 {
-        luaT_trybinTM(L, p1, p2, res, (op - 0 as c_int + TM_ADD as c_int) as TMS)?;
+        v.write(luaT_trybinTM(L, p1, p2, (op - 0 + TM_ADD as c_int) as TMS)?);
     }
 
-    Ok(())
+    Ok(v.assume_init())
 }
 
 pub unsafe fn luaO_hexavalue(c: c_int) -> c_int {

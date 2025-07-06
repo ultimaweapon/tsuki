@@ -3,7 +3,7 @@ use crate::lapi::{lua_pcall, lua_typename};
 use crate::lauxlib::luaL_argerror;
 use crate::lobject::{Udata, luaO_tostring};
 use crate::value::UnsafeValue;
-use crate::vm::{F2Ieq, luaV_tointeger, luaV_tonumber_};
+use crate::vm::{F2Ieq, luaV_objlen, luaV_tointeger, luaV_tonumber_};
 use crate::{NON_YIELDABLE_WAKER, Ref, Str, Table, Type, Value, luaH_get};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
@@ -27,31 +27,6 @@ impl<'a, 'b> Arg<'a, 'b> {
     #[inline(always)]
     pub(super) fn new(cx: &'a Context<'b, Args>, index: NonZero<usize>) -> Self {
         Self { cx, index }
-    }
-
-    /// Get address of argument value (if any).
-    ///
-    /// This has the same semantic as `lua_topointer`, except it does not return the address of
-    /// userdata.
-    #[inline(always)]
-    pub fn as_ptr(&self) -> *const u8 {
-        let v = self.get_raw_or_null();
-
-        if v.is_null() {
-            return null();
-        }
-
-        match unsafe { (*v).tt_ & 0x3f } {
-            2 => unsafe { (*v).value_.f as *const u8 },
-            18 | 34 | 50 => todo!(),
-            _ => unsafe {
-                if (*v).tt_ & 1 << 6 != 0 {
-                    (*v).value_.gc.cast()
-                } else {
-                    null()
-                }
-            },
-        }
     }
 
     /// Check if this argument exists.
@@ -112,6 +87,59 @@ impl<'a, 'b> Arg<'a, 'b> {
             None
         } else {
             Some(unsafe { (*v).tt_ == 3 | 0 << 4 })
+        }
+    }
+
+    /// Returns length of the value.
+    ///
+    /// This has the same semantic as `luaL_len`, which mean it is honor `__len` metamethod.
+    pub fn len(&self) -> Result<i64, Box<dyn core::error::Error>> {
+        // Get argument.
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            return Err(self.error(ArgNotFound));
+        }
+
+        // Get length.
+        let l = unsafe { luaV_objlen(self.cx.th, v)? };
+
+        if l.tt_ == 3 | 0 << 4 {
+            return Ok(unsafe { l.value_.i });
+        }
+
+        // Try convert to integer.
+        let mut v = MaybeUninit::uninit();
+
+        if unsafe { luaV_tointeger(&l, v.as_mut_ptr(), F2Ieq) == 0 } {
+            return Err("object length is not an integer".into());
+        }
+
+        Ok(unsafe { v.assume_init() })
+    }
+
+    /// Get address of argument value (if any).
+    ///
+    /// This has the same semantic as `lua_topointer`, except it does not return the address of
+    /// userdata.
+    #[inline(always)]
+    pub fn as_ptr(&self) -> *const u8 {
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            return null();
+        }
+
+        match unsafe { (*v).tt_ & 0x3f } {
+            2 => unsafe { (*v).value_.f as *const u8 },
+            18 | 34 | 50 => todo!(),
+            _ => unsafe {
+                if (*v).tt_ & 1 << 6 != 0 {
+                    (*v).value_.gc.cast()
+                } else {
+                    null()
+                }
+            },
         }
     }
 

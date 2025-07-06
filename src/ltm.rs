@@ -9,7 +9,7 @@
 use crate::gc::{Object, luaC_fix};
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
 use crate::ldo::{luaD_call, luaD_growstack};
-use crate::lobject::{Proto, StkId, Udata};
+use crate::lobject::{Proto, StackValue, StkId, Udata};
 use crate::lstate::CallInfo;
 use crate::table::luaH_getshortstr;
 use crate::value::{UnsafeValue, UntaggedValue};
@@ -197,15 +197,13 @@ pub unsafe fn luaT_callTM(
     }
 }
 
+/// The result will be on the top of stack.
 pub unsafe fn luaT_callTMres(
     L: *const Thread,
     f: *const UnsafeValue,
     p1: *const UnsafeValue,
     p2: *const UnsafeValue,
-    mut res: StkId,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    let result: isize =
-        (res as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
     let func: StkId = (*L).top.get();
     let io1: *mut UnsafeValue = &raw mut (*func).val;
     let io2: *const UnsafeValue = f;
@@ -230,21 +228,14 @@ pub unsafe fn luaT_callTMres(
         Poll::Pending => unreachable!(),
     }
 
-    res = ((*L).stack.get() as *mut libc::c_char).offset(result as isize) as StkId;
-    let io1_2: *mut UnsafeValue = &raw mut (*res).val;
-    (*L).top.sub(1);
-    let io2_2: *const UnsafeValue = &raw mut (*(*L).top.get()).val;
-    (*io1_2).value_ = (*io2_2).value_;
-    (*io1_2).tt_ = (*io2_2).tt_;
-
     Ok(())
 }
 
+/// The result will be on the top of stack.
 unsafe fn callbinTM(
     L: *const Thread,
     p1: *const UnsafeValue,
     p2: *const UnsafeValue,
-    res: StkId,
     event: TMS,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     let mut tm: *const UnsafeValue = luaT_gettmbyobj(L, p1, event);
@@ -254,7 +245,9 @@ unsafe fn callbinTM(
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         return Ok(0 as libc::c_int);
     }
-    luaT_callTMres(L, tm, p1, p2, res)?;
+
+    luaT_callTMres(L, tm, p1, p2)?;
+
     return Ok(1 as libc::c_int);
 }
 
@@ -262,10 +255,9 @@ pub unsafe fn luaT_trybinTM(
     L: *const Thread,
     p1: *const UnsafeValue,
     p2: *const UnsafeValue,
-    res: StkId,
     event: TMS,
-) -> Result<(), Box<dyn core::error::Error>> {
-    if callbinTM(L, p1, p2, res, event)? == 0 {
+) -> Result<UnsafeValue, Box<dyn core::error::Error>> {
+    if callbinTM(L, p1, p2, event)? == 0 {
         match event as libc::c_uint {
             TM_BAND | TM_BOR | TM_BXOR | 16 | 17 | 19 => {
                 if (*p1).tt_ & 0xf == 3 && (*p2).tt_ & 0xf == 3 {
@@ -278,7 +270,9 @@ pub unsafe fn luaT_trybinTM(
         }
     }
 
-    Ok(())
+    (*L).top.sub(1);
+
+    Ok((*L).top.read(0))
 }
 
 pub unsafe fn luaT_tryconcatTM(L: *const Thread) -> Result<(), Box<dyn core::error::Error>> {
@@ -288,7 +282,6 @@ pub unsafe fn luaT_tryconcatTM(L: *const Thread) -> Result<(), Box<dyn core::err
         L,
         &raw const (*top.offset(-(2 as libc::c_int as isize))).val,
         &raw const (*top.offset(-(1 as libc::c_int as isize))).val,
-        top.offset(-(2 as libc::c_int as isize)),
         TM_CONCAT,
     )? == 0
     {
@@ -299,6 +292,13 @@ pub unsafe fn luaT_tryconcatTM(L: *const Thread) -> Result<(), Box<dyn core::err
         ));
     }
 
+    (*L).top.sub(1);
+
+    // Move result.
+    let val = (*L).top.read(0);
+
+    (*L).top.get().sub(2).write(StackValue { val });
+
     Ok(())
 }
 
@@ -307,13 +307,12 @@ pub unsafe fn luaT_trybinassocTM(
     p1: *const UnsafeValue,
     p2: *const UnsafeValue,
     flip: libc::c_int,
-    res: StkId,
     event: TMS,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Result<UnsafeValue, Box<dyn core::error::Error>> {
     if flip != 0 {
-        luaT_trybinTM(L, p2, p1, res, event)
+        luaT_trybinTM(L, p2, p1, event)
     } else {
-        luaT_trybinTM(L, p1, p2, res, event)
+        luaT_trybinTM(L, p1, p2, event)
     }
 }
 
@@ -322,9 +321,8 @@ pub unsafe fn luaT_trybiniTM(
     p1: *const UnsafeValue,
     i2: i64,
     flip: libc::c_int,
-    res: StkId,
     event: TMS,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Result<UnsafeValue, Box<dyn core::error::Error>> {
     let mut aux: UnsafeValue = UnsafeValue {
         value_: UntaggedValue {
             gc: 0 as *mut Object,
@@ -334,7 +332,7 @@ pub unsafe fn luaT_trybiniTM(
     let io: *mut UnsafeValue = &mut aux;
     (*io).value_.i = i2;
     (*io).tt_ = (3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
-    luaT_trybinassocTM(L, p1, &mut aux, flip, res, event)
+    luaT_trybinassocTM(L, p1, &mut aux, flip, event)
 }
 
 pub unsafe fn luaT_callorderTM(
@@ -343,7 +341,9 @@ pub unsafe fn luaT_callorderTM(
     p2: *const UnsafeValue,
     event: TMS,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
-    if callbinTM(L, p1, p2, (*L).top.get(), event)? != 0 {
+    if callbinTM(L, p1, p2, event)? != 0 {
+        (*L).top.sub(1);
+
         return Ok(!((*(*L).top.get()).val.tt_ as libc::c_int
             == 1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
             || (*(*L).top.get()).val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int)

@@ -3,8 +3,10 @@ pub use self::arg::*;
 use crate::lapi::{lua_checkstack, lua_pcall};
 use crate::lobject::StackValue;
 use crate::value::UnsafeValue;
+use crate::vm::luaV_finishget;
 use crate::{
-    ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, StackOverflow, Str, Table, Thread, Type,
+    ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, StackOverflow, Str, Table, Thread,
+    Type, luaH_get, luaH_getint,
 };
 use alloc::boxed::Box;
 use alloc::string::String;
@@ -127,7 +129,7 @@ impl<'a, T> Context<'a, T> {
     ///
     /// # Panics
     /// If `k` come from different [Lua](crate::Lua) instance.
-    pub fn push_from_key(
+    pub fn push_from_table(
         &self,
         t: &Table,
         k: impl Into<UnsafeValue>,
@@ -159,6 +161,118 @@ impl<'a, T> Context<'a, T> {
         self.ret.set(self.ret.get() + 1);
 
         Ok(unsafe { Type::from_tt((*v).tt_) })
+    }
+
+    /// Push a value for `k` from `t` to the result of this call.
+    ///
+    /// This method honor `__index` metavalue.
+    ///
+    /// # Panics
+    /// If `t` or `k` come from different [Lua](crate::Lua) instance.
+    pub fn push_from_index(
+        &self,
+        t: impl Into<UnsafeValue>,
+        k: impl Into<UnsafeValue>,
+    ) -> Result<Type, Box<dyn core::error::Error>> {
+        unsafe { lua_checkstack(self.th, 1)? };
+
+        // Check if table come from the same Lua.
+        let t = t.into();
+
+        if unsafe { (t.tt_ & 1 << 6 != 0) && (*t.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to push a value created from different Lua");
+        }
+
+        // Check if key come from the same Lua.
+        let mut k = k.into();
+
+        if unsafe { (k.tt_ & 1 << 6 != 0) && (*k.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to push a value created from different Lua");
+        }
+
+        // Try table.
+        let mut slot = null();
+        let ok = if !(t.tt_ == 5 | 0 << 4 | 1 << 6) {
+            false
+        } else {
+            let t = unsafe { t.value_.gc.cast::<Table>() };
+
+            slot = unsafe { luaH_get(t, &k) };
+
+            unsafe { !((*slot).tt_ & 0xf == 0) }
+        };
+
+        // Get value.
+        let v = if ok {
+            unsafe { slot.read() }
+        } else {
+            // Try __index.
+            unsafe { luaV_finishget(self.th, &t, &mut k, slot)? }
+        };
+
+        unsafe { self.th.top.write(v) };
+        unsafe { self.th.top.add(1) };
+        self.ret.set(self.ret.get() + 1);
+
+        Ok(Type::from_tt(v.tt_))
+    }
+
+    /// Push a value for `k` from `t` to the result of this call.
+    ///
+    /// This method honor `__index` metavalue.
+    ///
+    /// # Panics
+    /// If `t` come from different [Lua](crate::Lua) instance.
+    pub fn push_from_index_with_int(
+        &self,
+        t: impl Into<UnsafeValue>,
+        k: i64,
+    ) -> Result<Type, Box<dyn core::error::Error>> {
+        unsafe { lua_checkstack(self.th, 1)? };
+
+        // Check if table come from the same Lua.
+        let t = t.into();
+
+        if unsafe { (t.tt_ & 1 << 6 != 0) && (*t.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to push a value created from different Lua");
+        }
+
+        // Try table.
+        let mut slot = null();
+        let ok = if !(t.tt_ == 5 | 0 << 4 | 1 << 6) {
+            false
+        } else {
+            let t = unsafe { t.value_.gc.cast::<Table>() };
+
+            slot = unsafe { luaH_getint(t, k) };
+
+            unsafe { !((*slot).tt_ & 0xf == 0) }
+        };
+
+        // Get value.
+        let v = if ok {
+            unsafe { slot.read() }
+        } else {
+            // Try __index.
+            let mut k = UnsafeValue::from(k);
+
+            unsafe { luaV_finishget(self.th, &t, &mut k, slot)? }
+        };
+
+        unsafe { self.th.top.write(v) };
+        unsafe { self.th.top.add(1) };
+        self.ret.set(self.ret.get() + 1);
+
+        Ok(Type::from_tt(v.tt_))
+    }
+
+    /// Reserves capacity for at least `additional` more elements to be pushed.
+    ///
+    /// Usually you don't need this method unless you try to push a large amount of results.
+    ///
+    /// This has the same semantic as `lua_checkstack`.
+    pub fn reserve(&self, additional: usize) -> Result<(), StackOverflow> {
+        unsafe { lua_checkstack(self.th, additional) }
     }
 
     /// Call `f` with values above it as arguments.

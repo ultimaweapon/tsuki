@@ -243,38 +243,6 @@ unsafe fn tpack(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn tunpack(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut n: u64 = 0;
-    let mut i = luaL_optinteger(L, 2, 1)?;
-    let e = if lua_type(L, 3) <= 0 {
-        luaL_len(L, 1)?
-    } else {
-        luaL_checkinteger(L, 3)?
-    };
-
-    if i > e {
-        return Ok(0);
-    }
-
-    n = (e as u64).wrapping_sub(i as u64);
-
-    if n >= 2147483647 || {
-        n = n.wrapping_add(1);
-        lua_checkstack(L, n.try_into().unwrap()).is_err()
-    } {
-        return luaL_error(L, "too many results to unpack");
-    }
-
-    while i < e {
-        lua_geti(L, 1 as libc::c_int, i)?;
-        i += 1;
-    }
-
-    lua_geti(L, 1, e)?;
-
-    Ok(n as libc::c_int)
-}
-
 unsafe fn set2(L: *const Thread, i: IdxT, j: IdxT) -> Result<(), Box<dyn std::error::Error>> {
     lua_seti(L, 1 as libc::c_int, i as i64)?;
     lua_seti(L, 1 as libc::c_int, j as i64)
@@ -460,13 +428,6 @@ static mut tab_funcs: [luaL_Reg; 8] = [
         let init = luaL_Reg {
             name: b"pack\0" as *const u8 as *const libc::c_char,
             func: Some(tpack),
-        };
-        init
-    },
-    {
-        let init = luaL_Reg {
-            name: b"unpack\0" as *const u8 as *const libc::c_char,
-            func: Some(tunpack),
         };
         init
     },

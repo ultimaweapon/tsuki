@@ -187,7 +187,7 @@ pub fn rawget(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
     let t = cx.arg(1).get_table()?;
     let k = cx.arg(2).exists()?;
 
-    cx.push_from_key(t, k)?;
+    cx.push_from_table(t, k)?;
 
     Ok(cx.into())
 }

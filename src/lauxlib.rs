@@ -8,10 +8,9 @@
 
 use crate::lapi::{
     lua_absindex, lua_checkstack, lua_concat, lua_copy, lua_createtable, lua_getfield,
-    lua_getmetatable, lua_gettop, lua_len, lua_next, lua_pushlstring, lua_pushnil, lua_pushstring,
+    lua_getmetatable, lua_gettop, lua_next, lua_pushlstring, lua_pushnil, lua_pushstring,
     lua_pushvalue, lua_rawequal, lua_rawget, lua_rotate, lua_setfield, lua_setmetatable,
-    lua_settop, lua_tointegerx, lua_tolstring, lua_tonumberx, lua_touserdata, lua_type,
-    lua_typename,
+    lua_settop, lua_tolstring, lua_tonumberx, lua_touserdata, lua_type, lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::{CallInfo, lua_Debug};
@@ -487,21 +486,6 @@ pub unsafe fn luaL_getmetafield(
         }
         return Ok(tt);
     };
-}
-
-pub unsafe fn luaL_len(
-    L: *const Thread,
-    idx: libc::c_int,
-) -> Result<i64, Box<dyn core::error::Error>> {
-    let mut l: i64 = 0;
-    let mut isnum: libc::c_int = 0;
-    lua_len(L, idx)?;
-    l = lua_tointegerx(L, -(1 as libc::c_int), &mut isnum);
-    if ((isnum == 0) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long != 0 {
-        return Err(luaL_error(L, "object length is not an integer"));
-    }
-    lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-    return Ok(l);
 }
 
 pub unsafe fn luaL_getsubtable(

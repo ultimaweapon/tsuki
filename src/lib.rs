@@ -281,6 +281,8 @@ impl Lua {
         // Setup table table.
         let g = unsafe { Table::new(self) };
 
+        unsafe { (*g).set_str_key_unchecked("unpack", Fp(crate::builtin::table::unpack)) };
+
         // Set global.
         let g = unsafe { UnsafeValue::from_obj(g.cast()) };
 
