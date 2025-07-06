@@ -485,21 +485,10 @@ unsafe fn prepCallInfo(
 
 async unsafe fn precallC(
     L: *const Thread,
-    mut func: StkId,
+    func: StkId,
     nresults: c_int,
     f: Func,
 ) -> Result<c_int, Box<dyn core::error::Error>> {
-    // Grow stack at least 20 slots.
-    if ((*L).stack_last.get()).offset_from((*L).top.get()) <= 20 {
-        let t__: isize =
-            (func as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
-        if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
-            crate::gc::step((*L).hdr.global);
-        }
-        luaD_growstack(L, 20)?;
-        func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
-    }
-
     // Set current CI.
     let ci = prepCallInfo(L, func, nresults, 1 << 1, ((*L).top.get()).offset(20));
 
