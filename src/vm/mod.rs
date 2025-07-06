@@ -344,7 +344,10 @@ pub unsafe fn luaV_finishget(
         }
 
         if ((*tm).tt_ & 0xf) == 2 || ((*tm).tt_ & 0xf) == 6 {
-            luaT_callTMres(L, tm, t, key)?;
+            if let Err(e) = luaT_callTMres(L, tm, t, key) {
+                return Err(e); // Requires unsized coercion.
+            }
+
             (*L).top.sub(1);
 
             return Ok((*L).top.read(0));
@@ -430,7 +433,11 @@ pub unsafe fn luaV_finishset(
         }
 
         if ((*tm).tt_ & 0xf) == 2 || ((*tm).tt_ & 0xf) == 6 {
-            return luaT_callTM(L, tm, t, key, val);
+            if let Err(e) = luaT_callTM(L, tm, t, key, val) {
+                return Err(e); // Requires unsized coercion.
+            }
+
+            return Ok(());
         }
 
         t = tm;
@@ -760,7 +767,9 @@ pub unsafe fn luaV_equalobj(
     if tm.is_null() {
         return Ok(0 as c_int);
     } else {
-        luaT_callTMres(L, tm, t1, t2)?;
+        if let Err(e) = luaT_callTMres(L, tm, t1, t2) {
+            return Err(e); // Requires unsized coercion.
+        }
 
         (*L).top.sub(1);
 
@@ -984,7 +993,10 @@ pub unsafe fn luaV_objlen(
     }
 
     // Invoke metamethod.
-    luaT_callTMres(L, tm, rb, rb)?;
+    if let Err(e) = luaT_callTMres(L, tm, rb, rb) {
+        return Err(e); // Requires unsized coercion.
+    }
+
     (*L).top.sub(1);
 
     Ok((*L).top.read(0))
@@ -3667,7 +3679,11 @@ pub async unsafe fn luaV_execute(
                         );
                         (*ci).u.savedpc = pc;
                         (*L).top.set((*ci).top);
-                        luaF_close(L, ra_52)?;
+
+                        if let Err(e) = luaF_close(L, ra_52) {
+                            return Err(e); // Requires unsized coercion.
+                        }
+
                         trap = (*ci).u.trap;
                         continue;
                     }
@@ -4320,7 +4336,11 @@ pub async unsafe fn luaV_execute(
                             if (*L).top.get() < (*ci).top {
                                 (*L).top.set((*ci).top);
                             }
-                            luaF_close(L, base)?;
+
+                            if let Err(e) = luaF_close(L, base) {
+                                return Err(e); // Requires unsized coercion.
+                            }
+
                             trap = (*ci).u.trap;
                             if (trap != 0 as c_int) as c_int as c_long != 0 {
                                 base = ((*ci).func).offset(1 as c_int as isize);
@@ -4649,7 +4669,8 @@ pub async unsafe fn luaV_execute(
                         ));
 
                         match f.poll(&mut Context::from_waker(&w)) {
-                            Poll::Ready(v) => v?,
+                            Poll::Ready(Ok(_)) => (),
+                            Poll::Ready(Err(e)) => return Err(e), // Requires unsized coercion.
                             Poll::Pending => unreachable!(),
                         }
 

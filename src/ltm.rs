@@ -13,7 +13,7 @@ use crate::lobject::{Proto, StackValue, StkId, Udata};
 use crate::lstate::CallInfo;
 use crate::table::luaH_getshortstr;
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{Lua, NON_YIELDABLE_WAKER, Str, Table, Thread};
+use crate::{CallError, Lua, NON_YIELDABLE_WAKER, Str, Table, Thread};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::string::String;
@@ -167,7 +167,7 @@ pub unsafe fn luaT_callTM(
     p1: *const UnsafeValue,
     p2: *const UnsafeValue,
     p3: *const UnsafeValue,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Result<(), Box<CallError>> {
     let func: StkId = (*L).top.get();
     let io1: *mut UnsafeValue = &mut (*func).val;
     let io2: *const UnsafeValue = f;
@@ -203,7 +203,7 @@ pub unsafe fn luaT_callTMres(
     f: *const UnsafeValue,
     p1: *const UnsafeValue,
     p2: *const UnsafeValue,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Result<(), Box<CallError>> {
     let func: StkId = (*L).top.get();
     let io1: *mut UnsafeValue = &raw mut (*func).val;
     let io2: *const UnsafeValue = f;
@@ -224,11 +224,9 @@ pub unsafe fn luaT_callTMres(
     let w = Waker::new(null(), &NON_YIELDABLE_WAKER);
 
     match f.poll(&mut Context::from_waker(&w)) {
-        Poll::Ready(v) => v?,
+        Poll::Ready(v) => v,
         Poll::Pending => unreachable!(),
     }
-
-    Ok(())
 }
 
 /// The result will be on the top of stack.
@@ -246,9 +244,10 @@ unsafe fn callbinTM(
         return Ok(0 as libc::c_int);
     }
 
-    luaT_callTMres(L, tm, p1, p2)?;
-
-    return Ok(1 as libc::c_int);
+    match luaT_callTMres(L, tm, p1, p2) {
+        Ok(_) => Ok(1),
+        Err(e) => Err(e), // Requires unsized coercion.
+    }
 }
 
 pub unsafe fn luaT_trybinTM(

@@ -6,7 +6,6 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::lapi::PcallError;
 use crate::ldebug::luaG_callerror;
 use crate::lfunc::{luaF_close, luaF_initupvals};
 use crate::lmem::{luaM_free_, luaM_saferealloc_};
@@ -17,7 +16,9 @@ use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lzio::{Mbuffer, ZIO, Zio};
 use crate::value::UnsafeValue;
 use crate::vm::luaV_execute;
-use crate::{Args, ChunkInfo, Context, Lua, LuaFn, ParseError, Ref, Ret, StackOverflow, Thread};
+use crate::{
+    Args, CallError, ChunkInfo, Context, Lua, LuaFn, ParseError, Ref, Ret, StackOverflow, Thread,
+};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use core::alloc::Layout;
@@ -406,7 +407,10 @@ unsafe fn moveresults(
                     | (1 as c_int) << 9 as c_int)
                     as libc::c_ushort;
                 (*(*L).ci.get()).u2.nres = nres;
-                res = luaF_close(L, res)?;
+                res = match luaF_close(L, res) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e), // Requires unsized coercion.
+                };
                 (*(*L).ci.get()).callstatus = ((*(*L).ci.get()).callstatus as c_int
                     & !((1 as c_int) << 9 as c_int))
                     as libc::c_ushort;
@@ -657,26 +661,55 @@ pub async unsafe fn luaD_precall(
     }
 }
 
+/// A call to this function should **never** use a try operator otherwise [`CallError`] will not
+/// properly forwarded. See https://users.rust-lang.org/t/mystified-by-downcast-failure/52459 for
+/// more details.
 pub async unsafe fn luaD_call(
     L: *const Thread,
     func: StkId,
     nResults: c_int,
-) -> Result<(), Box<dyn core::error::Error>> {
-    let ci = luaD_precall(L, func, nResults).await?;
+) -> Result<(), Box<CallError>> {
+    let old_top = func.byte_offset_from_unsigned((*L).stack.get());
+    let old_ci = (*L).ci.get();
+    let old_allowhooks = (*L).allowhook.get();
+    let r = match luaD_precall(L, func, nResults).await {
+        Ok(ci) => match ci.is_null() {
+            true => Ok(()),
+            false => {
+                (*ci).callstatus = 1 << 2;
+                luaV_execute(L, ci).await
+            }
+        },
+        Err(e) => Err(e),
+    };
 
-    if !ci.is_null() {
-        (*ci).callstatus = ((1 as c_int) << 2 as c_int) as libc::c_ushort;
-        luaV_execute(L, ci).await?;
+    match r {
+        Ok(_) => {
+            if nResults <= -1 && (*(*L).ci.get()).top < (*L).top.get() {
+                (*(*L).ci.get()).top = (*L).top.get();
+            }
+
+            Ok(())
+        }
+        Err(e) => {
+            let mut r = Err(CallError::new(L, old_ci, e));
+
+            (*L).ci.set(old_ci);
+            (*L).allowhook.set(old_allowhooks);
+            r = luaD_closeprotected(L, old_top, r);
+            (*L).top.set((*L).stack.get().byte_add(old_top));
+            luaD_shrinkstack(L);
+
+            r
+        }
     }
-
-    Ok(())
 }
 
 pub unsafe fn luaD_closeprotected(
     L: *const Thread,
     level: usize,
-    mut status: Result<(), Box<PcallError>>,
-) -> Result<(), Box<PcallError>> {
+    mut status: Result<(), Box<CallError>>,
+) -> Result<(), Box<CallError>> {
     let old_ci: *mut CallInfo = (*L).ci.get();
     let old_allowhooks: u8 = (*L).allowhook.get();
 
@@ -686,7 +719,7 @@ pub unsafe fn luaD_closeprotected(
             Err(e) => e,
         };
 
-        status = Err(PcallError::new(L, old_ci, e));
+        status = Err(e);
 
         (*L).ci.set(old_ci);
         (*L).allowhook.set(old_allowhooks);

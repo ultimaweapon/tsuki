@@ -1,15 +1,15 @@
 pub use self::arg::*;
 
-use crate::lapi::{lua_checkstack, lua_pcall};
+use crate::lapi::lua_checkstack;
+use crate::ldo::luaD_call;
 use crate::lobject::StackValue;
 use crate::value::UnsafeValue;
 use crate::vm::luaV_finishget;
 use crate::{
-    ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, StackOverflow, Str, Table, Thread,
-    Type, luaH_get, luaH_getint,
+    CallError, ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, StackOverflow, Str, Table,
+    Thread, Type, luaH_get, luaH_getint,
 };
 use alloc::boxed::Box;
-use alloc::string::String;
 use alloc::vec::Vec;
 use core::cell::Cell;
 use core::num::NonZero;
@@ -299,8 +299,7 @@ impl<'a, T> Context<'a, T> {
         // Invoke.
         let rem = f.get() - 1;
         let f = unsafe { (*ci).func.add(f.get()) };
-        let args = unsafe { self.th.top.get().offset_from_unsigned(f) - 1 };
-        let f = unsafe { pin!(lua_pcall(self.th, args, -1)) };
+        let f = unsafe { pin!(luaD_call(self.th, f, -1)) };
         let w = unsafe { Waker::new(null(), &NON_YIELDABLE_WAKER) };
         let cx = Context {
             th: self.th,
@@ -310,7 +309,7 @@ impl<'a, T> Context<'a, T> {
 
         match f.poll(&mut core::task::Context::from_waker(&w)) {
             Poll::Ready(Ok(_)) => (),
-            Poll::Ready(Err(e)) => return Ok(TryCall::Err(cx, e.chunk, e.reason)),
+            Poll::Ready(Err(e)) => return Ok(TryCall::Err(cx, e)),
             Poll::Pending => unreachable!(),
         }
 
@@ -478,11 +477,7 @@ impl<'a> From<Context<'a, Args>> for Context<'a, Ret> {
 /// Success result of [`Context::try_forward()`].
 pub enum TryCall<'a> {
     Ok(Context<'a, Ret>),
-    Err(
-        Context<'a, Ret>,
-        Option<(String, u32)>,
-        Box<dyn core::error::Error>,
-    ),
+    Err(Context<'a, Ret>, Box<CallError>),
 }
 
 /// Call arguments encapsulated in [`Context`].

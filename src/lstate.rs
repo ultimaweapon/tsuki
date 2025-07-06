@@ -6,11 +6,10 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::lapi::PcallError;
 use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
 use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::lobject::StkId;
-use crate::{ChunkInfo, Thread};
+use crate::{CallError, ChunkInfo, Thread};
 use alloc::boxed::Box;
 use core::ptr::{null, null_mut};
 
@@ -134,7 +133,7 @@ pub unsafe fn luaE_shrinkCI(L: *const Thread) {
     }
 }
 
-pub unsafe fn lua_closethread(L: *const Thread) -> Result<(), Box<PcallError>> {
+pub unsafe fn lua_closethread(L: *const Thread) -> Result<(), Box<CallError>> {
     (*L).ci.set((*L).base_ci.get());
     let ci: *mut CallInfo = (*L).ci.get();
 

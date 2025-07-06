@@ -13,7 +13,7 @@ use crate::lmem::luaM_free_;
 use crate::lobject::{AbsLineInfo, CClosure, LocVar, Proto, StackValue, StkId, UpVal, Upvaldesc};
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
 use crate::value::UnsafeValue;
-use crate::{ChunkInfo, Lua, LuaFn, NON_YIELDABLE_WAKER, Object, Thread};
+use crate::{CallError, ChunkInfo, Lua, LuaFn, NON_YIELDABLE_WAKER, Object, Thread};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::vec::Vec;
@@ -110,7 +110,7 @@ unsafe fn callclosemethod(
     L: *const Thread,
     obj: *mut UnsafeValue,
     err: *mut UnsafeValue,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Result<(), Box<CallError>> {
     let top: StkId = (*L).top.get();
     let tm: *const UnsafeValue = luaT_gettmbyobj(L, obj, TM_CLOSE);
     let io1: *mut UnsafeValue = &mut (*top).val;
@@ -158,11 +158,8 @@ unsafe fn checkclosemth(L: *const Thread, level: StkId) -> Result<(), Box<dyn co
     Ok(())
 }
 
-unsafe fn prepcallclosemth(
-    L: *const Thread,
-    level: StkId,
-) -> Result<(), Box<dyn core::error::Error>> {
-    let uv: *mut UnsafeValue = &mut (*level).val;
+unsafe fn prepcallclosemth(L: *const Thread, level: StkId) -> Result<(), Box<CallError>> {
+    let uv: *mut UnsafeValue = &raw mut (*level).val;
     let errobj = (*(*L).hdr.global).nilvalue.get();
 
     callclosemethod(L, uv, errobj)
@@ -271,10 +268,7 @@ unsafe fn poptbclist(L: *const Thread) {
     (*L).tbclist.set(tbc);
 }
 
-pub unsafe fn luaF_close(
-    L: *const Thread,
-    mut level: StkId,
-) -> Result<StkId, Box<dyn core::error::Error>> {
+pub unsafe fn luaF_close(L: *const Thread, mut level: StkId) -> Result<StkId, Box<CallError>> {
     let levelrel = (level as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
 
     luaF_closeupval(L, level);

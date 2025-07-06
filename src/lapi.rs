@@ -7,13 +7,12 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::gc::{luaC_barrier_, luaC_barrierback_};
-use crate::ldebug::lua_getinfo;
-use crate::ldo::{luaD_call, luaD_closeprotected, luaD_growstack, luaD_shrinkstack};
+use crate::ldo::luaD_growstack;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::{
     CClosure, Proto, StackValue, StkId, Udata, UpVal, luaO_str2num, luaO_tostring,
 };
-use crate::lstate::{CallInfo, lua_Debug};
+use crate::lstate::CallInfo;
 use crate::lstring::luaS_newudata;
 use crate::ltm::{TM_GC, luaT_gettm, luaT_typenames_};
 use crate::table::{
@@ -28,9 +27,7 @@ use crate::{
     Args, Context, LuaFn, Object, Ret, StackOverflow, Str, Table, TableError, Thread, api_incr_top,
 };
 use alloc::boxed::Box;
-use alloc::string::String;
 use core::ffi::{CStr, c_void};
-use core::fmt::{Display, Formatter};
 use core::mem::offset_of;
 use core::ptr::{null, null_mut};
 
@@ -1094,52 +1091,6 @@ pub unsafe fn lua_setiuservalue(L: *mut Thread, idx: c_int, n: c_int) -> c_int {
     return res;
 }
 
-pub async unsafe fn lua_call(
-    L: *const Thread,
-    nargs: usize,
-    nresults: c_int,
-) -> Result<(), Box<dyn core::error::Error>> {
-    let func = (*L).top.get().sub(nargs + 1);
-
-    luaD_call(L, func, nresults).await?;
-
-    // Adjust current CI.
-    if nresults <= -1 && (*(*L).ci.get()).top < (*L).top.get() {
-        (*(*L).ci.get()).top = (*L).top.get();
-    }
-
-    Ok(())
-}
-
-pub async unsafe fn lua_pcall(
-    L: *const Thread,
-    nargs: usize,
-    nresults: c_int,
-) -> Result<(), Box<PcallError>> {
-    let func = ((*L).top.get()).sub(nargs + 1);
-    let old_top = func.byte_offset_from_unsigned((*L).stack.get());
-    let old_ci = (*L).ci.get();
-    let old_allowhooks: u8 = (*L).allowhook.get();
-    let mut status = luaD_call(L, func, nresults)
-        .await
-        .map_err(move |e| PcallError::new(L, old_ci, e));
-
-    if status.is_err() {
-        (*L).ci.set(old_ci);
-        (*L).allowhook.set(old_allowhooks);
-        status = luaD_closeprotected(L, old_top, status);
-        (*L).top.set((*L).stack.get().byte_add(old_top));
-        luaD_shrinkstack(L);
-    }
-
-    // Adjust current CI.
-    if nresults <= -1 && (*(*L).ci.get()).top < (*L).top.get() {
-        (*(*L).ci.get()).top = (*L).top.get();
-    }
-
-    status
-}
-
 pub unsafe fn lua_next(L: *const Thread, idx: c_int) -> Result<c_int, Box<dyn core::error::Error>> {
     let mut t: *mut Table = 0 as *mut Table;
     let mut more: c_int = 0;
@@ -1357,60 +1308,5 @@ pub unsafe fn lua_upvaluejoin(L: *mut Thread, fidx1: c_int, n1: c_int, fidx2: c_
             != 0
     {
         luaC_barrier_((*L).hdr.global, f1 as *mut Object, *up1 as *mut Object);
-    }
-}
-
-/// Represents an error when a function called by [`lua_pcall()`] fails.
-#[derive(Debug)]
-pub struct PcallError {
-    pub chunk: Option<(String, u32)>,
-    pub reason: Box<dyn core::error::Error>,
-}
-
-impl PcallError {
-    pub unsafe fn new(
-        th: *const Thread,
-        caller: *mut CallInfo,
-        mut reason: Box<dyn core::error::Error>,
-    ) -> Box<Self> {
-        // Forward PcallError.
-        reason = match reason.downcast() {
-            Ok(v) => return v,
-            Err(e) => e,
-        };
-
-        // Traverse up until reaching a Lua function.
-        let mut ci = (*th).ci.get();
-        let mut chunk = None;
-
-        while ci != caller && ci != (*th).base_ci.get() {
-            let mut ar = lua_Debug {
-                i_ci: ci,
-                ..Default::default()
-            };
-
-            lua_getinfo(th, c"Sl".as_ptr(), &mut ar);
-
-            if let Some(v) = ar.source {
-                chunk = Some((v.name, u32::try_from(ar.currentline).unwrap()));
-                break;
-            }
-
-            ci = (*ci).previous;
-        }
-
-        Box::new(Self { chunk, reason })
-    }
-}
-
-impl core::error::Error for PcallError {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        self.reason.source()
-    }
-}
-
-impl Display for PcallError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        self.reason.fmt(f)
     }
 }

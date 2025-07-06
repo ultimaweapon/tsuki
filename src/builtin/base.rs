@@ -125,11 +125,13 @@ pub fn pcall(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Err
             r.insert(1, true)?;
             r
         }
-        TryCall::Err(cx, chunk, e) => {
+        TryCall::Err(cx, e) => {
+            use core::error::Error;
+
             // Write first error.
             let mut m = String::with_capacity(128);
 
-            if let Some((s, l)) = chunk {
+            if let Some((s, l)) = e.location() {
                 write!(m, "{s}:{l}: ").unwrap();
             }
 

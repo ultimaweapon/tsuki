@@ -1,6 +1,7 @@
 use super::{Args, Context};
-use crate::lapi::{lua_pcall, lua_typename};
+use crate::lapi::lua_typename;
 use crate::lauxlib::luaL_argerror;
+use crate::ldo::luaD_call;
 use crate::lobject::{Udata, luaO_tostring};
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_objlen, luaV_tointeger, luaV_tonumber_};
@@ -454,11 +455,13 @@ impl<'a, 'b> Arg<'a, 'b> {
                 unsafe { t.top.add(1) };
 
                 // Invoke.
-                let f = pin!(unsafe { lua_pcall(t, 1, 1) });
+                let f = unsafe { t.top.get().sub(2) };
+                let f = pin!(unsafe { luaD_call(t, f, 1) });
                 let w = unsafe { Waker::new(null(), &NON_YIELDABLE_WAKER) };
 
                 match f.poll(&mut core::task::Context::from_waker(&w)) {
-                    Poll::Ready(v) => v?,
+                    Poll::Ready(Ok(_)) => (),
+                    Poll::Ready(Err(e)) => return Err(e), // Requires unsized coercion.
                     Poll::Pending => unreachable!(),
                 }
 

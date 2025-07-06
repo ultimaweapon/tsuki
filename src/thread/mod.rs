@@ -2,19 +2,19 @@ pub use self::args::DynamicArgs;
 pub(crate) use self::stack::*;
 
 use self::args::Args;
-use crate::lapi::{lua_checkstack, lua_pcall};
+use crate::lapi::lua_checkstack;
+use crate::ldo::luaD_call;
 use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
 use crate::lobject::{StackValue, StkId, UpVal};
 use crate::lstate::{CallInfo, lua_Hook};
-use crate::{Lua, LuaFn, NON_YIELDABLE_WAKER, Object, Value};
+use crate::value::UnsafeValue;
+use crate::{Lua, NON_YIELDABLE_WAKER, Object, Value};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
-use alloc::string::String;
 use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::cell::{Cell, UnsafeCell};
-use core::fmt::{Display, Formatter};
 use core::marker::PhantomPinned;
 use core::pin::pin;
 use core::ptr::{addr_of_mut, null, null_mut};
@@ -98,40 +98,42 @@ impl Thread {
         th
     }
 
-    /// Call a Lua function.
+    /// Call a function.
+    ///
+    /// The error will be either [`CallError`] or [StackOverflow](crate::StackOverflow). The latter
+    /// one will trigger when the stack is not enough for `args`.
     ///
     /// # Panics
     /// If `f` or some of `args` come from different [`Lua`] instance.
-    pub fn call(&self, f: &LuaFn, args: impl Args) -> Result<Vec<Value>, CallError> {
-        if f.hdr.global != self.hdr.global {
-            panic!("attempt to call a function created from a different Lua");
+    pub fn call(
+        &self,
+        f: impl Into<UnsafeValue>,
+        args: impl Args,
+    ) -> Result<Vec<Value>, Box<dyn core::error::Error>> {
+        // Check if function created from the same Lua.
+        let f: UnsafeValue = f.into();
+
+        if unsafe { (f.tt_ & 1 << 6) != 0 && (*f.value_.gc).global != self.hdr.global } {
+            panic!("attempt to call a value created from a different Lua");
         }
 
         // Push function and its arguments.
         let nargs = args.len();
 
-        unsafe { lua_checkstack(self, 1 + nargs).map_err(|_| CallError::ArgsStack)? };
+        unsafe { lua_checkstack(self, 1 + nargs)? };
 
-        self.top.write_lua(f);
+        unsafe { self.top.write(f) };
         unsafe { self.top.add(1) };
         unsafe { args.push_to(self) };
 
         // Call.
-        let f = unsafe { pin!(lua_pcall(self, nargs, 0)) };
+        let f = unsafe { self.top.get().sub(nargs + 1) };
+        let f = unsafe { pin!(luaD_call(self, f, 0)) };
         let w = unsafe { Waker::new(null(), &NON_YIELDABLE_WAKER) };
 
         match f.poll(&mut Context::from_waker(&w)) {
             Poll::Ready(Ok(_)) => (),
-            Poll::Ready(Err(e)) => {
-                // We was calling a Lua function so chunk information will be available for sure.
-                let (chunk, line) = e.chunk.unwrap();
-
-                return Err(CallError::Call {
-                    chunk,
-                    line,
-                    reason: e.reason,
-                });
-            }
+            Poll::Ready(Err(e)) => return Err(e),
             Poll::Pending => unreachable!(),
         }
 
@@ -175,56 +177,5 @@ impl Drop for Thread {
         .unwrap();
 
         unsafe { alloc::alloc::dealloc(self.stack.get().cast(), layout) };
-    }
-}
-
-/// Represents an error when [`Thread::call()`] fails.
-#[derive(Debug)]
-pub enum CallError {
-    ArgsStack,
-    Call {
-        chunk: String,
-        line: u32,
-        reason: Box<dyn core::error::Error>,
-    },
-}
-
-impl CallError {
-    /// Returns chunk name and line number if this error triggered from Lua.
-    pub fn location(&self) -> Option<(&str, u32)> {
-        match self {
-            Self::ArgsStack => None,
-            Self::Call {
-                chunk,
-                line,
-                reason: _,
-            } => Some((chunk, *line)),
-        }
-    }
-}
-
-impl core::error::Error for CallError {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            Self::ArgsStack => None,
-            Self::Call {
-                chunk: _,
-                line: _,
-                reason,
-            } => reason.source(),
-        }
-    }
-}
-
-impl Display for CallError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::ArgsStack => f.write_str("not enough stack for arguments"),
-            Self::Call {
-                chunk: _,
-                line: _,
-                reason,
-            } => reason.fmt(f),
-        }
     }
 }

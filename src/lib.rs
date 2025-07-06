@@ -11,18 +11,22 @@ pub use self::ty::*;
 
 use self::gc::{Gc, Object, luaC_barrier_, luaC_freeallobjects};
 use self::lapi::lua_settop;
+use self::ldebug::lua_getinfo;
 use self::ldo::luaD_protectedparser;
 use self::llex::luaX_init;
 use self::lobject::Udata;
+use self::lstate::{CallInfo, lua_Debug};
 use self::ltm::luaT_init;
 use self::lzio::Zio;
 use self::value::{UnsafeValue, UntaggedValue};
 use alloc::boxed::Box;
 use alloc::rc::Rc;
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::any::TypeId;
 use core::cell::{Cell, RefCell, UnsafeCell};
 use core::ffi::c_int;
+use core::fmt::{Display, Formatter};
 use core::hint::unreachable_unchecked;
 use core::marker::PhantomPinned;
 use core::ops::Deref;
@@ -464,6 +468,66 @@ pub struct AsyncFp(
     )
         -> Box<dyn Future<Output = Result<Context<Ret>, Box<dyn core::error::Error>>> + '_>,
 );
+
+/// Represents an error when a call to function fails.
+#[derive(Debug)]
+pub struct CallError {
+    chunk: Option<(String, u32)>,
+    reason: Box<dyn core::error::Error>,
+}
+
+impl CallError {
+    unsafe fn new(
+        th: *const Thread,
+        caller: *mut CallInfo,
+        mut reason: Box<dyn core::error::Error>,
+    ) -> Box<Self> {
+        // Forward ourself.
+        reason = match reason.downcast() {
+            Ok(v) => return v,
+            Err(e) => e,
+        };
+
+        // Traverse up until reaching a Lua function.
+        let mut ci = unsafe { (*th).ci.get() };
+        let mut chunk = None;
+
+        while unsafe { ci != caller && ci != (*th).base_ci.get() } {
+            let mut ar = lua_Debug {
+                i_ci: ci,
+                ..Default::default()
+            };
+
+            unsafe { lua_getinfo(th, c"Sl".as_ptr(), &mut ar) };
+
+            if let Some(v) = ar.source {
+                chunk = Some((v.name, u32::try_from(ar.currentline).unwrap()));
+                break;
+            }
+
+            ci = unsafe { (*ci).previous };
+        }
+
+        Box::new(Self { chunk, reason })
+    }
+
+    /// Returns chunk name and line number if this error triggered from Lua.
+    pub fn location(&self) -> Option<(&str, u32)> {
+        self.chunk.as_ref().map(|(n, l)| (n.as_str(), *l))
+    }
+}
+
+impl core::error::Error for CallError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        self.reason.source()
+    }
+}
+
+impl Display for CallError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        self.reason.fmt(f)
+    }
+}
 
 /// Represents an error when arithmetic operation fails.
 #[derive(Debug, Error)]
