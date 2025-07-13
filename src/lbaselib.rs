@@ -151,18 +151,6 @@ unsafe fn luaB_rawlen(mut L: *const Thread) -> Result<c_int, Box<dyn std::error:
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn luaB_next(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    luaL_checktype(L, 1 as libc::c_int, 5 as libc::c_int)?;
-    lua_settop(L, 2 as libc::c_int)?;
-
-    if lua_next(L, 1)? != 0 {
-        Ok(2)
-    } else {
-        lua_pushnil(L);
-        Ok(1)
-    }
-}
-
 unsafe fn luaB_pairs(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     luaL_checkany(L, 1 as libc::c_int)?;
     if luaL_getmetafield(
@@ -239,13 +227,6 @@ static mut base_funcs: [luaL_Reg; 21] = [
         let mut init = luaL_Reg {
             name: b"ipairs\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_ipairs),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"next\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_next),
         };
         init
     },

@@ -125,16 +125,61 @@ impl<'a, T> Context<'a, T> {
         Ok(())
     }
 
+    /// Push a next key-value pair from `t` to the result of this call.
+    ///
+    /// Returns `false` if no key-value next to `k`. In this case no any value is pushed.
+    ///
+    /// # Panics
+    /// If `t` or `k` created from different [Lua](crate::Lua) instance.
+    pub fn push_next(
+        &self,
+        t: &Table,
+        k: impl Into<UnsafeValue>,
+    ) -> Result<bool, Box<dyn core::error::Error>> {
+        unsafe { lua_checkstack(self.th, 2)? };
+
+        // Check if table come from the same Lua.
+        if t.hdr.global != self.th.hdr.global {
+            panic!("attempt to push a value from a table created from different Lua");
+        }
+
+        // Check if key come from the same Lua.
+        let k = k.into();
+
+        if unsafe { (k.tt_ & 1 << 6 != 0) && (*k.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to push a value created from different Lua");
+        }
+
+        // Get pair.
+        let [k, v] = match unsafe { t.next_raw(&k)? } {
+            Some(v) => v,
+            None => return Ok(false),
+        };
+
+        unsafe { self.th.top.write(k) };
+        unsafe { self.th.top.add(1) };
+        unsafe { self.th.top.write(v) };
+        unsafe { self.th.top.add(1) };
+        self.ret.set(self.ret.get() + 2);
+
+        Ok(true)
+    }
+
     /// Push a value for `k` from `t` to the result of this call.
     ///
     /// # Panics
-    /// If `k` come from different [Lua](crate::Lua) instance.
+    /// If `t` or `k` created from different [Lua](crate::Lua) instance.
     pub fn push_from_table(
         &self,
         t: &Table,
         k: impl Into<UnsafeValue>,
     ) -> Result<Type, StackOverflow> {
         unsafe { lua_checkstack(self.th, 1)? };
+
+        // Check if table come from the same Lua.
+        if t.hdr.global != self.th.hdr.global {
+            panic!("attempt to push a value from a table created from different Lua");
+        }
 
         // Get value and push it.
         let v = t.get_raw(k);
@@ -147,11 +192,19 @@ impl<'a, T> Context<'a, T> {
     }
 
     /// Push a value for `k` from `t` to the result of this call.
+    ///
+    /// # Panics
+    /// If `t` created from different [Lua](crate::Lua) instance.
     pub fn push_from_str_key<K>(&self, t: &Table, k: K) -> Result<Type, StackOverflow>
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,
     {
         unsafe { lua_checkstack(self.th, 1)? };
+
+        // Check if table come from the same Lua.
+        if t.hdr.global != self.th.hdr.global {
+            panic!("attempt to push a value from a table created from different Lua");
+        }
 
         // Get value and push it.
         let v = t.get_raw_str_key(k);

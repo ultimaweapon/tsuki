@@ -4,6 +4,7 @@ pub(crate) use self::node::*;
 use crate::gc::{luaC_barrier_, luaC_barrierback_};
 use crate::ltm::{TM_EQ, TM_GC, luaT_gettm};
 use crate::{Lua, Object, Ref, Str, UnsafeValue, Value};
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::cell::Cell;
@@ -243,6 +244,48 @@ impl Table {
         let k = unsafe { UnsafeValue::from_obj(k.cast()) };
 
         unsafe { self.set_unchecked(k, v).unwrap_unchecked() };
+    }
+
+    pub(crate) unsafe fn next_raw(
+        &self,
+        key: &UnsafeValue,
+    ) -> Result<Option<[UnsafeValue; 2]>, Box<dyn core::error::Error>> {
+        // Get from array table.
+        let asize = unsafe { luaH_realasize(self) };
+        let mut i = unsafe { findindex(self, key, asize)? };
+        let array = self.array.get();
+
+        while i < asize {
+            let val = unsafe { array.add(i.try_into().unwrap()) };
+
+            if unsafe { !((*val).tt_ & 0xf == 0) } {
+                let key = i64::from(i + 1).into();
+
+                return Ok(unsafe { Some([key, val.read()]) });
+            }
+
+            i += 1
+        }
+
+        // Get from hash table.
+        i = i - asize;
+
+        while i < (1 << self.lsizenode.get()) {
+            let n = unsafe { self.node.get().add(i.try_into().unwrap()) };
+
+            if unsafe { !((*n).i_val.tt_ & 0xf == 0) } {
+                let key = UnsafeValue {
+                    value_: unsafe { (*n).u.key_val },
+                    tt_: unsafe { (*n).u.key_tt },
+                };
+
+                return Ok(unsafe { Some([key, (*n).i_val]) });
+            }
+
+            i = i + 1;
+        }
+
+        Ok(None)
     }
 }
 

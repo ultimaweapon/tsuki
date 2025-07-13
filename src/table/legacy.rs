@@ -7,13 +7,12 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::gc::{Object, luaC_barrierback_};
-use crate::ldebug::luaG_runerror;
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
-use crate::lobject::{StkId, luaO_ceillog2};
+use crate::lobject::luaO_ceillog2;
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{F2Ieq, luaV_flttointeger};
-use crate::{Node, NodeKey, Str, Table, TableError, Thread};
+use crate::{Node, NodeKey, Str, Table, TableError};
 use alloc::boxed::Box;
 use core::alloc::Layout;
 use core::cell::Cell;
@@ -263,10 +262,9 @@ unsafe fn arrayindex(k: i64) -> c_uint {
     };
 }
 
-unsafe fn findindex(
-    L: *const Thread,
-    t: *mut Table,
-    key: *mut UnsafeValue,
+pub(super) unsafe fn findindex(
+    t: *const Table,
+    key: *const UnsafeValue,
     asize: c_uint,
 ) -> Result<c_uint, Box<dyn core::error::Error>> {
     let mut i: c_uint = 0;
@@ -284,54 +282,13 @@ unsafe fn findindex(
         let n: *const UnsafeValue = getgeneric(t, key, 1 as c_int);
 
         if (*n).tt_ == 0 | 2 << 4 {
-            luaG_runerror(L, "invalid key to 'next'")?;
+            return Err("invalid key to 'next'".into());
         }
 
         i = (n as *mut Node).offset_from(((*t).node.get()).offset(0 as c_int as isize) as *mut Node)
             as c_long as c_int as c_uint;
         return Ok(i.wrapping_add(1 as c_int as c_uint).wrapping_add(asize));
     };
-}
-
-pub unsafe fn luaH_next(
-    L: *const Thread,
-    t: *mut Table,
-    key: StkId,
-) -> Result<c_int, Box<dyn core::error::Error>> {
-    let asize: c_uint = luaH_realasize(t);
-    let mut i: c_uint = findindex(L, t, &mut (*key).val, asize)?;
-    while i < asize {
-        if !((*(*t).array.get().offset(i as isize)).tt_ as c_int & 0xf as c_int == 0 as c_int) {
-            let io: *mut UnsafeValue = &mut (*key).val;
-            (*io).value_.i = i.wrapping_add(1 as c_int as c_uint) as i64;
-            (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
-            let io1: *mut UnsafeValue = &mut (*key.offset(1 as c_int as isize)).val;
-            let io2: *const UnsafeValue = ((*t).array.get()).offset(i as isize) as *mut UnsafeValue;
-            (*io1).value_ = (*io2).value_;
-            (*io1).tt_ = (*io2).tt_;
-            return Ok(1 as c_int);
-        }
-        i = i.wrapping_add(1);
-    }
-    i = i.wrapping_sub(asize);
-    while (i as c_int) < (1 as c_int) << (*t).lsizenode.get() as c_int {
-        if !((*((*t).node.get()).offset(i as isize)).i_val.tt_ as c_int & 0xf as c_int
-            == 0 as c_int)
-        {
-            let n: *mut Node = ((*t).node.get()).offset(i as isize) as *mut Node;
-            let io_: *mut UnsafeValue = &mut (*key).val;
-            let n_: *const Node = n;
-            (*io_).value_ = (*n_).u.key_val;
-            (*io_).tt_ = (*n_).u.key_tt;
-            let io1_0: *mut UnsafeValue = &mut (*key.offset(1 as c_int as isize)).val;
-            let io2_0: *const UnsafeValue = &mut (*n).i_val;
-            (*io1_0).value_ = (*io2_0).value_;
-            (*io1_0).tt_ = (*io2_0).tt_;
-            return Ok(1 as c_int);
-        }
-        i = i.wrapping_add(1);
-    }
-    return Ok(0 as c_int);
 }
 
 unsafe fn freehash(t: *const Table) {

@@ -245,6 +245,7 @@ impl Lua {
         unsafe { g.set_str_key_unchecked("error", Fp(crate::builtin::base::error)) };
         unsafe { g.set_str_key_unchecked("getmetatable", Fp(crate::builtin::base::getmetatable)) };
         unsafe { g.set_str_key_unchecked("load", Fp(crate::builtin::base::load)) };
+        unsafe { g.set_str_key_unchecked("next", Fp(crate::builtin::base::next)) };
         unsafe { g.set_str_key_unchecked("pcall", Fp(crate::builtin::base::pcall)) };
         #[cfg(feature = "std")]
         unsafe {

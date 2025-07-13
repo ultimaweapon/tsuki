@@ -15,9 +15,7 @@ use crate::lobject::{
 use crate::lstate::CallInfo;
 use crate::lstring::luaS_newudata;
 use crate::ltm::{TM_GC, luaT_gettm, luaT_typenames_};
-use crate::table::{
-    luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_next, luaH_resize, luaH_setint,
-};
+use crate::table::{luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_resize, luaH_setint};
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{
     F2Ieq, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_lessequal,
@@ -1092,16 +1090,24 @@ pub unsafe fn lua_setiuservalue(L: *mut Thread, idx: c_int, n: c_int) -> c_int {
 }
 
 pub unsafe fn lua_next(L: *const Thread, idx: c_int) -> Result<c_int, Box<dyn core::error::Error>> {
-    let mut t: *mut Table = 0 as *mut Table;
-    let mut more: c_int = 0;
-    t = gettable(L, idx);
-    more = luaH_next(L, t, ((*L).top.get()).offset(-(1 as c_int as isize)))?;
-    if more != 0 {
-        api_incr_top(L);
-    } else {
-        (*L).top.sub(1);
+    let t = gettable(L, idx);
+    let k = (*L).top.get().offset(-1);
+
+    match (*t).next_raw(&(*k).val)? {
+        Some(v) => {
+            k.add(0).write(StackValue { val: v[0] });
+            k.add(1).write(StackValue { val: v[1] });
+
+            api_incr_top(L);
+
+            Ok(1)
+        }
+        None => {
+            (*L).top.sub(1);
+
+            Ok(0)
+        }
     }
-    return Ok(more);
 }
 
 pub unsafe fn lua_toclose(L: *mut Thread, idx: c_int) -> Result<(), Box<dyn core::error::Error>> {

@@ -118,6 +118,18 @@ pub fn load(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Erro
     Ok(cx.into())
 }
 
+/// Implementation of [next](https://www.lua.org/manual/5.4/manual.html#pdf-next).
+pub fn next(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+    let t = cx.arg(1).get_table()?;
+    let k = cx.arg(2);
+
+    if !cx.push_next(t, k)? {
+        cx.push(Nil)?;
+    }
+
+    Ok(cx.into())
+}
+
 /// Implementation of [pcall](https://www.lua.org/manual/5.4/manual.html#pdf-pcall).
 pub fn pcall(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
     let r = match cx.try_forward(1)? {

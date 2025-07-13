@@ -29,6 +29,7 @@ use core::ptr::null;
 use libc::{strchr, strcmp};
 
 type c_int = i32;
+type c_uint = u32;
 
 unsafe fn currentpc(ci: *mut CallInfo) -> c_int {
     return ((*ci).u.savedpc)
@@ -44,9 +45,9 @@ unsafe fn getbaseline(f: *const Proto, pc: c_int, basepc: *mut c_int) -> c_int {
         *basepc = -(1 as c_int);
         return (*f).linedefined;
     } else {
-        let mut i: c_int = (pc as libc::c_uint)
-            .wrapping_div(128 as c_int as libc::c_uint)
-            .wrapping_sub(1 as c_int as libc::c_uint) as c_int;
+        let mut i: c_int = (pc as c_uint)
+            .wrapping_div(128 as c_int as c_uint)
+            .wrapping_sub(1 as c_int as c_uint) as c_int;
         while (i + 1 as c_int) < (*f).sizeabslineinfo
             && pc >= (*((*f).abslineinfo).offset((i + 1 as c_int) as isize)).pc
         {
@@ -467,7 +468,7 @@ unsafe fn findsetreg(p: *const Proto, mut lastpc: c_int, reg: c_int) -> c_int {
         let a: c_int = (i >> 0 as c_int + 7 as c_int
             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int) as c_int;
         let mut change: c_int = 0;
-        match op as libc::c_uint {
+        match op as c_uint {
             8 => {
                 let b: c_int = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                     & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -538,7 +539,7 @@ unsafe fn basicgetobjname(
         let i: u32 = *((*p).code).offset(pc as isize);
         let op: OpCode =
             (i >> 0 as c_int & !(!(0 as c_int as u32) << 7 as c_int) << 0 as c_int) as OpCode;
-        match op as libc::c_uint {
+        match op as c_uint {
             0 => {
                 let b: c_int = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                     & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -644,7 +645,7 @@ unsafe fn getobjname(
         let i: u32 = *((*p).code).offset(lastpc as isize);
         let op: OpCode =
             (i >> 0 as c_int & !(!(0 as c_int as u32) << 7 as c_int) << 0 as c_int) as OpCode;
-        match op as libc::c_uint {
+        match op as c_uint {
             11 => {
                 let k: c_int = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
                     & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -691,7 +692,7 @@ unsafe fn funcnamefromcode(
     let mut tm: TMS = TM_INDEX;
     let i: u32 = *((*p).code).offset(pc as isize);
     match (i >> 0 as c_int & !(!(0 as c_int as u32) << 7 as c_int) << 0 as c_int) as OpCode
-        as libc::c_uint
+        as c_uint
     {
         68 | 69 => {
             return getobjname(
