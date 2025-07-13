@@ -18,6 +18,7 @@ Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all
 - Panic when memory allocation is failed without retry (Rust behavior).
 - Chunk name does not have a prefix (e.g. `@`).
 - No `_VERSION`, `collectgarbage`, `dofile`, `loadfile`, `xpcall`, `string.dump` and debug library.
+- No main thread and second result of `coroutine.running` always `false`.
 - Second argument of `assert` accept only a UTF-8 string.
 - Arguments of `error`:
   - First argument accept only a UTF-8 string.

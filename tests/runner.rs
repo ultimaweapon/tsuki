@@ -18,6 +18,12 @@ fn closure() {
 }
 
 #[test]
+#[ignore = "need Lua standard library"]
+fn coroutine() {
+    run("coroutine.lua").unwrap();
+}
+
+#[test]
 fn error() {
     let e = run("error.lua")
         .unwrap_err()
@@ -86,6 +92,7 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     lua.setup_string();
     lua.setup_table();
     lua.setup_math();
+    lua.setup_coroutine();
 
     // Run.
     let chunk = lua.load(ChunkInfo::new(path.to_string_lossy().into_owned()), content)?;

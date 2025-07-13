@@ -313,6 +313,17 @@ impl Lua {
         unsafe { self.global().set_str_key_unchecked("math", g) };
     }
 
+    /// Setup [coroutine library](https://www.lua.org/manual/5.4/manual.html#6.2).
+    pub fn setup_coroutine(&self) {
+        // Setup coroutine table.
+        let g = unsafe { Table::new(self) };
+
+        // Set global.
+        let g = unsafe { UnsafeValue::from_obj(g.cast()) };
+
+        unsafe { self.global().set_str_key_unchecked("coroutine", g) };
+    }
+
     /// Returns a global table.
     #[inline(always)]
     pub fn global(&self) -> &Table {
