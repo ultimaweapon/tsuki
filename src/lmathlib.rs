@@ -192,24 +192,6 @@ unsafe fn math_min(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Er
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn math_max(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut n: libc::c_int = lua_gettop(L);
-    let mut imax: libc::c_int = 1 as libc::c_int;
-    let mut i: libc::c_int = 0;
-    (((n >= 1 as libc::c_int) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long
-        != 0
-        || luaL_argerror(L, 1 as libc::c_int, "value expected")? != 0) as libc::c_int;
-    i = 2 as libc::c_int;
-    while i <= n {
-        if lua_compare(L, imax, i, 1 as libc::c_int)? != 0 {
-            imax = i;
-        }
-        i += 1;
-    }
-    lua_pushvalue(L, imax);
-    return Ok(1 as libc::c_int);
-}
-
 unsafe extern "C" fn rotl(mut x: libc::c_ulong, mut n: libc::c_int) -> libc::c_ulong {
     return x << n | (x & 0xffffffffffffffff as libc::c_ulong) >> 64 as libc::c_int - n;
 }
@@ -451,13 +433,6 @@ static mut mathlib: [luaL_Reg; 28] = [
         let mut init = luaL_Reg {
             name: b"ult\0" as *const u8 as *const libc::c_char,
             func: Some(math_ult),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"max\0" as *const u8 as *const libc::c_char,
-            func: Some(math_max),
         };
         init
     },

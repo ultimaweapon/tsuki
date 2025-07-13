@@ -301,6 +301,7 @@ impl Lua {
 
         unsafe { (*g).set_str_key_unchecked("floor", Fp(crate::builtin::math::floor)) };
         unsafe { (*g).set_str_key_unchecked("log", Fp(crate::builtin::math::log)) };
+        unsafe { (*g).set_str_key_unchecked("max", Fp(crate::builtin::math::max)) };
         unsafe { (*g).set_str_key_unchecked("maxinteger", i64::MAX) };
         unsafe { (*g).set_str_key_unchecked("mininteger", i64::MIN) };
         unsafe { (*g).set_str_key_unchecked("sin", Fp(crate::builtin::math::sin)) };

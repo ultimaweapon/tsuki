@@ -30,6 +30,7 @@ use libc::{strchr, strcmp};
 
 type c_int = i32;
 type c_uint = u32;
+type c_long = i64;
 
 unsafe fn currentpc(ci: *mut CallInfo) -> c_int {
     return ((*ci).u.savedpc)
@@ -191,7 +192,7 @@ pub unsafe fn luaG_findlocal(
         } else {
             (*(*ci).next).func
         };
-        if limit.offset_from(base) as libc::c_long >= n as libc::c_long && n > 0 as c_int {
+        if limit.offset_from(base) as c_long >= n as c_long && n > 0 as c_int {
             name = if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
                 b"(temporary)\0" as *const u8 as *const c_char
             } else {
@@ -1049,7 +1050,7 @@ pub unsafe fn luaG_traceexec(
         } else {
             0 as c_int
         };
-        let npci: c_int = pc.offset_from((*p).code) as libc::c_long as c_int - 1 as c_int;
+        let npci: c_int = pc.offset_from((*p).code) as c_long as c_int - 1 as c_int;
 
         if npci <= oldpc || changedline(p, oldpc, npci) != 0 {
             let newline: c_int = luaG_getfuncline(p, npci);

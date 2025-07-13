@@ -599,6 +599,7 @@ unsafe fn lessthanothers(
     };
 }
 
+#[inline(never)]
 pub unsafe fn luaV_lessthan(
     L: *const Thread,
     l: *const UnsafeValue,

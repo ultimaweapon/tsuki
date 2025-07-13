@@ -31,6 +31,23 @@ pub fn log(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error
     Ok(cx.into())
 }
 
+/// Implementation of [math.max](https://www.lua.org/manual/5.4/manual.html#pdf-math.max).
+pub fn max(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+    let mut r = cx.arg(1).exists()?;
+
+    for i in 2..=cx.args() {
+        let v = cx.arg(i);
+
+        if r.lt(&v)? == Some(true) {
+            r = v;
+        }
+    }
+
+    cx.push(r)?;
+
+    Ok(cx.into())
+}
+
 /// Implementation of [math.sin](https://www.lua.org/manual/5.4/manual.html#pdf-math.sin).
 pub fn sin(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1).to_num()?;
