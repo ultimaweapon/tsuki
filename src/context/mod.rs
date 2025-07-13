@@ -352,18 +352,21 @@ impl<'a, T> Context<'a, T> {
         // Invoke.
         let rem = f.get() - 1;
         let f = unsafe { (*ci).func.add(f.get()) };
-        let f = unsafe { pin!(luaD_call(self.th, f, -1)) };
-        let w = unsafe { Waker::new(null(), &NON_YIELDABLE_WAKER) };
         let cx = Context {
             th: self.th,
             ret: Cell::new(0),
             payload: Ret(rem),
         };
 
-        match f.poll(&mut core::task::Context::from_waker(&w)) {
-            Poll::Ready(Ok(_)) => (),
-            Poll::Ready(Err(e)) => return Ok(TryCall::Err(cx, e)),
-            Poll::Pending => unreachable!(),
+        {
+            let f = unsafe { pin!(luaD_call(self.th, f, -1)) };
+            let w = unsafe { Waker::new(null(), &NON_YIELDABLE_WAKER) };
+
+            match f.poll(&mut core::task::Context::from_waker(&w)) {
+                Poll::Ready(Ok(_)) => (),
+                Poll::Ready(Err(e)) => return Ok(TryCall::Err(cx, e)),
+                Poll::Pending => unreachable!(),
+            }
         }
 
         // Get number of results.

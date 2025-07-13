@@ -624,8 +624,7 @@ pub async unsafe fn luaD_precall(
             6 => {
                 let mut ci: *mut CallInfo = 0 as *mut CallInfo;
                 let p: *mut Proto = (*(*func).val.value_.gc.cast::<LuaFn>()).p.get();
-                let mut narg: c_int =
-                    ((*L).top.get()).offset_from(func) as libc::c_long as c_int - 1 as c_int;
+                let mut narg = (*L).top.get().offset_from(func) as libc::c_long as c_int - 1;
                 let nfixparams: c_int = (*p).numparams as c_int;
                 let fsize = usize::from((*p).maxstacksize);
 

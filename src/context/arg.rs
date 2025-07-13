@@ -455,14 +455,16 @@ impl<'a, 'b> Arg<'a, 'b> {
                 unsafe { t.top.add(1) };
 
                 // Invoke.
-                let f = unsafe { t.top.get().sub(2) };
-                let f = pin!(unsafe { luaD_call(t, f, 1) });
-                let w = unsafe { Waker::new(null(), &NON_YIELDABLE_WAKER) };
+                {
+                    let f = unsafe { t.top.get().sub(2) };
+                    let f = pin!(unsafe { luaD_call(t, f, 1) });
+                    let w = unsafe { Waker::new(null(), &NON_YIELDABLE_WAKER) };
 
-                match f.poll(&mut core::task::Context::from_waker(&w)) {
-                    Poll::Ready(Ok(_)) => (),
-                    Poll::Ready(Err(e)) => return Err(e), // Requires unsized coercion.
-                    Poll::Pending => unreachable!(),
+                    match f.poll(&mut core::task::Context::from_waker(&w)) {
+                        Poll::Ready(Ok(_)) => (),
+                        Poll::Ready(Err(e)) => return Err(e), // Requires unsized coercion.
+                        Poll::Pending => unreachable!(),
+                    }
                 }
 
                 unsafe { t.top.sub(1) };

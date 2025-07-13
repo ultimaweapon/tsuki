@@ -1,6 +1,6 @@
+use crate::Table;
 use crate::lobject::StackValue;
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{LuaFn, Table};
 use core::cell::Cell;
 use core::mem::zeroed;
 
@@ -58,16 +58,6 @@ impl StackPtr {
         let v = UnsafeValue {
             value_: UntaggedValue { gc: &t.hdr },
             tt_: 5 | 0 << 4 | 1 << 6,
-        };
-
-        unsafe { self.write(v) };
-    }
-
-    #[inline(always)]
-    pub fn write_lua(&self, f: &LuaFn) {
-        let v = UnsafeValue {
-            value_: UntaggedValue { gc: &f.hdr },
-            tt_: 6 | 0 << 4 | 1 << 6,
         };
 
         unsafe { self.write(v) };

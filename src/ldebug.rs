@@ -23,7 +23,7 @@ use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
-use core::ffi::CStr;
+use core::ffi::{CStr, c_char};
 use core::fmt::Display;
 use core::ptr::null;
 use libc::{strchr, strcmp};
@@ -143,27 +143,27 @@ pub unsafe fn lua_getstack(L: *const Thread, mut level: c_int, ar: &mut lua_Debu
     return status;
 }
 
-unsafe fn upvalname(p: *const Proto, uv: usize) -> *const libc::c_char {
+unsafe fn upvalname(p: *const Proto, uv: usize) -> *const c_char {
     let s = (*((*p).upvalues).add(uv)).name;
 
     if s.is_null() {
-        return b"?\0" as *const u8 as *const libc::c_char;
+        return b"?\0" as *const u8 as *const c_char;
     } else {
         return ((*s).contents).as_ptr();
     };
 }
 
-unsafe fn findvararg(ci: *mut CallInfo, n: c_int, pos: *mut StkId) -> *const libc::c_char {
+unsafe fn findvararg(ci: *mut CallInfo, n: c_int, pos: *mut StkId) -> *const c_char {
     if (*(*(*(*ci).func).val.value_.gc.cast::<LuaFn>()).p.get()).is_vararg != 0 {
         let nextra: c_int = (*ci).u.nextraargs;
         if n >= -nextra {
             *pos = ((*ci).func)
                 .offset(-(nextra as isize))
                 .offset(-((n + 1 as c_int) as isize));
-            return b"(vararg)\0" as *const u8 as *const libc::c_char;
+            return b"(vararg)\0" as *const u8 as *const c_char;
         }
     }
-    return 0 as *const libc::c_char;
+    return 0 as *const c_char;
 }
 
 pub unsafe fn luaG_findlocal(
@@ -171,9 +171,9 @@ pub unsafe fn luaG_findlocal(
     ci: *mut CallInfo,
     n: c_int,
     pos: *mut StkId,
-) -> *const libc::c_char {
+) -> *const c_char {
     let base: StkId = ((*ci).func).offset(1 as c_int as isize);
-    let mut name: *const libc::c_char = 0 as *const libc::c_char;
+    let mut name: *const c_char = 0 as *const c_char;
     if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
         if n < 0 as c_int {
             return findvararg(ci, n, pos);
@@ -193,12 +193,12 @@ pub unsafe fn luaG_findlocal(
         };
         if limit.offset_from(base) as libc::c_long >= n as libc::c_long && n > 0 as c_int {
             name = if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
-                b"(temporary)\0" as *const u8 as *const libc::c_char
+                b"(temporary)\0" as *const u8 as *const c_char
             } else {
-                b"(C temporary)\0" as *const u8 as *const libc::c_char
+                b"(C temporary)\0" as *const u8 as *const c_char
             };
         } else {
-            return 0 as *const libc::c_char;
+            return 0 as *const c_char;
         }
     }
     if !pos.is_null() {
@@ -207,13 +207,13 @@ pub unsafe fn luaG_findlocal(
     return name;
 }
 
-pub unsafe fn lua_getlocal(L: *mut Thread, ar: *const lua_Debug, n: c_int) -> *const libc::c_char {
-    let mut name: *const libc::c_char = 0 as *const libc::c_char;
+pub unsafe fn lua_getlocal(L: *mut Thread, ar: *const lua_Debug, n: c_int) -> *const c_char {
+    let mut name: *const c_char = 0 as *const c_char;
     if ar.is_null() {
         if !((*((*L).top.get()).offset(-(1 as c_int as isize))).val.tt_ as c_int
             == 6 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
         {
-            name = 0 as *const libc::c_char;
+            name = 0 as *const c_char;
         } else {
             name = luaF_getlocalname(
                 (*(*((*L).top.get()).offset(-1)).val.value_.gc.cast::<LuaFn>())
@@ -237,9 +237,9 @@ pub unsafe fn lua_getlocal(L: *mut Thread, ar: *const lua_Debug, n: c_int) -> *c
     return name;
 }
 
-pub unsafe fn lua_setlocal(L: *mut Thread, ar: *const lua_Debug, n: c_int) -> *const libc::c_char {
+pub unsafe fn lua_setlocal(L: *mut Thread, ar: *const lua_Debug, n: c_int) -> *const c_char {
     let mut pos: StkId = 0 as StkId;
-    let mut name: *const libc::c_char = 0 as *const libc::c_char;
+    let mut name: *const c_char = 0 as *const c_char;
     name = luaG_findlocal(L, (*ar).i_ci, n, &mut pos);
     if !name.is_null() {
         let io1: *mut UnsafeValue = &raw mut (*pos).val;
@@ -256,7 +256,7 @@ unsafe fn funcinfo(ar: &mut lua_Debug, cl: *const Object) {
         (*ar).source = None;
         (*ar).linedefined = -(1 as c_int);
         (*ar).lastlinedefined = -(1 as c_int);
-        (*ar).what = b"C\0" as *const u8 as *const libc::c_char;
+        (*ar).what = b"C\0" as *const u8 as *const c_char;
     } else {
         let p: *const Proto = (*cl.cast::<LuaFn>()).p.get();
 
@@ -264,9 +264,9 @@ unsafe fn funcinfo(ar: &mut lua_Debug, cl: *const Object) {
         (*ar).linedefined = (*p).linedefined;
         (*ar).lastlinedefined = (*p).lastlinedefined;
         (*ar).what = if (*ar).linedefined == 0 as c_int {
-            b"main\0" as *const u8 as *const libc::c_char
+            b"main\0" as *const u8 as *const c_char
         } else {
-            b"Lua\0" as *const u8 as *const libc::c_char
+            b"Lua\0" as *const u8 as *const c_char
         };
     }
 }
@@ -321,18 +321,18 @@ unsafe fn collectvalidlines(L: *const Thread, f: *const Object) {
 unsafe fn getfuncname(
     L: *const Thread,
     ci: *mut CallInfo,
-    name: *mut *const libc::c_char,
-) -> *const libc::c_char {
+    name: *mut *const c_char,
+) -> *const c_char {
     if !ci.is_null() && (*ci).callstatus as c_int & (1 as c_int) << 5 as c_int == 0 {
         return funcnamefromcall(L, (*ci).previous, name);
     } else {
-        return 0 as *const libc::c_char;
+        return 0 as *const c_char;
     };
 }
 
 unsafe fn auxgetinfo(
     L: *const Thread,
-    mut what: *const libc::c_char,
+    mut what: *const c_char,
     ar: &mut lua_Debug,
     f: *const Object,
     ci: *mut CallInfo,
@@ -357,10 +357,10 @@ unsafe fn auxgetinfo(
                     (*(f as *mut CClosure)).nupvalues as c_int
                 }) as libc::c_uchar;
                 if !(!f.is_null() && (*f).tt as c_int == 6 as c_int | (0 as c_int) << 4 as c_int) {
-                    (*ar).isvararg = 1 as c_int as libc::c_char;
+                    (*ar).isvararg = 1 as c_int as c_char;
                     (*ar).nparams = 0 as c_int as libc::c_uchar;
                 } else {
-                    (*ar).isvararg = (*(*f.cast::<LuaFn>()).p.get()).is_vararg as libc::c_char;
+                    (*ar).isvararg = (*(*f.cast::<LuaFn>()).p.get()).is_vararg as c_char;
                     (*ar).nparams = (*(*f.cast::<LuaFn>()).p.get()).numparams;
                 }
             }
@@ -369,13 +369,13 @@ unsafe fn auxgetinfo(
                     (*ci).callstatus as c_int & (1 as c_int) << 5 as c_int
                 } else {
                     0 as c_int
-                }) as libc::c_char;
+                }) as c_char;
             }
             110 => {
                 (*ar).namewhat = getfuncname(L, ci, &mut (*ar).name);
                 if ((*ar).namewhat).is_null() {
-                    (*ar).namewhat = b"\0" as *const u8 as *const libc::c_char;
-                    (*ar).name = 0 as *const libc::c_char;
+                    (*ar).namewhat = b"\0" as *const u8 as *const c_char;
+                    (*ar).name = 0 as *const c_char;
                 }
             }
             114 => {
@@ -397,11 +397,7 @@ unsafe fn auxgetinfo(
     return status;
 }
 
-pub unsafe fn lua_getinfo(
-    L: *const Thread,
-    mut what: *const libc::c_char,
-    ar: &mut lua_Debug,
-) -> c_int {
+pub unsafe fn lua_getinfo(L: *const Thread, mut what: *const c_char, ar: &mut lua_Debug) -> c_int {
     let mut status: c_int = 0;
     let mut ci: *mut CallInfo = 0 as *mut CallInfo;
     let mut func: *mut UnsafeValue = 0 as *mut UnsafeValue;
@@ -507,18 +503,14 @@ unsafe fn findsetreg(p: *const Proto, mut lastpc: c_int, reg: c_int) -> c_int {
     return setreg;
 }
 
-unsafe fn kname(
-    p: *const Proto,
-    index: c_int,
-    name: *mut *const libc::c_char,
-) -> *const libc::c_char {
+unsafe fn kname(p: *const Proto, index: c_int, name: *mut *const c_char) -> *const c_char {
     let kvalue: *mut UnsafeValue = &mut *((*p).k).offset(index as isize) as *mut UnsafeValue;
     if (*kvalue).tt_ as c_int & 0xf as c_int == 4 as c_int {
         *name = ((*((*kvalue).value_.gc as *mut Str)).contents).as_mut_ptr();
-        return b"constant\0" as *const u8 as *const libc::c_char;
+        return b"constant\0" as *const u8 as *const c_char;
     } else {
-        *name = b"?\0" as *const u8 as *const libc::c_char;
-        return 0 as *const libc::c_char;
+        *name = b"?\0" as *const u8 as *const c_char;
+        return 0 as *const c_char;
     };
 }
 
@@ -526,12 +518,12 @@ unsafe fn basicgetobjname(
     p: *const Proto,
     ppc: *mut c_int,
     reg: c_int,
-    name: *mut *const libc::c_char,
-) -> *const libc::c_char {
+    name: *mut *const c_char,
+) -> *const c_char {
     let mut pc: c_int = *ppc;
     *name = luaF_getlocalname(p, reg + 1 as c_int, pc);
     if !(*name).is_null() {
-        return b"local\0" as *const u8 as *const libc::c_char;
+        return b"local\0" as *const u8 as *const c_char;
     }
     pc = findsetreg(p, pc, reg);
     *ppc = pc;
@@ -559,7 +551,7 @@ unsafe fn basicgetobjname(
                         .try_into()
                         .unwrap(),
                 );
-                return b"upvalue\0" as *const u8 as *const libc::c_char;
+                return b"upvalue\0" as *const u8 as *const c_char;
             }
             3 => {
                 return kname(
@@ -583,17 +575,17 @@ unsafe fn basicgetobjname(
             _ => {}
         }
     }
-    return 0 as *const libc::c_char;
+    return 0 as *const c_char;
 }
 
-unsafe fn rname(p: *const Proto, mut pc: c_int, c: c_int, name: *mut *const libc::c_char) {
-    let what: *const libc::c_char = basicgetobjname(p, &mut pc, c, name);
+unsafe fn rname(p: *const Proto, mut pc: c_int, c: c_int, name: *mut *const c_char) {
+    let what: *const c_char = basicgetobjname(p, &mut pc, c, name);
     if !(!what.is_null() && *what as c_int == 'c' as i32) {
-        *name = b"?\0" as *const u8 as *const libc::c_char;
+        *name = b"?\0" as *const u8 as *const c_char;
     }
 }
 
-unsafe fn rkname(p: *const Proto, pc: c_int, i: u32, name: *mut *const libc::c_char) {
+unsafe fn rkname(p: *const Proto, pc: c_int, i: u32, name: *mut *const c_char) {
     let c: c_int = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
         & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int) as c_int;
     if (i >> 0 as c_int + 7 as c_int + 8 as c_int
@@ -606,10 +598,10 @@ unsafe fn rkname(p: *const Proto, pc: c_int, i: u32, name: *mut *const libc::c_c
     };
 }
 
-unsafe fn isEnv(p: *const Proto, mut pc: c_int, i: u32, isup: c_int) -> *const libc::c_char {
+unsafe fn isEnv(p: *const Proto, mut pc: c_int, i: u32, isup: c_int) -> *const c_char {
     let t: c_int = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
         & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int) as c_int;
-    let mut name: *const libc::c_char = 0 as *const libc::c_char;
+    let mut name: *const c_char = 0 as *const c_char;
 
     if isup != 0 {
         name = upvalname(p, t.try_into().unwrap());
@@ -624,21 +616,20 @@ unsafe fn isEnv(p: *const Proto, mut pc: c_int, i: u32, isup: c_int) -> *const l
         }
     }
 
-    return if !name.is_null()
-        && strcmp(name, b"_ENV\0" as *const u8 as *const libc::c_char) == 0 as c_int
+    return if !name.is_null() && strcmp(name, b"_ENV\0" as *const u8 as *const c_char) == 0 as c_int
     {
-        b"global\0" as *const u8 as *const libc::c_char
+        b"global\0" as *const u8 as *const c_char
     } else {
-        b"field\0" as *const u8 as *const libc::c_char
+        b"field\0" as *const u8 as *const c_char
     };
 }
 unsafe fn getobjname(
     p: *const Proto,
     mut lastpc: c_int,
     reg: c_int,
-    name: *mut *const libc::c_char,
-) -> *const libc::c_char {
-    let kind: *const libc::c_char = basicgetobjname(p, &mut lastpc, reg, name);
+    name: *mut *const c_char,
+) -> *const c_char {
+    let kind: *const c_char = basicgetobjname(p, &mut lastpc, reg, name);
     if !kind.is_null() {
         return kind;
     } else if lastpc != -(1 as c_int) {
@@ -662,8 +653,8 @@ unsafe fn getobjname(
                 return isEnv(p, lastpc, i, 0 as c_int);
             }
             13 => {
-                *name = b"integer index\0" as *const u8 as *const libc::c_char;
-                return b"field\0" as *const u8 as *const libc::c_char;
+                *name = b"integer index\0" as *const u8 as *const c_char;
+                return b"field\0" as *const u8 as *const c_char;
             }
             14 => {
                 let k_1: c_int = (i
@@ -675,20 +666,20 @@ unsafe fn getobjname(
             }
             20 => {
                 rkname(p, lastpc, i, name);
-                return b"method\0" as *const u8 as *const libc::c_char;
+                return b"method\0" as *const u8 as *const c_char;
             }
             _ => {}
         }
     }
-    return 0 as *const libc::c_char;
+    return 0 as *const c_char;
 }
 
 unsafe fn funcnamefromcode(
     L: *const Thread,
     p: *const Proto,
     pc: c_int,
-    name: *mut *const libc::c_char,
-) -> *const libc::c_char {
+    name: *mut *const c_char,
+) -> *const c_char {
     let mut tm: TMS = TM_INDEX;
     let i: u32 = *((*p).code).offset(pc as isize);
     match (i >> 0 as c_int & !(!(0 as c_int as u32) << 7 as c_int) << 0 as c_int) as OpCode
@@ -704,8 +695,8 @@ unsafe fn funcnamefromcode(
             );
         }
         76 => {
-            *name = b"for iterator\0" as *const u8 as *const libc::c_char;
-            return b"for iterator\0" as *const u8 as *const libc::c_char;
+            *name = b"for iterator\0" as *const u8 as *const c_char;
+            return b"for iterator\0" as *const u8 as *const c_char;
         }
         20 | 11 | 12 | 13 | 14 => {
             tm = TM_INDEX;
@@ -742,27 +733,27 @@ unsafe fn funcnamefromcode(
         54 | 70 => {
             tm = TM_CLOSE;
         }
-        _ => return 0 as *const libc::c_char,
+        _ => return 0 as *const c_char,
     }
 
     *name = ((*(*(*L).hdr.global).tmname[tm as usize].get()).contents)
         .as_ptr()
         .offset(2 as c_int as isize);
 
-    return b"metamethod\0" as *const u8 as *const libc::c_char;
+    return b"metamethod\0" as *const u8 as *const c_char;
 }
 
 unsafe fn funcnamefromcall(
     L: *const Thread,
     ci: *mut CallInfo,
-    name: *mut *const libc::c_char,
-) -> *const libc::c_char {
+    name: *mut *const c_char,
+) -> *const c_char {
     if (*ci).callstatus as c_int & (1 as c_int) << 3 as c_int != 0 {
-        *name = b"?\0" as *const u8 as *const libc::c_char;
-        return b"hook\0" as *const u8 as *const libc::c_char;
+        *name = b"?\0" as *const u8 as *const c_char;
+        return b"hook\0" as *const u8 as *const c_char;
     } else if (*ci).callstatus as c_int & (1 as c_int) << 7 as c_int != 0 {
-        *name = b"__gc\0" as *const u8 as *const libc::c_char;
-        return b"metamethod\0" as *const u8 as *const libc::c_char;
+        *name = b"__gc\0" as *const u8 as *const c_char;
+        return b"metamethod\0" as *const u8 as *const c_char;
     } else if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
         return funcnamefromcode(
             L,
@@ -771,7 +762,7 @@ unsafe fn funcnamefromcall(
             name,
         );
     } else {
-        return 0 as *const libc::c_char;
+        return 0 as *const c_char;
     };
 }
 
@@ -791,21 +782,21 @@ unsafe fn instack(ci: *mut CallInfo, o: *const UnsafeValue) -> c_int {
 unsafe fn getupvalname(
     ci: *mut CallInfo,
     o: *const UnsafeValue,
-    name: *mut *const libc::c_char,
-) -> *const libc::c_char {
+    name: *mut *const c_char,
+) -> *const c_char {
     let c = (*(*ci).func).val.value_.gc.cast::<LuaFn>();
 
     for (i, uv) in (*c).upvals.iter().map(|v| v.get()).enumerate() {
         if (*uv).v.get() == o as *mut UnsafeValue {
             *name = upvalname((*c).p.get(), i);
-            return b"upvalue\0" as *const u8 as *const libc::c_char;
+            return b"upvalue\0" as *const u8 as *const c_char;
         }
     }
 
-    return 0 as *const libc::c_char;
+    return 0 as *const c_char;
 }
 
-unsafe fn formatvarinfo(kind: *const libc::c_char, name: *const libc::c_char) -> Cow<'static, str> {
+unsafe fn formatvarinfo(kind: *const c_char, name: *const c_char) -> Cow<'static, str> {
     if kind.is_null() {
         "".into()
     } else {
@@ -820,8 +811,8 @@ unsafe fn formatvarinfo(kind: *const libc::c_char, name: *const libc::c_char) ->
 
 unsafe fn varinfo(L: *const Thread, o: *const UnsafeValue) -> Cow<'static, str> {
     let ci: *mut CallInfo = (*L).ci.get();
-    let mut name: *const libc::c_char = 0 as *const libc::c_char;
-    let mut kind: *const libc::c_char = 0 as *const libc::c_char;
+    let mut name: *const c_char = 0 as *const c_char;
+    let mut kind: *const c_char = 0 as *const c_char;
     if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
         kind = getupvalname(ci, o, &mut name);
         if kind.is_null() {
@@ -864,8 +855,8 @@ pub unsafe fn luaG_callerror(
     o: *const UnsafeValue,
 ) -> Box<dyn core::error::Error> {
     let ci: *mut CallInfo = (*L).ci.get();
-    let mut name: *const libc::c_char = 0 as *const libc::c_char;
-    let kind: *const libc::c_char = funcnamefromcall(L, ci, &mut name);
+    let mut name: *const c_char = 0 as *const c_char;
+    let kind: *const c_char = funcnamefromcall(L, ci, &mut name);
     let extra = if !kind.is_null() {
         formatvarinfo(kind, name)
     } else {

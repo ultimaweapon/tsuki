@@ -2,6 +2,7 @@ pub use self::args::DynamicArgs;
 pub(crate) use self::stack::*;
 
 use self::args::Args;
+use self::outputs::Outputs;
 use crate::lapi::lua_checkstack;
 use crate::ldo::luaD_call;
 use crate::lfunc::luaF_closeupval;
@@ -9,10 +10,9 @@ use crate::lmem::luaM_free_;
 use crate::lobject::{StackValue, StkId, UpVal};
 use crate::lstate::{CallInfo, lua_Hook};
 use crate::value::UnsafeValue;
-use crate::{Lua, NON_YIELDABLE_WAKER, Object, Value};
+use crate::{Lua, NON_YIELDABLE_WAKER, Object};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
-use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::cell::{Cell, UnsafeCell};
 use core::marker::PhantomPinned;
@@ -21,6 +21,7 @@ use core::ptr::{addr_of_mut, null, null_mut};
 use core::task::{Context, Poll, Waker};
 
 mod args;
+mod outputs;
 mod stack;
 
 /// Lua thread (AKA coroutine).
@@ -98,18 +99,19 @@ impl Thread {
         th
     }
 
-    /// Call a function.
+    /// Call a function or callable value.
     ///
-    /// The error will be either [`CallError`] or [StackOverflow](crate::StackOverflow). The latter
-    /// one will trigger when the stack is not enough for `args`.
+    /// The error will be either [CallError](crate::CallError) or
+    /// [StackOverflow](crate::StackOverflow). The latter will trigger when the stack is not enough
+    /// for `args`.
     ///
     /// # Panics
     /// If `f` or some of `args` come from different [`Lua`] instance.
-    pub fn call(
+    pub fn call<R: Outputs>(
         &self,
         f: impl Into<UnsafeValue>,
         args: impl Args,
-    ) -> Result<Vec<Value>, Box<dyn core::error::Error>> {
+    ) -> Result<R, Box<dyn core::error::Error>> {
         // Check if function created from the same Lua.
         let f: UnsafeValue = f.into();
 
@@ -118,6 +120,7 @@ impl Thread {
         }
 
         // Push function and its arguments.
+        let ot = unsafe { self.top.get().offset_from_unsigned(self.stack.get()) };
         let nargs = args.len();
 
         unsafe { lua_checkstack(self, 1 + nargs)? };
@@ -127,17 +130,37 @@ impl Thread {
         unsafe { args.push_to(self) };
 
         // Call.
-        let f = unsafe { self.top.get().sub(nargs + 1) };
-        let f = unsafe { pin!(luaD_call(self, f, 0)) };
-        let w = unsafe { Waker::new(null(), &NON_YIELDABLE_WAKER) };
+        {
+            let f = unsafe { self.top.get().sub(nargs + 1) };
+            let f = unsafe { pin!(luaD_call(self, f, R::N)) };
+            let w = unsafe { Waker::new(null(), &NON_YIELDABLE_WAKER) };
 
-        match f.poll(&mut Context::from_waker(&w)) {
-            Poll::Ready(Ok(_)) => (),
-            Poll::Ready(Err(e)) => return Err(e),
-            Poll::Pending => unreachable!(),
+            match f.poll(&mut Context::from_waker(&w)) {
+                Poll::Ready(Ok(_)) => (),
+                Poll::Ready(Err(e)) => return Err(e),
+                Poll::Pending => unreachable!(),
+            }
         }
 
-        Ok(Vec::new())
+        // Get number of results.
+        let n = match R::N {
+            -1 => unsafe {
+                let ot = self.stack.get().add(ot);
+                let v = self.top.get().offset_from_unsigned(ot);
+
+                self.top.set(ot);
+
+                v
+            },
+            0 => 0,
+            v => unsafe {
+                let v = v.try_into().unwrap();
+                self.top.sub(v);
+                v
+            },
+        };
+
+        Ok(unsafe { R::new(self, n) })
     }
 }
 

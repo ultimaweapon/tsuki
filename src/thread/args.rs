@@ -88,7 +88,7 @@ unsafe impl<'a> Args for DynamicArgs<'a> {
     }
 }
 
-/// Arguments to invoke Lua function.
+/// Arguments to invoke callable value.
 ///
 /// # Safety
 /// The value returned from [`Args::len()`] must be exactly the same as the values pushed to the

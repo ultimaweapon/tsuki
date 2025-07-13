@@ -4659,19 +4659,25 @@ pub async unsafe fn luaV_execute(
                         (*ci).u.savedpc = pc;
 
                         // Invoke iterator function.
-                        let w = Waker::new(null(), &NON_YIELDABLE_WAKER);
-                        let f = pin!(luaD_call(
-                            L,
-                            ra_74.offset(4),
-                            (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
-                                & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                as c_int,
-                        ));
+                        {
+                            let w = Waker::new(null(), &NON_YIELDABLE_WAKER);
+                            let f = pin!(luaD_call(
+                                L,
+                                ra_74.offset(4),
+                                (i >> 0 as c_int
+                                    + 7 as c_int
+                                    + 8 as c_int
+                                    + 1 as c_int
+                                    + 8 as c_int
+                                    & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                                    as c_int,
+                            ));
 
-                        match f.poll(&mut Context::from_waker(&w)) {
-                            Poll::Ready(Ok(_)) => (),
-                            Poll::Ready(Err(e)) => return Err(e), // Requires unsized coercion.
-                            Poll::Pending => unreachable!(),
+                            match f.poll(&mut Context::from_waker(&w)) {
+                                Poll::Ready(Ok(_)) => (),
+                                Poll::Ready(Err(e)) => return Err(e), // Requires unsized coercion.
+                                Poll::Pending => unreachable!(),
+                            }
                         }
 
                         trap = (*ci).u.trap;
