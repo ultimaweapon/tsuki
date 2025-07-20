@@ -7,16 +7,19 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::gc::{Object, luaC_barrierback_};
+use crate::hasher::LuaHasher;
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
 use crate::lobject::luaO_ceillog2;
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{F2Ieq, luaV_flttointeger};
-use crate::{Node, NodeKey, Str, Table, TableError};
+use crate::{Node, NodeKey, Str, Table, TableError, UserId};
 use alloc::boxed::Box;
 use core::alloc::Layout;
+use core::any::TypeId;
 use core::cell::Cell;
 use core::ffi::c_void;
+use core::hash::{Hash, Hasher};
 use libm::frexp;
 
 type c_int = i32;
@@ -768,8 +771,40 @@ pub unsafe fn luaH_getstr(t: *const Table, key: *const Str) -> *const UnsafeValu
     };
 }
 
+pub unsafe fn luaH_getid(t: *const Table, k: &TypeId) -> *const UnsafeValue {
+    // Get hash.
+    let mut h = LuaHasher::new((*t).hdr.global);
+
+    k.hash(&mut h);
+
+    // Lookup.
+    let m = (1 << (*t).lsizenode.get()) - 1;
+    let h = h.finish() & m;
+    let mut n = (*t).node.get().add(h as usize);
+
+    loop {
+        // Check key.
+        if (*n).u.key_tt == 11 | 0 << 4 | 1 << 6
+            && (*(*n).u.key_val.gc.cast::<UserId>()).value() == k
+        {
+            return &raw const (*n).i_val;
+        }
+
+        // Get next node.
+        let nx = (*n).u.next;
+
+        if nx == 0 {
+            break;
+        }
+
+        n = n.offset(nx as isize);
+    }
+
+    &raw const absentkey
+}
+
 pub unsafe fn luaH_get(t: *const Table, key: *const UnsafeValue) -> *const UnsafeValue {
-    match (*key).tt_ as c_int & 0x3f as c_int {
+    match (*key).tt_ & 0x3f {
         4 => return luaH_getshortstr(t, (*key).value_.gc as *mut Str),
         3 => return luaH_getint(t, (*key).value_.i),
         0 => return &raw const absentkey,
@@ -779,9 +814,11 @@ pub unsafe fn luaH_get(t: *const Table, key: *const UnsafeValue) -> *const Unsaf
                 return luaH_getint(t, k);
             }
         }
+        11 => return luaH_getid(t, (*(*key).value_.gc.cast::<UserId>()).value()),
         _ => {}
     }
-    return getgeneric(t, key, 0 as c_int);
+
+    getgeneric(t, key, 0 as c_int)
 }
 
 pub unsafe fn luaH_finishset(

@@ -16,7 +16,7 @@ use crate::lobject::{CClosure, Proto, StkId, Udata, UpVal};
 use crate::ltm::{TM_MODE, luaT_gettm};
 use crate::table::{luaH_free, luaH_realasize};
 use crate::value::UnsafeValue;
-use crate::{Lua, LuaFn, Node, Str, Table, Thread};
+use crate::{Lua, LuaFn, Node, Str, Table, Thread, UserId};
 use core::alloc::Layout;
 use core::cell::Cell;
 use core::mem::offset_of;
@@ -70,13 +70,6 @@ unsafe fn mark_roots(g: &Lua) {
         .map(|v| v.get())
         .filter(|v| !v.is_null())
     {
-        if (*mt).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
-            reallymarkobject(g, mt.cast());
-        }
-    }
-
-    // Mark userdata metatable.
-    for mt in g.userdata_mt.borrow().values().copied() {
         if (*mt).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
             reallymarkobject(g, mt.cast());
         }
@@ -163,7 +156,7 @@ pub(crate) unsafe fn luaC_fix(g: &Lua, o: *const Object) {
 
 unsafe fn reallymarkobject(g: *const Lua, o: *const Object) {
     match (*o).tt {
-        4 | 20 => {
+        4 | 20 | 11 => {
             (*o).marked
                 .set((*o).marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
             return;
@@ -887,6 +880,10 @@ unsafe fn freeobj(g: *const Lua, o: *mut Object) {
 
             core::ptr::drop_in_place(ts_0);
             (*g).gc.dealloc(ts_0.cast(), layout);
+        }
+        11 => {
+            core::ptr::drop_in_place(o.cast::<UserId>());
+            (*g).gc.dealloc(o.cast(), Layout::new::<UserId>());
         }
         _ => unreachable!(),
     }

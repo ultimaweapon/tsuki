@@ -8,6 +8,7 @@ pub use self::string::*;
 pub use self::table::*;
 pub use self::thread::*;
 pub use self::ty::*;
+pub use self::userdata::*;
 
 use self::gc::{Gc, Object, luaC_barrier_, luaC_freeallobjects};
 use self::lapi::lua_settop;
@@ -23,8 +24,7 @@ use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::any::TypeId;
-use core::cell::{Cell, RefCell, UnsafeCell};
+use core::cell::{Cell, UnsafeCell};
 use core::ffi::c_int;
 use core::fmt::{Display, Formatter};
 use core::hint::unreachable_unchecked;
@@ -33,8 +33,6 @@ use core::ops::Deref;
 use core::pin::Pin;
 use core::ptr::{null, null_mut};
 use core::task::RawWakerVTable;
-use hashbrown::HashMap;
-use rustc_hash::FxBuildHasher;
 use thiserror::Error;
 
 pub mod builtin;
@@ -42,6 +40,7 @@ pub mod builtin;
 mod context;
 mod function;
 mod gc;
+mod hasher;
 mod lapi;
 mod lauxlib;
 mod lcode;
@@ -62,6 +61,7 @@ mod string;
 mod table;
 mod thread;
 mod ty;
+mod userdata;
 mod value;
 mod vm;
 
@@ -111,7 +111,6 @@ pub struct Lua {
     twups: Cell<*const Thread>,
     tmname: [Cell<*const Str>; 25],
     primitive_mt: [Cell<*const Table>; 9],
-    userdata_mt: RefCell<HashMap<TypeId, *const Table, FxBuildHasher>>,
     _phantom: PhantomPinned,
 }
 
@@ -202,7 +201,6 @@ impl Lua {
                 Cell::new(null_mut()),
                 Cell::new(null_mut()),
             ],
-            userdata_mt: Default::default(),
             _phantom: PhantomPinned,
         });
 
@@ -215,14 +213,14 @@ impl Lua {
 
         unsafe { luaH_resize(registry, 2, 0) };
 
-        // Create dummy object for LUA_RIDX_MAINTHREAD.
-        let io_0 = unsafe { (*registry).array.get().offset(1 - 1) as *mut UnsafeValue };
+        // Create table for userdata metatable.
+        let io_0 = unsafe { (*registry).array.get().add(0) as *mut UnsafeValue };
 
         unsafe { (*io_0).value_.gc = Table::new(g.deref()).cast() };
         unsafe { (*io_0).tt_ = 5 | 0 << 4 | 1 << 6 };
 
         // Create LUA_RIDX_GLOBALS.
-        let io_1 = unsafe { (*registry).array.get().offset(2 - 1) as *mut UnsafeValue };
+        let io_1 = unsafe { (*registry).array.get().add(1) as *mut UnsafeValue };
 
         unsafe { (*io_1).value_.gc = Table::new(g.deref()).cast() };
         unsafe { (*io_1).tt_ = 5 | 0 << 4 | 1 << 6 };
