@@ -72,7 +72,6 @@ fn strings() {
 }
 
 #[test]
-#[ignore = "need Lua standard library"]
 fn vararg() {
     run("vararg.lua").unwrap();
 }

@@ -223,11 +223,11 @@ pub fn rawset(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
 /// Implementation of [select](https://www.lua.org/manual/5.4/manual.html#pdf-select).
 pub fn select(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
     // Check if first argument is '#'. We check only first byte to match with Lua behavior.
-    let n = cx.args().wrapping_sub(1);
+    let n = cx.args();
     let i = cx.arg(1);
 
     if i.ty() == Some(Type::String) && i.get_str()?.as_bytes().starts_with(b"#") {
-        cx.push(n as i64)?;
+        cx.push((n - 1) as i64)?;
         return Ok(cx.into());
     }
 
@@ -238,7 +238,7 @@ pub fn select(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
         .ok()
         .and_then(move |i: isize| {
             if i < 0 {
-                if i.unsigned_abs() > n { None } else { Some(i) }
+                if i.unsigned_abs() >= n { None } else { Some(i) }
             } else if i == 0 || i > n as isize {
                 None
             } else {
