@@ -480,6 +480,48 @@ pub struct AsyncFp(
         -> Box<dyn Future<Output = Result<Context<Ret>, Box<dyn core::error::Error>>> + '_>,
 );
 
+/// Type of operator.
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Ops {
+    Add,
+    Sub,
+    Mul,
+    Mod,
+    Pow,
+    NumDiv,
+    IntDiv,
+    And,
+    Or,
+    Xor,
+    Shl,
+    Shr,
+    Neg,
+    Not,
+}
+
+impl Ops {
+    pub const fn from_u8(v: u8) -> Option<Self> {
+        match v {
+            v if v == Self::Add as u8 => Some(Self::Add),
+            v if v == Self::Sub as u8 => Some(Self::Sub),
+            v if v == Self::Mul as u8 => Some(Self::Mul),
+            v if v == Self::Mod as u8 => Some(Self::Mod),
+            v if v == Self::Pow as u8 => Some(Self::Pow),
+            v if v == Self::NumDiv as u8 => Some(Self::NumDiv),
+            v if v == Self::IntDiv as u8 => Some(Self::IntDiv),
+            v if v == Self::And as u8 => Some(Self::And),
+            v if v == Self::Or as u8 => Some(Self::Or),
+            v if v == Self::Xor as u8 => Some(Self::Xor),
+            v if v == Self::Shl as u8 => Some(Self::Shl),
+            v if v == Self::Shr as u8 => Some(Self::Shr),
+            v if v == Self::Neg as u8 => Some(Self::Neg),
+            v if v == Self::Not as u8 => Some(Self::Not),
+            _ => None,
+        }
+    }
+}
+
 /// Represents an error when a call to function fails.
 #[derive(Debug)]
 pub struct CallError {

@@ -27,7 +27,7 @@ use crate::vm::{
     OP_TEST, OP_TESTSET, OP_UNM, OpCode, luaP_opmodes, luaV_equalobj, luaV_flttointeger,
     luaV_tointegerns,
 };
-use crate::{ArithError, Object, ParseError, Str, Thread};
+use crate::{ArithError, Object, Ops, ParseError, Str, Thread};
 use core::fmt::Display;
 use core::ops::Deref;
 use libc::abs;
@@ -1797,14 +1797,15 @@ pub unsafe fn luaK_indexed(
     Ok(())
 }
 
-unsafe fn validop(op: libc::c_int, v1: *mut UnsafeValue, v2: *mut UnsafeValue) -> libc::c_int {
+unsafe fn validop(op: Ops, v1: *mut UnsafeValue, v2: *mut UnsafeValue) -> libc::c_int {
     match op {
-        7 | 8 | 9 | 10 | 11 | 13 => {
+        Ops::And | Ops::Or | Ops::Xor | Ops::Shl | Ops::Shr | Ops::Not => {
             let mut i: i64 = 0;
-            return (luaV_tointegerns(v1, &mut i, F2Ieq) != 0
-                && luaV_tointegerns(v2, &mut i, F2Ieq) != 0) as libc::c_int;
+
+            (luaV_tointegerns(v1, &mut i, F2Ieq) != 0 && luaV_tointegerns(v2, &mut i, F2Ieq) != 0)
+                as libc::c_int
         }
-        5 | 6 | 3 => {
+        Ops::NumDiv | Ops::IntDiv | Ops::Mod => {
             return ((if (*v2).tt_ as libc::c_int
                 == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
             {
@@ -1813,12 +1814,12 @@ unsafe fn validop(op: libc::c_int, v1: *mut UnsafeValue, v2: *mut UnsafeValue) -
                 (*v2).value_.n
             }) != 0 as libc::c_int as f64) as libc::c_int;
         }
-        _ => return 1 as libc::c_int,
-    };
+        _ => 1,
+    }
 }
 
 unsafe fn constfolding(
-    op: libc::c_int,
+    op: Ops,
     e1: *mut expdesc,
     e2: *const expdesc,
 ) -> Result<libc::c_int, ArithError> {
@@ -2189,15 +2190,9 @@ pub unsafe fn luaK_prefix(
     let current_block_3: u64;
     match opr as libc::c_uint {
         0 | 1 => {
-            if constfolding(
-                (opr as libc::c_uint).wrapping_add(12 as libc::c_int as libc::c_uint)
-                    as libc::c_int,
-                e,
-                &raw mut ef,
-            )
-            .map_err(|e| luaK_semerror(ls, e))?
-                != 0
-            {
+            let opr = (opr + 12).try_into().ok().and_then(Ops::from_u8).unwrap();
+
+            if constfolding(opr, e, &raw mut ef).map_err(|e| luaK_semerror(ls, e))? != 0 {
                 current_block_3 = 7815301370352969686;
             } else {
                 current_block_3 = 4299225766812711900;
@@ -2312,17 +2307,15 @@ pub unsafe fn luaK_posfix(
     line: libc::c_int,
 ) -> Result<(), ParseError> {
     luaK_dischargevars(ls, fs, e2)?;
-    if opr as libc::c_uint <= OPR_SHR as libc::c_int as libc::c_uint
-        && constfolding(
-            (opr as libc::c_uint).wrapping_add(0 as libc::c_int as libc::c_uint) as libc::c_int,
-            e1,
-            e2,
-        )
-        .map_err(|e| luaK_semerror(ls, e))?
+
+    if opr <= OPR_SHR
+        && constfolding(opr.try_into().ok().and_then(Ops::from_u8).unwrap(), e1, e2)
+            .map_err(|e| luaK_semerror(ls, e))?
             != 0
     {
         return Ok(());
     }
+
     let current_block_30: u64;
     match opr as libc::c_uint {
         19 => {

@@ -114,14 +114,14 @@ pub unsafe fn luaV_flttointeger(n: f64, p: *mut i64, mode: F2Imod) -> c_int {
 }
 
 pub unsafe fn luaV_tointegerns(obj: *const UnsafeValue, p: *mut i64, mode: F2Imod) -> c_int {
-    if (*obj).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
-        return luaV_flttointeger((*obj).value_.n, p, mode);
+    if (*obj).tt_ == 3 | 1 << 4 {
+        luaV_flttointeger((*obj).value_.n, p, mode)
     } else if (*obj).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
         *p = (*obj).value_.i;
         return 1 as c_int;
     } else {
         return 0 as c_int;
-    };
+    }
 }
 
 #[inline(never)]
@@ -1041,7 +1041,7 @@ pub fn luaV_mod(m: i64, n: i64) -> Option<i64> {
     };
 }
 
-pub unsafe fn luaV_modf(m: f64, n: f64) -> f64 {
+pub fn luaV_modf(m: f64, n: f64) -> f64 {
     let mut r: f64 = 0.;
     r = fmod(m, n);
     if if r > 0 as c_int as f64 {
@@ -1055,7 +1055,7 @@ pub unsafe fn luaV_modf(m: f64, n: f64) -> f64 {
     return r;
 }
 
-pub unsafe fn luaV_shiftl(x: i64, y: i64) -> i64 {
+pub fn luaV_shiftl(x: i64, y: i64) -> i64 {
     if y < 0 as c_int as i64 {
         if y <= -((::core::mem::size_of::<i64>() as c_ulong).wrapping_mul(8 as c_int as c_ulong)
             as c_int) as i64

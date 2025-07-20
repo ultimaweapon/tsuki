@@ -11,7 +11,7 @@ use crate::lctype::luai_ctype_;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
-use crate::{Args, ArithError, ChunkInfo, Context, Lua, Ret, Str, Table, Thread};
+use crate::{Args, ArithError, ChunkInfo, Context, Lua, Ops, Ret, Str, Table, Thread};
 use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
 use libc::{c_char, c_int, sprintf, strpbrk, strspn, strtod};
@@ -391,68 +391,62 @@ pub unsafe fn luaO_ceillog2(mut x: libc::c_uint) -> c_int {
     return l + log_2[x as usize] as c_int;
 }
 
-unsafe fn intarith(op: c_int, v1: i64, v2: i64) -> Result<i64, ArithError> {
+fn intarith(op: Ops, v1: i64, v2: i64) -> Result<i64, ArithError> {
     let r = match op {
-        0 => (v1 as u64).wrapping_add(v2 as u64) as i64,
-        1 => (v1 as u64).wrapping_sub(v2 as u64) as i64,
-        2 => (v1 as u64).wrapping_mul(v2 as u64) as i64,
-        3 => luaV_mod(v1, v2).ok_or(ArithError::ModZero)?,
-        6 => luaV_idiv(v1, v2).ok_or(ArithError::DivZero)?,
-        7 => (v1 as u64 & v2 as u64) as i64,
-        8 => (v1 as u64 | v2 as u64) as i64,
-        9 => (v1 as u64 ^ v2 as u64) as i64,
-        10 => luaV_shiftl(v1, v2),
-        11 => luaV_shiftl(v1, (0 as c_int as u64).wrapping_sub(v2 as u64) as i64),
-        12 => (0 as c_int as u64).wrapping_sub(v1 as u64) as i64,
-        13 => (!(0 as c_int as u64) ^ v1 as u64) as i64,
+        Ops::Add => (v1 as u64).wrapping_add(v2 as u64) as i64,
+        Ops::Sub => (v1 as u64).wrapping_sub(v2 as u64) as i64,
+        Ops::Mul => (v1 as u64).wrapping_mul(v2 as u64) as i64,
+        Ops::Mod => luaV_mod(v1, v2).ok_or(ArithError::ModZero)?,
+        Ops::IntDiv => luaV_idiv(v1, v2).ok_or(ArithError::DivZero)?,
+        Ops::And => (v1 as u64 & v2 as u64) as i64,
+        Ops::Or => (v1 as u64 | v2 as u64) as i64,
+        Ops::Xor => (v1 as u64 ^ v2 as u64) as i64,
+        Ops::Shl => luaV_shiftl(v1, v2),
+        Ops::Shr => luaV_shiftl(v1, (0 as c_int as u64).wrapping_sub(v2 as u64) as i64),
+        Ops::Neg => (0 as c_int as u64).wrapping_sub(v1 as u64) as i64,
+        Ops::Not => (!(0 as c_int as u64) ^ v1 as u64) as i64,
         _ => 0,
     };
 
     Ok(r)
 }
 
-unsafe fn numarith(op: c_int, v1: f64, v2: f64) -> f64 {
+fn numarith(op: Ops, v1: f64, v2: f64) -> f64 {
     match op {
-        0 => return v1 + v2,
-        1 => return v1 - v2,
-        2 => return v1 * v2,
-        5 => return v1 / v2,
-        4 => {
-            return if v2 == 2 as c_int as f64 {
+        Ops::Add => v1 + v2,
+        Ops::Sub => v1 - v2,
+        Ops::Mul => v1 * v2,
+        Ops::NumDiv => v1 / v2,
+        Ops::Pow => {
+            if v2 == 2.0 {
                 v1 * v1
             } else {
                 pow(v1, v2)
-            };
+            }
         }
-        6 => return floor(v1 / v2),
-        12 => return -v1,
-        3 => luaV_modf(v1, v2),
-        _ => return 0 as c_int as f64,
+        Ops::IntDiv => floor(v1 / v2),
+        Ops::Neg => -v1,
+        Ops::Mod => luaV_modf(v1, v2),
+        _ => 0.0,
     }
 }
 
 pub unsafe fn luaO_rawarith(
-    op: c_int,
+    op: Ops,
     p1: *const UnsafeValue,
     p2: *const UnsafeValue,
 ) -> Result<Option<UnsafeValue>, ArithError> {
     match op {
-        7 | 8 | 9 | 10 | 11 | 13 => {
+        Ops::And | Ops::Or | Ops::Xor | Ops::Shl | Ops::Shr | Ops::Not => {
             let mut i1: i64 = 0;
             let mut i2: i64 = 0;
-            if (if (((*p1).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int) as c_int
-                != 0 as c_int) as c_int as libc::c_long
-                != 0
-            {
+            if (if (*p1).tt_ == 3 | 0 << 4 {
                 i1 = (*p1).value_.i;
                 1 as c_int
             } else {
                 luaV_tointegerns(p1, &mut i1, F2Ieq)
             }) != 0
-                && (if (((*p2).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int) as c_int
-                    != 0 as c_int) as c_int as libc::c_long
-                    != 0
-                {
+                && (if (*p2).tt_ == 3 | 0 << 4 {
                     i2 = (*p2).value_.i;
                     1 as c_int
                 } else {
@@ -464,7 +458,7 @@ pub unsafe fn luaO_rawarith(
                 Ok(None)
             }
         }
-        5 | 4 => {
+        Ops::NumDiv | Ops::Pow => {
             let mut n1: f64 = 0.;
             let mut n2: f64 = 0.;
             if (if (*p1).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
@@ -495,7 +489,7 @@ pub unsafe fn luaO_rawarith(
                 Ok(None)
             }
         }
-        _ => {
+        op => {
             let mut n1_0: f64 = 0.;
             let mut n2_0: f64 = 0.;
             if (*p1).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int
@@ -535,13 +529,13 @@ pub unsafe fn luaO_rawarith(
 
 pub unsafe fn luaO_arith(
     L: *const Thread,
-    op: c_int,
+    op: Ops,
     p1: *const UnsafeValue,
     p2: *const UnsafeValue,
 ) -> Result<UnsafeValue, Box<dyn core::error::Error>> {
     match luaO_rawarith(op, p1, p2)? {
         Some(v) => Ok(v),
-        None => luaT_trybinTM(L, p1, p2, (op - 0 + TM_ADD as c_int) as TMS),
+        None => luaT_trybinTM(L, p1, p2, (op as i32 + TM_ADD as c_int) as TMS),
     }
 }
 
