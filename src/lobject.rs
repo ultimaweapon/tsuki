@@ -14,7 +14,6 @@ use crate::vm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointeg
 use crate::{Args, ArithError, ChunkInfo, Context, Lua, Ret, Str, Table, Thread};
 use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
-use core::mem::MaybeUninit;
 use libc::{c_char, c_int, sprintf, strpbrk, strspn, strtod};
 use libm::{floor, pow};
 
@@ -436,8 +435,7 @@ pub unsafe fn luaO_rawarith(
     op: c_int,
     p1: *const UnsafeValue,
     p2: *const UnsafeValue,
-    res: *mut UnsafeValue,
-) -> Result<c_int, ArithError> {
+) -> Result<Option<UnsafeValue>, ArithError> {
     match op {
         7 | 8 | 9 | 10 | 11 | 13 => {
             let mut i1: i64 = 0;
@@ -461,12 +459,9 @@ pub unsafe fn luaO_rawarith(
                     luaV_tointegerns(p2, &mut i2, F2Ieq)
                 }) != 0
             {
-                let io: *mut UnsafeValue = res;
-                (*io).value_.i = intarith(op, i1, i2)?;
-                (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
-                return Ok(1 as c_int);
+                intarith(op, i1, i2).map(|v| Some(v.into()))
             } else {
-                return Ok(0 as c_int);
+                Ok(None)
             }
         }
         5 | 4 => {
@@ -495,12 +490,9 @@ pub unsafe fn luaO_rawarith(
                     }
                 }) != 0
             {
-                let io_0: *mut UnsafeValue = res;
-                (*io_0).value_.n = numarith(op, n1, n2);
-                (*io_0).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
-                return Ok(1 as c_int);
+                Ok(Some(numarith(op, n1, n2).into()))
             } else {
-                return Ok(0 as c_int);
+                Ok(None)
             }
         }
         _ => {
@@ -509,10 +501,7 @@ pub unsafe fn luaO_rawarith(
             if (*p1).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int
                 && (*p2).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int
             {
-                let io_1: *mut UnsafeValue = res;
-                (*io_1).value_.i = intarith(op, (*p1).value_.i, (*p2).value_.i)?;
-                (*io_1).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
-                return Ok(1 as c_int);
+                intarith(op, (*p1).value_.i, (*p2).value_.i).map(|v| Some(v.into()))
             } else if (if (*p1).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
                 n1_0 = (*p1).value_.n;
                 1 as c_int
@@ -536,15 +525,12 @@ pub unsafe fn luaO_rawarith(
                     }
                 }) != 0
             {
-                let io_2: *mut UnsafeValue = res;
-                (*io_2).value_.n = numarith(op, n1_0, n2_0);
-                (*io_2).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
-                return Ok(1 as c_int);
+                Ok(Some(numarith(op, n1_0, n2_0).into()))
             } else {
-                return Ok(0 as c_int);
+                Ok(None)
             }
         }
-    };
+    }
 }
 
 pub unsafe fn luaO_arith(
@@ -553,14 +539,10 @@ pub unsafe fn luaO_arith(
     p1: *const UnsafeValue,
     p2: *const UnsafeValue,
 ) -> Result<UnsafeValue, Box<dyn core::error::Error>> {
-    let mut v = MaybeUninit::uninit();
-    let r = luaO_rawarith(op, p1, p2, v.as_mut_ptr())?;
-
-    if r == 0 {
-        v.write(luaT_trybinTM(L, p1, p2, (op - 0 + TM_ADD as c_int) as TMS)?);
+    match luaO_rawarith(op, p1, p2)? {
+        Some(v) => Ok(v),
+        None => luaT_trybinTM(L, p1, p2, (op - 0 + TM_ADD as c_int) as TMS),
     }
-
-    Ok(v.assume_init())
 }
 
 pub unsafe fn luaO_hexavalue(c: c_int) -> c_int {

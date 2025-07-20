@@ -1834,30 +1834,27 @@ unsafe fn constfolding(
         },
         tt_: 0,
     };
-    let mut res: UnsafeValue = UnsafeValue {
-        value_: UntaggedValue {
-            gc: 0 as *mut Object,
-        },
-        tt_: 0,
-    };
+
     if tonumeral(e1, &mut v1) == 0
         || tonumeral(e2, &mut v2) == 0
         || validop(op, &mut v1, &mut v2) == 0
     {
         return Ok(0 as libc::c_int);
     }
-    luaO_rawarith(op, &mut v1, &mut v2, &mut res)?;
+
+    let res = match luaO_rawarith(op, &mut v1, &mut v2)? {
+        Some(v) => v,
+        None => return Ok(0),
+    };
+
     if res.tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
         (*e1).k = VKINT;
         (*e1).u.ival = res.value_.i;
     } else {
-        let n: f64 = res.value_.n;
-        if !(n == n) || n == 0 as libc::c_int as f64 {
-            return Ok(0 as libc::c_int);
-        }
         (*e1).k = VKFLT;
-        (*e1).u.nval = n;
+        (*e1).u.nval = res.value_.n;
     }
+
     return Ok(1 as libc::c_int);
 }
 
