@@ -942,7 +942,7 @@ unsafe fn sweeptolive(g: &Lua, mut p: *mut *const Object) -> *mut *const Object 
 unsafe fn setpause(g: *const Lua) {
     let mut threshold: isize = 0;
     let mut debt: isize = 0;
-    let pause: c_int = (*g).gcpause.get() as c_int * 4 as c_int;
+    let pause: c_int = 200;
     let estimate: isize = ((*g).GCestimate.get() / 100) as isize;
 
     threshold = if (pause as isize) < (!(0 as c_int as usize) >> 1 as c_int) as isize / estimate {
