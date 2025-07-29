@@ -52,11 +52,41 @@ impl From<Fp> for UnsafeValue {
     }
 }
 
+impl From<i32> for UnsafeValue {
+    #[inline(always)]
+    fn from(value: i32) -> Self {
+        Self {
+            value_: UntaggedValue { i: value.into() },
+            tt_: 3 | 0 << 4,
+        }
+    }
+}
+
 impl From<i64> for UnsafeValue {
     #[inline(always)]
     fn from(value: i64) -> Self {
         Self {
             value_: UntaggedValue { i: value },
+            tt_: 3 | 0 << 4,
+        }
+    }
+}
+
+impl From<u8> for UnsafeValue {
+    #[inline(always)]
+    fn from(value: u8) -> Self {
+        Self {
+            value_: UntaggedValue { i: value.into() },
+            tt_: 3 | 0 << 4,
+        }
+    }
+}
+
+impl From<u32> for UnsafeValue {
+    #[inline(always)]
+    fn from(value: u32) -> Self {
+        Self {
+            value_: UntaggedValue { i: value.into() },
             tt_: 3 | 0 << 4,
         }
     }

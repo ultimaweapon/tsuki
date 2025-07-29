@@ -121,7 +121,6 @@ pub unsafe fn luaE_shrinkCI(L: *const Thread) {
         (*L).nci.set((*L).nci.get().wrapping_sub(1));
 
         luaM_free_(
-            (*L).hdr.global,
             next as *mut libc::c_void,
             ::core::mem::size_of::<CallInfo>(),
         );

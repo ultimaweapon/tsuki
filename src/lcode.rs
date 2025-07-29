@@ -6,7 +6,6 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::gc::luaC_barrier_;
 use crate::llex::{LexState, luaX_syntaxerror};
 use crate::lmem::luaM_growaux_;
 use crate::lobject::{AbsLineInfo, Proto, luaO_ceillog2, luaO_rawarith};
@@ -827,11 +826,10 @@ unsafe fn addk(
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            luaC_barrier_(
-                (*ls).g.deref(),
-                f as *mut Object,
-                (*v).value_.gc as *mut Object,
-            );
+            (*ls)
+                .g
+                .gc
+                .barrier(f as *mut Object, (*v).value_.gc as *mut Object);
         }
     }
 

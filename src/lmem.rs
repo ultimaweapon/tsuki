@@ -56,9 +56,8 @@ pub unsafe fn luaM_shrinkvector_(
     return newblock;
 }
 
-pub unsafe fn luaM_free_(g: *const Lua, block: *mut libc::c_void, osize: usize) {
+pub unsafe fn luaM_free_(block: *mut libc::c_void, osize: usize) {
     free(block);
-    (*g).gc.decrease_debt(osize);
 }
 
 pub unsafe fn luaM_realloc_(
@@ -77,9 +76,6 @@ pub unsafe fn luaM_realloc_(
     if newblock.is_null() && nsize > 0 {
         return 0 as *mut libc::c_void;
     }
-
-    (*g).gc.increase_debt(nsize);
-    (*g).gc.decrease_debt(osize);
 
     return newblock;
 }
@@ -108,8 +104,6 @@ pub unsafe fn luaM_malloc_(g: *const Lua, size: usize) -> *mut c_void {
         if newblock == 0 as *mut libc::c_void {
             todo!("invoke handle_alloc_error");
         }
-
-        (*g).gc.increase_debt(size);
 
         newblock
     }

@@ -8,7 +8,7 @@
 
 use crate::lobject::Udata;
 use crate::value::UnsafeValue;
-use crate::{Lua, Object, Str};
+use crate::{Lua, Str};
 use core::alloc::Layout;
 use core::mem::offset_of;
 use core::ptr::null;
@@ -53,7 +53,7 @@ pub unsafe fn luaS_newudata(g: *const Lua, s: usize, nuvalue: libc::c_int) -> *m
     let size = min + s;
     let align = align_of::<Udata>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = Object::new(g, 7 | 0 << 4, layout).cast::<Udata>();
+    let o = (*g).gc.alloc(7 | 0 << 4, layout).cast::<Udata>();
 
     (*o).len = s;
     (*o).nuvalue = nuvalue as libc::c_ushort;

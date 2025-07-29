@@ -6,7 +6,6 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::gc::luaC_fix;
 use crate::lctype::luai_ctype_;
 use crate::lmem::luaM_saferealloc_;
 use crate::lobject::{luaO_hexavalue, luaO_str2num, luaO_utf8esc};
@@ -95,7 +94,7 @@ pub struct LexState {
     pub level: usize,
 }
 
-const luaX_tokens: [&str; 37] = [
+pub const luaX_tokens: [&str; 37] = [
     "and",
     "break",
     "do",
@@ -152,20 +151,6 @@ unsafe fn save(ls: *mut LexState, c: libc::c_int) {
     let fresh0 = (*b).n;
     (*b).n = ((*b).n).wrapping_add(1);
     *((*b).buffer).offset(fresh0 as isize) = c as libc::c_char;
-}
-
-pub unsafe fn luaX_init(g: *const Lua) {
-    let mut i: libc::c_int = 0;
-    let e = Str::from_str(g, "_ENV");
-    luaC_fix(&*g, e.cast());
-    i = 0 as libc::c_int;
-
-    while i < TK_WHILE as libc::c_int - (255 as libc::c_int + 1 as libc::c_int) + 1 as libc::c_int {
-        let ts = Str::from_str(g, luaX_tokens[i as usize]);
-        luaC_fix(&*g, ts.cast());
-        (*ts).extra.set((i + 1 as libc::c_int) as u8);
-        i += 1;
-    }
 }
 
 pub unsafe fn luaX_token2str(token: libc::c_int) -> Cow<'static, str> {
@@ -239,10 +224,7 @@ pub unsafe fn luaX_newstring(ls: *mut LexState, str: *const libc::c_char, l: usi
         };
 
         luaH_finishset((*ls).h.deref(), &stv, o, &stv).unwrap(); // This should never fails.
-
-        if (&(*ls).g).gc.debt() > 0 as libc::c_int as isize {
-            crate::gc::step((*ls).g.deref());
-        }
+        (*ls).g.gc.step();
     }
 
     ts
@@ -1104,13 +1086,17 @@ unsafe fn llex(ls: *mut LexState, seminfo: *mut SemInfo) -> Result<libc::c_int, 
                     }
 
                     let ts = luaX_newstring(ls, (*(*ls).buff).buffer, (*(*ls).buff).n);
+
                     (*seminfo).ts = ts;
-                    if (*ts).hdr.tt as libc::c_int
-                        == 4 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
-                        && (*ts).extra.get() as libc::c_int > 0 as libc::c_int
-                    {
-                        return Ok((*ts).extra.get() as libc::c_int - 1 as libc::c_int
-                            + (255 as libc::c_int + 1 as libc::c_int));
+
+                    // Check if reserved word.
+                    let v = (*ls)
+                        .g
+                        .tokens()
+                        .get_raw_unchecked(UnsafeValue::from_obj(ts.cast()));
+
+                    if (v.tt_ & 0x3F) == (3 | 0 << 4) {
+                        return Ok(v.value_.i as libc::c_int - 1 + (255 + 1 as libc::c_int));
                     } else {
                         return Ok(TK_NAME as libc::c_int);
                     }

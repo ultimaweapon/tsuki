@@ -69,12 +69,7 @@ impl Str {
 
         match unsafe { (*g).strt.insert(h, s) } {
             Ok(v) => unsafe {
-                if (*v).hdr.marked.is_dead((*g).currentwhite.get()) {
-                    (*v).hdr
-                        .marked
-                        .set((*v).hdr.marked.get() ^ (1 << 3 | 1 << 4));
-                }
-
+                (*g).gc.resurrect(v.cast());
                 v
             },
             Err(e) => unsafe {
@@ -134,7 +129,7 @@ impl Str {
         let size = offset_of!(Str, contents) + l + 1;
         let align = align_of::<Str>();
         let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-        let o = unsafe { Object::new(g, tag, layout).cast::<Str>() };
+        let o = unsafe { (*g).gc.alloc(tag, layout).cast::<Str>() };
 
         unsafe { addr_of_mut!((*o).hash).write(Cell::new(h)) };
         unsafe { addr_of_mut!((*o).extra).write(Cell::new(0)) };

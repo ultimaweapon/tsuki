@@ -6,7 +6,6 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::gc::{luaC_barrier_, luaC_barrierback_};
 use crate::ldo::luaD_growstack;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::{
@@ -22,7 +21,8 @@ use crate::vm::{
     luaV_lessthan, luaV_tointeger, luaV_tonumber_,
 };
 use crate::{
-    Args, Context, LuaFn, Object, Ret, StackOverflow, Str, Table, TableError, Thread, api_incr_top,
+    Args, Context, LuaFn, Nil, Object, Ret, StackOverflow, Str, Table, TableError, Thread,
+    api_incr_top,
 };
 use alloc::boxed::Box;
 use core::ffi::{CStr, c_void};
@@ -223,8 +223,7 @@ pub unsafe fn lua_copy(L: *const Thread, fromidx: c_int, toidx: c_int) {
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                     != 0
             {
-                luaC_barrier_(
-                    (*L).hdr.global,
+                (*L).hdr.global().gc.barrier(
                     ((*(*(*L).ci.get()).func).val.value_.gc as *mut CClosure) as *mut CClosure
                         as *mut Object,
                     (*fr).value_.gc as *mut Object,
@@ -390,9 +389,7 @@ pub unsafe fn lua_tolstring(L: *const Thread, idx: c_int, convert: bool) -> *con
 
         luaO_tostring((*L).hdr.global, o);
 
-        if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
-            crate::gc::step((*L).hdr.global);
-        }
+        (*L).hdr.global().gc.step();
 
         o = index2value(L, idx);
     }
@@ -460,9 +457,7 @@ pub unsafe fn lua_pushlstring(L: *const Thread, s: impl AsRef<[u8]>) -> *const l
 
     api_incr_top(L);
 
-    if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
-        crate::gc::step((*L).hdr.global);
-    }
+    (*L).hdr.global().gc.step();
 
     ((*ts).contents).as_ptr()
 }
@@ -484,9 +479,7 @@ pub unsafe fn lua_pushstring(L: *const Thread, s: *const libc::c_char) {
 
     api_incr_top(L);
 
-    if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
-        crate::gc::step((*L).hdr.global);
-    }
+    (*L).hdr.global().gc.step();
 }
 
 pub unsafe fn lua_pushcclosure(
@@ -520,9 +513,7 @@ pub unsafe fn lua_pushcclosure(
 
     api_incr_top(L);
 
-    if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
-        crate::gc::step((*L).hdr.global);
-    }
+    (*L).hdr.global().gc.step();
 }
 
 unsafe fn auxgetstr(
@@ -674,19 +665,13 @@ pub unsafe fn lua_createtable(L: *const Thread, narray: c_int, nrec: c_int) {
         luaH_resize(t, narray as libc::c_uint, nrec as libc::c_uint);
     }
 
-    if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
-        crate::gc::step((*L).hdr.global);
-    }
+    (*L).hdr.global().gc.step();
 }
 
 pub unsafe fn lua_getmetatable(L: *const Thread, objindex: c_int) -> c_int {
     let mut res: c_int = 0 as c_int;
     let obj = index2value(L, objindex);
-    let mt = match (*obj).tt_ as c_int & 0xf as c_int {
-        5 => (*((*obj).value_.gc as *mut Table)).metatable.get(),
-        7 => (*((*obj).value_.gc as *mut Udata)).metatable,
-        _ => (*(*L).hdr.global).primitive_mt[usize::from((*obj).tt_ & 0xf)].get(),
-    };
+    let mt = (*L).hdr.global().metatable(obj);
 
     if !mt.is_null() {
         let io: *mut UnsafeValue = &raw mut (*(*L).top.get()).val;
@@ -759,7 +744,7 @@ unsafe fn auxsetstr(
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                     != 0
             {
-                luaC_barrierback_((*t).value_.gc);
+                (*L).hdr.global().gc.barrier_back((*t).value_.gc);
             }
         }
 
@@ -831,7 +816,7 @@ pub unsafe fn lua_settable(L: *mut Thread, idx: c_int) -> Result<(), Box<dyn cor
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                     != 0
             {
-                luaC_barrierback_((*t).value_.gc);
+                (*L).hdr.global().gc.barrier_back((*t).value_.gc);
             }
         }
     } else {
@@ -902,7 +887,7 @@ pub unsafe fn lua_seti(
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                     != 0
             {
-                luaC_barrierback_((*t).value_.gc);
+                (*L).hdr.global().gc.barrier_back((*t).value_.gc);
             }
         }
     } else {
@@ -963,7 +948,7 @@ pub unsafe fn lua_rawseti(L: *mut Thread, idx: c_int, n: i64) {
                 & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                 != 0
         {
-            luaC_barrierback_(t.cast());
+            (*L).hdr.global().gc.barrier_back(t.cast());
         }
     }
 
@@ -976,18 +961,13 @@ pub unsafe fn lua_setmetatable(
 ) -> Result<(), Box<dyn core::error::Error>> {
     let obj = index2value(L, objindex);
     let mt = if (*((*L).top.get()).offset(-1)).val.tt_ & 0xf == 0 {
-        0 as *mut Table
+        null()
     } else {
         (*((*L).top.get()).offset(-1)).val.value_.gc as *mut Table
     };
 
     // Prevent __gc metamethod.
-    let g = (*L).hdr.global;
-
-    if !mt.is_null()
-        && (*mt).flags.get() & 1 << TM_GC == 0
-        && !luaT_gettm(mt, TM_GC, (*g).tmname[TM_GC as usize].get()).is_null()
-    {
+    if !mt.is_null() && (*mt).flags.get() & 1 << TM_GC == 0 && !luaT_gettm(mt, TM_GC).is_null() {
         return Err("__gc metamethod is not supported".into());
     }
 
@@ -1001,11 +981,10 @@ pub unsafe fn lua_setmetatable(
                         & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                         != 0
                 {
-                    luaC_barrier_(
-                        (*L).hdr.global,
-                        (*obj).value_.gc as *mut Object,
-                        mt as *mut Object,
-                    );
+                    (*L).hdr
+                        .global()
+                        .gc
+                        .barrier((*obj).value_.gc as *mut Object, mt as *mut Object);
                 };
             }
         }
@@ -1020,15 +999,25 @@ pub unsafe fn lua_setmetatable(
                         & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                         != 0
                 {
-                    luaC_barrier_(
-                        (*L).hdr.global,
+                    (*L).hdr.global().gc.barrier(
                         ((*obj).value_.gc as *mut Udata) as *mut Udata as *mut Object,
                         mt as *mut Object,
                     );
                 };
             }
         }
-        _ => (*(*L).hdr.global).primitive_mt[usize::from((*obj).tt_ & 0xf)].set(mt),
+        v => (*L)
+            .hdr
+            .global()
+            .metatables()
+            .set_unchecked(
+                v,
+                match mt.is_null() {
+                    true => UnsafeValue::from(Nil),
+                    false => UnsafeValue::from_obj(mt.cast()),
+                },
+            )
+            .unwrap_unchecked(),
     }
 
     (*L).top.sub(1);
@@ -1069,7 +1058,7 @@ pub unsafe fn lua_setiuservalue(L: *mut Thread, idx: c_int, n: c_int) -> c_int {
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                     != 0
             {
-                luaC_barrierback_((*o).value_.gc);
+                (*L).hdr.global().gc.barrier_back((*o).value_.gc);
             }
         }
 
@@ -1127,9 +1116,7 @@ pub unsafe fn lua_concat(L: *const Thread, n: c_int) -> Result<(), Box<dyn core:
         api_incr_top(L);
     }
 
-    if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
-        crate::gc::step((*L).hdr.global);
-    }
+    (*L).hdr.global().gc.step();
 
     Ok(())
 }
@@ -1144,9 +1131,7 @@ pub unsafe fn lua_newuserdatauv(L: *const Thread, size: usize, nuvalue: c_int) -
 
     api_incr_top(L);
 
-    if (*(*L).hdr.global).gc.debt() > 0 as c_int as isize {
-        crate::gc::step((*L).hdr.global);
-    }
+    (*L).hdr.global().gc.step();
 
     u.byte_add(offset_of!(Udata, uv) + size_of::<UnsafeValue>() * usize::from((*u).nuvalue))
         .cast()
@@ -1240,11 +1225,10 @@ pub unsafe fn lua_setupvalue(L: *const Thread, funcindex: c_int, n: c_int) -> *c
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                     != 0
             {
-                luaC_barrier_(
-                    (*L).hdr.global,
-                    owner as *mut Object,
-                    (*val).value_.gc as *mut Object,
-                );
+                (*L).hdr
+                    .global()
+                    .gc
+                    .barrier(owner as *mut Object, (*val).value_.gc as *mut Object);
             }
         }
     }
@@ -1305,6 +1289,9 @@ pub unsafe fn lua_upvaluejoin(L: *mut Thread, fidx1: c_int, n1: c_int, fidx2: c_
             & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
             != 0
     {
-        luaC_barrier_((*L).hdr.global, f1 as *mut Object, *up1 as *mut Object);
+        (*L).hdr
+            .global()
+            .gc
+            .barrier(f1 as *mut Object, *up1 as *mut Object);
     }
 }

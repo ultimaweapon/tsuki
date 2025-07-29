@@ -51,7 +51,7 @@ impl Thread {
     pub(crate) fn new(g: &Lua) -> *const Self {
         // Create new thread.
         let layout = Layout::new::<Thread>();
-        let th = unsafe { Object::new(g, 8, layout).cast::<Thread>() };
+        let th = unsafe { g.gc.alloc(8, layout).cast::<Thread>() };
 
         unsafe { addr_of_mut!((*th).stack).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*th).ci).write(Cell::new(null_mut())) };
@@ -189,7 +189,7 @@ impl Drop for Thread {
 
             next = unsafe { (*ci).next };
 
-            unsafe { luaM_free_(self.hdr.global, ci.cast(), size_of::<CallInfo>()) };
+            unsafe { luaM_free_(ci.cast(), size_of::<CallInfo>()) };
             self.nci.set(self.nci.get().wrapping_sub(1));
         }
 

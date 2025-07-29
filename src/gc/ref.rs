@@ -21,11 +21,11 @@ pub struct Ref<T> {
 impl<T> Ref<T> {
     pub(crate) unsafe fn new(o: *const T) -> Self {
         let h = o.cast::<Object>();
-        let g = (*h).global;
+        let g = (*h).global();
         let r = (*h).refs.get();
 
         if r == 0 {
-            let p = (*g).refs.get();
+            let p = g.gc.refs.get();
 
             (*h).refs.set(1);
             (*h).refp.set(p);
@@ -34,14 +34,14 @@ impl<T> Ref<T> {
                 (*p).refn.set(h);
             }
 
-            (*g).refs.set(h);
+            g.gc.refs.set(h);
         } else if let Some(v) = r.checked_add(1) {
             (*h).refs.set(v);
         } else {
             Self::too_many_refs();
         }
 
-        Self { g: (*g).to_rc(), o }
+        Self { g: g.to_rc(), o }
     }
 
     #[cold]
@@ -75,8 +75,8 @@ impl<T> Drop for Ref<T> {
             unsafe { (*p).refn.set(n) };
         }
 
-        if self.g.refs.get() == h {
-            self.g.refs.set(p);
+        if self.g.gc.refs.get() == h {
+            self.g.gc.refs.set(p);
         }
     }
 }

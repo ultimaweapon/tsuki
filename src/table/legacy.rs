@@ -6,7 +6,7 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::gc::{Object, luaC_barrierback_};
+use crate::gc::Object;
 use crate::hasher::LuaHasher;
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
 use crate::lobject::luaO_ceillog2;
@@ -15,7 +15,6 @@ use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{F2Ieq, luaV_flttointeger};
 use crate::{Node, NodeKey, Str, Table, TableError, UserId};
 use alloc::boxed::Box;
-use core::alloc::Layout;
 use core::any::TypeId;
 use core::cell::Cell;
 use core::ffi::c_void;
@@ -294,10 +293,9 @@ pub(super) unsafe fn findindex(
     };
 }
 
-unsafe fn freehash(t: *const Table) {
+pub(super) unsafe fn freehash(t: *const Table) {
     if !((*t).lastfree.get()).is_null() {
         luaM_free_(
-            (*t).hdr.global,
             (*t).node.get() as *mut c_void,
             (((1 as c_int) << (*t).lsizenode.get() as c_int) as usize)
                 .wrapping_mul(size_of::<Node>()),
@@ -537,7 +535,6 @@ pub unsafe fn luaH_resize(t: *const Table, newasize: c_uint, nhsize: c_uint) {
         as c_long
         != 0
     {
-        freehash(&raw const newt);
         todo!("invoke handle_alloc_error");
     }
 
@@ -553,7 +550,6 @@ pub unsafe fn luaH_resize(t: *const Table, newasize: c_uint, nhsize: c_uint) {
     }
 
     reinsert(&raw const newt, t);
-    freehash(&raw const newt);
 }
 
 pub unsafe fn luaH_resizearray(t: *const Table, nasize: c_uint) {
@@ -591,20 +587,6 @@ unsafe fn rehash(t: *const Table, ek: *const UnsafeValue) {
     totaluse += 1;
     asize = computesizes(nums.as_mut_ptr(), &mut na);
     luaH_resize(t, asize, (totaluse as c_uint).wrapping_sub(na))
-}
-
-pub unsafe fn luaH_free(t: *mut Table) {
-    let g = (*t).hdr.global;
-    let layout = Layout::new::<Table>();
-
-    freehash(t);
-    luaM_free_(
-        g,
-        (*t).array.get() as *mut c_void,
-        (luaH_realasize(t) as usize).wrapping_mul(size_of::<UnsafeValue>()),
-    );
-
-    (*g).gc.dealloc(t.cast(), layout);
 }
 
 unsafe fn getfreepos(t: *const Table) -> *mut Node {
@@ -695,7 +677,7 @@ unsafe fn luaH_newkey(
                 & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                 != 0
         {
-            luaC_barrierback_(t.cast());
+            (*t).hdr.global().gc.barrier_back(t.cast());
         }
     }
 
@@ -706,33 +688,44 @@ unsafe fn luaH_newkey(
     Ok(())
 }
 
+#[inline(always)]
 pub unsafe fn luaH_getint(t: *const Table, key: i64) -> *const UnsafeValue {
-    let alimit: u64 = (*t).alimit.get() as u64;
-    if (key as u64).wrapping_sub(1 as c_uint as u64) < alimit {
-        return ((*t).array.get()).offset((key - 1) as isize) as *mut UnsafeValue;
-    } else if (*t).flags.get() as c_int & (1 as c_int) << 7 as c_int != 0
-        && (key as u64).wrapping_sub(1 as c_uint as u64) & !alimit.wrapping_sub(1 as c_uint as u64)
-            < alimit
-    {
-        (*t).alimit.set(key as c_uint);
-        return ((*t).array.get()).offset((key - 1 as c_int as i64) as isize) as *mut UnsafeValue;
-    } else {
-        let mut n: *mut Node = hashint(t, key);
-        loop {
-            if (*n).u.key_tt as c_int == 3 as c_int | (0 as c_int) << 4 as c_int
-                && (*n).u.key_val.i == key
-            {
-                return &mut (*n).i_val;
-            } else {
-                let nx: c_int = (*n).u.next;
-                if nx == 0 as c_int {
-                    break;
+    // Check if key within array part.
+    let alimit = u64::from((*t).alimit.get());
+
+    if (key as u64).wrapping_sub(1) < alimit {
+        return (*t).array.get().add((key - 1) as usize);
+    }
+
+    #[inline(never)]
+    unsafe fn get_slow(t: *const Table, key: i64) -> *const UnsafeValue {
+        let alimit = u64::from((*t).alimit.get());
+
+        if (*t).flags.get() & 1 << 7 != 0
+            && (key as u64).wrapping_sub(1) & !alimit.wrapping_sub(1) < alimit
+        {
+            (*t).alimit.set(key as c_uint);
+            (*t).array.get().offset((key - 1 as c_int as i64) as isize)
+        } else {
+            let mut n: *mut Node = hashint(t, key);
+
+            loop {
+                if (*n).u.key_tt == 3 | 0 << 4 && (*n).u.key_val.i == key {
+                    return &raw const (*n).i_val;
+                } else {
+                    let nx: c_int = (*n).u.next;
+                    if nx == 0 as c_int {
+                        break;
+                    }
+                    n = n.offset(nx as isize);
                 }
-                n = n.offset(nx as isize);
             }
+
+            &raw const absentkey
         }
-        return &raw const absentkey;
-    };
+    }
+
+    get_slow(t, key)
 }
 
 pub unsafe fn luaH_getshortstr(t: *const Table, key: *const Str) -> *const UnsafeValue {

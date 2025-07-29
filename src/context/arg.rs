@@ -294,7 +294,7 @@ impl<'a, 'b> Arg<'a, 'b> {
 
         // Get metatable.
         let g = self.cx.th.hdr.global();
-        let mt = unsafe { g.get_mt(v) };
+        let mt = unsafe { g.metatable(v) };
         let mt = match mt.is_null() {
             true => None,
             false => Some(unsafe { Ref::new(mt) }),
@@ -469,7 +469,7 @@ impl<'a, 'b> Arg<'a, 'b> {
         let arg = self.get_raw_or_null();
         let mt = match arg.is_null() {
             true => null(),
-            false => unsafe { g.get_mt(arg) },
+            false => unsafe { g.metatable(arg) },
         };
 
         if !mt.is_null() {
@@ -648,7 +648,7 @@ impl<'a, 'b> Arg<'a, 'b> {
         actual: *const UnsafeValue,
     ) -> Box<dyn core::error::Error> {
         let g = self.cx.th.hdr.global();
-        let mt = unsafe { g.get_mt(actual) };
+        let mt = unsafe { g.metatable(actual) };
         let actual: Cow<str> = if mt.is_null() {
             lua_typename(unsafe { ((*actual).tt_ & 0xf).into() }).into()
         } else {

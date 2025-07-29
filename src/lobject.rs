@@ -8,6 +8,7 @@
 
 use crate::gc::Object;
 use crate::lctype::luai_ctype_;
+use crate::lmem::luaM_free_;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
@@ -111,6 +112,53 @@ pub struct Proto {
     pub abslineinfo: *mut AbsLineInfo,
     pub locvars: *mut LocVar,
     pub chunk: ChunkInfo,
+}
+
+impl Drop for Proto {
+    fn drop(&mut self) {
+        unsafe {
+            luaM_free_(
+                self.code as *mut libc::c_void,
+                (self.sizecode as usize).wrapping_mul(::core::mem::size_of::<u32>()),
+            )
+        };
+        unsafe {
+            luaM_free_(
+                self.p as *mut libc::c_void,
+                (self.sizep as usize).wrapping_mul(::core::mem::size_of::<*mut Proto>()),
+            )
+        };
+        unsafe {
+            luaM_free_(
+                self.k as *mut libc::c_void,
+                (self.sizek as usize).wrapping_mul(::core::mem::size_of::<UnsafeValue>()),
+            )
+        };
+        unsafe {
+            luaM_free_(
+                self.lineinfo as *mut libc::c_void,
+                (self.sizelineinfo as usize).wrapping_mul(::core::mem::size_of::<i8>()),
+            )
+        };
+        unsafe {
+            luaM_free_(
+                self.abslineinfo as *mut libc::c_void,
+                (self.sizeabslineinfo as usize).wrapping_mul(::core::mem::size_of::<AbsLineInfo>()),
+            )
+        };
+        unsafe {
+            luaM_free_(
+                self.locvars as *mut libc::c_void,
+                (self.sizelocvars as usize).wrapping_mul(::core::mem::size_of::<LocVar>()),
+            )
+        };
+        unsafe {
+            luaM_free_(
+                self.upvalues as *mut libc::c_void,
+                (self.sizeupvalues as usize).wrapping_mul(::core::mem::size_of::<Upvaldesc>()),
+            )
+        };
+    }
 }
 
 #[repr(C)]

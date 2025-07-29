@@ -10,28 +10,31 @@ pub use self::thread::*;
 pub use self::ty::*;
 pub use self::userdata::*;
 
-use self::gc::{Gc, Object, luaC_barrier_, luaC_freeallobjects};
+use self::gc::{Gc, Object};
 use self::lapi::lua_settop;
 use self::ldebug::lua_getinfo;
 use self::ldo::luaD_protectedparser;
-use self::llex::luaX_init;
+use self::llex::{TK_WHILE, luaX_tokens};
 use self::lobject::Udata;
 use self::lstate::{CallInfo, lua_Debug};
-use self::ltm::luaT_init;
+use self::ltm::{
+    TM_ADD, TM_BAND, TM_BNOT, TM_BOR, TM_BXOR, TM_CALL, TM_CLOSE, TM_CONCAT, TM_DIV, TM_EQ, TM_GC,
+    TM_IDIV, TM_INDEX, TM_LE, TM_LEN, TM_LT, TM_MOD, TM_MODE, TM_MUL, TM_NEWINDEX, TM_POW, TM_SHL,
+    TM_SHR, TM_SUB, TM_UNM,
+};
 use self::lzio::Zio;
 use self::value::{UnsafeValue, UntaggedValue};
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::cell::{Cell, UnsafeCell};
+use core::cell::UnsafeCell;
 use core::ffi::c_int;
 use core::fmt::{Display, Formatter};
 use core::hint::unreachable_unchecked;
 use core::marker::PhantomPinned;
 use core::ops::Deref;
 use core::pin::Pin;
-use core::ptr::{null, null_mut};
 use core::task::RawWakerVTable;
 use thiserror::Error;
 
@@ -84,32 +87,13 @@ unsafe fn api_incr_top(th: *const Thread) {
 }
 
 /// Global states shared with all Lua threads.
+#[repr(C)] // Force gc field to be the first field.
 pub struct Lua {
-    currentwhite: Cell<u8>,
-    all: Cell<*const Object>,
-    refs: Cell<*const Object>,
     gc: Gc,
-    GCestimate: Cell<usize>,
-    lastatomic: Cell<usize>,
     strt: StringTable,
     l_registry: UnsafeCell<UnsafeValue>,
     nilvalue: UnsafeCell<UnsafeValue>,
     seed: u32,
-    gcstate: Cell<u8>,
-    gcstopem: Cell<u8>,
-    gcstp: Cell<u8>,
-    gcstepmul: Cell<u8>,
-    gcstepsize: Cell<u8>,
-    sweepgc: Cell<*mut *const Object>,
-    gray: Cell<*const Object>,
-    grayagain: Cell<*const Object>,
-    weak: Cell<*const Object>,
-    ephemeron: Cell<*const Object>,
-    allweak: Cell<*const Object>,
-    fixedgc: Cell<*const Object>,
-    twups: Cell<*const Thread>,
-    tmname: [Cell<*const Str>; 25],
-    primitive_mt: [Cell<*const Table>; 9],
     _phantom: PhantomPinned,
 }
 
@@ -132,12 +116,7 @@ impl Lua {
     /// Note that all built-in functions (e.g. `print`) are not enabled by default.
     pub fn with_seed(seed: u32) -> Pin<Rc<Self>> {
         let g = Rc::pin(Lua {
-            currentwhite: Cell::new(1 << 3),
-            all: Cell::new(null()),
-            refs: Cell::new(null()),
-            gc: Gc::new(size_of::<Self>()),
-            GCestimate: Cell::new(0), // TODO: Lua does not initialize this.
-            lastatomic: Cell::new(0),
+            gc: unsafe { Gc::new() }, // SAFETY: gc in the first field on Lua.
             strt: StringTable::new(),
             l_registry: UnsafeCell::new(UnsafeValue {
                 value_: UntaggedValue { i: 0 },
@@ -148,86 +127,84 @@ impl Lua {
                 tt_: (0 | 0 << 4),
             }),
             seed,
-            gcstate: Cell::new(8),
-            gcstopem: Cell::new(0),
-            gcstp: Cell::new(2),
-            gcstepmul: Cell::new((100 as libc::c_int / 4 as libc::c_int) as u8),
-            gcstepsize: Cell::new(13 as libc::c_int as u8),
-            sweepgc: Cell::new(null_mut()),
-            gray: Cell::new(null_mut()),
-            grayagain: Cell::new(null_mut()),
-            weak: Cell::new(null_mut()),
-            ephemeron: Cell::new(null_mut()),
-            allweak: Cell::new(null_mut()),
-            fixedgc: Cell::new(null()),
-            twups: Cell::new(null_mut()),
-            tmname: [
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-            ],
-            primitive_mt: [
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-                Cell::new(null_mut()),
-            ],
             _phantom: PhantomPinned,
         });
 
         // Setup registry.
-        let registry = unsafe { Table::new(g.deref()) };
-        let io: *mut UnsafeValue = g.l_registry.get();
+        let reg = unsafe { Table::new(g.deref()) };
 
-        unsafe { (*io).value_.gc = registry as *mut Object };
-        unsafe { (*io).tt_ = 5 | 0 << 4 | 1 << 6 };
+        unsafe { g.gc.set_root(reg.cast()) };
+        unsafe { g.l_registry.get().write(UnsafeValue::from_obj(reg.cast())) };
+        unsafe { luaH_resize(reg, 4, 0) };
 
-        unsafe { luaH_resize(registry, 2, 0) };
+        // Create table for metatables.
+        let reg = unsafe { (*reg).array.get() };
+        let mts = unsafe { Table::new(g.deref()) };
 
-        // Create table for userdata metatable.
-        let io_0 = unsafe { (*registry).array.get().add(0) as *mut UnsafeValue };
-
-        unsafe { (*io_0).value_.gc = Table::new(g.deref()).cast() };
-        unsafe { (*io_0).tt_ = 5 | 0 << 4 | 1 << 6 };
+        unsafe { luaH_resize(mts, 9, 0) };
+        unsafe { reg.add(0).write(UnsafeValue::from_obj(mts.cast())) };
 
         // Create LUA_RIDX_GLOBALS.
-        let io_1 = unsafe { (*registry).array.get().add(1) as *mut UnsafeValue };
+        let glb = unsafe { Table::new(g.deref()) };
 
-        unsafe { (*io_1).value_.gc = Table::new(g.deref()).cast() };
-        unsafe { (*io_1).tt_ = 5 | 0 << 4 | 1 << 6 };
+        unsafe { reg.add(1).write(UnsafeValue::from_obj(glb.cast())) };
 
-        // Initialize internal module.
-        unsafe { luaT_init(g.deref()) };
-        unsafe { luaX_init(g.deref()) };
+        // Create table for event names.
+        let events = unsafe { Table::new(g.deref()) };
+        let entries = [
+            (TM_INDEX, "__index"),
+            (TM_NEWINDEX, "__newindex"),
+            (TM_GC, "__gc"),
+            (TM_MODE, "__mode"),
+            (TM_LEN, "__len"),
+            (TM_EQ, "__eq"),
+            (TM_ADD, "__add"),
+            (TM_SUB, "__sub"),
+            (TM_MUL, "__mul"),
+            (TM_MOD, "__mod"),
+            (TM_POW, "__pow"),
+            (TM_DIV, "__div"),
+            (TM_IDIV, "__idiv"),
+            (TM_BAND, "__band"),
+            (TM_BOR, "__bor"),
+            (TM_BXOR, "__bxor"),
+            (TM_SHL, "__shl"),
+            (TM_SHR, "__shr"),
+            (TM_UNM, "__unm"),
+            (TM_BNOT, "__bnot"),
+            (TM_LT, "__lt"),
+            (TM_LE, "__le"),
+            (TM_CONCAT, "__concat"),
+            (TM_CALL, "__call"),
+            (TM_CLOSE, "__close"),
+        ];
 
-        g.gcstp.set(0);
+        unsafe { luaH_resize(events, entries.len().try_into().unwrap(), 0) };
+
+        for (k, v) in entries {
+            let v = unsafe { Str::from_str(g.deref(), v) };
+            let v = unsafe { UnsafeValue::from_obj(v.cast()) };
+
+            unsafe { (*events).set_unchecked(k, v) };
+        }
+
+        unsafe { reg.add(2).write(UnsafeValue::from_obj(events.cast())) };
+
+        // Create table for Lua tokens.
+        let tokens = unsafe { Table::new(g.deref()) };
+        let n = TK_WHILE as libc::c_int - (255 as libc::c_int + 1 as libc::c_int) + 1;
+
+        unsafe { luaH_resize(tokens, 0, n.try_into().unwrap()) };
+
+        for i in 0..n {
+            let k = unsafe { Str::from_str(g.deref(), luaX_tokens[i as usize]) };
+            let k = unsafe { UnsafeValue::from_obj(k.cast()) };
+
+            unsafe { (*tokens).set_unchecked(k, i + 1) };
+        }
+
+        unsafe { reg.add(3).write(UnsafeValue::from_obj(tokens.cast())) };
+
         g
     }
 
@@ -269,12 +246,15 @@ impl Lua {
 
         unsafe { self.global().set_str_key_unchecked("string", g) };
 
-        // Set metatable.
+        // Setup metatable.
         let mt = unsafe { Table::new(self) };
 
         unsafe { (*mt).set_str_key_unchecked("__index", g) };
 
-        self.primitive_mt[4].set(mt);
+        // Set metatable.
+        let mt = unsafe { UnsafeValue::from_obj(mt.cast()) };
+
+        unsafe { self.metatables().set_unchecked(4, mt) };
     }
 
     /// Setup [table library](https://www.lua.org/manual/5.4/manual.html#6.6).
@@ -324,7 +304,7 @@ impl Lua {
     #[inline(always)]
     pub fn global(&self) -> &Table {
         let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
-        let tab = unsafe { (*reg).array.get().add(2 - 1) };
+        let tab = unsafe { (*reg).array.get().add(1) };
         let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
 
         unsafe { &*tab }
@@ -372,7 +352,10 @@ impl Lua {
                     (*(*f).upvals[0].get()).hdr.marked.get() & 1 << 5 != 0
                         && (*(*gt).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
                 } {
-                    unsafe { luaC_barrier_(self, (*f).upvals[0].get().cast(), (*gt).value_.gc) };
+                    unsafe {
+                        self.gc
+                            .barrier((*f).upvals[0].get().cast(), (*gt).value_.gc)
+                    };
                 }
             }
         }
@@ -386,31 +369,44 @@ impl Lua {
         unsafe { Ref::new(Thread::new(self)) }
     }
 
-    unsafe fn get_mt(&self, o: *const UnsafeValue) -> *const Table {
+    unsafe fn metatable(&self, o: *const UnsafeValue) -> *const Table {
         match unsafe { (*o).tt_ & 0xf } {
             5 => unsafe { (*(*o).value_.gc.cast::<Table>()).metatable.get() },
             7 => unsafe { (*(*o).value_.gc.cast::<Udata>()).metatable },
-            v => self.primitive_mt[usize::from(v)].get(),
+            v => unsafe { self.metatables().get_raw_int_key(v.into()).value_.gc.cast() },
         }
     }
 
-    fn reset_gray(&self) {
-        self.grayagain.set(null_mut());
-        self.gray.set(null_mut());
-        self.ephemeron.set(null_mut());
-        self.allweak.set(null_mut());
-        self.weak.set(null_mut());
+    #[inline(always)]
+    fn metatables(&self) -> &Table {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
+        let tab = unsafe { (*reg).array.get().add(0) };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
+
+        unsafe { &*tab }
     }
 
-    fn to_rc(&self) -> Pin<Rc<Self>> {
+    #[inline(always)]
+    fn events(&self) -> &Table {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
+        let tab = unsafe { (*reg).array.get().add(2) };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
+
+        unsafe { &*tab }
+    }
+
+    #[inline(always)]
+    fn tokens(&self) -> &Table {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
+        let tab = unsafe { (*reg).array.get().add(3) };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
+
+        unsafe { &*tab }
+    }
+
+    unsafe fn to_rc(&self) -> Pin<Rc<Self>> {
         unsafe { Rc::increment_strong_count(self) };
         unsafe { Pin::new_unchecked(Rc::from_raw(self)) }
-    }
-}
-
-impl Drop for Lua {
-    fn drop(&mut self) {
-        unsafe { luaC_freeallobjects(self) };
     }
 }
 

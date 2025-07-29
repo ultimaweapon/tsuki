@@ -6,7 +6,7 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::gc::{Object, luaC_fix};
+use crate::gc::Object;
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
 use crate::ldo::{luaD_call, luaD_growstack};
 use crate::lobject::{Proto, StackValue, StkId, Udata};
@@ -36,15 +36,10 @@ pub const TM_SHL: TMS = 16;
 pub const TM_BXOR: TMS = 15;
 pub const TM_BOR: TMS = 14;
 pub const TM_BAND: TMS = 13;
-#[allow(dead_code)]
 pub const TM_IDIV: TMS = 12;
-#[allow(dead_code)]
 pub const TM_DIV: TMS = 11;
-#[allow(dead_code)]
 pub const TM_POW: TMS = 10;
-#[allow(dead_code)]
 pub const TM_MOD: TMS = 9;
-#[allow(dead_code)]
 pub const TM_MUL: TMS = 8;
 pub const TM_SUB: TMS = 7;
 pub const TM_ADD: TMS = 6;
@@ -59,50 +54,14 @@ pub const luaT_typenames_: [&str; 12] = [
     "thread", "upvalue", "proto",
 ];
 
-pub unsafe fn luaT_init(g: *const Lua) {
-    static luaT_eventname: [&str; 25] = [
-        "__index",
-        "__newindex",
-        "__gc",
-        "__mode",
-        "__len",
-        "__eq",
-        "__add",
-        "__sub",
-        "__mul",
-        "__mod",
-        "__pow",
-        "__div",
-        "__idiv",
-        "__band",
-        "__bor",
-        "__bxor",
-        "__shl",
-        "__shr",
-        "__unm",
-        "__bnot",
-        "__lt",
-        "__le",
-        "__concat",
-        "__call",
-        "__close",
-    ];
-    let mut i: libc::c_int = 0;
-    i = 0 as libc::c_int;
+pub unsafe fn luaT_gettm(events: *const Table, event: TMS) -> *const UnsafeValue {
+    let ename = (*events)
+        .hdr
+        .global()
+        .events()
+        .get_raw_int_key(event.into());
+    let tm: *const UnsafeValue = luaH_getshortstr(events, ename.value_.gc.cast());
 
-    while i < TM_N as libc::c_int {
-        (*g).tmname[i as usize].set(Str::from_str(g, luaT_eventname[i as usize]));
-        luaC_fix(&*g, (*g).tmname[i as usize].get().cast());
-        i += 1;
-    }
-}
-
-pub unsafe fn luaT_gettm(
-    events: *const Table,
-    event: TMS,
-    ename: *const Str,
-) -> *const UnsafeValue {
-    let tm: *const UnsafeValue = luaH_getshortstr(events, ename);
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         (*events)
             .flags
@@ -110,7 +69,7 @@ pub unsafe fn luaT_gettm(
         return 0 as *const UnsafeValue;
     } else {
         return tm;
-    };
+    }
 }
 
 pub unsafe fn luaT_gettmbyobj(
@@ -118,17 +77,22 @@ pub unsafe fn luaT_gettmbyobj(
     o: *const UnsafeValue,
     event: TMS,
 ) -> *const UnsafeValue {
-    let mt = match (*o).tt_ as libc::c_int & 0xf as libc::c_int {
-        5 => (*((*o).value_.gc as *mut Table)).metatable.get(),
-        7 => (*((*o).value_.gc as *mut Udata)).metatable,
-        _ => (*(*L).hdr.global).primitive_mt[usize::from((*o).tt_ & 0xf)].get(),
-    };
+    let mt = (*L).hdr.global().metatable(o);
 
-    return if !mt.is_null() {
-        luaH_getshortstr(mt, (*(*L).hdr.global).tmname[event as usize].get())
+    if !mt.is_null() {
+        luaH_getshortstr(
+            mt,
+            (*L).hdr
+                .global()
+                .events()
+                .get_raw_int_key(event.into())
+                .value_
+                .gc
+                .cast(),
+        )
     } else {
         (*(*L).hdr.global).nilvalue.get()
-    };
+    }
 }
 
 pub unsafe fn luaT_objtypename(g: *const Lua, o: *const UnsafeValue) -> Cow<'static, str> {
@@ -447,10 +411,7 @@ pub unsafe fn luaT_getvarargs(
             let t__: isize =
                 (where_0 as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
 
-            if (*(*L).hdr.global).gc.debt() > 0 {
-                crate::gc::step((*L).hdr.global);
-            }
-
+            (*L).hdr.global().gc.step();
             luaD_growstack(L, nextra.try_into().unwrap())?;
             where_0 = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
         }

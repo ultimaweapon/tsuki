@@ -699,47 +699,31 @@ unsafe fn funcnamefromcode(
             *name = b"for iterator\0" as *const u8 as *const c_char;
             return b"for iterator\0" as *const u8 as *const c_char;
         }
-        20 | 11 | 12 | 13 | 14 => {
-            tm = TM_INDEX;
-        }
-        15 | 16 | 17 | 18 => {
-            tm = TM_NEWINDEX;
-        }
-        46 | 47 | 48 => {
-            tm = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
-                & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int) as c_int
-                as TMS;
-        }
-        49 => {
-            tm = TM_UNM;
-        }
-        50 => {
-            tm = TM_BNOT;
-        }
-        52 => {
-            tm = TM_LEN;
-        }
-        53 => {
-            tm = TM_CONCAT;
-        }
-        57 => {
-            tm = TM_EQ;
-        }
-        58 | 62 | 64 => {
-            tm = TM_LT;
-        }
-        59 | 63 | 65 => {
-            tm = TM_LE;
-        }
-        54 | 70 => {
-            tm = TM_CLOSE;
-        }
+        20 | 11 | 12 | 13 | 14 => tm = TM_INDEX,
+        15 | 16 | 17 | 18 => tm = TM_NEWINDEX,
+        46 | 47 | 48 => tm = (i >> 0 + 7 + 8 + 1 + 8 & !(!(0u32) << 8) << 0) as c_int as TMS,
+        49 => tm = TM_UNM,
+        50 => tm = TM_BNOT,
+        52 => tm = TM_LEN,
+        53 => tm = TM_CONCAT,
+        57 => tm = TM_EQ,
+        58 | 62 | 64 => tm = TM_LT,
+        59 | 63 | 65 => tm = TM_LE,
+        54 | 70 => tm = TM_CLOSE,
         _ => return 0 as *const c_char,
     }
 
-    *name = ((*(*(*L).hdr.global).tmname[tm as usize].get()).contents)
-        .as_ptr()
-        .offset(2 as c_int as isize);
+    *name = (*(*L)
+        .hdr
+        .global()
+        .events()
+        .get_raw_int_key(tm.into())
+        .value_
+        .gc
+        .cast::<Str>())
+    .contents
+    .as_ptr()
+    .add(2);
 
     return b"metamethod\0" as *const u8 as *const c_char;
 }

@@ -8,7 +8,7 @@
 
 pub use self::opcode::*;
 
-use crate::gc::{Object, luaC_barrier_, luaC_barrierback_};
+use crate::gc::Object;
 use crate::ldebug::{luaG_forerror, luaG_runerror, luaG_tracecall, luaG_traceexec, luaG_typeerror};
 use crate::ldo::{luaD_call, luaD_hookcall, luaD_poscall, luaD_precall, luaD_pretailcall};
 use crate::lfunc::{
@@ -335,7 +335,6 @@ pub unsafe fn luaV_finishget(
                 luaT_gettm(
                     (*((*t).value_.gc.cast::<Table>())).metatable.get(),
                     TM_INDEX,
-                    (*(*L).hdr.global).tmname[TM_INDEX as usize].get(),
                 )
             };
             if tm.is_null() {
@@ -394,11 +393,7 @@ pub unsafe fn luaV_finishset(
             {
                 0 as *const UnsafeValue
             } else {
-                luaT_gettm(
-                    (*h).metatable.get(),
-                    TM_NEWINDEX,
-                    (*(*L).hdr.global).tmname[TM_NEWINDEX as usize].get(),
-                )
+                luaT_gettm((*h).metatable.get(), TM_NEWINDEX)
             };
 
             if tm.is_null() {
@@ -418,7 +413,7 @@ pub unsafe fn luaV_finishset(
                     if (*h).hdr.marked.get() & 1 << 5 != 0
                         && (*(*val).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
                     {
-                        luaC_barrierback_(h.cast());
+                        (*L).hdr.global().gc.barrier_back(h.cast());
                     }
                 }
 
@@ -461,11 +456,9 @@ pub unsafe fn luaV_finishset(
                         & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                         != 0
                 {
-                    luaC_barrierback_((*t).value_.gc);
-                } else {
-                };
-            } else {
-            };
+                    (*L).hdr.global().gc.barrier_back((*t).value_.gc);
+                }
+            }
             return Ok(());
         }
         loop_0 += 1;
@@ -697,11 +690,7 @@ pub unsafe fn luaV_equalobj(
             {
                 0 as *const UnsafeValue
             } else {
-                luaT_gettm(
-                    (*((*t1).value_.gc as *mut Udata)).metatable,
-                    TM_EQ,
-                    (*(*L).hdr.global).tmname[TM_EQ as usize].get(),
-                )
+                luaT_gettm((*((*t1).value_.gc as *mut Udata)).metatable, TM_EQ)
             };
             if tm.is_null() {
                 tm = if ((*((*t2).value_.gc as *mut Udata)).metatable).is_null() {
@@ -712,11 +701,7 @@ pub unsafe fn luaV_equalobj(
                 {
                     0 as *const UnsafeValue
                 } else {
-                    luaT_gettm(
-                        (*((*t2).value_.gc as *mut Udata)).metatable,
-                        TM_EQ,
-                        (*(*L).hdr.global).tmname[TM_EQ as usize].get(),
-                    )
+                    luaT_gettm((*((*t2).value_.gc as *mut Udata)).metatable, TM_EQ)
                 };
             }
         }
@@ -738,11 +723,7 @@ pub unsafe fn luaV_equalobj(
             {
                 0 as *const UnsafeValue
             } else {
-                luaT_gettm(
-                    (*((*t1).value_.gc as *mut Table)).metatable.get(),
-                    TM_EQ,
-                    (*(*L).hdr.global).tmname[TM_EQ as usize].get(),
-                )
+                luaT_gettm((*((*t1).value_.gc as *mut Table)).metatable.get(), TM_EQ)
             };
             if tm.is_null() {
                 tm = if ((*((*t2).value_.gc as *mut Table)).metatable.get()).is_null() {
@@ -755,11 +736,7 @@ pub unsafe fn luaV_equalobj(
                 {
                     0 as *const UnsafeValue
                 } else {
-                    luaT_gettm(
-                        (*((*t2).value_.gc as *mut Table)).metatable.get(),
-                        TM_EQ,
-                        (*(*L).hdr.global).tmname[TM_EQ as usize].get(),
-                    )
+                    luaT_gettm((*((*t2).value_.gc as *mut Table)).metatable.get(), TM_EQ)
                 };
             }
         }
@@ -965,11 +942,7 @@ pub unsafe fn luaV_objlen(
             {
                 0 as *const UnsafeValue
             } else {
-                luaT_gettm(
-                    (*h).metatable.get(),
-                    TM_LEN,
-                    (*(*L).hdr.global).tmname[TM_LEN as usize].get(),
-                )
+                luaT_gettm((*h).metatable.get(), TM_LEN)
             };
 
             if tm.is_null() {
@@ -1106,11 +1079,10 @@ unsafe fn pushclosure(
         if (*ncl).hdr.marked.get() & 1 << 5 != 0
             && (*(*ncl).upvals[i as usize].get()).hdr.marked.get() & (1 << 3 | 1 << 4) != 0
         {
-            luaC_barrier_(
-                (*L).hdr.global,
-                ncl.cast(),
-                (*ncl).upvals[i as usize].get().cast(),
-            );
+            (*L).hdr
+                .global()
+                .gc
+                .barrier(ncl.cast(), (*ncl).upvals[i as usize].get().cast());
         }
         i += 1;
     }
@@ -1330,8 +1302,7 @@ pub async unsafe fn luaV_execute(
                                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                                     != 0
                             {
-                                luaC_barrier_(
-                                    (*L).hdr.global,
+                                (*L).hdr.global().gc.barrier(
                                     uv as *mut Object,
                                     (*ra_9).val.value_.gc as *mut Object,
                                 );
@@ -1653,7 +1624,7 @@ pub async unsafe fn luaV_execute(
                                         & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_((*upval_0).value_.gc);
+                                    (*L).hdr.global().gc.barrier_back((*upval_0).value_.gc);
                                 }
                             }
                         } else {
@@ -1747,7 +1718,7 @@ pub async unsafe fn luaV_execute(
                                         & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_((*ra_14).val.value_.gc);
+                                    (*L).hdr.global().gc.barrier_back((*ra_14).val.value_.gc);
                                 }
                             }
                         } else {
@@ -1824,7 +1795,7 @@ pub async unsafe fn luaV_execute(
                                         & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_((*ra_15).val.value_.gc);
+                                    (*L).hdr.global().gc.barrier_back((*ra_15).val.value_.gc);
                                 }
                             }
                         } else {
@@ -1904,7 +1875,7 @@ pub async unsafe fn luaV_execute(
                                         & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_((*ra_16).val.value_.gc);
+                                    (*L).hdr.global().gc.barrier_back((*ra_16).val.value_.gc);
                                 }
                             }
                         } else {
@@ -1955,12 +1926,10 @@ pub async unsafe fn luaV_execute(
                             luaH_resize(t, c_1 as c_uint, b_3 as c_uint);
                         }
 
-                        if (*(*L).hdr.global).gc.debt() > 0 {
-                            (*ci).u.savedpc = pc;
-                            (*L).top.set(ra_17.offset(1 as c_int as isize));
-                            crate::gc::step((*L).hdr.global);
-                            trap = (*ci).u.trap;
-                        }
+                        (*ci).u.savedpc = pc;
+                        (*L).top.set(ra_17.offset(1 as c_int as isize));
+                        (*L).hdr.global().gc.step();
+                        trap = (*ci).u.trap;
 
                         continue;
                     }
@@ -3664,11 +3633,9 @@ pub async unsafe fn luaV_execute(
                         luaV_concat(L, n_1)?;
                         trap = (*ci).u.trap;
 
-                        if (*(*L).hdr.global).gc.debt() > 0 {
-                            (*ci).u.savedpc = pc;
-                            crate::gc::step((*L).hdr.global);
-                            trap = (*ci).u.trap;
-                        }
+                        (*ci).u.savedpc = pc;
+                        (*L).hdr.global().gc.step();
+                        trap = (*ci).u.trap;
 
                         continue;
                     }
@@ -4570,7 +4537,7 @@ pub async unsafe fn luaV_execute(
                                         & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                                         != 0
                                 {
-                                    luaC_barrierback_(h.cast());
+                                    (*L).hdr.global().gc.barrier_back(h.cast());
                                 }
                             }
                             n_4 -= 1;
@@ -4592,12 +4559,10 @@ pub async unsafe fn luaV_execute(
                         (*L).top.set((*ci).top);
                         pushclosure(L, p, &(*cl).upvals, base, ra_77);
 
-                        if (*(*L).hdr.global).gc.debt() > 0 {
-                            (*ci).u.savedpc = pc;
-                            (*L).top.set(ra_77.offset(1 as c_int as isize));
-                            crate::gc::step((*L).hdr.global);
-                            trap = (*ci).u.trap;
-                        }
+                        (*ci).u.savedpc = pc;
+                        (*L).top.set(ra_77.offset(1 as c_int as isize));
+                        (*L).hdr.global().gc.step();
+                        trap = (*ci).u.trap;
 
                         continue;
                     }

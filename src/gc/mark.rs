@@ -11,11 +11,6 @@ impl Mark {
     }
 
     #[inline(always)]
-    pub fn is_dead(&self, white: u8) -> bool {
-        self.0.get() & (white ^ (1 << 3 | 1 << 4)) != 0
-    }
-
-    #[inline(always)]
     pub fn get(&self) -> u8 {
         self.0.get()
     }
@@ -28,5 +23,10 @@ impl Mark {
     #[inline(always)]
     pub unsafe fn set_gray(&self) {
         self.0.set(self.0.get() & !(1 << 5 | (1 << 3 | 1 << 4)));
+    }
+
+    #[inline(always)]
+    pub fn is_white(&self) -> bool {
+        (self.0.get() & (1 << 3 | 1 << 4)) != 0
     }
 }

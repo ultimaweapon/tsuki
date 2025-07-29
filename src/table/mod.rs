@@ -1,7 +1,7 @@
 pub(crate) use self::legacy::*;
 pub(crate) use self::node::*;
 
-use crate::gc::{luaC_barrier_, luaC_barrierback_};
+use crate::lmem::luaM_free_;
 use crate::ltm::{TM_EQ, TM_GC, luaT_gettm};
 use crate::{Lua, Object, Ref, Str, UnsafeValue, Value};
 use alloc::boxed::Box;
@@ -30,7 +30,7 @@ pub struct Table {
 impl Table {
     pub(crate) unsafe fn new(g: *const Lua) -> *const Self {
         let layout = Layout::new::<Self>();
-        let o = unsafe { Object::new(g, 5 | 0 << 4, layout).cast::<Self>() };
+        let o = unsafe { (*g).gc.alloc(5 | 0 << 4, layout).cast::<Self>() };
 
         unsafe { addr_of_mut!((*o).flags).write(Cell::new(!(!(0 as u32) << TM_EQ + 1) as u8)) };
         unsafe { addr_of_mut!((*o).lsizenode).write(Cell::new(0)) };
@@ -67,9 +67,7 @@ impl Table {
 
         // Prevent __gc metamethod.
         if v.flags.get() & 1 << TM_GC == 0 {
-            let name = self.hdr.global().tmname[TM_GC as usize].get();
-
-            if unsafe { !luaT_gettm(v, TM_GC, name).is_null() } {
+            if unsafe { !luaT_gettm(v, TM_GC).is_null() } {
                 return Err(MetatableError::HasGc);
             }
         }
@@ -78,7 +76,7 @@ impl Table {
         self.metatable.set(v);
 
         if self.hdr.marked.get() & 1 << 5 != 0 && v.hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
-            unsafe { luaC_barrier_(self.hdr.global, &self.hdr, &v.hdr) };
+            unsafe { self.hdr.global().gc.barrier(&self.hdr, &v.hdr) };
         }
 
         Ok(())
@@ -158,6 +156,16 @@ impl Table {
     }
 
     #[inline(always)]
+    pub(crate) unsafe fn get_raw_unchecked(&self, k: impl Into<UnsafeValue>) -> &UnsafeValue {
+        unsafe { &*luaH_get(self, &k.into()) }
+    }
+
+    #[inline(always)]
+    pub(crate) fn get_raw_int_key(&self, k: i64) -> &UnsafeValue {
+        unsafe { &*luaH_getint(self, k) }
+    }
+
+    #[inline(always)]
     pub(crate) fn get_raw_str_key<K>(&self, k: K) -> *const UnsafeValue
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,
@@ -210,7 +218,7 @@ impl Table {
 
         if (v.tt_ & 1 << 6 != 0) && (self.hdr.marked.get() & 1 << 5 != 0) {
             if unsafe { (*v.value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0 } {
-                unsafe { luaC_barrierback_(&self.hdr) };
+                unsafe { self.hdr.global().gc.barrier_back(&self.hdr) };
             }
         }
 
@@ -286,6 +294,18 @@ impl Table {
         }
 
         Ok(None)
+    }
+}
+
+impl Drop for Table {
+    fn drop(&mut self) {
+        unsafe { freehash(self) };
+        unsafe {
+            luaM_free_(
+                self.array.get().cast(),
+                (luaH_realasize(self) as usize).wrapping_mul(size_of::<UnsafeValue>()),
+            )
+        };
     }
 }
 

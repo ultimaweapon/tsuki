@@ -6,10 +6,8 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::gc::luaC_barrier_;
 use crate::ldebug::{luaG_findlocal, luaG_runerror};
 use crate::ldo::luaD_call;
-use crate::lmem::luaM_free_;
 use crate::lobject::{AbsLineInfo, CClosure, LocVar, Proto, StackValue, StkId, UpVal, Upvaldesc};
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
 use crate::value::UnsafeValue;
@@ -30,7 +28,7 @@ pub unsafe fn luaF_newCclosure(g: *const Lua, nupvals: libc::c_int) -> *mut CClo
     let size = offset_of!(CClosure, upvalue) + size_of::<UnsafeValue>() * usize::from(nupvals);
     let align = align_of::<CClosure>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = Object::new(g, 6 | 2 << 4, layout).cast::<CClosure>();
+    let o = (*g).gc.alloc(6 | 2 << 4, layout).cast::<CClosure>();
 
     (*o).nupvalues = nupvals;
 
@@ -40,7 +38,7 @@ pub unsafe fn luaF_newCclosure(g: *const Lua, nupvals: libc::c_int) -> *mut CClo
 pub unsafe fn luaF_newLclosure(g: *const Lua, nupvals: libc::c_int) -> *mut LuaFn {
     let nupvals = u8::try_from(nupvals).unwrap();
     let layout = Layout::new::<LuaFn>();
-    let o = Object::new(g, 6 | 0 << 4, layout).cast::<LuaFn>();
+    let o = (*g).gc.alloc(6 | 0 << 4, layout).cast::<LuaFn>();
     let mut upvals = Vec::with_capacity(nupvals.into());
 
     for _ in 0..nupvals {
@@ -56,7 +54,7 @@ pub unsafe fn luaF_newLclosure(g: *const Lua, nupvals: libc::c_int) -> *mut LuaF
 pub unsafe fn luaF_initupvals(g: *const Lua, cl: *const LuaFn) {
     for v in &(*cl).upvals {
         let layout = Layout::new::<UpVal>();
-        let uv = Object::new(g, 9 | 0 << 4, layout).cast::<UpVal>();
+        let uv = (*g).gc.alloc(9 | 0 << 4, layout).cast::<UpVal>();
 
         (*uv).v.set(&raw mut (*(*uv).u.get()).value);
         (*(*uv).v.get()).tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
@@ -64,14 +62,19 @@ pub unsafe fn luaF_initupvals(g: *const Lua, cl: *const LuaFn) {
         v.set(uv);
 
         if (*cl).hdr.marked.get() & 1 << 5 != 0 && (*uv).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
-            luaC_barrier_(g, cl as *mut Object, uv as *mut Object);
+            (*g).gc.barrier(cl as *mut Object, uv as *mut Object);
         }
     }
 }
 
 unsafe fn newupval(L: *const Thread, level: StkId, prev: *mut *mut UpVal) -> *mut UpVal {
     let layout = Layout::new::<UpVal>();
-    let uv = Object::new((*L).hdr.global, 9 | 0 << 4, layout).cast::<UpVal>();
+    let uv = (*L)
+        .hdr
+        .global()
+        .gc
+        .alloc(9 | 0 << 4, layout)
+        .cast::<UpVal>();
     let next: *mut UpVal = *prev;
 
     (*uv).v.set(&raw mut (*level).val);
@@ -83,8 +86,7 @@ unsafe fn newupval(L: *const Thread, level: StkId, prev: *mut *mut UpVal) -> *mu
     *prev = uv;
 
     if !((*L).twups.get() != L) {
-        (*L).twups.set((*(*L).hdr.global).twups.get());
-        (*(*L).hdr.global).twups.set(L);
+        (*L).hdr.global().gc.set_twups(L);
     }
 
     return uv;
@@ -240,13 +242,11 @@ pub unsafe fn luaF_closeupval(L: *const Thread, level: StkId) {
                             | (1 as libc::c_int) << 4 as libc::c_int)
                         != 0
                 {
-                    luaC_barrier_(
-                        (*L).hdr.global,
-                        uv as *mut Object,
-                        (*slot).value_.gc as *mut Object,
-                    );
-                } else {
-                };
+                    (*L).hdr
+                        .global()
+                        .gc
+                        .barrier(uv as *mut Object, (*slot).value_.gc as *mut Object);
+                }
             } else {
             };
         }
@@ -285,7 +285,7 @@ pub unsafe fn luaF_close(L: *const Thread, mut level: StkId) -> Result<StkId, Bo
 
 pub unsafe fn luaF_newproto(g: *const Lua, chunk: ChunkInfo) -> *mut Proto {
     let layout = Layout::new::<Proto>();
-    let f = Object::new(g, 9 + 1 | 0 << 4, layout).cast::<Proto>();
+    let f = (*g).gc.alloc(10 | 0 << 4, layout).cast::<Proto>();
 
     (*f).k = 0 as *mut UnsafeValue;
     (*f).sizek = 0 as libc::c_int;
@@ -309,50 +309,6 @@ pub unsafe fn luaF_newproto(g: *const Lua, chunk: ChunkInfo) -> *mut Proto {
     addr_of_mut!((*f).chunk).write(chunk);
 
     return f;
-}
-
-pub unsafe fn luaF_freeproto(g: *const Lua, f: *mut Proto) {
-    luaM_free_(
-        g,
-        (*f).code as *mut libc::c_void,
-        ((*f).sizecode as usize).wrapping_mul(::core::mem::size_of::<u32>()),
-    );
-    luaM_free_(
-        g,
-        (*f).p as *mut libc::c_void,
-        ((*f).sizep as usize).wrapping_mul(::core::mem::size_of::<*mut Proto>()),
-    );
-    luaM_free_(
-        g,
-        (*f).k as *mut libc::c_void,
-        ((*f).sizek as usize).wrapping_mul(::core::mem::size_of::<UnsafeValue>()),
-    );
-    luaM_free_(
-        g,
-        (*f).lineinfo as *mut libc::c_void,
-        ((*f).sizelineinfo as usize).wrapping_mul(::core::mem::size_of::<i8>()),
-    );
-    luaM_free_(
-        g,
-        (*f).abslineinfo as *mut libc::c_void,
-        ((*f).sizeabslineinfo as usize).wrapping_mul(::core::mem::size_of::<AbsLineInfo>()),
-    );
-    luaM_free_(
-        g,
-        (*f).locvars as *mut libc::c_void,
-        ((*f).sizelocvars as usize).wrapping_mul(::core::mem::size_of::<LocVar>()),
-    );
-    luaM_free_(
-        g,
-        (*f).upvalues as *mut libc::c_void,
-        ((*f).sizeupvalues as usize).wrapping_mul(::core::mem::size_of::<Upvaldesc>()),
-    );
-
-    // Free proto.
-    let layout = Layout::new::<Proto>();
-
-    core::ptr::drop_in_place(f);
-    (*g).gc.dealloc(f.cast(), layout);
 }
 
 pub unsafe fn luaF_getlocalname(

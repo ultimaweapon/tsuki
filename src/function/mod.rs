@@ -1,4 +1,3 @@
-use crate::gc::luaC_barrier_;
 use crate::lobject::{Proto, UpVal};
 use crate::value::UnsafeValue;
 use crate::{Object, Value};
@@ -40,7 +39,7 @@ impl LuaFn {
 
         if unsafe { v.tt_ & 1 << 6 != 0 && (*u).hdr.marked.get() & 1 << 5 != 0 } {
             if unsafe { (*v.value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0 } {
-                unsafe { luaC_barrier_((*u).hdr.global, u.cast(), v.value_.gc) };
+                unsafe { (*u).hdr.global().gc.barrier(u.cast(), v.value_.gc) };
             }
         }
 

@@ -14,7 +14,7 @@ pub(crate) struct UserId {
 impl UserId {
     pub unsafe fn new(g: *const Lua, value: TypeId) -> *const Self {
         let layout = Layout::new::<Self>();
-        let o = unsafe { Object::new(g, 11 | 0 << 4, layout).cast::<Self>() };
+        let o = unsafe { (*g).gc.alloc(11 | 0 << 4, layout).cast::<Self>() };
 
         unsafe { addr_of_mut!((*o).value).write(value) };
 

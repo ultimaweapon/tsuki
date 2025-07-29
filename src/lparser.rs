@@ -6,7 +6,6 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::gc::luaC_barrier_;
 use crate::lcode::{
     BinOpr, OPR_ADD, OPR_AND, OPR_BAND, OPR_BNOT, OPR_BOR, OPR_BXOR, OPR_CONCAT, OPR_DIV, OPR_EQ,
     OPR_GE, OPR_GT, OPR_IDIV, OPR_LE, OPR_LEN, OPR_LT, OPR_MINUS, OPR_MOD, OPR_MUL, OPR_NE,
@@ -377,7 +376,7 @@ unsafe fn registerlocalvar(
             & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
             != 0
     {
-        luaC_barrier_((*ls).g.deref(), f as *mut Object, varname as *mut Object);
+        (*ls).g.gc.barrier(f as *mut Object, varname as *mut Object);
     }
 
     let fresh3 = (*fs).ndebugvars;
@@ -608,7 +607,10 @@ unsafe fn newupvalue(
             & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
             != 0
     {
-        luaC_barrier_((*ls).g.deref(), (*fs).f as *mut Object, name as *mut Object);
+        (*ls)
+            .g
+            .gc
+            .barrier((*fs).f as *mut Object, name as *mut Object);
     }
 
     return Ok((*fs).nups as c_int - 1 as c_int);
@@ -987,14 +989,15 @@ unsafe fn addprototype(ls: *mut LexState) -> Result<*mut Proto, ParseError> {
     (*fs).np = (*fs).np + 1;
     let ref mut fresh15 = *((*f).p).offset(fresh14 as isize);
     *fresh15 = clp;
+
     if (*f).hdr.marked.get() as c_int & (1 as c_int) << 5 as c_int != 0
         && (*clp).hdr.marked.get() as c_int
             & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
             != 0
     {
-        luaC_barrier_(g, f as *mut Object, clp as *mut Object);
-    } else {
-    };
+        g.gc.barrier(f as *mut Object, clp as *mut Object);
+    }
+
     return Ok(clp);
 }
 
@@ -1095,9 +1098,7 @@ unsafe fn close_func(ls: *mut LexState) -> Result<(), ParseError> {
     ) as *mut Upvaldesc;
     (*ls).fs = (*fs).prev;
 
-    if (&(*ls).g).gc.debt() > 0 as c_int as isize {
-        crate::gc::step((*ls).g.deref());
-    }
+    (*ls).g.gc.step();
 
     Ok(())
 }
@@ -2672,11 +2673,10 @@ unsafe fn mainfunc(ls: &mut LexState, fs: &mut FuncState) -> Result<(), ParseErr
             & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
             != 0
     {
-        luaC_barrier_(
-            (*ls).g.deref(),
-            (*fs).f as *mut Object,
-            (*env).name as *mut Object,
-        );
+        (*ls)
+            .g
+            .gc
+            .barrier((*fs).f as *mut Object, (*env).name as *mut Object);
     }
 
     luaX_next(ls)?;
@@ -2727,7 +2727,7 @@ pub unsafe fn luaY_parser(
             & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
             != 0
     {
-        luaC_barrier_(g, &cl.hdr, (*cl).p.get().cast());
+        g.gc.barrier(&cl.hdr, (*cl).p.get().cast());
     }
 
     lexstate.buff = buff;
