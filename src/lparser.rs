@@ -376,7 +376,9 @@ unsafe fn registerlocalvar(
             & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
             != 0
     {
-        (*ls).g.gc.barrier(f as *mut Object, varname as *mut Object);
+        (&(*ls).g)
+            .gc
+            .barrier(f as *mut Object, varname as *mut Object);
     }
 
     let fresh3 = (*fs).ndebugvars;
@@ -607,8 +609,7 @@ unsafe fn newupvalue(
             & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
             != 0
     {
-        (*ls)
-            .g
+        (&(*ls).g)
             .gc
             .barrier((*fs).f as *mut Object, name as *mut Object);
     }
@@ -1098,7 +1099,7 @@ unsafe fn close_func(ls: *mut LexState) -> Result<(), ParseError> {
     ) as *mut Upvaldesc;
     (*ls).fs = (*fs).prev;
 
-    (*ls).g.gc.step();
+    (&(*ls).g).gc.step();
 
     Ok(())
 }

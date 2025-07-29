@@ -826,8 +826,7 @@ unsafe fn addk(
                 & ((1 as libc::c_int) << 3 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int)
                 != 0
         {
-            (*ls)
-                .g
+            (&(*ls).g)
                 .gc
                 .barrier(f as *mut Object, (*v).value_.gc as *mut Object);
         }

@@ -224,7 +224,7 @@ pub unsafe fn luaX_newstring(ls: *mut LexState, str: *const libc::c_char, l: usi
         };
 
         luaH_finishset((*ls).h.deref(), &stv, o, &stv).unwrap(); // This should never fails.
-        (*ls).g.gc.step();
+        (&(*ls).g).gc.step();
     }
 
     ts
