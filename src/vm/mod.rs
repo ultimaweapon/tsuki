@@ -1916,6 +1916,7 @@ pub async unsafe fn luaV_execute(
                         (*L).top.set(ra_17.offset(1 as c_int as isize));
 
                         // Create table.
+                        let gc = (*L).hdr.global().lock_gc();
                         let t = Table::new((*L).hdr.global);
                         let io_3: *mut UnsafeValue = &raw mut (*ra_17).val;
 
@@ -1928,7 +1929,7 @@ pub async unsafe fn luaV_execute(
 
                         (*ci).u.savedpc = pc;
                         (*L).top.set(ra_17.offset(1 as c_int as isize));
-                        (*L).hdr.global().gc.step();
+                        drop(gc);
                         trap = (*ci).u.trap;
 
                         continue;
@@ -3634,7 +3635,6 @@ pub async unsafe fn luaV_execute(
                         trap = (*ci).u.trap;
 
                         (*ci).u.savedpc = pc;
-                        (*L).hdr.global().gc.step();
                         trap = (*ci).u.trap;
 
                         continue;
@@ -4561,7 +4561,6 @@ pub async unsafe fn luaV_execute(
 
                         (*ci).u.savedpc = pc;
                         (*L).top.set(ra_77.offset(1 as c_int as isize));
-                        (*L).hdr.global().gc.step();
                         trap = (*ci).u.trap;
 
                         continue;

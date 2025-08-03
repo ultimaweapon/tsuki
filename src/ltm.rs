@@ -23,7 +23,6 @@ use core::task::{Context, Poll, Waker};
 
 pub type TMS = libc::c_uint;
 
-pub const TM_N: TMS = 25;
 pub const TM_CLOSE: TMS = 24;
 pub const TM_CALL: TMS = 23;
 pub const TM_CONCAT: TMS = 22;
@@ -411,7 +410,6 @@ pub unsafe fn luaT_getvarargs(
             let t__: isize =
                 (where_0 as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
 
-            (*L).hdr.global().gc.step();
             luaD_growstack(L, nextra.try_into().unwrap())?;
             where_0 = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
         }

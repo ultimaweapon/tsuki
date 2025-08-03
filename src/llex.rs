@@ -208,6 +208,7 @@ pub unsafe fn luaX_syntaxerror(ls: *mut LexState, msg: impl Display) -> ParseErr
 
 pub unsafe fn luaX_newstring(ls: *mut LexState, str: *const libc::c_char, l: usize) -> *const Str {
     let str = core::slice::from_raw_parts(str.cast(), l);
+    let gc = (&(*ls).g).lock_gc();
     let mut ts = match core::str::from_utf8(str) {
         Ok(v) => Str::from_str((*ls).g.deref(), v),
         Err(_) => Str::from_bytes((*ls).g.deref(), str),
@@ -224,7 +225,6 @@ pub unsafe fn luaX_newstring(ls: *mut LexState, str: *const libc::c_char, l: usi
         };
 
         luaH_finishset((*ls).h.deref(), &stv, o, &stv).unwrap(); // This should never fails.
-        (&(*ls).g).gc.step();
     }
 
     ts

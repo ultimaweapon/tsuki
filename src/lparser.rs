@@ -1099,8 +1099,6 @@ unsafe fn close_func(ls: *mut LexState) -> Result<(), ParseError> {
     ) as *mut Upvaldesc;
     (*ls).fs = (*fs).prev;
 
-    (&(*ls).g).gc.step();
-
     Ok(())
 }
 

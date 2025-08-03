@@ -1,14 +1,11 @@
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    unused_assignments
-)]
+#![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
+
+pub use self::lock::*;
+pub use self::r#ref::*;
 
 pub(crate) use self::mark::*;
 pub(crate) use self::object::*;
-pub use self::r#ref::*;
 
 use crate::ldo::luaD_shrinkstack;
 use crate::lfunc::luaF_unlinkupval;
@@ -23,6 +20,7 @@ use core::cell::Cell;
 use core::mem::offset_of;
 use core::ptr::{null, null_mut};
 
+mod lock;
 mod mark;
 mod object;
 mod r#ref;
@@ -30,27 +28,6 @@ mod r#ref;
 type c_int = i32;
 type c_uint = u32;
 type c_long = i64;
-
-#[inline(always)]
-unsafe fn getgclist(o: *const Object) -> *mut *const Object {
-    match (*o).tt {
-        5 | 6 | 7 | 8 | 10 | 38 => (*o).gclist.as_ptr(),
-        _ => null_mut(),
-    }
-}
-
-unsafe fn linkgclist_(o: *const Object, pnext: *mut *const Object, list: *mut *const Object) {
-    *pnext = *list;
-    *list = o;
-
-    (*o).marked.set_gray();
-}
-
-unsafe fn clearkey(n: *mut Node) {
-    if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0 {
-        (*n).u.key_tt = (9 as c_int + 2 as c_int) as u8;
-    }
-}
 
 /// Garbage Collector for Lua objects.
 pub(crate) struct Gc {
@@ -67,6 +44,7 @@ pub(crate) struct Gc {
     sweep_mark: Cell<*const Object>,
     refs: Cell<*const Object>,
     root: Cell<*const Object>,
+    locks: Cell<usize>,
     paused: Cell<bool>,
 }
 
@@ -89,6 +67,7 @@ impl Gc {
             sweep_mark: Cell::new(null()),
             refs: Cell::new(null()),
             root: Cell::new(null()),
+            locks: Cell::new(0),
             paused: Cell::new(false),
         }
     }
@@ -138,7 +117,7 @@ impl Gc {
             (*o).marked
                 .set((*o).marked.get() & !(1 << 5 | (1 << 3 | 1 << 4)));
         } else {
-            linkgclist_(o, getgclist(o), self.grayagain.as_ptr());
+            Self::linkgclist_(o, Self::getgclist(o), self.grayagain.as_ptr());
         }
 
         if (*o).marked.get() as c_int & 7 as c_int > 1 as c_int {
@@ -172,7 +151,13 @@ impl Gc {
         o
     }
 
-    pub fn step(&self) {
+    #[inline(always)]
+    pub fn lock(&self) -> GcLock {
+        GcLock::new(self)
+    }
+
+    #[inline(never)]
+    fn step(&self) {
         if self.paused.get() {
             return;
         }
@@ -298,7 +283,7 @@ impl Gc {
             _ => unreachable!(),
         }
 
-        linkgclist_(o, getgclist(o), self.gray.as_ptr());
+        Self::linkgclist_(o, Self::getgclist(o), self.gray.as_ptr());
     }
 
     unsafe fn mark_one_gray(&self) -> usize {
@@ -306,7 +291,7 @@ impl Gc {
 
         (*o).marked.set((*o).marked.get() | 1 << 5);
 
-        self.gray.set(*getgclist(o));
+        self.gray.set(*Self::getgclist(o));
 
         match (*o).tt {
             5 => self.mark_table(o.cast()),
@@ -352,7 +337,7 @@ impl Gc {
         };
 
         match (wk, wv) {
-            (true, true) => linkgclist_(
+            (true, true) => Self::linkgclist_(
                 h as *mut Object,
                 (*h).hdr.gclist.as_ptr(),
                 self.allweak.as_ptr(),
@@ -399,7 +384,7 @@ impl Gc {
         n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node;
         while n < limit {
             if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
-                clearkey(n);
+                Self::clear_key(n);
             } else {
                 if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0
                     && (*(*n).u.key_val.gc).marked.get() as c_int
@@ -429,7 +414,7 @@ impl Gc {
         n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node;
         while n < limit {
             if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
-                clearkey(n);
+                Self::clear_key(n);
             } else {
                 if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0
                     && (*(*n).u.key_val.gc).marked.get() as c_int
@@ -454,13 +439,13 @@ impl Gc {
         }
 
         if self.state.get() == 2 && hasclears != 0 {
-            linkgclist_(
+            Self::linkgclist_(
                 h as *const Object,
                 (*h).hdr.gclist.as_ptr(),
                 self.weak.as_ptr(),
             );
         } else {
-            linkgclist_(
+            Self::linkgclist_(
                 h as *const Object,
                 (*h).hdr.gclist.as_ptr(),
                 self.grayagain.as_ptr(),
@@ -499,7 +484,7 @@ impl Gc {
                 ((*h).node.get()).offset(i as isize) as *mut Node
             };
             if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
-                clearkey(n);
+                Self::clear_key(n);
             } else if self.is_cleared(
                 if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0 {
                     (*n).u.key_val.gc
@@ -527,19 +512,19 @@ impl Gc {
         }
 
         if self.state.get() == 0 {
-            linkgclist_(
+            Self::linkgclist_(
                 h as *const Object,
                 (*h).hdr.gclist.as_ptr(),
                 self.grayagain.as_ptr(),
             );
         } else if hasww != 0 {
-            linkgclist_(
+            Self::linkgclist_(
                 h as *const Object,
                 (*h).hdr.gclist.as_ptr(),
                 self.ephemeron.as_ptr(),
             );
         } else if hasclears != 0 {
-            linkgclist_(
+            Self::linkgclist_(
                 h as *const Object,
                 (*h).hdr.gclist.as_ptr(),
                 self.allweak.as_ptr(),
@@ -686,7 +671,7 @@ impl Gc {
         let mut o: StkId = (*th).stack.get();
 
         if self.state.get() == 0 {
-            linkgclist_(
+            Self::linkgclist_(
                 th as *const Object,
                 (*th).hdr.gclist.as_ptr(),
                 self.grayagain.as_ptr(),
@@ -880,7 +865,7 @@ impl Gc {
                     (*n).i_val.tt_ = (0 as c_int | (1 as c_int) << 4 as c_int) as u8;
                 }
                 if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
-                    clearkey(n);
+                    Self::clear_key(n);
                 }
                 n = n.offset(1);
             }
@@ -921,11 +906,17 @@ impl Gc {
                     (*n).i_val.tt_ = (0 as c_int | (1 as c_int) << 4 as c_int) as u8;
                 }
                 if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
-                    clearkey(n);
+                    Self::clear_key(n);
                 }
                 n = n.offset(1);
             }
             l = (*(l as *mut Table)).hdr.gclist.get();
+        }
+    }
+
+    unsafe fn clear_key(n: *mut Node) {
+        if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0 {
+            (*n).u.key_tt = (9 as c_int + 2 as c_int) as u8;
         }
     }
 
@@ -1038,6 +1029,21 @@ impl Gc {
         }
 
         self.paused.set(false);
+    }
+
+    #[inline(always)]
+    unsafe fn getgclist(o: *const Object) -> *mut *const Object {
+        match (*o).tt {
+            5 | 6 | 7 | 8 | 10 | 38 => (*o).gclist.as_ptr(),
+            _ => null_mut(),
+        }
+    }
+
+    unsafe fn linkgclist_(o: *const Object, pnext: *mut *const Object, list: *mut *const Object) {
+        *pnext = *list;
+        *list = o;
+
+        (*o).marked.set_gray();
     }
 
     unsafe fn is_cleared(&self, o: *const Object) -> bool {

@@ -2,7 +2,7 @@
 
 pub use self::context::*;
 pub use self::function::*;
-pub use self::gc::Ref;
+pub use self::gc::{GcLock, Ref};
 pub use self::parser::*;
 pub use self::string::*;
 pub use self::table::*;
@@ -313,6 +313,15 @@ impl Lua {
         let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
 
         unsafe { &*tab }
+    }
+
+    /// Locks the GC and return a [`GcLock`] to constructs Lua objects.
+    ///
+    /// # Panics
+    /// If there are [`usize::MAX`] active [`GcLock`].
+    #[inline(always)]
+    pub fn lock_gc(&self) -> GcLock {
+        self.gc.lock()
     }
 
     /// Create a Lua string.

@@ -330,15 +330,11 @@ unsafe fn tryfuncTM(
 ) -> Result<StkId, Box<dyn core::error::Error>> {
     let mut tm: *const UnsafeValue = 0 as *const UnsafeValue;
     let mut p: StkId = 0 as *mut StackValue;
-    if ((((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
-        <= 1 as c_int as libc::c_long) as c_int
-        != 0 as c_int) as c_int as libc::c_long
-        != 0
-    {
+
+    if ((*L).stack_last.get()).offset_from((*L).top.get()) <= 1 {
         let t__: isize =
             (func as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
 
-        (*L).hdr.global().gc.step();
         luaD_growstack(L, 1)?;
         func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
     }
@@ -541,15 +537,12 @@ pub async unsafe fn luaD_pretailcall(
                 let nfixparams: c_int = (*p).numparams as c_int;
                 let mut i: c_int = 0;
 
-                if ((((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
-                    <= (fsize - delta) as libc::c_long) as c_int
-                    != 0 as c_int) as c_int as libc::c_long
-                    != 0
+                if ((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
+                    <= (fsize - delta) as libc::c_long
                 {
                     let t__: isize = (func as *mut libc::c_char)
                         .offset_from((*L).stack.get() as *mut libc::c_char);
 
-                    (*L).hdr.global().gc.step();
                     luaD_growstack(L, (fsize - delta).try_into().unwrap())?;
                     func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
                 }
@@ -625,7 +618,6 @@ pub async unsafe fn luaD_precall(
                     let t__: isize = (func as *mut libc::c_char)
                         .offset_from((*L).stack.get() as *mut libc::c_char);
 
-                    (*L).hdr.global().gc.step();
                     luaD_growstack(L, fsize)?;
                     func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as StkId;
                 }
