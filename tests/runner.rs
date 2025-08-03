@@ -95,9 +95,8 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     // Run.
     let chunk = lua.load(ChunkInfo::new(path.to_string_lossy().into_owned()), content)?;
-    let th = lua.spawn();
 
-    th.call::<()>(chunk, ())?;
+    lua.call::<()>(chunk, ())?;
 
     Ok(())
 }

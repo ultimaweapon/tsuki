@@ -135,19 +135,24 @@ impl Lua {
 
         unsafe { g.gc.set_root(reg.cast()) };
         unsafe { g.l_registry.get().write(UnsafeValue::from_obj(reg.cast())) };
-        unsafe { luaH_resize(reg, 4, 0) };
+        unsafe { luaH_resize(reg, 5, 0) };
 
-        // Create table for metatables.
+        // Create main thread.
         let reg = unsafe { (*reg).array.get() };
-        let mts = unsafe { Table::new(g.deref()) };
+        let main = Thread::new(g.deref());
 
-        unsafe { luaH_resize(mts, 9, 0) };
-        unsafe { reg.add(0).write(UnsafeValue::from_obj(mts.cast())) };
+        unsafe { reg.add(0).write(UnsafeValue::from_obj(main.cast())) };
 
         // Create LUA_RIDX_GLOBALS.
         let glb = unsafe { Table::new(g.deref()) };
 
         unsafe { reg.add(1).write(UnsafeValue::from_obj(glb.cast())) };
+
+        // Create table for metatables.
+        let mts = unsafe { Table::new(g.deref()) };
+
+        unsafe { luaH_resize(mts, 9, 0) };
+        unsafe { reg.add(2).write(UnsafeValue::from_obj(mts.cast())) };
 
         // Create table for event names.
         let events = unsafe { Table::new(g.deref()) };
@@ -185,10 +190,10 @@ impl Lua {
             let v = unsafe { Str::from_str(g.deref(), v) };
             let v = unsafe { UnsafeValue::from_obj(v.cast()) };
 
-            unsafe { (*events).set_unchecked(k, v) };
+            unsafe { (*events).set_unchecked(k, v).unwrap_unchecked() };
         }
 
-        unsafe { reg.add(2).write(UnsafeValue::from_obj(events.cast())) };
+        unsafe { reg.add(3).write(UnsafeValue::from_obj(events.cast())) };
 
         // Create table for Lua tokens.
         let tokens = unsafe { Table::new(g.deref()) };
@@ -200,10 +205,10 @@ impl Lua {
             let k = unsafe { Str::from_str(g.deref(), luaX_tokens[i as usize]) };
             let k = unsafe { UnsafeValue::from_obj(k.cast()) };
 
-            unsafe { (*tokens).set_unchecked(k, i + 1) };
+            unsafe { (*tokens).set_unchecked(k, i + 1).unwrap_unchecked() };
         }
 
-        unsafe { reg.add(3).write(UnsafeValue::from_obj(tokens.cast())) };
+        unsafe { reg.add(4).write(UnsafeValue::from_obj(tokens.cast())) };
 
         g
     }
@@ -254,7 +259,7 @@ impl Lua {
         // Set metatable.
         let mt = unsafe { UnsafeValue::from_obj(mt.cast()) };
 
-        unsafe { self.metatables().set_unchecked(4, mt) };
+        unsafe { self.metatables().set_unchecked(4, mt).unwrap_unchecked() };
     }
 
     /// Setup [table library](https://www.lua.org/manual/5.4/manual.html#6.6).
@@ -323,6 +328,12 @@ impl Lua {
         unsafe { Ref::new(Table::new(self)) }
     }
 
+    /// Create a new Lua thread (AKA coroutine).
+    #[inline(always)]
+    pub fn create_thread(&self) -> Ref<Thread> {
+        unsafe { Ref::new(Thread::new(self)) }
+    }
+
     /// Load a Lua chunk.
     pub fn load(&self, info: ChunkInfo, chunk: impl AsRef<[u8]>) -> Result<Ref<LuaFn>, ParseError> {
         let chunk = chunk.as_ref();
@@ -363,10 +374,25 @@ impl Lua {
         Ok(f)
     }
 
-    /// Create a new Lua thread (AKA coroutine).
+    /// Call a function or callable value on main thread.
+    ///
+    /// See [`Thread::call()`] for more details.
     #[inline(always)]
-    pub fn spawn(&self) -> Ref<Thread> {
-        unsafe { Ref::new(Thread::new(self)) }
+    pub fn call<R: Outputs>(
+        &self,
+        f: impl Into<UnsafeValue>,
+        args: impl Inputs,
+    ) -> Result<R, Box<dyn core::error::Error>> {
+        self.main().call(f, args)
+    }
+
+    #[inline(always)]
+    fn main(&self) -> &Thread {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
+        let val = unsafe { (*reg).array.get().add(0) };
+        let val = unsafe { (*val).value_.gc.cast::<Thread>() };
+
+        unsafe { &*val }
     }
 
     unsafe fn metatable(&self, o: *const UnsafeValue) -> *const Table {
@@ -380,7 +406,7 @@ impl Lua {
     #[inline(always)]
     fn metatables(&self) -> &Table {
         let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
-        let tab = unsafe { (*reg).array.get().add(0) };
+        let tab = unsafe { (*reg).array.get().add(2) };
         let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
 
         unsafe { &*tab }
@@ -389,7 +415,7 @@ impl Lua {
     #[inline(always)]
     fn events(&self) -> &Table {
         let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
-        let tab = unsafe { (*reg).array.get().add(2) };
+        let tab = unsafe { (*reg).array.get().add(3) };
         let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
 
         unsafe { &*tab }
@@ -398,7 +424,7 @@ impl Lua {
     #[inline(always)]
     fn tokens(&self) -> &Table {
         let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
-        let tab = unsafe { (*reg).array.get().add(3) };
+        let tab = unsafe { (*reg).array.get().add(4) };
         let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
 
         unsafe { &*tab }

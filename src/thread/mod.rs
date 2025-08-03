@@ -1,8 +1,9 @@
-pub use self::args::DynamicArgs;
+pub use self::input::DynamicInputs;
+
+pub(crate) use self::input::Inputs;
+pub(crate) use self::output::Outputs;
 pub(crate) use self::stack::*;
 
-use self::args::Args;
-use self::outputs::Outputs;
 use crate::lapi::lua_checkstack;
 use crate::ldo::luaD_call;
 use crate::lfunc::luaF_closeupval;
@@ -20,8 +21,8 @@ use core::pin::pin;
 use core::ptr::{addr_of_mut, null, null_mut};
 use core::task::{Context, Poll, Waker};
 
-mod args;
-mod outputs;
+mod input;
+mod output;
 mod stack;
 
 /// Lua thread (AKA coroutine).
@@ -110,7 +111,7 @@ impl Thread {
     pub fn call<R: Outputs>(
         &self,
         f: impl Into<UnsafeValue>,
-        args: impl Args,
+        args: impl Inputs,
     ) -> Result<R, Box<dyn core::error::Error>> {
         // Check if function created from the same Lua.
         let f: UnsafeValue = f.into();

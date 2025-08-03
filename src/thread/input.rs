@@ -1,21 +1,21 @@
 use super::Thread;
 use crate::value::UnsafeValue;
-use crate::{Context, Fp, Nil, Object, Ret, Str, Table};
+use crate::{Args, Context, Fp, Nil, Object, Ret, Str, Table};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-/// Implementation of [`Args`] which size does not known at compile time.
+/// Implementation of [`Inputs`] which size does not known at compile time.
 ///
 /// The order of arguments is the same as push order (e.g. first argument pushed first).
 #[derive(Default)]
-pub struct DynamicArgs<'a> {
+pub struct DynamicInputs<'a> {
     list: Vec<UnsafeValue>,
     phantom: PhantomData<&'a Object>,
 }
 
-impl<'a> DynamicArgs<'a> {
-    /// Constructs a new, empty [`DynamicArgs`] with at least the specified capacity.
+impl<'a> DynamicInputs<'a> {
+    /// Constructs a new, empty [`DynamicInputs`] with at least the specified capacity.
     #[inline(always)]
     pub fn with_capacity(cap: usize) -> Self {
         Self {
@@ -44,7 +44,7 @@ impl<'a> DynamicArgs<'a> {
 
     /// Push a `float` value.
     #[inline(always)]
-    pub fn push_float(&mut self, v: f64) {
+    pub fn push_num(&mut self, v: f64) {
         self.list.push(UnsafeValue::from(v));
     }
 
@@ -64,13 +64,13 @@ impl<'a> DynamicArgs<'a> {
     #[inline(always)]
     pub fn push_fp(
         &mut self,
-        v: fn(Context<crate::Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>>,
+        v: fn(Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>>,
     ) {
         self.list.push(UnsafeValue::from(Fp(v)));
     }
 }
 
-unsafe impl<'a> Args for DynamicArgs<'a> {
+unsafe impl<'a> Inputs for DynamicInputs<'a> {
     #[inline(always)]
     fn len(&self) -> usize {
         self.list.len()
@@ -88,23 +88,23 @@ unsafe impl<'a> Args for DynamicArgs<'a> {
     }
 }
 
-/// Arguments to invoke callable value.
+/// Arguments to invoke a callable value.
 ///
 /// # Safety
-/// The value returned from [`Args::len()`] must be exactly the same as the values pushed to the
-/// thread in [`Args::push_to()`].
-pub unsafe trait Args {
+/// The value returned from [`Inputs::len()`] must be exactly the same as the values pushed to the
+/// thread by [`Inputs::push_to()`].
+pub unsafe trait Inputs {
     fn len(&self) -> usize;
 
     /// # Panics
     /// If any argument does not come from the same [Lua](crate::Lua) as `th`.
     ///
     /// # Safety
-    /// The stack of `th` must be able to push more [`Args::len()`] items.
+    /// The stack of `th` must be able to push more [`Inputs::len()`] items.
     unsafe fn push_to(self, th: &Thread);
 }
 
-unsafe impl Args for () {
+unsafe impl Inputs for () {
     #[inline(always)]
     fn len(&self) -> usize {
         0
@@ -114,7 +114,7 @@ unsafe impl Args for () {
     unsafe fn push_to(self, _: &Thread) {}
 }
 
-unsafe impl<T: Into<UnsafeValue>> Args for T {
+unsafe impl<T: Into<UnsafeValue>> Inputs for T {
     #[inline(always)]
     fn len(&self) -> usize {
         1

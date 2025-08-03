@@ -1,16 +1,17 @@
 # Tsuki
 
-Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all code are Rust and can be using without C compiler. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that the port was done **without** compatibility with the previous version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
+Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all code are Rust and can be using without C compiler. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that this port was done **without** compatibility with the previous version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
 
 > [!IMPORTANT]
-> Tsuki does not support multi-threading and no plan to support this.
+> Tsuki does not support multi-threading and no plan to support this at the moment.
 
 ## Features
 
+- 100% Rust code.
+  - [libc](https://crates.io/crates/libc) is required at the moment.
 - Support both synchronous and asynchronous.
 - Safe and low overhead API.
 - Any error propagated to the caller via Rust `Result` instead of a long jump.
-- All values owned by Rust will exempt from GC automatically (no need to move it to Lua registry).
 
 ## Differences from Lua
 
@@ -18,7 +19,6 @@ Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all
 - Panic when memory allocation is failed without retry (Rust behavior).
 - Chunk name does not have a prefix (e.g. `@`).
 - No `_VERSION`, `collectgarbage`, `dofile`, `loadfile`, `xpcall`, `string.dump` and debug library.
-- No main thread and second result of `coroutine.running` always `false`.
 - Second argument of `assert` accept only a UTF-8 string.
 - Arguments of `error`:
   - First argument accept only a UTF-8 string.
@@ -36,7 +36,7 @@ Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all
 - Native module is not supported.
 - Environment variable `LUA_PATH` and `LUA_PATH_5_4` is ignored.
 - `LUA_NOENV` in registry is ignored.
-- C locale is ignored.
+- C locale is ignored (once `libc` has been completely removed).
 
 ## Non-goals
 
