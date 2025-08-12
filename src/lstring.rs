@@ -13,7 +13,7 @@ use core::alloc::Layout;
 use core::mem::offset_of;
 use core::ptr::null;
 
-pub unsafe fn luaS_eqlngstr(a: *const Str, b: *const Str) -> libc::c_int {
+pub unsafe fn luaS_eqlngstr<D>(a: *const Str<D>, b: *const Str<D>) -> libc::c_int {
     (a == b || (*a).as_bytes() == (*b).as_bytes()).into()
 }
 
@@ -35,7 +35,7 @@ pub unsafe fn luaS_hash(
     return h;
 }
 
-pub unsafe fn luaS_hashlongstr(ts: *mut Str) -> libc::c_uint {
+pub unsafe fn luaS_hashlongstr<D>(ts: *mut Str<D>) -> libc::c_uint {
     if (*ts).extra.get() as libc::c_int == 0 as libc::c_int {
         let s = (*ts).as_bytes();
 
@@ -47,13 +47,13 @@ pub unsafe fn luaS_hashlongstr(ts: *mut Str) -> libc::c_uint {
     return (*ts).hash.get();
 }
 
-pub unsafe fn luaS_newudata(g: *const Lua, s: usize, nuvalue: libc::c_int) -> *mut Udata {
+pub unsafe fn luaS_newudata<D>(g: *const Lua<D>, s: usize, nuvalue: libc::c_int) -> *mut Udata<D> {
     let mut i: libc::c_int = 0;
-    let min = offset_of!(Udata, uv) + size_of::<UnsafeValue>() * nuvalue as usize;
+    let min = offset_of!(Udata<D>, uv) + size_of::<UnsafeValue<D>>() * nuvalue as usize;
     let size = min + s;
-    let align = align_of::<Udata>();
+    let align = align_of::<Udata<D>>();
     let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-    let o = (*g).gc.alloc(7 | 0 << 4, layout).cast::<Udata>();
+    let o = (*g).gc.alloc(7 | 0 << 4, layout).cast::<Udata<D>>();
 
     (*o).len = s;
     (*o).nuvalue = nuvalue as libc::c_ushort;

@@ -18,69 +18,109 @@ use core::cell::{Cell, UnsafeCell};
 use libc::{c_char, c_int, sprintf, strpbrk, strspn, strtod};
 use libm::{floor, pow};
 
-pub type StkId = *mut StackValue;
-
-#[derive(Copy, Clone)]
 #[repr(C)]
-pub union StackValue {
-    pub val: UnsafeValue,
-    pub tbclist: TbcList,
+pub union StackValue<D> {
+    pub val: UnsafeValue<D>,
+    pub tbclist: TbcList<D>,
 }
 
-#[derive(Copy, Clone)]
+impl<D> Clone for StackValue<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for StackValue<D> {}
+
 #[repr(C)]
-pub struct TbcList {
-    pub value_: UntaggedValue,
+pub struct TbcList<D> {
+    pub value_: UntaggedValue<D>,
     pub tt_: u8,
     pub delta: libc::c_ushort,
 }
 
-#[repr(C)]
-pub struct UpVal {
-    pub hdr: Object,
-    pub v: Cell<*mut UnsafeValue>,
-    pub u: UnsafeCell<C2RustUnnamed_5>,
+impl<D> Clone for TbcList<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_5 {
-    pub open: C2RustUnnamed_6,
-    pub value: UnsafeValue,
-}
+impl<D> Copy for TbcList<D> {}
 
-#[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_6 {
-    pub next: *mut UpVal,
-    pub previous: *mut *mut UpVal,
+pub struct UpVal<D> {
+    pub hdr: Object<D>,
+    pub v: Cell<*mut UnsafeValue<D>>,
+    pub u: UnsafeCell<C2RustUnnamed_5<D>>,
 }
 
 #[repr(C)]
-pub struct Udata {
-    pub hdr: Object,
+pub union C2RustUnnamed_5<D> {
+    pub open: C2RustUnnamed_6<D>,
+    pub value: UnsafeValue<D>,
+}
+
+impl<D> Clone for C2RustUnnamed_5<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for C2RustUnnamed_5<D> {}
+
+#[repr(C)]
+pub struct C2RustUnnamed_6<D> {
+    pub next: *mut UpVal<D>,
+    pub previous: *mut *mut UpVal<D>,
+}
+
+impl<D> Clone for C2RustUnnamed_6<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for C2RustUnnamed_6<D> {}
+
+#[repr(C)]
+pub struct Udata<D> {
+    pub hdr: Object<D>,
     pub nuvalue: libc::c_ushort,
     pub len: usize,
-    pub metatable: *const Table,
-    pub uv: [UnsafeValue; 1],
+    pub metatable: *const Table<D>,
+    pub uv: [UnsafeValue<D>; 1],
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
-pub struct Upvaldesc {
-    pub name: *const Str,
+pub struct Upvaldesc<D> {
+    pub name: *const Str<D>,
     pub instack: u8,
     pub idx: u8,
     pub kind: u8,
 }
 
-#[derive(Copy, Clone)]
+impl<D> Clone for Upvaldesc<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for Upvaldesc<D> {}
+
 #[repr(C)]
-pub struct LocVar {
-    pub varname: *const Str,
+pub struct LocVar<D> {
+    pub varname: *const Str<D>,
     pub startpc: c_int,
     pub endpc: c_int,
 }
+
+impl<D> Clone for LocVar<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for LocVar<D> {}
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -90,8 +130,8 @@ pub struct AbsLineInfo {
 }
 
 #[repr(C)]
-pub struct Proto {
-    pub hdr: Object,
+pub struct Proto<D> {
+    pub hdr: Object<D>,
     pub numparams: u8,
     pub is_vararg: u8,
     pub maxstacksize: u8,
@@ -104,17 +144,17 @@ pub struct Proto {
     pub sizeabslineinfo: c_int,
     pub linedefined: c_int,
     pub lastlinedefined: c_int,
-    pub k: *mut UnsafeValue,
+    pub k: *mut UnsafeValue<D>,
     pub code: *mut u32,
-    pub p: *mut *mut Proto,
-    pub upvalues: *mut Upvaldesc,
+    pub p: *mut *mut Self,
+    pub upvalues: *mut Upvaldesc<D>,
     pub lineinfo: *mut i8,
     pub abslineinfo: *mut AbsLineInfo,
-    pub locvars: *mut LocVar,
+    pub locvars: *mut LocVar<D>,
     pub chunk: ChunkInfo,
 }
 
-impl Drop for Proto {
+impl<D> Drop for Proto<D> {
     fn drop(&mut self) {
         unsafe {
             luaM_free_(
@@ -125,13 +165,13 @@ impl Drop for Proto {
         unsafe {
             luaM_free_(
                 self.p as *mut libc::c_void,
-                (self.sizep as usize).wrapping_mul(::core::mem::size_of::<*mut Proto>()),
+                (self.sizep as usize).wrapping_mul(::core::mem::size_of::<*mut Self>()),
             )
         };
         unsafe {
             luaM_free_(
                 self.k as *mut libc::c_void,
-                (self.sizek as usize).wrapping_mul(::core::mem::size_of::<UnsafeValue>()),
+                (self.sizek as usize).wrapping_mul(::core::mem::size_of::<UnsafeValue<D>>()),
             )
         };
         unsafe {
@@ -149,24 +189,26 @@ impl Drop for Proto {
         unsafe {
             luaM_free_(
                 self.locvars as *mut libc::c_void,
-                (self.sizelocvars as usize).wrapping_mul(::core::mem::size_of::<LocVar>()),
+                (self.sizelocvars as usize).wrapping_mul(::core::mem::size_of::<LocVar<D>>()),
             )
         };
         unsafe {
             luaM_free_(
                 self.upvalues as *mut libc::c_void,
-                (self.sizeupvalues as usize).wrapping_mul(::core::mem::size_of::<Upvaldesc>()),
+                (self.sizeupvalues as usize).wrapping_mul(::core::mem::size_of::<Upvaldesc<D>>()),
             )
         };
     }
 }
 
 #[repr(C)]
-pub struct CClosure {
-    pub hdr: Object,
+pub struct CClosure<D> {
+    pub hdr: Object<D>,
     pub nupvalues: u8,
-    pub f: for<'a> fn(Context<'a, Args>) -> Result<Context<'a, Ret>, Box<dyn core::error::Error>>,
-    pub upvalue: [UnsafeValue; 1],
+    pub f: for<'a> fn(
+        Context<'a, D, Args>,
+    ) -> Result<Context<'a, D, Ret>, Box<dyn core::error::Error>>,
+    pub upvalue: [UnsafeValue<D>; 1],
 }
 
 pub unsafe fn luaO_ceillog2(mut x: libc::c_uint) -> c_int {
@@ -479,11 +521,11 @@ fn numarith(op: Ops, v1: f64, v2: f64) -> f64 {
     }
 }
 
-pub unsafe fn luaO_rawarith(
+pub unsafe fn luaO_rawarith<D>(
     op: Ops,
-    p1: *const UnsafeValue,
-    p2: *const UnsafeValue,
-) -> Result<Option<UnsafeValue>, ArithError> {
+    p1: *const UnsafeValue<D>,
+    p2: *const UnsafeValue<D>,
+) -> Result<Option<UnsafeValue<D>>, ArithError> {
     match op {
         Ops::And | Ops::Or | Ops::Xor | Ops::Shl | Ops::Shr | Ops::Not => {
             let mut i1: i64 = 0;
@@ -575,12 +617,12 @@ pub unsafe fn luaO_rawarith(
     }
 }
 
-pub unsafe fn luaO_arith(
-    L: *const Thread,
+pub unsafe fn luaO_arith<D>(
+    L: *const Thread<D>,
     op: Ops,
-    p1: *const UnsafeValue,
-    p2: *const UnsafeValue,
-) -> Result<UnsafeValue, Box<dyn core::error::Error>> {
+    p1: *const UnsafeValue<D>,
+    p2: *const UnsafeValue<D>,
+) -> Result<UnsafeValue<D>, Box<dyn core::error::Error>> {
     match luaO_rawarith(op, p1, p2)? {
         Some(v) => Ok(v),
         None => luaT_trybinTM(L, p1, p2, (op as i32 + TM_ADD as c_int) as TMS),
@@ -706,19 +748,19 @@ unsafe fn l_str2int(mut s: *const c_char, result: *mut i64) -> *const c_char {
     };
 }
 
-pub unsafe fn luaO_str2num(s: *const c_char, o: *mut UnsafeValue) -> usize {
+pub unsafe fn luaO_str2num<D>(s: *const c_char, o: *mut UnsafeValue<D>) -> usize {
     let mut i: i64 = 0;
     let mut n: f64 = 0.;
     let mut e = l_str2int(s, &mut i);
 
     if !e.is_null() {
-        let io: *mut UnsafeValue = o;
+        let io = o;
         (*io).value_.i = i;
         (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
     } else {
         e = l_str2d(s, &mut n);
         if !e.is_null() {
-            let io_0: *mut UnsafeValue = o;
+            let io_0 = o;
             (*io_0).value_.n = n;
             (*io_0).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
         } else {
@@ -752,7 +794,7 @@ pub unsafe fn luaO_utf8esc(buff: *mut c_char, mut x: libc::c_ulong) -> c_int {
     return n;
 }
 
-unsafe fn tostringbuff(obj: *const UnsafeValue, buff: *mut c_char) -> c_int {
+unsafe fn tostringbuff<D>(obj: *const UnsafeValue<D>, buff: *mut c_char) -> c_int {
     if (*obj).tt_ == 3 | 0 << 4 {
         sprintf(
             buff,
@@ -780,11 +822,11 @@ unsafe fn tostringbuff(obj: *const UnsafeValue, buff: *mut c_char) -> c_int {
 }
 
 #[inline(never)]
-pub unsafe fn luaO_tostring(g: *const Lua, obj: *mut UnsafeValue) {
+pub unsafe fn luaO_tostring<D>(g: *const Lua<D>, obj: *mut UnsafeValue<D>) {
     let mut buff: [c_char; 44] = [0; 44];
     let len: c_int = tostringbuff(obj, buff.as_mut_ptr());
     let s = core::slice::from_raw_parts(buff.as_ptr().cast(), len as usize);
-    let io: *mut UnsafeValue = obj;
+    let io = obj;
     let x_ = Str::from_str(g, core::str::from_utf8(s).unwrap()); // sprintf may effect by locale.
 
     (*io).value_.gc = x_.cast();

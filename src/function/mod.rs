@@ -7,19 +7,23 @@ use core::num::NonZero;
 
 /// Lua function.
 #[repr(C)]
-pub struct LuaFn {
-    pub(crate) hdr: Object,
-    pub(crate) p: Cell<*mut Proto>,
-    pub(crate) upvals: Box<[Cell<*mut UpVal>]>,
+pub struct LuaFn<D> {
+    pub(crate) hdr: Object<D>,
+    pub(crate) p: Cell<*mut Proto<D>>,
+    pub(crate) upvals: Box<[Cell<*mut UpVal<D>>]>,
 }
 
-impl LuaFn {
+impl<D> LuaFn<D> {
     /// Set upvalue of this function. Return `v` if `i` is not a valid index.
     ///
     /// # Panics
     /// - If `i` is zero.
     /// - If `v` was created from a different [Lua](crate::Lua) instance.
-    pub fn set_upvalue(&self, i: impl TryInto<NonZero<usize>>, v: Value) -> Result<(), Value> {
+    pub fn set_upvalue(
+        &self,
+        i: impl TryInto<NonZero<usize>>,
+        v: Value<D>,
+    ) -> Result<(), Value<D>> {
         // Check if index valid.
         let i = i.try_into().ok().unwrap().get() - 1;
         let u = match self.upvals.get(i) {

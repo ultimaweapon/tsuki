@@ -9,7 +9,7 @@ pub(crate) use self::object::*;
 
 use crate::ldo::luaD_shrinkstack;
 use crate::lfunc::luaF_unlinkupval;
-use crate::lobject::{CClosure, Proto, StkId, Udata, UpVal};
+use crate::lobject::{CClosure, Proto, Udata, UpVal};
 use crate::ltm::{TM_MODE, luaT_gettm};
 use crate::table::luaH_realasize;
 use crate::value::UnsafeValue;
@@ -30,25 +30,25 @@ type c_uint = u32;
 type c_long = i64;
 
 /// Garbage Collector for Lua objects.
-pub(crate) struct Gc {
+pub(crate) struct Gc<D> {
     state: Cell<u8>,
     currentwhite: Cell<u8>,
-    all: Cell<*const Object>,
-    gray: Cell<*const Object>,
-    grayagain: Cell<*const Object>,
-    weak: Cell<*const Object>,
-    ephemeron: Cell<*const Object>,
-    allweak: Cell<*const Object>,
-    twups: Cell<*const Thread>,
-    sweep: Cell<*mut *const Object>,
-    sweep_mark: Cell<*const Object>,
-    refs: Cell<*const Object>,
-    root: Cell<*const Object>,
+    all: Cell<*const Object<D>>,
+    gray: Cell<*const Object<D>>,
+    grayagain: Cell<*const Object<D>>,
+    weak: Cell<*const Object<D>>,
+    ephemeron: Cell<*const Object<D>>,
+    allweak: Cell<*const Object<D>>,
+    twups: Cell<*const Thread<D>>,
+    sweep: Cell<*mut *const Object<D>>,
+    sweep_mark: Cell<*const Object<D>>,
+    refs: Cell<*const Object<D>>,
+    root: Cell<*const Object<D>>,
     locks: Cell<usize>,
     paused: Cell<bool>,
 }
 
-impl Gc {
+impl<D> Gc<D> {
     /// # Safety
     /// - The returned [`Gc`] must be the first value on [`Lua`].
     /// - [`Lua`] must not moved for its entire lifetime.
@@ -73,30 +73,30 @@ impl Gc {
     }
 
     #[inline(always)]
-    pub unsafe fn set_root(&self, o: *const Object) {
+    pub unsafe fn set_root(&self, o: *const Object<D>) {
         self.root.set(o);
     }
 
     #[inline(always)]
-    pub unsafe fn set_twups(&self, th: *const Thread) {
+    pub unsafe fn set_twups(&self, th: *const Thread<D>) {
         (*th).twups.set(self.twups.get());
         self.twups.set(th);
     }
 
     #[inline(always)]
-    pub unsafe fn is_dead(&self, o: *const Object) -> bool {
+    pub unsafe fn is_dead(&self, o: *const Object<D>) -> bool {
         (*o).marked.get() & (self.currentwhite.get() ^ (1 << 3 | 1 << 4)) != 0
     }
 
     /// Resurrects `o` if it dead.
     #[inline(always)]
-    pub unsafe fn resurrect(&self, o: *const Object) {
+    pub unsafe fn resurrect(&self, o: *const Object<D>) {
         if self.is_dead(o) {
             (*o).marked.set((*o).marked.get() ^ (1 << 3 | 1 << 4));
         }
     }
 
-    pub unsafe fn barrier(&self, o: *const Object, v: *const Object) {
+    pub unsafe fn barrier(&self, o: *const Object<D>, v: *const Object<D>) {
         if self.state.get() <= 2 {
             self.mark(v);
 
@@ -112,7 +112,7 @@ impl Gc {
         }
     }
 
-    pub unsafe fn barrier_back(&self, o: *const Object) {
+    pub unsafe fn barrier_back(&self, o: *const Object<D>) {
         if (*o).marked.get() as c_int & 7 as c_int == 6 as c_int {
             (*o).marked
                 .set((*o).marked.get() & !(1 << 5 | (1 << 3 | 1 << 4)));
@@ -128,15 +128,15 @@ impl Gc {
 
     /// # Safety
     /// `layout` must have the layout of [`Object`] at the beginning.
-    pub unsafe fn alloc(&self, tt: u8, layout: Layout) -> *mut Object {
-        let o = unsafe { alloc::alloc::alloc(layout).cast::<Object>() };
+    pub unsafe fn alloc(&self, tt: u8, layout: Layout) -> *mut Object<D> {
+        let o = unsafe { alloc::alloc::alloc(layout).cast::<Object<D>>() };
 
         if o.is_null() {
             handle_alloc_error(layout);
         }
 
         o.write(Object {
-            global: self as *const Self as *const Lua,
+            global: self as *const Self as *const Lua<D>,
             next: Cell::new(self.all.get()),
             tt,
             marked: Mark::new(self.currentwhite.get() & (1 << 3 | 1 << 4)),
@@ -152,7 +152,7 @@ impl Gc {
     }
 
     #[inline(always)]
-    pub fn lock(&self) -> GcLock {
+    pub fn lock(&self) -> GcLock<'_, D> {
         GcLock::new(self)
     }
 
@@ -186,7 +186,7 @@ impl Gc {
                 let mut m = self.sweep_mark.replace(null());
 
                 match m.is_null() {
-                    true => m = self.alloc(15 | 0 << 4, Layout::new::<Object>()),
+                    true => m = self.alloc(15 | 0 << 4, Layout::new::<Object<D>>()),
                     false => {
                         (*m).marked.set(self.currentwhite.get() & (1 << 3 | 1 << 4));
                         (*m).next.set(self.all.get());
@@ -231,7 +231,7 @@ impl Gc {
         }
     }
 
-    unsafe fn mark(&self, o: *const Object) {
+    unsafe fn mark(&self, o: *const Object<D>) {
         match (*o).tt {
             4 | 20 | 11 => {
                 (*o).marked
@@ -239,9 +239,9 @@ impl Gc {
                 return;
             }
             9 => {
-                let uv = o as *const UpVal;
+                let uv = o as *const UpVal<D>;
 
-                if (*uv).v.get() != &raw mut (*(*uv).u.get()).value as *mut UnsafeValue {
+                if (*uv).v.get() != &raw mut (*(*uv).u.get()).value as *mut UnsafeValue<D> {
                     (*uv)
                         .hdr
                         .marked
@@ -262,7 +262,7 @@ impl Gc {
                 return;
             }
             7 => {
-                let u = o as *const Udata;
+                let u = o as *const Udata<D>;
 
                 if (*u).nuvalue == 0 {
                     if !((*u).metatable).is_null() {
@@ -304,7 +304,7 @@ impl Gc {
         }
     }
 
-    unsafe fn mark_table(&self, h: *const Table) -> usize {
+    unsafe fn mark_table(&self, h: *const Table<D>) -> usize {
         // Get table mode.
         let mode = if (*h).metatable.get().is_null() {
             null()
@@ -314,7 +314,7 @@ impl Gc {
             let s = luaT_gettm((*h).metatable.get(), TM_MODE);
 
             if !s.is_null() && (*s).tt_ == 4 | 0 << 4 | 1 << 6 {
-                (*s).value_.gc.cast::<Str>()
+                (*s).value_.gc.cast::<Str<D>>()
             } else {
                 null()
             }
@@ -338,7 +338,7 @@ impl Gc {
 
         match (wk, wv) {
             (true, true) => Self::linkgclist_(
-                h as *mut Object,
+                h as *mut Object<D>,
                 (*h).hdr.gclist.as_ptr(),
                 self.allweak.as_ptr(),
             ),
@@ -361,11 +361,11 @@ impl Gc {
             ) as usize
     }
 
-    unsafe fn mark_strong_table(&self, h: *const Table) {
-        let mut n: *mut Node = 0 as *mut Node;
-        let limit: *mut Node = ((*h).node.get())
+    unsafe fn mark_strong_table(&self, h: *const Table<D>) {
+        let mut n = null_mut();
+        let limit = ((*h).node.get())
             .offset(((1 as c_int) << (*h).lsizenode.get() as c_int) as usize as isize)
-            as *mut Node;
+            as *mut Node<D>;
         let mut i: c_uint = 0;
         let asize: c_uint = luaH_realasize(h);
         i = 0 as c_int as c_uint;
@@ -381,7 +381,7 @@ impl Gc {
             }
             i = i.wrapping_add(1);
         }
-        n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node;
+        n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node<D>;
         while n < limit {
             if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
                 Self::clear_key(n);
@@ -405,13 +405,13 @@ impl Gc {
         }
     }
 
-    unsafe fn mark_weak_value(&self, h: *const Table) {
-        let mut n: *mut Node = 0 as *mut Node;
-        let limit: *mut Node = ((*h).node.get())
+    unsafe fn mark_weak_value(&self, h: *const Table<D>) {
+        let mut n = null_mut();
+        let limit = ((*h).node.get())
             .offset(((1 as c_int) << (*h).lsizenode.get() as c_int) as usize as isize)
-            as *mut Node;
+            as *mut Node<D>;
         let mut hasclears: c_int = ((*h).alimit.get() > 0 as c_int as c_uint) as c_int;
-        n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node;
+        n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node<D>;
         while n < limit {
             if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
                 Self::clear_key(n);
@@ -428,7 +428,7 @@ impl Gc {
                         if (*n).i_val.tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {
                             (*n).i_val.value_.gc
                         } else {
-                            0 as *mut Object
+                            null()
                         },
                     )
                 {
@@ -440,20 +440,20 @@ impl Gc {
 
         if self.state.get() == 2 && hasclears != 0 {
             Self::linkgclist_(
-                h as *const Object,
+                h as *const Object<D>,
                 (*h).hdr.gclist.as_ptr(),
                 self.weak.as_ptr(),
             );
         } else {
             Self::linkgclist_(
-                h as *const Object,
+                h as *const Object<D>,
                 (*h).hdr.gclist.as_ptr(),
                 self.grayagain.as_ptr(),
             );
         };
     }
 
-    unsafe fn mark_ephemeron(&self, h: *const Table, inv: i32) -> i32 {
+    unsafe fn mark_ephemeron(&self, h: *const Table<D>, inv: i32) -> i32 {
         let mut marked: c_int = 0 as c_int;
         let mut hasclears: c_int = 0 as c_int;
         let mut hasww: c_int = 0 as c_int;
@@ -476,12 +476,12 @@ impl Gc {
         }
         i = 0 as c_int as c_uint;
         while i < nsize {
-            let n: *mut Node = if inv != 0 {
+            let n = if inv != 0 {
                 ((*h).node.get())
                     .offset(nsize.wrapping_sub(1 as c_int as c_uint).wrapping_sub(i) as isize)
-                    as *mut Node
+                    as *mut Node<D>
             } else {
-                ((*h).node.get()).offset(i as isize) as *mut Node
+                ((*h).node.get()).offset(i as isize) as *mut Node<D>
             };
             if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
                 Self::clear_key(n);
@@ -489,7 +489,7 @@ impl Gc {
                 if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0 {
                     (*n).u.key_val.gc
                 } else {
-                    0 as *mut Object
+                    null()
                 },
             ) {
                 hasclears = 1 as c_int;
@@ -513,19 +513,19 @@ impl Gc {
 
         if self.state.get() == 0 {
             Self::linkgclist_(
-                h as *const Object,
+                h as *const Object<D>,
                 (*h).hdr.gclist.as_ptr(),
                 self.grayagain.as_ptr(),
             );
         } else if hasww != 0 {
             Self::linkgclist_(
-                h as *const Object,
+                h as *const Object<D>,
                 (*h).hdr.gclist.as_ptr(),
                 self.ephemeron.as_ptr(),
             );
         } else if hasclears != 0 {
             Self::linkgclist_(
-                h as *const Object,
+                h as *const Object<D>,
                 (*h).hdr.gclist.as_ptr(),
                 self.allweak.as_ptr(),
             );
@@ -534,7 +534,7 @@ impl Gc {
         marked
     }
 
-    unsafe fn mark_ud(&self, u: *const Udata) -> i32 {
+    unsafe fn mark_ud(&self, u: *const Udata<D>) -> i32 {
         let mut i: c_int = 0;
 
         if !((*u).metatable).is_null() {
@@ -565,7 +565,7 @@ impl Gc {
         return 1 as c_int + (*u).nuvalue as c_int;
     }
 
-    unsafe fn mark_lf(&self, cl: *const LuaFn) -> usize {
+    unsafe fn mark_lf(&self, cl: *const LuaFn<D>) -> usize {
         let p = (*cl).p.get();
 
         if !p.is_null() && (*p).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
@@ -586,7 +586,7 @@ impl Gc {
         1 + (&(*cl).upvals).len()
     }
 
-    unsafe fn mark_rf(&self, cl: *const CClosure) -> c_int {
+    unsafe fn mark_rf(&self, cl: *const CClosure<D>) -> c_int {
         let mut i: c_int = 0;
 
         while i < (*cl).nupvalues as c_int {
@@ -607,7 +607,7 @@ impl Gc {
         return 1 as c_int + (*cl).nupvalues as c_int;
     }
 
-    unsafe fn mark_proto(&self, f: *const Proto) -> c_int {
+    unsafe fn mark_proto(&self, f: *const Proto<D>) -> c_int {
         let mut i = 0 as c_int;
 
         while i < (*f).sizek {
@@ -631,7 +631,7 @@ impl Gc {
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                     != 0
                 {
-                    self.mark((*((*f).upvalues).offset(i as isize)).name as *const Object);
+                    self.mark((*((*f).upvalues).offset(i as isize)).name as *const Object<D>);
                 }
             }
             i += 1;
@@ -643,7 +643,7 @@ impl Gc {
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                     != 0
                 {
-                    self.mark(*((*f).p).offset(i as isize) as *const Object);
+                    self.mark(*((*f).p).offset(i as isize) as *const Object<D>);
                 }
             }
             i += 1;
@@ -658,7 +658,7 @@ impl Gc {
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                     != 0
                 {
-                    self.mark((*((*f).locvars).offset(i as isize)).varname as *const Object);
+                    self.mark((*((*f).locvars).offset(i as isize)).varname as *const Object<D>);
                 }
             }
             i += 1;
@@ -666,13 +666,13 @@ impl Gc {
         return 1 as c_int + (*f).sizek + (*f).sizeupvalues + (*f).sizep + (*f).sizelocvars;
     }
 
-    unsafe fn mark_thread(&self, th: *const Thread) -> i32 {
-        let mut uv: *mut UpVal = 0 as *mut UpVal;
-        let mut o: StkId = (*th).stack.get();
+    unsafe fn mark_thread(&self, th: *const Thread<D>) -> i32 {
+        let mut uv = null_mut();
+        let mut o = (*th).stack.get();
 
         if self.state.get() == 0 {
             Self::linkgclist_(
-                th as *const Object,
+                th as *const Object<D>,
                 (*th).hdr.gclist.as_ptr(),
                 self.grayagain.as_ptr(),
             );
@@ -743,8 +743,8 @@ impl Gc {
         work += self.mark_all_gray();
 
         self.converge_ephemerons();
-        self.clear_by_values(self.weak.get(), 0 as *mut Object);
-        self.clear_by_values(self.allweak.get(), 0 as *mut Object);
+        self.clear_by_values(self.weak.get(), 0 as *mut Object<D>);
+        self.clear_by_values(self.allweak.get(), 0 as *mut Object<D>);
 
         let ow = self.weak.get();
         let oa = self.allweak.get();
@@ -822,7 +822,7 @@ impl Gc {
             changed = 0 as c_int;
 
             loop {
-                let w = next.cast::<Table>();
+                let w = next.cast::<Table<D>>();
 
                 if w.is_null() {
                     break;
@@ -846,20 +846,20 @@ impl Gc {
         }
     }
 
-    unsafe fn clear_by_keys(&self, mut l: *const Object) {
+    unsafe fn clear_by_keys(&self, mut l: *const Object<D>) {
         while !l.is_null() {
-            let h: *mut Table = l as *mut Table;
-            let limit: *mut Node = ((*h).node.get())
+            let h = l as *mut Table<D>;
+            let limit = ((*h).node.get())
                 .offset(((1 as c_int) << (*h).lsizenode.get() as c_int) as usize as isize)
-                as *mut Node;
-            let mut n: *mut Node = 0 as *mut Node;
-            n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node;
+                as *mut Node<D>;
+            let mut n = null_mut();
+            n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node<D>;
             while n < limit {
                 if self.is_cleared(
                     if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0 {
                         (*n).u.key_val.gc
                     } else {
-                        0 as *mut Object
+                        0 as *mut Object<D>
                     },
                 ) {
                     (*n).i_val.tt_ = (0 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -869,38 +869,38 @@ impl Gc {
                 }
                 n = n.offset(1);
             }
-            l = (*(l as *mut Table)).hdr.gclist.get();
+            l = (*(l as *mut Table<D>)).hdr.gclist.get();
         }
     }
 
-    unsafe fn clear_by_values(&self, mut l: *const Object, f: *const Object) {
+    unsafe fn clear_by_values(&self, mut l: *const Object<D>, f: *const Object<D>) {
         while l != f {
-            let h: *mut Table = l as *mut Table;
-            let mut n: *mut Node = 0 as *mut Node;
-            let limit: *mut Node = ((*h).node.get())
+            let h = l as *mut Table<D>;
+            let mut n = null_mut();
+            let limit = ((*h).node.get())
                 .offset(((1 as c_int) << (*h).lsizenode.get() as c_int) as usize as isize)
-                as *mut Node;
+                as *mut Node<D>;
             let mut i: c_uint = 0;
             let asize: c_uint = luaH_realasize(h);
             i = 0 as c_int as c_uint;
             while i < asize {
-                let o: *mut UnsafeValue = (*h).array.get().offset(i as isize) as *mut UnsafeValue;
+                let o = (*h).array.get().offset(i as isize) as *mut UnsafeValue<D>;
                 if self.is_cleared(if (*o).tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {
                     (*o).value_.gc
                 } else {
-                    0 as *mut Object
+                    null()
                 }) {
                     (*o).tt_ = (0 as c_int | (1 as c_int) << 4 as c_int) as u8;
                 }
                 i = i.wrapping_add(1);
             }
-            n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node;
+            n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node<D>;
             while n < limit {
                 if self.is_cleared(
                     if (*n).i_val.tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {
                         (*n).i_val.value_.gc
                     } else {
-                        0 as *mut Object
+                        null()
                     },
                 ) {
                     (*n).i_val.tt_ = (0 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -910,17 +910,17 @@ impl Gc {
                 }
                 n = n.offset(1);
             }
-            l = (*(l as *mut Table)).hdr.gclist.get();
+            l = (*(l as *mut Table<D>)).hdr.gclist.get();
         }
     }
 
-    unsafe fn clear_key(n: *mut Node) {
+    unsafe fn clear_key(n: *mut Node<D>) {
         if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0 {
             (*n).u.key_tt = (9 as c_int + 2 as c_int) as u8;
         }
     }
 
-    unsafe fn sweep(&self, mut p: *mut *const Object) -> *mut *const Object {
+    unsafe fn sweep(&self, mut p: *mut *const Object<D>) -> *mut *const Object<D> {
         let pw = self.currentwhite.get() ^ (1 << 3 | 1 << 4);
         let cw = self.currentwhite.get() & (1 << 3 | 1 << 4);
         let mut i = 0;
@@ -943,52 +943,53 @@ impl Gc {
         if (*p).is_null() { null_mut() } else { p }
     }
 
-    unsafe fn free(&self, o: *mut Object) {
+    unsafe fn free(&self, o: *mut Object<D>) {
         self.paused.set(true);
 
         match (*o).tt {
             10 => unsafe {
-                core::ptr::drop_in_place(o.cast::<Proto>());
-                alloc::alloc::dealloc(o.cast(), Layout::new::<Proto>());
+                core::ptr::drop_in_place(o.cast::<Proto<D>>());
+                alloc::alloc::dealloc(o.cast(), Layout::new::<Proto<D>>());
             },
             9 => unsafe {
-                let o = o.cast::<UpVal>();
+                let o = o.cast::<UpVal<D>>();
 
                 if (*o).v.get() != &raw mut (*(*o).u.get()).value {
                     luaF_unlinkupval(o);
                 }
 
-                alloc::alloc::dealloc(o.cast(), Layout::new::<UpVal>());
+                alloc::alloc::dealloc(o.cast(), Layout::new::<UpVal<D>>());
             },
             6 => unsafe {
-                core::ptr::drop_in_place(o.cast::<LuaFn>());
-                alloc::alloc::dealloc(o.cast(), Layout::new::<LuaFn>());
+                core::ptr::drop_in_place(o.cast::<LuaFn<D>>());
+                alloc::alloc::dealloc(o.cast(), Layout::new::<LuaFn<D>>());
             },
             38 => unsafe {
-                let cl_0: *mut CClosure = o as *mut CClosure;
+                let cl_0 = o as *mut CClosure<D>;
                 let nupvalues = usize::from((*cl_0).nupvalues);
-                let size = offset_of!(CClosure, upvalue) + size_of::<UnsafeValue>() * nupvalues;
-                let align = align_of::<CClosure>();
+                let size =
+                    offset_of!(CClosure<D>, upvalue) + size_of::<UnsafeValue<D>>() * nupvalues;
+                let align = align_of::<CClosure<D>>();
                 let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
                 alloc::alloc::dealloc(cl_0.cast(), layout);
             },
             5 => unsafe {
-                core::ptr::drop_in_place(o.cast::<Table>());
-                alloc::alloc::dealloc(o.cast(), Layout::new::<Table>());
+                core::ptr::drop_in_place(o.cast::<Table<D>>());
+                alloc::alloc::dealloc(o.cast(), Layout::new::<Table<D>>());
             },
             8 => unsafe {
-                core::ptr::drop_in_place(o.cast::<Thread>());
-                alloc::alloc::dealloc(o.cast(), Layout::new::<Thread>());
+                core::ptr::drop_in_place(o.cast::<Thread<D>>());
+                alloc::alloc::dealloc(o.cast(), Layout::new::<Thread<D>>());
             },
             7 => unsafe {
-                let u: *mut Udata = o as *mut Udata;
+                let u = o as *mut Udata<D>;
                 let layout = Layout::from_size_align(
-                    offset_of!(Udata, uv)
-                        + size_of::<UnsafeValue>()
+                    offset_of!(Udata<D>, uv)
+                        + size_of::<UnsafeValue<D>>()
                             .wrapping_mul((*u).nuvalue.into())
                             .wrapping_add((*u).len),
-                    align_of::<Udata>(),
+                    align_of::<Udata<D>>(),
                 )
                 .unwrap()
                 .pad_to_align();
@@ -996,33 +997,33 @@ impl Gc {
                 alloc::alloc::dealloc(o.cast(), layout);
             },
             4 => unsafe {
-                let ts: *mut Str = o as *mut Str;
-                let size = offset_of!(Str, contents) + usize::from((*ts).shrlen.get()) + 1;
-                let align = align_of::<Str>();
+                let ts: *mut Str<D> = o as *mut Str<D>;
+                let size = offset_of!(Str<D>, contents) + usize::from((*ts).shrlen.get()) + 1;
+                let align = align_of::<Str<D>>();
                 let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
                 core::ptr::drop_in_place(ts);
                 alloc::alloc::dealloc(ts.cast(), layout);
             },
             20 => unsafe {
-                let ts_0: *mut Str = o as *mut Str;
-                let size = offset_of!(Str, contents) + (*(*ts_0).u.get()).lnglen + 1;
-                let align = align_of::<Str>();
+                let ts_0: *mut Str<D> = o as *mut Str<D>;
+                let size = offset_of!(Str<D>, contents) + (*(*ts_0).u.get()).lnglen + 1;
+                let align = align_of::<Str<D>>();
                 let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
                 core::ptr::drop_in_place(ts_0);
                 alloc::alloc::dealloc(ts_0.cast(), layout);
             },
             11 => unsafe {
-                core::ptr::drop_in_place(o.cast::<UserId>());
-                alloc::alloc::dealloc(o.cast(), Layout::new::<UserId>());
+                core::ptr::drop_in_place(o.cast::<UserId<D>>());
+                alloc::alloc::dealloc(o.cast(), Layout::new::<UserId<D>>());
             },
             15 => unsafe {
                 let p = self.sweep_mark.replace(o).cast_mut();
 
                 if !p.is_null() {
                     core::ptr::drop_in_place(p);
-                    alloc::alloc::dealloc(p.cast(), Layout::new::<Object>());
+                    alloc::alloc::dealloc(p.cast(), Layout::new::<Object<D>>());
                 }
             },
             _ => unreachable!(),
@@ -1032,21 +1033,25 @@ impl Gc {
     }
 
     #[inline(always)]
-    unsafe fn getgclist(o: *const Object) -> *mut *const Object {
+    unsafe fn getgclist(o: *const Object<D>) -> *mut *const Object<D> {
         match (*o).tt {
             5 | 6 | 7 | 8 | 10 | 38 => (*o).gclist.as_ptr(),
             _ => null_mut(),
         }
     }
 
-    unsafe fn linkgclist_(o: *const Object, pnext: *mut *const Object, list: *mut *const Object) {
+    unsafe fn linkgclist_(
+        o: *const Object<D>,
+        pnext: *mut *const Object<D>,
+        list: *mut *const Object<D>,
+    ) {
         *pnext = *list;
         *list = o;
 
         (*o).marked.set_gray();
     }
 
-    unsafe fn is_cleared(&self, o: *const Object) -> bool {
+    unsafe fn is_cleared(&self, o: *const Object<D>) -> bool {
         if o.is_null() {
             false
         } else if (*o).tt & 0xf == 4 {
@@ -1061,7 +1066,7 @@ impl Gc {
     }
 }
 
-impl Drop for Gc {
+impl<D> Drop for Gc<D> {
     fn drop(&mut self) {
         // Free all objects.
         let mut p = self.all.get();
@@ -1077,7 +1082,7 @@ impl Drop for Gc {
 
         if !m.is_null() {
             unsafe { core::ptr::drop_in_place(m) };
-            unsafe { alloc::alloc::dealloc(m.cast(), Layout::new::<Object>()) };
+            unsafe { alloc::alloc::dealloc(m.cast(), Layout::new::<Object<D>>()) };
         }
     }
 }

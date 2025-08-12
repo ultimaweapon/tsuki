@@ -35,6 +35,7 @@ use core::hint::unreachable_unchecked;
 use core::marker::PhantomPinned;
 use core::ops::Deref;
 use core::pin::Pin;
+use core::ptr::null;
 use core::task::RawWakerVTable;
 use thiserror::Error;
 
@@ -73,12 +74,12 @@ extern crate alloc;
 extern crate std;
 
 #[inline(always)]
-unsafe fn lua_pop(th: *const Thread, n: c_int) -> Result<(), Box<dyn core::error::Error>> {
+unsafe fn lua_pop<D>(th: *const Thread<D>, n: c_int) -> Result<(), Box<dyn core::error::Error>> {
     unsafe { lua_settop(th, -(n) - 1) }
 }
 
 #[inline(always)]
-unsafe fn api_incr_top(th: *const Thread) {
+unsafe fn api_incr_top<D>(th: *const Thread<D>) {
     unsafe { (*th).top.add(1) };
 
     if unsafe { (*th).top.get() > (*(*th).ci.get()).top } {
@@ -88,22 +89,25 @@ unsafe fn api_incr_top(th: *const Thread) {
 
 /// Global states shared with all Lua threads.
 #[repr(C)] // Force gc field to be the first field.
-pub struct Lua {
-    gc: Gc,
-    strt: StringTable,
-    l_registry: UnsafeCell<UnsafeValue>,
-    nilvalue: UnsafeCell<UnsafeValue>,
+pub struct Lua<T> {
+    gc: Gc<T>,
+    strt: StringTable<T>,
+    l_registry: UnsafeCell<UnsafeValue<T>>,
+    nilvalue: UnsafeCell<UnsafeValue<T>>,
+    dummy_node: Node<T>,
+    absent_key: UnsafeValue<T>,
     seed: u32,
+    associated_data: T,
     _phantom: PhantomPinned,
 }
 
-impl Lua {
+impl<T> Lua<T> {
     /// Create a new [`Lua`] with a random seed to hash Lua string.
     ///
     /// Note that all built-in functions (e.g. `print`) are not enabled by default.
     #[cfg(feature = "rand")]
-    pub fn new() -> Pin<Rc<Self>> {
-        Self::with_seed(rand::random())
+    pub fn new(associated_data: T) -> Pin<Rc<Self>> {
+        Self::with_seed(rand::random(), associated_data)
     }
 
     /// Create a new [`Lua`] with a seed to hash Lua string.
@@ -114,7 +118,7 @@ impl Lua {
     /// possible for your application.
     ///
     /// Note that all built-in functions (e.g. `print`) are not enabled by default.
-    pub fn with_seed(seed: u32) -> Pin<Rc<Self>> {
+    pub fn with_seed(seed: u32, associated_data: T) -> Pin<Rc<Self>> {
         let g = Rc::pin(Lua {
             gc: unsafe { Gc::new() }, // SAFETY: gc in the first field on Lua.
             strt: StringTable::new(),
@@ -126,7 +130,21 @@ impl Lua {
                 value_: UntaggedValue { i: 0 },
                 tt_: (0 | 0 << 4),
             }),
+            dummy_node: Node {
+                u: NodeKey {
+                    value_: UntaggedValue { gc: null() },
+                    tt_: (0 as c_int | (1 as c_int) << 4 as c_int) as u8,
+                    key_tt: (0 as c_int | (0 as c_int) << 4 as c_int) as u8,
+                    next: 0 as c_int,
+                    key_val: UntaggedValue { gc: null() },
+                },
+            },
+            absent_key: UnsafeValue {
+                value_: UntaggedValue { gc: null() },
+                tt_: (0 as c_int | (2 as c_int) << 4 as c_int) as u8,
+            },
             seed,
+            associated_data,
             _phantom: PhantomPinned,
         });
 
@@ -307,10 +325,10 @@ impl Lua {
 
     /// Returns a global table.
     #[inline(always)]
-    pub fn global(&self) -> &Table {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
+    pub fn global(&self) -> &Table<T> {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
         let tab = unsafe { (*reg).array.get().add(1) };
-        let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table<T>>() };
 
         unsafe { &*tab }
     }
@@ -320,31 +338,35 @@ impl Lua {
     /// # Panics
     /// If there are [`usize::MAX`] active [`GcLock`].
     #[inline(always)]
-    pub fn lock_gc(&self) -> GcLock {
+    pub fn lock_gc(&self) -> GcLock<'_, T> {
         self.gc.lock()
     }
 
     /// Create a Lua string.
-    pub fn create_str<T>(&self, v: T) -> Ref<Str>
+    pub fn create_str<V>(&self, v: V) -> Ref<Str<T>, T>
     where
-        T: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
+        V: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
         unsafe { Ref::new(Str::from_str(self, v)) }
     }
 
     /// Create a Lua table.
-    pub fn create_table(&self) -> Ref<Table> {
+    pub fn create_table(&self) -> Ref<Table<T>, T> {
         unsafe { Ref::new(Table::new(self)) }
     }
 
     /// Create a new Lua thread (AKA coroutine).
     #[inline(always)]
-    pub fn create_thread(&self) -> Ref<Thread> {
+    pub fn create_thread(&self) -> Ref<Thread<T>, T> {
         unsafe { Ref::new(Thread::new(self)) }
     }
 
     /// Load a Lua chunk.
-    pub fn load(&self, info: ChunkInfo, chunk: impl AsRef<[u8]>) -> Result<Ref<LuaFn>, ParseError> {
+    pub fn load(
+        &self,
+        info: ChunkInfo,
+        chunk: impl AsRef<[u8]>,
+    ) -> Result<Ref<LuaFn<T>, T>, ParseError> {
         let chunk = chunk.as_ref();
         let z = Zio {
             n: chunk.len(),
@@ -356,13 +378,13 @@ impl Lua {
 
         if !(*f).upvals.is_empty() {
             let gt = unsafe {
-                (*((*self.l_registry.get()).value_.gc.cast::<Table>()))
+                (*((*self.l_registry.get()).value_.gc.cast::<Table<T>>()))
                     .array
                     .get()
                     .offset(2 - 1)
             };
 
-            let io1: *mut UnsafeValue = unsafe { (*(*f).upvals[0].get()).v.get() };
+            let io1 = unsafe { (*(*f).upvals[0].get()).v.get() };
 
             unsafe { (*io1).value_ = (*gt).value_ };
             unsafe { (*io1).tt_ = (*gt).tt_ };
@@ -387,54 +409,54 @@ impl Lua {
     ///
     /// See [`Thread::call()`] for more details.
     #[inline(always)]
-    pub fn call<R: Outputs>(
+    pub fn call<R: Outputs<T>>(
         &self,
-        f: impl Into<UnsafeValue>,
-        args: impl Inputs,
+        f: impl Into<UnsafeValue<T>>,
+        args: impl Inputs<T>,
     ) -> Result<R, Box<dyn core::error::Error>> {
         self.main().call(f, args)
     }
 
     #[inline(always)]
-    fn main(&self) -> &Thread {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
+    fn main(&self) -> &Thread<T> {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
         let val = unsafe { (*reg).array.get().add(0) };
-        let val = unsafe { (*val).value_.gc.cast::<Thread>() };
+        let val = unsafe { (*val).value_.gc.cast::<Thread<T>>() };
 
         unsafe { &*val }
     }
 
-    unsafe fn metatable(&self, o: *const UnsafeValue) -> *const Table {
+    unsafe fn metatable(&self, o: *const UnsafeValue<T>) -> *const Table<T> {
         match unsafe { (*o).tt_ & 0xf } {
-            5 => unsafe { (*(*o).value_.gc.cast::<Table>()).metatable.get() },
-            7 => unsafe { (*(*o).value_.gc.cast::<Udata>()).metatable },
+            5 => unsafe { (*(*o).value_.gc.cast::<Table<T>>()).metatable.get() },
+            7 => unsafe { (*(*o).value_.gc.cast::<Udata<T>>()).metatable },
             v => unsafe { self.metatables().get_raw_int_key(v.into()).value_.gc.cast() },
         }
     }
 
     #[inline(always)]
-    fn metatables(&self) -> &Table {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
+    fn metatables(&self) -> &Table<T> {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
         let tab = unsafe { (*reg).array.get().add(2) };
-        let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table<T>>() };
 
         unsafe { &*tab }
     }
 
     #[inline(always)]
-    fn events(&self) -> &Table {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
+    fn events(&self) -> &Table<T> {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
         let tab = unsafe { (*reg).array.get().add(3) };
-        let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table<T>>() };
 
         unsafe { &*tab }
     }
 
     #[inline(always)]
-    fn tokens(&self) -> &Table {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table>() };
+    fn tokens(&self) -> &Table<T> {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
         let tab = unsafe { (*reg).array.get().add(4) };
-        let tab = unsafe { (*tab).value_.gc.cast::<Table>() };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table<T>>() };
 
         unsafe { &*tab }
     }
@@ -446,20 +468,20 @@ impl Lua {
 }
 
 /// Lua value.
-pub enum Value {
+pub enum Value<D> {
     Nil,
     Bool(bool),
-    Fp(fn(Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>>),
+    Fp(fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>>),
     Int(i64),
     Num(f64),
-    Str(Ref<Str>),
-    Table(Ref<Table>),
-    LuaFn(Ref<LuaFn>),
-    Thread(Ref<Thread>),
+    Str(Ref<Str<D>, D>),
+    Table(Ref<Table<D>, D>),
+    LuaFn(Ref<LuaFn<D>, D>),
+    Thread(Ref<Thread<D>, D>),
 }
 
-impl Value {
-    unsafe fn from_unsafe(v: *const UnsafeValue) -> Self {
+impl<D> Value<D> {
+    unsafe fn from_unsafe(v: *const UnsafeValue<D>) -> Self {
         match unsafe { (*v).tt_ & 0xf } {
             0 => Self::Nil,
             1 => Self::Bool(unsafe { ((*v).tt_ & 0x30) != 0 }),
@@ -496,17 +518,19 @@ pub struct Nil;
 
 /// Non-Yieldable Rust function.
 #[derive(Clone, Copy)]
-pub struct Fp(pub fn(Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>>);
+pub struct Fp<D>(pub fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>>);
 
 #[derive(Clone, Copy)]
-pub struct YieldFp(pub fn(Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>>);
+pub struct YieldFp<D>(
+    pub fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>>,
+);
 
 #[derive(Clone, Copy)]
-pub struct AsyncFp(
+pub struct AsyncFp<D>(
     pub  fn(
-        Context<Args>,
+        Context<D, Args>,
     )
-        -> Box<dyn Future<Output = Result<Context<Ret>, Box<dyn core::error::Error>>> + '_>,
+        -> Box<dyn Future<Output = Result<Context<D, Ret>, Box<dyn core::error::Error>>> + '_>,
 );
 
 /// Type of operator.
@@ -559,9 +583,9 @@ pub struct CallError {
 }
 
 impl CallError {
-    unsafe fn new(
-        th: *const Thread,
-        caller: *mut CallInfo,
+    unsafe fn new<D>(
+        th: *const Thread<D>,
+        caller: *mut CallInfo<D>,
         mut reason: Box<dyn core::error::Error>,
     ) -> Box<Self> {
         // Forward ourself.

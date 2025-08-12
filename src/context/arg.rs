@@ -19,14 +19,14 @@ use core::task::{Poll, Waker};
 use thiserror::Error;
 
 /// Argument passed from Lua to Rust function.
-pub struct Arg<'a, 'b> {
-    cx: &'a Context<'b, Args>,
+pub struct Arg<'a, 'b, D> {
+    cx: &'a Context<'b, D, Args>,
     index: NonZero<usize>,
 }
 
-impl<'a, 'b> Arg<'a, 'b> {
+impl<'a, 'b, D> Arg<'a, 'b, D> {
     #[inline(always)]
-    pub(super) fn new(cx: &'a Context<'b, Args>, index: NonZero<usize>) -> Self {
+    pub(super) fn new(cx: &'a Context<'b, D, Args>, index: NonZero<usize>) -> Self {
         Self { cx, index }
     }
 
@@ -128,7 +128,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     #[inline(always)]
     pub fn lt(
         &self,
-        rhs: impl Into<UnsafeValue>,
+        rhs: impl Into<UnsafeValue<D>>,
     ) -> Result<Option<bool>, Box<dyn core::error::Error>> {
         // Get argument.
         let lhs = self.get_raw_or_null();
@@ -177,7 +177,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// This method is expensive compared to a specialized method like [`Self::get_str()`]. Use this
     /// method only when you need [`Value`]. If you want to check type of this argument use
     /// [`Self::ty()`] instead since it much faster.
-    pub fn get(&self) -> Option<Value> {
+    pub fn get(&self) -> Option<Value<D>> {
         let v = self.get_raw_or_null();
 
         if v.is_null() {
@@ -192,7 +192,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// This has the same semantic as `luaL_checklstring`, which mean if this argument is a number
     /// it will convert to string **in-place**.
     #[inline(always)]
-    pub fn get_str(&self) -> Result<&'a Str, Box<dyn core::error::Error>> {
+    pub fn get_str(&self) -> Result<&'a Str<D>, Box<dyn core::error::Error>> {
         let expect = lua_typename(4);
         let v = self.get_raw(expect)?;
 
@@ -202,7 +202,7 @@ impl<'a, 'b> Arg<'a, 'b> {
             _ => return Err(unsafe { self.type_error(expect, v) }),
         }
 
-        Ok(unsafe { &*(*v).value_.gc.cast::<Str>() })
+        Ok(unsafe { &*(*v).value_.gc.cast::<Str<D>>() })
     }
 
     /// Checks if this argument is Lua string or number and return it as string.
@@ -218,7 +218,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     pub fn get_nilable_str(
         &self,
         required: bool,
-    ) -> Result<Option<&'a Str>, Box<dyn core::error::Error>> {
+    ) -> Result<Option<&'a Str<D>>, Box<dyn core::error::Error>> {
         // Get argument.
         let expect = "nil or string";
         let v = self.get_raw_or_null();
@@ -238,12 +238,12 @@ impl<'a, 'b> Arg<'a, 'b> {
             _ => return Err(unsafe { self.type_error(expect, v) }),
         }
 
-        Ok(Some(unsafe { &*(*v).value_.gc.cast::<Str>() }))
+        Ok(Some(unsafe { &*(*v).value_.gc.cast::<Str<D>>() }))
     }
 
     /// Checks if this argument is a table and return it.
     #[inline(always)]
-    pub fn get_table(&self) -> Result<&'a Table, Box<dyn core::error::Error>> {
+    pub fn get_table(&self) -> Result<&'a Table<D>, Box<dyn core::error::Error>> {
         let expect = lua_typename(5);
         let v = self.get_raw(expect)?;
 
@@ -263,7 +263,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     pub fn get_nilable_table(
         &self,
         required: bool,
-    ) -> Result<Option<&'a Table>, Box<dyn core::error::Error>> {
+    ) -> Result<Option<&'a Table<D>>, Box<dyn core::error::Error>> {
         // Check if argument exists.
         let expect = "nil or table";
         let v = self.get_raw_or_null();
@@ -284,7 +284,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     }
 
     /// Gets metatable for this argument.
-    pub fn get_metatable(&self) -> Option<Option<Ref<Table>>> {
+    pub fn get_metatable(&self) -> Option<Option<Ref<Table<D>, D>>> {
         // Get argument.
         let v = self.get_raw_or_null();
 
@@ -462,7 +462,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// The returned [`Str`] guarantee to be a UTF-8 string. If this argument is a string but it is
     /// not UTF-8 this method will return a new [`Str`] with content `string: CONTENT_IN_LOWER_HEX`
     /// instead.
-    pub fn display(&self) -> Result<Ref<Str>, Box<dyn core::error::Error>> {
+    pub fn display(&self) -> Result<Ref<Str<D>, D>, Box<dyn core::error::Error>> {
         // Try __tostring metamethod.
         let t = self.cx.th;
         let g = t.hdr.global();
@@ -503,14 +503,14 @@ impl<'a, 'b> Arg<'a, 'b> {
                 match r.tt_ & 0xf {
                     3 => unsafe { luaO_tostring(g, &mut r) },
                     4 => unsafe {
-                        if !(*r.value_.gc.cast::<Str>()).is_utf8() {
+                        if !(*r.value_.gc.cast::<Str<D>>()).is_utf8() {
                             return Err(self.error("'__tostring' must return a UTF-8 string"));
                         }
                     },
                     _ => return Err("'__tostring' must return a string".into()),
                 }
 
-                return Ok(unsafe { Ref::new(r.value_.gc.cast::<Str>()) });
+                return Ok(unsafe { Ref::new(r.value_.gc.cast::<Str<D>>()) });
             }
         }
 
@@ -542,15 +542,15 @@ impl<'a, 'b> Arg<'a, 'b> {
                 },
                 _ => unreachable!(),
             },
-            Some(4) if unsafe { (*(*arg).value_.gc.cast::<Str>()).is_utf8() } => unsafe {
-                (*arg).value_.gc.cast::<Str>()
+            Some(4) if unsafe { (*(*arg).value_.gc.cast::<Str<D>>()).is_utf8() } => unsafe {
+                (*arg).value_.gc.cast::<Str<D>>()
             },
             Some(v) => unsafe {
                 // Get __name from metatable.
                 let kind = match (mt.is_null() == false)
                     .then(move || (*mt).get_raw_str_key("__name"))
                     .filter(|&v| (*v).tt_ & 0xf == 4)
-                    .map(|v| (*v).value_.gc.cast::<Str>())
+                    .map(|v| (*v).value_.gc.cast::<Str<D>>())
                 {
                     Some(v) => (*v)
                         .as_str()
@@ -567,7 +567,7 @@ impl<'a, 'b> Arg<'a, 'b> {
                     2 => write!(buf, "{:p}", (*arg).value_.f).unwrap(),
                     18 | 34 | 50 => todo!(),
                     4 => {
-                        let v = (*arg).value_.gc.cast::<Str>();
+                        let v = (*arg).value_.gc.cast::<Str<D>>();
                         let v = (*v).as_bytes();
 
                         buf.reserve(v.len().saturating_mul(2).saturating_sub(18));
@@ -581,9 +581,9 @@ impl<'a, 'b> Arg<'a, 'b> {
                         buf,
                         "{:p}",
                         (*arg).value_.gc.byte_add(
-                            offset_of!(Udata, uv)
-                                + size_of::<UnsafeValue>()
-                                    * usize::from((*((*arg).value_.gc.cast::<Udata>())).nuvalue),
+                            offset_of!(Udata<D>, uv)
+                                + size_of::<UnsafeValue<D>>()
+                                    * usize::from((*((*arg).value_.gc.cast::<Udata<D>>())).nuvalue),
                         )
                     )
                     .unwrap(),
@@ -618,7 +618,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     fn get_raw(
         &self,
         expect: impl Display,
-    ) -> Result<*mut UnsafeValue, Box<dyn core::error::Error>> {
+    ) -> Result<*mut UnsafeValue<D>, Box<dyn core::error::Error>> {
         let th = self.cx.th;
         let ci = th.ci.get();
 
@@ -630,7 +630,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     }
 
     #[inline(always)]
-    pub(crate) fn get_raw_or_null(&self) -> *mut UnsafeValue {
+    pub(crate) fn get_raw_or_null(&self) -> *mut UnsafeValue<D> {
         let th = self.cx.th;
         let ci = th.ci.get();
 
@@ -645,7 +645,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     unsafe fn type_error(
         &self,
         expect: impl Display,
-        actual: *const UnsafeValue,
+        actual: *const UnsafeValue<D>,
     ) -> Box<dyn core::error::Error> {
         let g = self.cx.th.hdr.global();
         let mt = unsafe { g.metatable(actual) };
@@ -656,9 +656,9 @@ impl<'a, 'b> Arg<'a, 'b> {
             let val = unsafe { luaH_get(mt, &key) };
 
             match unsafe { (*val).tt_ & 0xf } {
-                4 => {
-                    String::from_utf8_lossy(unsafe { (*(*val).value_.gc.cast::<Str>()).as_bytes() })
-                }
+                4 => String::from_utf8_lossy(unsafe {
+                    (*(*val).value_.gc.cast::<Str<D>>()).as_bytes()
+                }),
                 _ => lua_typename(unsafe { ((*actual).tt_ & 0xf).into() }).into(),
             }
         };

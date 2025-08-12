@@ -85,7 +85,7 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     // Setup Lua.
     let content = std::fs::read(&path).unwrap();
-    let lua = Lua::new();
+    let lua = Lua::new(());
 
     lua.setup_base();
     lua.setup_string();

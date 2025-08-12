@@ -3,33 +3,33 @@ use crate::Value;
 use alloc::vec::Vec;
 
 /// Outputs of a call.
-pub unsafe trait Outputs {
+pub unsafe trait Outputs<D> {
     const N: i32;
 
-    unsafe fn new(th: &Thread, n: usize) -> Self;
+    unsafe fn new(th: &Thread<D>, n: usize) -> Self;
 }
 
-unsafe impl Outputs for () {
+unsafe impl<D> Outputs<D> for () {
     const N: i32 = 0;
 
     #[inline(always)]
-    unsafe fn new(_: &Thread, _: usize) -> Self {
+    unsafe fn new(_: &Thread<D>, _: usize) -> Self {
         ()
     }
 }
 
-unsafe impl Outputs for Value {
+unsafe impl<D> Outputs<D> for Value<D> {
     const N: i32 = 1;
 
-    unsafe fn new(th: &Thread, _: usize) -> Self {
+    unsafe fn new(th: &Thread<D>, _: usize) -> Self {
         unsafe { Self::from_unsafe(&th.top.read(0)) }
     }
 }
 
-unsafe impl Outputs for Vec<Value> {
+unsafe impl<D> Outputs<D> for Vec<Value<D>> {
     const N: i32 = -1;
 
-    unsafe fn new(th: &Thread, n: usize) -> Self {
+    unsafe fn new(th: &Thread<D>, n: usize) -> Self {
         let mut r = Vec::with_capacity(n);
 
         for i in 0..n {

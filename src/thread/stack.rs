@@ -5,11 +5,11 @@ use core::cell::Cell;
 use core::mem::zeroed;
 
 /// Pointer to an item in the stack.
-pub(crate) struct StackPtr(Cell<*mut StackValue>);
+pub(crate) struct StackPtr<D>(Cell<*mut StackValue<D>>);
 
-impl StackPtr {
+impl<D> StackPtr<D> {
     #[inline(always)]
-    pub unsafe fn new(v: *mut StackValue) -> Self {
+    pub unsafe fn new(v: *mut StackValue<D>) -> Self {
         Self(Cell::new(v))
     }
 
@@ -24,22 +24,22 @@ impl StackPtr {
     }
 
     #[inline(always)]
-    pub fn get(&self) -> *mut StackValue {
+    pub fn get(&self) -> *mut StackValue<D> {
         self.0.get()
     }
 
     #[inline(always)]
-    pub unsafe fn set(&self, v: *mut StackValue) {
+    pub unsafe fn set(&self, v: *mut StackValue<D>) {
         self.0.set(v);
     }
 
     #[inline(always)]
-    pub unsafe fn read(&self, i: isize) -> UnsafeValue {
+    pub unsafe fn read(&self, i: isize) -> UnsafeValue<D> {
         unsafe { self.0.get().offset(i).read().val }
     }
 
     #[inline(always)]
-    pub unsafe fn write(&self, val: UnsafeValue) {
+    pub unsafe fn write(&self, val: UnsafeValue<D>) {
         unsafe { self.0.get().write(StackValue { val }) };
     }
 
@@ -54,7 +54,7 @@ impl StackPtr {
     }
 
     #[inline(always)]
-    pub fn write_table(&self, t: &Table) {
+    pub fn write_table(&self, t: &Table<D>) {
         let v = UnsafeValue {
             value_: UntaggedValue { gc: &t.hdr },
             tt_: 5 | 0 << 4 | 1 << 6,

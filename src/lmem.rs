@@ -6,8 +6,8 @@ use core::ffi::c_void;
 use core::ptr::null_mut;
 use libc::{free, realloc};
 
-pub unsafe fn luaM_growaux_(
-    g: &Lua,
+pub unsafe fn luaM_growaux_<D>(
+    g: &Lua<D>,
     block: *mut libc::c_void,
     nelems: libc::c_int,
     psize: *mut libc::c_int,
@@ -42,8 +42,8 @@ pub unsafe fn luaM_growaux_(
     return Ok(newblock);
 }
 
-pub unsafe fn luaM_shrinkvector_(
-    g: *const Lua,
+pub unsafe fn luaM_shrinkvector_<D>(
+    g: *const Lua<D>,
     block: *mut libc::c_void,
     size: *mut libc::c_int,
     final_n: libc::c_int,
@@ -60,8 +60,8 @@ pub unsafe fn luaM_free_(block: *mut libc::c_void, osize: usize) {
     free(block);
 }
 
-pub unsafe fn luaM_realloc_(
-    g: *const Lua,
+pub unsafe fn luaM_realloc_<D>(
+    g: *const Lua<D>,
     block: *mut libc::c_void,
     osize: usize,
     nsize: usize,
@@ -80,8 +80,8 @@ pub unsafe fn luaM_realloc_(
     return newblock;
 }
 
-pub unsafe fn luaM_saferealloc_(
-    g: *const Lua,
+pub unsafe fn luaM_saferealloc_<D>(
+    g: *const Lua<D>,
     block: *mut libc::c_void,
     osize: usize,
     nsize: usize,
@@ -95,7 +95,7 @@ pub unsafe fn luaM_saferealloc_(
     newblock
 }
 
-pub unsafe fn luaM_malloc_(g: *const Lua, size: usize) -> *mut c_void {
+pub unsafe fn luaM_malloc_<D>(g: *const Lua<D>, size: usize) -> *mut c_void {
     if size == 0 {
         null_mut()
     } else {

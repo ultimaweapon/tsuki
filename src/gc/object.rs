@@ -6,25 +6,25 @@ use core::ptr::null;
 /// Header of all object managed by Garbage Collector.
 ///
 /// All object must have this struct at the beginning of its memory block.
-pub struct Object {
-    pub(crate) global: *const Lua,
-    pub(super) next: Cell<*const Object>,
+pub struct Object<D> {
+    pub(crate) global: *const Lua<D>,
+    pub(super) next: Cell<*const Self>,
     pub(crate) tt: u8,
     pub(crate) marked: Mark,
     pub(super) refs: Cell<usize>,
-    pub(super) refn: Cell<*const Object>,
-    pub(super) refp: Cell<*const Object>,
-    pub(super) gclist: Cell<*const Object>,
+    pub(super) refn: Cell<*const Self>,
+    pub(super) refp: Cell<*const Self>,
+    pub(super) gclist: Cell<*const Self>,
 }
 
-impl Object {
+impl<D> Object<D> {
     #[inline(always)]
-    pub fn global(&self) -> &Lua {
+    pub fn global(&self) -> &Lua<D> {
         unsafe { &*self.global }
     }
 }
 
-impl Default for Object {
+impl<D> Default for Object<D> {
     #[inline(always)]
     fn default() -> Self {
         Self {

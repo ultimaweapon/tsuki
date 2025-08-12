@@ -13,19 +13,19 @@ mod table;
 
 /// Lua string.
 #[repr(C)]
-pub struct Str {
-    pub(crate) hdr: Object,
+pub struct Str<D> {
+    pub(crate) hdr: Object<D>,
     utf8: bool,
     pub(crate) extra: Cell<u8>,
     pub(crate) shrlen: Cell<u8>,
     pub(crate) hash: Cell<u32>,
-    pub(crate) u: UnsafeCell<C2RustUnnamed_8>,
+    pub(crate) u: UnsafeCell<C2RustUnnamed_8<D>>,
     pub(crate) contents: [c_char; 1],
 }
 
-impl Str {
+impl<D> Str<D> {
     #[inline(always)]
-    pub(crate) unsafe fn from_str<T>(g: *const Lua, str: T) -> *const Str
+    pub(crate) unsafe fn from_str<T>(g: *const Lua<D>, str: T) -> *const Self
     where
         T: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -33,7 +33,7 @@ impl Str {
     }
 
     #[inline(always)]
-    pub(crate) unsafe fn from_bytes<T>(g: *const Lua, str: T) -> *const Str
+    pub(crate) unsafe fn from_bytes<T>(g: *const Lua<D>, str: T) -> *const Self
     where
         T: AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -41,7 +41,7 @@ impl Str {
     }
 
     #[inline(never)]
-    unsafe fn new<T>(g: *const Lua, str: T, utf8: bool) -> *const Str
+    unsafe fn new<T>(g: *const Lua<D>, str: T, utf8: bool) -> *const Self
     where
         T: AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -125,11 +125,11 @@ impl Str {
         self.contents.as_ptr()
     }
 
-    unsafe fn alloc(g: *const Lua, l: usize, tag: u8, h: u32) -> *mut Str {
-        let size = offset_of!(Str, contents) + l + 1;
-        let align = align_of::<Str>();
+    unsafe fn alloc(g: *const Lua<D>, l: usize, tag: u8, h: u32) -> *mut Self {
+        let size = offset_of!(Self, contents) + l + 1;
+        let align = align_of::<Self>();
         let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-        let o = unsafe { (*g).gc.alloc(tag, layout).cast::<Str>() };
+        let o = unsafe { (*g).gc.alloc(tag, layout).cast::<Self>() };
 
         unsafe { addr_of_mut!((*o).hash).write(Cell::new(h)) };
         unsafe { addr_of_mut!((*o).extra).write(Cell::new(0)) };
@@ -139,7 +139,7 @@ impl Str {
     }
 }
 
-impl Drop for Str {
+impl<D> Drop for Str<D> {
     fn drop(&mut self) {
         if self.shrlen.get() != 0xff {
             unsafe { (*self.hdr.global).strt.remove(self) };
@@ -147,7 +147,7 @@ impl Drop for Str {
     }
 }
 
-impl PartialEq<str> for Str {
+impl<D> PartialEq<str> for Str<D> {
     #[inline(always)]
     fn eq(&self, other: &str) -> bool {
         self.as_bytes() == other.as_bytes()
@@ -156,7 +156,7 @@ impl PartialEq<str> for Str {
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub(crate) union C2RustUnnamed_8 {
+pub(crate) union C2RustUnnamed_8<D> {
     pub lnglen: usize,
-    pub hnext: *const Str,
+    pub hnext: *const Str<D>,
 }

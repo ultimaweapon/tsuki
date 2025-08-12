@@ -8,7 +8,7 @@ use core::fmt::Write;
 /// Implementation of [assert](https://www.lua.org/manual/5.4/manual.html#pdf-assert) function.
 ///
 /// Note that second argument accept only a string.
-pub fn assert(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn assert<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     // Check condition.
     let c = cx.arg(1);
 
@@ -33,7 +33,7 @@ pub fn assert(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
 /// Implementation of [error](https://www.lua.org/manual/5.4/manual.html#pdf-error) function.
 ///
 /// Note that first argument accept only a string and second argument is not supported.
-pub fn error(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn error<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let msg = cx.arg(1);
     let msg = msg
         .get_str()?
@@ -48,7 +48,9 @@ pub fn error(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Err
 }
 
 /// Implementation of [getmetatable](https://www.lua.org/manual/5.4/manual.html#pdf-getmetatable).
-pub fn getmetatable(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn getmetatable<D>(
+    cx: Context<D, Args>,
+) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     // Get metatable.
     let mt = cx.arg(1);
     let mt = mt.get_metatable().ok_or_else(|| mt.error(ArgNotFound))?;
@@ -76,7 +78,7 @@ pub fn getmetatable(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::err
 /// - First argument accept only a string.
 /// - Second argument accept only a UTF-8 string and will be empty when absent.
 /// - Third argument must be `nil` or `"t"`.
-pub fn load(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn load<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let s = cx.arg(1).get_str()?;
 
     // Get name.
@@ -119,7 +121,7 @@ pub fn load(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Erro
 }
 
 /// Implementation of [next](https://www.lua.org/manual/5.4/manual.html#pdf-next).
-pub fn next(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn next<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let t = cx.arg(1).get_table()?;
     let k = cx.arg(2);
 
@@ -131,7 +133,7 @@ pub fn next(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Erro
 }
 
 /// Implementation of [pcall](https://www.lua.org/manual/5.4/manual.html#pdf-pcall).
-pub fn pcall(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn pcall<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let r = match cx.try_forward(1)? {
         TryCall::Ok(r) => {
             r.insert(1, true)?;
@@ -169,7 +171,7 @@ pub fn pcall(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Err
 
 /// Implementation of [print](https://www.lua.org/manual/5.4/manual.html#pdf-print).
 #[cfg(feature = "std")]
-pub fn print(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn print<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     use std::io::Write;
 
     // We can't print while converting the arguments to string since it can call into arbitrary
@@ -197,7 +199,7 @@ pub fn print(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Err
 }
 
 /// Implementation of [rawget](https://www.lua.org/manual/5.4/manual.html#pdf-rawget).
-pub fn rawget(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn rawget<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let t = cx.arg(1).get_table()?;
     let k = cx.arg(2).exists()?;
 
@@ -207,7 +209,7 @@ pub fn rawget(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
 }
 
 /// Implementation of [rawset](https://www.lua.org/manual/5.4/manual.html#pdf-rawset).
-pub fn rawset(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn rawset<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let t = cx.arg(1).get_table()?;
     let k = cx.arg(2).exists()?;
     let v = cx.arg(3).exists()?;
@@ -221,7 +223,7 @@ pub fn rawset(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
 }
 
 /// Implementation of [select](https://www.lua.org/manual/5.4/manual.html#pdf-select).
-pub fn select(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn select<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     // Check if first argument is '#'. We check only first byte to match with Lua behavior.
     let n = cx.args();
     let i = cx.arg(1);
@@ -251,7 +253,9 @@ pub fn select(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
 }
 
 /// Implementation of [setmetatable](https://www.lua.org/manual/5.4/manual.html#pdf-setmetatable).
-pub fn setmetatable(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn setmetatable<D>(
+    cx: Context<D, Args>,
+) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let t = cx.arg(1).get_table()?;
     let mt = cx.arg(2).get_nilable_table(true)?;
 
@@ -275,7 +279,7 @@ pub fn setmetatable(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::err
 }
 
 /// Implementation of [tostring](https://www.lua.org/manual/5.4/manual.html#pdf-tostring).
-pub fn tostring(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn tostring<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1).exists()?;
 
     cx.push(v.display()?)?;
@@ -284,7 +288,7 @@ pub fn tostring(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::
 }
 
 /// Implementation of [type](https://www.lua.org/manual/5.4/manual.html#pdf-type).
-pub fn r#type(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn r#type<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1);
     let t = v.ty().ok_or_else(|| v.error(ArgNotFound))?;
 

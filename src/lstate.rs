@@ -8,15 +8,13 @@
 
 use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
 use crate::lmem::{luaM_free_, luaM_malloc_};
-use crate::lobject::StkId;
+use crate::lobject::StackValue;
 use crate::{CallError, ChunkInfo, Thread};
 use alloc::boxed::Box;
 use core::ptr::{null, null_mut};
 
-pub type lua_Hook = Option<unsafe extern "C" fn(*const Thread, *mut lua_Debug) -> ()>;
-
 #[repr(C)]
-pub struct lua_Debug {
+pub struct lua_Debug<D> {
     pub event: libc::c_int,
     pub name: *const libc::c_char,
     pub namewhat: *const libc::c_char,
@@ -31,10 +29,10 @@ pub struct lua_Debug {
     pub istailcall: libc::c_char,
     pub ftransfer: usize,
     pub ntransfer: usize,
-    pub(crate) i_ci: *mut CallInfo,
+    pub(crate) i_ci: *mut CallInfo<D>,
 }
 
-impl Default for lua_Debug {
+impl<D> Default for lua_Debug<D> {
     #[inline(always)]
     fn default() -> Self {
         Self {
@@ -57,18 +55,25 @@ impl Default for lua_Debug {
     }
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
-pub struct CallInfo {
-    pub func: StkId,
-    pub top: StkId,
-    pub previous: *mut CallInfo,
-    pub next: *mut CallInfo,
+pub struct CallInfo<D> {
+    pub func: *mut StackValue<D>,
+    pub top: *mut StackValue<D>,
+    pub previous: *mut Self,
+    pub next: *mut Self,
     pub u: C2RustUnnamed_3,
     pub u2: C2RustUnnamed,
     pub nresults: libc::c_short,
     pub callstatus: libc::c_ushort,
 }
+
+impl<D> Clone for CallInfo<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for CallInfo<D> {}
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -93,36 +98,36 @@ pub struct C2RustUnnamed_3 {
     pub nextraargs: libc::c_int,
 }
 
-pub unsafe fn luaE_extendCI(L: *const Thread) -> *mut CallInfo {
-    let mut ci: *mut CallInfo = 0 as *mut CallInfo;
-    ci = luaM_malloc_((*L).hdr.global, ::core::mem::size_of::<CallInfo>()) as *mut CallInfo;
+pub unsafe fn luaE_extendCI<D>(L: *const Thread<D>) -> *mut CallInfo<D> {
+    let mut ci = null_mut();
+    ci = luaM_malloc_((*L).hdr.global, ::core::mem::size_of::<CallInfo<D>>()) as *mut CallInfo<D>;
     (*(*L).ci.get()).next = ci;
     (*ci).previous = (*L).ci.get();
-    (*ci).next = 0 as *mut CallInfo;
+    (*ci).next = null_mut();
     ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 0 as libc::c_int);
     (*L).nci.set((*L).nci.get().wrapping_add(1));
 
     return ci;
 }
 
-pub unsafe fn luaE_shrinkCI(L: *const Thread) {
-    let mut ci: *mut CallInfo = (*(*L).ci.get()).next;
-    let mut next: *mut CallInfo = 0 as *mut CallInfo;
+pub unsafe fn luaE_shrinkCI<D>(L: *const Thread<D>) {
+    let mut ci = (*(*L).ci.get()).next;
+
     if ci.is_null() {
         return;
     }
     loop {
-        next = (*ci).next;
+        let next = (*ci).next;
         if next.is_null() {
             break;
         }
-        let next2: *mut CallInfo = (*next).next;
+        let next2 = (*next).next;
         (*ci).next = next2;
         (*L).nci.set((*L).nci.get().wrapping_sub(1));
 
         luaM_free_(
             next as *mut libc::c_void,
-            ::core::mem::size_of::<CallInfo>(),
+            ::core::mem::size_of::<CallInfo<D>>(),
         );
         if next2.is_null() {
             break;
@@ -132,9 +137,9 @@ pub unsafe fn luaE_shrinkCI(L: *const Thread) {
     }
 }
 
-pub unsafe fn lua_closethread(L: *const Thread) -> Result<(), Box<CallError>> {
+pub unsafe fn lua_closethread<D>(L: *const Thread<D>) -> Result<(), Box<CallError>> {
     (*L).ci.set((*L).base_ci.get());
-    let ci: *mut CallInfo = (*L).ci.get();
+    let ci = (*L).ci.get();
 
     (*(*L).stack.get()).val.tt_ = 0 | 0 << 4;
     (*ci).func = (*L).stack.get();

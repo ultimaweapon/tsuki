@@ -6,7 +6,7 @@ pub struct LuaHasher(u32);
 
 impl LuaHasher {
     #[inline(always)]
-    pub unsafe fn new(g: *const Lua) -> Self {
+    pub unsafe fn new<D>(g: *const Lua<D>) -> Self {
         Self(unsafe { (*g).seed })
     }
 }

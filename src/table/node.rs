@@ -2,19 +2,33 @@ use crate::UnsafeValue;
 use crate::value::UntaggedValue;
 use core::ffi::c_int;
 
-#[derive(Copy, Clone)]
 #[repr(C)]
-pub(crate) union Node {
-    pub u: NodeKey,
-    pub i_val: UnsafeValue,
+pub(crate) union Node<D> {
+    pub u: NodeKey<D>,
+    pub i_val: UnsafeValue<D>,
 }
 
-#[derive(Copy, Clone)]
+impl<D> Clone for Node<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for Node<D> {}
+
 #[repr(C)]
-pub(crate) struct NodeKey {
-    pub value_: UntaggedValue,
+pub(crate) struct NodeKey<D> {
+    pub value_: UntaggedValue<D>,
     pub tt_: u8,
     pub key_tt: u8,
     pub next: c_int,
-    pub key_val: UntaggedValue,
+    pub key_val: UntaggedValue<D>,
 }
+
+impl<D> Clone for NodeKey<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for NodeKey<D> {}

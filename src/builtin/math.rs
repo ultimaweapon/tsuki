@@ -2,7 +2,7 @@ use crate::{ArgNotFound, Args, Context, Nil, Ret, Type, Value};
 use alloc::boxed::Box;
 
 /// Implementation of [math.floor](https://www.lua.org/manual/5.4/manual.html#pdf-math.floor).
-pub fn floor(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn floor<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1);
     let r = if v.is_int() == Some(true) {
         let mut r = cx.into_results(1);
@@ -18,7 +18,7 @@ pub fn floor(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Err
 }
 
 /// Implementation of [math.log](https://www.lua.org/manual/5.4/manual.html#pdf-math.log).
-pub fn log(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn log<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1).to_num()?;
 
     match cx.arg(2).to_nilable_num(false)? {
@@ -32,7 +32,7 @@ pub fn log(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error
 }
 
 /// Implementation of [math.max](https://www.lua.org/manual/5.4/manual.html#pdf-math.max).
-pub fn max(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn max<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let mut r = cx.arg(1).exists()?;
 
     for i in 2..=cx.args() {
@@ -49,7 +49,7 @@ pub fn max(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error
 }
 
 /// Implementation of [math.sin](https://www.lua.org/manual/5.4/manual.html#pdf-math.sin).
-pub fn sin(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn sin<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1).to_num()?;
 
     cx.push(v.sin())?;
@@ -58,7 +58,7 @@ pub fn sin(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error
 }
 
 /// Implementation of [math.type](https://www.lua.org/manual/5.4/manual.html#pdf-math.type).
-pub fn r#type(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn r#type<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1);
 
     if v.ty().ok_or_else(|| v.error(ArgNotFound))? == Type::Number {
@@ -75,7 +75,7 @@ pub fn r#type(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
 }
 
 #[inline(always)]
-fn pushnumint(d: f64) -> Value {
+fn pushnumint<D>(d: f64) -> Value<D> {
     // TODO: This does not seems right even on Lua implementation. Lua said MININTEGER always has an
     // exact representation as a float but it does not.
     if d >= i64::MIN as f64 && d <= i64::MAX as f64 {

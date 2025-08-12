@@ -16,19 +16,19 @@ mod node;
 
 /// Lua table.
 #[repr(C)]
-pub struct Table {
-    pub(crate) hdr: Object,
+pub struct Table<D> {
+    pub(crate) hdr: Object<D>,
     pub(crate) flags: Cell<u8>,
     pub(crate) lsizenode: Cell<u8>,
     pub(crate) alimit: Cell<u32>,
-    pub(crate) array: Cell<*mut UnsafeValue>,
-    pub(crate) node: Cell<*mut Node>,
-    pub(crate) lastfree: Cell<*mut Node>,
-    pub(crate) metatable: Cell<*const Table>,
+    pub(crate) array: Cell<*mut UnsafeValue<D>>,
+    pub(crate) node: Cell<*mut Node<D>>,
+    pub(crate) lastfree: Cell<*mut Node<D>>,
+    pub(crate) metatable: Cell<*const Self>,
 }
 
-impl Table {
-    pub(crate) unsafe fn new(g: *const Lua) -> *const Self {
+impl<D> Table<D> {
+    pub(crate) unsafe fn new(g: *const Lua<D>) -> *const Self {
         let layout = Layout::new::<Self>();
         let o = unsafe { (*g).gc.alloc(5 | 0 << 4, layout).cast::<Self>() };
 
@@ -36,7 +36,7 @@ impl Table {
         unsafe { addr_of_mut!((*o).lsizenode).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*o).alimit).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*o).array).write(Cell::new(null_mut())) };
-        unsafe { addr_of_mut!((*o).node).write(Cell::new(&raw mut dummynode_)) };
+        unsafe { addr_of_mut!((*o).node).write(Cell::new(&raw const (*g).dummy_node as _)) };
         unsafe { addr_of_mut!((*o).lastfree).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*o).metatable).write(Cell::new(null_mut())) };
 
@@ -44,7 +44,7 @@ impl Table {
     }
 
     /// Returns metatable for this table.
-    pub fn metatable(&self) -> Option<Ref<Table>> {
+    pub fn metatable(&self) -> Option<Ref<Self, D>> {
         let v = self.metatable.get();
 
         match v.is_null() {
@@ -59,7 +59,7 @@ impl Table {
     ///
     /// # Panics
     /// If `v` come from different [Lua](crate::Lua) instance.
-    pub fn set_metatable(&self, v: &Table) -> Result<(), MetatableError> {
+    pub fn set_metatable(&self, v: &Self) -> Result<(), MetatableError> {
         // Check if metatable come from the same Lua.
         if v.hdr.global != self.hdr.global {
             panic!("attempt to set metatable created from a different Lua");
@@ -92,7 +92,7 @@ impl Table {
     ///
     /// # Panics
     /// If `k` come from different [Lua](crate::Lua) instance.
-    pub fn contains_key(&self, k: impl Into<UnsafeValue>) -> bool {
+    pub fn contains_key(&self, k: impl Into<UnsafeValue<D>>) -> bool {
         // Check if key come from the same Lua.
         let k = k.into();
 
@@ -122,7 +122,7 @@ impl Table {
     ///
     /// # Panics
     /// If `k` come from different [Lua](crate::Lua) instance.
-    pub fn get(&self, k: impl Into<UnsafeValue>) -> Value {
+    pub fn get(&self, k: impl Into<UnsafeValue<D>>) -> Value<D> {
         let k = k.into();
 
         if unsafe { (k.tt_ & 1 << 6 != 0) && (*k.value_.gc).global != self.hdr.global } {
@@ -133,7 +133,7 @@ impl Table {
     }
 
     /// Returns a value corresponding to the key.
-    pub fn get_str_key<K>(&self, k: K) -> Value
+    pub fn get_str_key<K>(&self, k: K) -> Value<D>
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -145,7 +145,7 @@ impl Table {
 
     /// # Panics
     /// If `k` come from different [Lua](crate::Lua) instance.
-    pub(crate) fn get_raw(&self, k: impl Into<UnsafeValue>) -> *const UnsafeValue {
+    pub(crate) fn get_raw(&self, k: impl Into<UnsafeValue<D>>) -> *const UnsafeValue<D> {
         let k = k.into();
 
         if unsafe { (k.tt_ & 1 << 6 != 0) && (*k.value_.gc).global != self.hdr.global } {
@@ -156,17 +156,17 @@ impl Table {
     }
 
     #[inline(always)]
-    pub(crate) unsafe fn get_raw_unchecked(&self, k: impl Into<UnsafeValue>) -> &UnsafeValue {
+    pub(crate) unsafe fn get_raw_unchecked(&self, k: impl Into<UnsafeValue<D>>) -> &UnsafeValue<D> {
         unsafe { &*luaH_get(self, &k.into()) }
     }
 
     #[inline(always)]
-    pub(crate) fn get_raw_int_key(&self, k: i64) -> &UnsafeValue {
+    pub(crate) fn get_raw_int_key(&self, k: i64) -> &UnsafeValue<D> {
         unsafe { &*luaH_getint(self, k) }
     }
 
     #[inline(always)]
-    pub(crate) fn get_raw_str_key<K>(&self, k: K) -> *const UnsafeValue
+    pub(crate) fn get_raw_str_key<K>(&self, k: K) -> *const UnsafeValue<D>
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -181,8 +181,8 @@ impl Table {
     /// If `k` or `v` come from different [Lua](crate::Lua) instance.
     pub fn set(
         &self,
-        k: impl Into<UnsafeValue>,
-        v: impl Into<UnsafeValue>,
+        k: impl Into<UnsafeValue<D>>,
+        v: impl Into<UnsafeValue<D>>,
     ) -> Result<(), TableError> {
         // Check if key come from the same Lua.
         let k = k.into();
@@ -205,8 +205,8 @@ impl Table {
     /// `k` and `v` must come from the same [Lua](crate::Lua) instance.
     pub unsafe fn set_unchecked(
         &self,
-        k: impl Into<UnsafeValue>,
-        v: impl Into<UnsafeValue>,
+        k: impl Into<UnsafeValue<D>>,
+        v: impl Into<UnsafeValue<D>>,
     ) -> Result<(), TableError> {
         let k = k.into();
         let v = v.into();
@@ -229,7 +229,7 @@ impl Table {
     ///
     /// # Panics
     /// If `v` come from different [Lua](crate::Lua) instance.
-    pub fn set_str_key<K>(&self, k: K, v: impl Into<UnsafeValue>)
+    pub fn set_str_key<K>(&self, k: K, v: impl Into<UnsafeValue<D>>)
     where
         K: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -244,7 +244,7 @@ impl Table {
     ///
     /// # Safety
     /// `v` must created from the same [`Lua`] instance.
-    pub unsafe fn set_str_key_unchecked<K>(&self, k: K, v: impl Into<UnsafeValue>)
+    pub unsafe fn set_str_key_unchecked<K>(&self, k: K, v: impl Into<UnsafeValue<D>>)
     where
         K: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -256,8 +256,8 @@ impl Table {
 
     pub(crate) unsafe fn next_raw(
         &self,
-        key: &UnsafeValue,
-    ) -> Result<Option<[UnsafeValue; 2]>, Box<dyn core::error::Error>> {
+        key: &UnsafeValue<D>,
+    ) -> Result<Option<[UnsafeValue<D>; 2]>, Box<dyn core::error::Error>> {
         // Get from array table.
         let asize = unsafe { luaH_realasize(self) };
         let mut i = unsafe { findindex(self, key, asize)? };
@@ -297,13 +297,13 @@ impl Table {
     }
 }
 
-impl Drop for Table {
+impl<D> Drop for Table<D> {
     fn drop(&mut self) {
         unsafe { freehash(self) };
         unsafe {
             luaM_free_(
                 self.array.get().cast(),
-                (luaH_realasize(self) as usize).wrapping_mul(size_of::<UnsafeValue>()),
+                (luaH_realasize(self) as usize).wrapping_mul(size_of::<UnsafeValue<D>>()),
             )
         };
     }

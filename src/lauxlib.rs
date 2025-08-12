@@ -13,7 +13,7 @@ use crate::lapi::{
     lua_settop, lua_tolstring, lua_tonumberx, lua_touserdata, lua_type, lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
-use crate::lstate::{CallInfo, lua_Debug};
+use crate::lstate::lua_Debug;
 use crate::{Thread, lua_pop};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
@@ -24,8 +24,8 @@ use core::fmt::{Display, Formatter, Write};
 use core::num::NonZero;
 use libc::strcmp;
 
-unsafe fn findfield(
-    L: *const Thread,
+unsafe fn findfield<D>(
+    L: *const Thread<D>,
     objidx: libc::c_int,
     level: libc::c_int,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
@@ -51,9 +51,9 @@ unsafe fn findfield(
     return Ok(0 as libc::c_int);
 }
 
-unsafe fn pushglobalfuncname(
-    L: *const Thread,
-    ar: &mut lua_Debug,
+unsafe fn pushglobalfuncname<D>(
+    L: *const Thread<D>,
+    ar: &mut lua_Debug<D>,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     let top: libc::c_int = lua_gettop(L);
     lua_getinfo(L, b"f\0" as *const u8 as *const c_char, ar);
@@ -82,10 +82,10 @@ unsafe fn pushglobalfuncname(
     }
 }
 
-unsafe fn pushfuncname(
-    L: *mut Thread,
+unsafe fn pushfuncname<D>(
+    L: *mut Thread<D>,
     dst: &mut String,
-    ar: &mut lua_Debug,
+    ar: &mut lua_Debug<D>,
 ) -> Result<(), Box<dyn core::error::Error>> {
     if pushglobalfuncname(L, ar)? != 0 {
         let n = lua_tolstring(L, -1, true);
@@ -112,24 +112,8 @@ unsafe fn pushfuncname(
     Ok(())
 }
 
-unsafe fn lastlevel(L: *mut Thread) -> libc::c_int {
-    let mut ar: lua_Debug = lua_Debug {
-        event: 0,
-        name: 0 as *const c_char,
-        namewhat: 0 as *const c_char,
-        what: 0 as *const c_char,
-        source: None,
-        currentline: 0,
-        linedefined: 0,
-        lastlinedefined: 0,
-        nups: 0,
-        nparams: 0,
-        isvararg: 0,
-        istailcall: 0,
-        ftransfer: 0,
-        ntransfer: 0,
-        i_ci: 0 as *mut CallInfo,
-    };
+unsafe fn lastlevel<D>(L: *mut Thread<D>) -> libc::c_int {
+    let mut ar = lua_Debug::default();
     let mut li: libc::c_int = 1 as libc::c_int;
     let mut le: libc::c_int = 1 as libc::c_int;
     while lua_getstack(L, le, &mut ar) != 0 {
@@ -147,30 +131,14 @@ unsafe fn lastlevel(L: *mut Thread) -> libc::c_int {
     return le - 1 as libc::c_int;
 }
 
-pub unsafe fn luaL_traceback(
-    L: *mut Thread,
-    L1: *mut Thread,
+pub unsafe fn luaL_traceback<D>(
+    L: *mut Thread<D>,
+    L1: *mut Thread<D>,
     msg: *const c_char,
     mut level: libc::c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let mut b = String::new();
-    let mut ar: lua_Debug = lua_Debug {
-        event: 0,
-        name: 0 as *const c_char,
-        namewhat: 0 as *const c_char,
-        what: 0 as *const c_char,
-        source: None,
-        currentline: 0,
-        linedefined: 0,
-        lastlinedefined: 0,
-        nups: 0,
-        nparams: 0,
-        isvararg: 0,
-        istailcall: 0,
-        ftransfer: 0,
-        ntransfer: 0,
-        i_ci: 0 as *mut CallInfo,
-    };
+    let mut ar = lua_Debug::default();
     let last: libc::c_int = lastlevel(L1);
     let mut limit2show: libc::c_int = if last - level > 10 as libc::c_int + 11 as libc::c_int {
         10 as libc::c_int
@@ -233,8 +201,8 @@ pub unsafe fn luaL_traceback(
 
 /// `arg` is used only for display.
 #[inline(never)]
-pub unsafe fn luaL_argerror(
-    L: *const Thread,
+pub unsafe fn luaL_argerror<D>(
+    L: *const Thread<D>,
     mut arg: NonZero<usize>,
     reason: impl Into<Box<dyn core::error::Error>>,
 ) -> Box<dyn core::error::Error> {
@@ -282,8 +250,8 @@ pub unsafe fn luaL_argerror(
 }
 
 #[inline(never)]
-pub unsafe fn luaL_typeerror(
-    L: *const Thread,
+pub unsafe fn luaL_typeerror<D>(
+    L: *const Thread<D>,
     arg: libc::c_int,
     expect: impl Display,
 ) -> Box<dyn core::error::Error> {
@@ -300,32 +268,16 @@ pub unsafe fn luaL_typeerror(
     );
 }
 
-unsafe fn tag_error(
-    L: *const Thread,
+unsafe fn tag_error<D>(
+    L: *const Thread<D>,
     arg: libc::c_int,
     tag: libc::c_int,
 ) -> Box<dyn core::error::Error> {
     luaL_typeerror(L, arg, lua_typename(tag))
 }
 
-pub unsafe fn luaL_where(L: *const Thread, level: libc::c_int) -> Cow<'static, str> {
-    let mut ar: lua_Debug = lua_Debug {
-        event: 0,
-        name: 0 as *const c_char,
-        namewhat: 0 as *const c_char,
-        what: 0 as *const c_char,
-        source: None,
-        currentline: 0,
-        linedefined: 0,
-        lastlinedefined: 0,
-        nups: 0,
-        nparams: 0,
-        isvararg: 0,
-        istailcall: 0,
-        ftransfer: 0,
-        ntransfer: 0,
-        i_ci: 0 as *mut CallInfo,
-    };
+pub unsafe fn luaL_where<D>(L: *const Thread<D>, level: libc::c_int) -> Cow<'static, str> {
+    let mut ar = lua_Debug::default();
 
     if lua_getstack(L, level, &mut ar) != 0 {
         lua_getinfo(L, b"Sl\0" as *const u8 as *const c_char, &mut ar);
@@ -343,12 +295,12 @@ pub unsafe fn luaL_where(L: *const Thread, level: libc::c_int) -> Cow<'static, s
     "".into()
 }
 
-pub unsafe fn luaL_error(L: *const Thread, m: impl Display) -> Box<dyn core::error::Error> {
+pub unsafe fn luaL_error<D>(L: *const Thread<D>, m: impl Display) -> Box<dyn core::error::Error> {
     format!("{}{}", luaL_where(L, 1), m).into()
 }
 
-pub unsafe fn luaL_newmetatable(
-    L: *mut Thread,
+pub unsafe fn luaL_newmetatable<D>(
+    L: *mut Thread<D>,
     tname: *const c_char,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     if lua_getfield(
@@ -372,8 +324,8 @@ pub unsafe fn luaL_newmetatable(
     return Ok(1 as libc::c_int);
 }
 
-pub unsafe fn luaL_setmetatable(
-    L: *mut Thread,
+pub unsafe fn luaL_setmetatable<D>(
+    L: *mut Thread<D>,
     tname: *const c_char,
 ) -> Result<(), Box<dyn core::error::Error>> {
     lua_getfield(
@@ -390,8 +342,8 @@ pub unsafe fn luaL_setmetatable(
     Ok(())
 }
 
-pub unsafe fn luaL_testudata(
-    L: *mut Thread,
+pub unsafe fn luaL_testudata<D>(
+    L: *mut Thread<D>,
     ud: libc::c_int,
     tname: &str,
 ) -> Result<*mut libc::c_void, Box<dyn core::error::Error>> {
@@ -409,8 +361,8 @@ pub unsafe fn luaL_testudata(
     return Ok(0 as *mut libc::c_void);
 }
 
-pub unsafe fn luaL_checkudata(
-    L: *mut Thread,
+pub unsafe fn luaL_checkudata<D>(
+    L: *mut Thread<D>,
     ud: libc::c_int,
     name: &str,
 ) -> Result<*mut libc::c_void, Box<dyn core::error::Error>> {
@@ -423,8 +375,8 @@ pub unsafe fn luaL_checkudata(
     }
 }
 
-pub unsafe fn luaL_checkstack(
-    L: *const Thread,
+pub unsafe fn luaL_checkstack<D>(
+    L: *const Thread<D>,
     space: usize,
     msg: *const c_char,
 ) -> Result<(), Box<dyn core::error::Error>> {
@@ -442,8 +394,8 @@ pub unsafe fn luaL_checkstack(
     Ok(())
 }
 
-pub unsafe fn luaL_checktype(
-    L: *const Thread,
+pub unsafe fn luaL_checktype<D>(
+    L: *const Thread<D>,
     arg: libc::c_int,
     t: libc::c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
@@ -455,8 +407,8 @@ pub unsafe fn luaL_checktype(
     Ok(())
 }
 
-pub unsafe fn luaL_checknumber(
-    L: *const Thread,
+pub unsafe fn luaL_checknumber<D>(
+    L: *const Thread<D>,
     arg: libc::c_int,
 ) -> Result<f64, Box<dyn core::error::Error>> {
     let mut isnum: libc::c_int = 0;
@@ -467,8 +419,8 @@ pub unsafe fn luaL_checknumber(
     return Ok(d);
 }
 
-pub unsafe fn luaL_getmetafield(
-    L: *const Thread,
+pub unsafe fn luaL_getmetafield<D>(
+    L: *const Thread<D>,
     obj: libc::c_int,
     event: *const c_char,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
@@ -488,8 +440,8 @@ pub unsafe fn luaL_getmetafield(
     };
 }
 
-pub unsafe fn luaL_getsubtable(
-    L: *const Thread,
+pub unsafe fn luaL_getsubtable<D>(
+    L: *const Thread<D>,
     mut idx: libc::c_int,
     fname: *const c_char,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {

@@ -20,15 +20,15 @@ use core::task::{Poll, Waker};
 mod arg;
 
 /// Context to invoke Rust function.
-pub struct Context<'a, T> {
-    th: &'a Thread,
+pub struct Context<'a, D, T> {
+    th: &'a Thread<D>,
     ret: Cell<usize>,
     payload: T,
 }
 
-impl<'a, T> Context<'a, T> {
+impl<'a, D, T> Context<'a, D, T> {
     #[inline(always)]
-    pub(crate) fn new(th: &'a Thread, payload: T) -> Self {
+    pub(crate) fn new(th: &'a Thread<D>, payload: T) -> Self {
         Self {
             th,
             ret: Cell::new(0),
@@ -37,7 +37,7 @@ impl<'a, T> Context<'a, T> {
     }
 
     /// Create a Lua string.
-    pub fn create_str<V>(&self, v: V) -> Ref<Str>
+    pub fn create_str<V>(&self, v: V) -> Ref<Str<D>, D>
     where
         V: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -47,7 +47,11 @@ impl<'a, T> Context<'a, T> {
     }
 
     /// Load a Lua chunk.
-    pub fn load(&self, info: ChunkInfo, chunk: impl AsRef<[u8]>) -> Result<Ref<LuaFn>, ParseError> {
+    pub fn load(
+        &self,
+        info: ChunkInfo,
+        chunk: impl AsRef<[u8]>,
+    ) -> Result<Ref<LuaFn<D>, D>, ParseError> {
         self.th.hdr.global().load(info, chunk)
     }
 
@@ -55,7 +59,7 @@ impl<'a, T> Context<'a, T> {
     ///
     /// # Panics
     /// If `v` come from different [Lua](crate::Lua) instance.
-    pub fn push(&self, v: impl Into<UnsafeValue>) -> Result<(), StackOverflow> {
+    pub fn push(&self, v: impl Into<UnsafeValue<D>>) -> Result<(), StackOverflow> {
         // Check if value come from the same Lua.
         let v = v.into();
 
@@ -77,7 +81,7 @@ impl<'a, T> Context<'a, T> {
     ///
     /// # Safety
     /// `v` must created from the same [Lua](crate::Lua) instance.
-    pub unsafe fn push_unchecked(&self, v: impl Into<UnsafeValue>) -> Result<(), StackOverflow> {
+    pub unsafe fn push_unchecked(&self, v: impl Into<UnsafeValue<D>>) -> Result<(), StackOverflow> {
         let v = v.into();
 
         unsafe { lua_checkstack(self.th, 1)? };
@@ -133,8 +137,8 @@ impl<'a, T> Context<'a, T> {
     /// If `t` or `k` created from different [Lua](crate::Lua) instance.
     pub fn push_next(
         &self,
-        t: &Table,
-        k: impl Into<UnsafeValue>,
+        t: &Table<D>,
+        k: impl Into<UnsafeValue<D>>,
     ) -> Result<bool, Box<dyn core::error::Error>> {
         unsafe { lua_checkstack(self.th, 2)? };
 
@@ -171,8 +175,8 @@ impl<'a, T> Context<'a, T> {
     /// If `t` or `k` created from different [Lua](crate::Lua) instance.
     pub fn push_from_table(
         &self,
-        t: &Table,
-        k: impl Into<UnsafeValue>,
+        t: &Table<D>,
+        k: impl Into<UnsafeValue<D>>,
     ) -> Result<Type, StackOverflow> {
         unsafe { lua_checkstack(self.th, 1)? };
 
@@ -195,7 +199,7 @@ impl<'a, T> Context<'a, T> {
     ///
     /// # Panics
     /// If `t` created from different [Lua](crate::Lua) instance.
-    pub fn push_from_str_key<K>(&self, t: &Table, k: K) -> Result<Type, StackOverflow>
+    pub fn push_from_str_key<K>(&self, t: &Table<D>, k: K) -> Result<Type, StackOverflow>
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -224,8 +228,8 @@ impl<'a, T> Context<'a, T> {
     /// If `t` or `k` come from different [Lua](crate::Lua) instance.
     pub fn push_from_index(
         &self,
-        t: impl Into<UnsafeValue>,
-        k: impl Into<UnsafeValue>,
+        t: impl Into<UnsafeValue<D>>,
+        k: impl Into<UnsafeValue<D>>,
     ) -> Result<Type, Box<dyn core::error::Error>> {
         unsafe { lua_checkstack(self.th, 1)? };
 
@@ -248,7 +252,7 @@ impl<'a, T> Context<'a, T> {
         let ok = if !(t.tt_ == 5 | 0 << 4 | 1 << 6) {
             false
         } else {
-            let t = unsafe { t.value_.gc.cast::<Table>() };
+            let t = unsafe { t.value_.gc.cast::<Table<D>>() };
 
             slot = unsafe { luaH_get(t, &k) };
 
@@ -278,7 +282,7 @@ impl<'a, T> Context<'a, T> {
     /// If `t` come from different [Lua](crate::Lua) instance.
     pub fn push_from_index_with_int(
         &self,
-        t: impl Into<UnsafeValue>,
+        t: impl Into<UnsafeValue<D>>,
         k: i64,
     ) -> Result<Type, Box<dyn core::error::Error>> {
         unsafe { lua_checkstack(self.th, 1)? };
@@ -295,7 +299,7 @@ impl<'a, T> Context<'a, T> {
         let ok = if !(t.tt_ == 5 | 0 << 4 | 1 << 6) {
             false
         } else {
-            let t = unsafe { t.value_.gc.cast::<Table>() };
+            let t = unsafe { t.value_.gc.cast::<Table<D>>() };
 
             slot = unsafe { luaH_getint(t, k) };
 
@@ -335,7 +339,7 @@ impl<'a, T> Context<'a, T> {
     pub fn try_forward(
         self,
         f: impl TryInto<NonZero<usize>>,
-    ) -> Result<TryCall<'a>, Box<dyn core::error::Error>> {
+    ) -> Result<TryCall<'a, D>, Box<dyn core::error::Error>> {
         // Get function index.
         let f = match f.try_into() {
             Ok(v) => v,
@@ -385,7 +389,7 @@ impl<'a, T> Context<'a, T> {
     ///
     /// # Panics
     /// If `i` is not a valid stack index.
-    pub fn into_results(self, i: impl TryInto<NonZero<isize>>) -> Context<'a, Ret> {
+    pub fn into_results(self, i: impl TryInto<NonZero<isize>>) -> Context<'a, D, Ret> {
         // Get start index.
         let i = match i.try_into() {
             Ok(v) => v,
@@ -417,7 +421,7 @@ impl<'a, T> Context<'a, T> {
     }
 }
 
-impl<'a> Context<'a, Args> {
+impl<'a, D> Context<'a, D, Args> {
     /// Returns number of arguments for this call.
     #[inline(always)]
     pub fn args(&self) -> usize {
@@ -430,7 +434,7 @@ impl<'a> Context<'a, Args> {
     /// # Panics
     /// If `n` is zero.
     #[inline(always)]
-    pub fn arg(&self, n: impl TryInto<NonZero<usize>>) -> Arg<'_, 'a> {
+    pub fn arg(&self, n: impl TryInto<NonZero<usize>>) -> Arg<'_, 'a, D> {
         let n = match n.try_into() {
             Ok(v) => v,
             Err(_) => panic!("zero is not a valid argument index"),
@@ -440,7 +444,7 @@ impl<'a> Context<'a, Args> {
     }
 }
 
-impl<'a> Context<'a, Ret> {
+impl<'a, D> Context<'a, D, Ret> {
     /// Insert `v` at `i` by shift all above values.
     ///
     /// # Panics
@@ -449,7 +453,7 @@ impl<'a> Context<'a, Ret> {
     pub fn insert(
         &self,
         i: impl TryInto<NonZero<usize>>,
-        v: impl Into<UnsafeValue>,
+        v: impl Into<UnsafeValue<D>>,
     ) -> Result<(), StackOverflow> {
         // Check if index lower than the first result.
         let i = match i.try_into() {
@@ -519,9 +523,9 @@ impl<'a> Context<'a, Ret> {
     }
 }
 
-impl<'a> From<Context<'a, Args>> for Context<'a, Ret> {
+impl<'a, D> From<Context<'a, D, Args>> for Context<'a, D, Ret> {
     #[inline(always)]
-    fn from(value: Context<'a, Args>) -> Self {
+    fn from(value: Context<'a, D, Args>) -> Self {
         Self {
             th: value.th,
             ret: value.ret,
@@ -531,9 +535,9 @@ impl<'a> From<Context<'a, Args>> for Context<'a, Ret> {
 }
 
 /// Success result of [`Context::try_forward()`].
-pub enum TryCall<'a> {
-    Ok(Context<'a, Ret>),
-    Err(Context<'a, Ret>, Box<CallError>),
+pub enum TryCall<'a, D> {
+    Ok(Context<'a, D, Ret>),
+    Err(Context<'a, D, Ret>, Box<CallError>),
 }
 
 /// Call arguments encapsulated in [`Context`].

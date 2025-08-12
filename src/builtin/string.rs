@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 use libc::snprintf;
 
 /// Implementation of [string.format](https://www.lua.org/manual/5.4/manual.html#pdf-string.format).
-pub fn format(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn format<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     // Get format.
     let mut arg = 1;
     let fmt = cx.arg(arg);
@@ -275,7 +275,7 @@ pub fn format(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Er
 }
 
 /// Implementation of [string.sub](https://www.lua.org/manual/5.4/manual.html#pdf-string.sub).
-pub fn sub(cx: Context<Args>) -> Result<Context<Ret>, Box<dyn core::error::Error>> {
+pub fn sub<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let s = cx.arg(1).get_str()?.as_bytes();
     let start = cx.arg(2).to_int()?;
     let start = posrelatI(start, s.len().try_into().unwrap());

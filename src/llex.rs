@@ -13,7 +13,7 @@ use crate::lparser::{Dyndata, FuncState};
 use crate::lzio::{Mbuffer, ZIO};
 use crate::table::{luaH_finishset, luaH_getstr};
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{ChunkInfo, Lua, Node, Object, ParseError, Ref, Str, Table};
+use crate::{ChunkInfo, Lua, Node, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;
 use alloc::rc::Rc;
@@ -22,6 +22,7 @@ use core::ffi::CStr;
 use core::fmt::Display;
 use core::ops::Deref;
 use core::pin::Pin;
+use core::ptr::{null, null_mut};
 
 pub type RESERVED = libc::c_uint;
 pub const TK_STRING: RESERVED = 292;
@@ -62,35 +63,49 @@ pub const TK_DO: RESERVED = 258;
 pub const TK_BREAK: RESERVED = 257;
 pub const TK_AND: RESERVED = 256;
 
-#[derive(Copy, Clone)]
 #[repr(C)]
-pub union SemInfo {
+pub union SemInfo<D> {
     pub r: f64,
     pub i: i64,
-    pub ts: *const Str,
+    pub ts: *const Str<D>,
 }
 
-#[derive(Copy, Clone)]
+impl<D> Clone for SemInfo<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for SemInfo<D> {}
+
 #[repr(C)]
-pub struct Token {
+pub struct Token<D> {
     pub token: libc::c_int,
-    pub seminfo: SemInfo,
+    pub seminfo: SemInfo<D>,
 }
 
-pub struct LexState {
+impl<D> Clone for Token<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for Token<D> {}
+
+pub struct LexState<D> {
     pub current: libc::c_int,
     pub linenumber: libc::c_int,
     pub lastline: libc::c_int,
-    pub t: Token,
-    pub lookahead: Token,
-    pub fs: *mut FuncState,
-    pub g: Pin<Rc<Lua>>,
+    pub t: Token<D>,
+    pub lookahead: Token<D>,
+    pub fs: *mut FuncState<D>,
+    pub g: Pin<Rc<Lua<D>>>,
     pub z: *mut ZIO,
     pub buff: *mut Mbuffer,
-    pub h: Ref<Table>,
-    pub dyd: *mut Dyndata,
+    pub h: Ref<Table<D>, D>,
+    pub dyd: *mut Dyndata<D>,
     pub source: ChunkInfo,
-    pub envn: *const Str,
+    pub envn: *const Str<D>,
     pub level: usize,
 }
 
@@ -134,7 +149,7 @@ pub const luaX_tokens: [&str; 37] = [
     "<string>",
 ];
 
-unsafe fn save(ls: *mut LexState, c: libc::c_int) {
+unsafe fn save<D>(ls: *mut LexState<D>, c: libc::c_int) {
     let b: *mut Mbuffer = (*ls).buff;
     if ((*b).n).wrapping_add(1 as libc::c_int as usize) > (*b).buffsize {
         let newsize = (*b).buffsize * 2 as libc::c_int as usize;
@@ -173,7 +188,7 @@ pub unsafe fn luaX_token2str(token: libc::c_int) -> Cow<'static, str> {
     };
 }
 
-unsafe fn txtToken(ls: *mut LexState, token: libc::c_int) -> Cow<'static, str> {
+unsafe fn txtToken<D>(ls: *mut LexState<D>, token: libc::c_int) -> Cow<'static, str> {
     match token {
         291 | 292 | 289 | 290 => {
             save(ls, '\0' as i32);
@@ -188,7 +203,7 @@ unsafe fn txtToken(ls: *mut LexState, token: libc::c_int) -> Cow<'static, str> {
     }
 }
 
-unsafe fn lexerror(ls: *mut LexState, msg: impl Display, token: libc::c_int) -> ParseError {
+unsafe fn lexerror<D>(ls: *mut LexState<D>, msg: impl Display, token: libc::c_int) -> ParseError {
     let token = if token != 0 {
         Some(txtToken(ls, token))
     } else {
@@ -202,23 +217,27 @@ unsafe fn lexerror(ls: *mut LexState, msg: impl Display, token: libc::c_int) -> 
     }
 }
 
-pub unsafe fn luaX_syntaxerror(ls: *mut LexState, msg: impl Display) -> ParseError {
+pub unsafe fn luaX_syntaxerror<D>(ls: *mut LexState<D>, msg: impl Display) -> ParseError {
     lexerror(ls, msg, (*ls).t.token)
 }
 
-pub unsafe fn luaX_newstring(ls: *mut LexState, str: *const libc::c_char, l: usize) -> *const Str {
+pub unsafe fn luaX_newstring<D>(
+    ls: *mut LexState<D>,
+    str: *const libc::c_char,
+    l: usize,
+) -> *const Str<D> {
     let str = core::slice::from_raw_parts(str.cast(), l);
     let gc = (&(*ls).g).lock_gc();
     let mut ts = match core::str::from_utf8(str) {
         Ok(v) => Str::from_str((*ls).g.deref(), v),
         Err(_) => Str::from_bytes((*ls).g.deref(), str),
     };
-    let o: *const UnsafeValue = luaH_getstr((*ls).h.deref(), ts);
+    let o = luaH_getstr((*ls).h.deref(), ts);
 
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
-        ts = (*(o as *mut Node)).u.key_val.gc as *mut Str;
+        ts = (*(o as *mut Node<D>)).u.key_val.gc as *mut Str<D>;
     } else {
-        let ts = Ref::new(ts);
+        let ts = Ref::<_, D>::new(ts);
         let stv = UnsafeValue {
             value_: UntaggedValue { gc: &ts.hdr },
             tt_: ((*ts).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8,
@@ -230,7 +249,7 @@ pub unsafe fn luaX_newstring(ls: *mut LexState, str: *const libc::c_char, l: usi
     ts
 }
 
-unsafe fn inclinenumber(ls: *mut LexState) {
+unsafe fn inclinenumber<D>(ls: *mut LexState<D>) {
     let old: libc::c_int = (*ls).current;
     let fresh2 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -255,12 +274,12 @@ unsafe fn inclinenumber(ls: *mut LexState) {
     (*ls).linenumber = (*ls).linenumber.checked_add(1).unwrap();
 }
 
-pub unsafe fn luaX_setinput(ls: &mut LexState, z: *mut ZIO, firstchar: libc::c_int) {
+pub unsafe fn luaX_setinput<D>(ls: &mut LexState<D>, z: *mut ZIO, firstchar: libc::c_int) {
     (*ls).t.token = 0 as libc::c_int;
     (*ls).current = firstchar;
     (*ls).lookahead.token = TK_EOS as libc::c_int;
     (*ls).z = z;
-    (*ls).fs = 0 as *mut FuncState;
+    (*ls).fs = null_mut();
     (*ls).linenumber = 1 as libc::c_int;
     (*ls).lastline = 1 as libc::c_int;
     (*ls).envn = Str::from_str((*ls).g.deref(), "_ENV");
@@ -273,7 +292,7 @@ pub unsafe fn luaX_setinput(ls: &mut LexState, z: *mut ZIO, firstchar: libc::c_i
     (*(*ls).buff).buffsize = 32 as libc::c_int as usize;
 }
 
-unsafe fn check_next1(ls: *mut LexState, c: libc::c_int) -> libc::c_int {
+unsafe fn check_next1<D>(ls: *mut LexState<D>, c: libc::c_int) -> libc::c_int {
     if (*ls).current == c {
         let fresh6 = (*(*ls).z).n;
         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -290,7 +309,7 @@ unsafe fn check_next1(ls: *mut LexState, c: libc::c_int) -> libc::c_int {
     };
 }
 
-unsafe fn check_next2(ls: *mut LexState, set: *const libc::c_char) -> libc::c_int {
+unsafe fn check_next2<D>(ls: *mut LexState<D>, set: *const libc::c_char) -> libc::c_int {
     if (*ls).current == *set.offset(0 as libc::c_int as isize) as libc::c_int
         || (*ls).current == *set.offset(1 as libc::c_int as isize) as libc::c_int
     {
@@ -310,14 +329,12 @@ unsafe fn check_next2(ls: *mut LexState, set: *const libc::c_char) -> libc::c_in
     };
 }
 
-unsafe fn read_numeral(
-    ls: *mut LexState,
-    seminfo: *mut SemInfo,
+unsafe fn read_numeral<D>(
+    ls: *mut LexState<D>,
+    seminfo: *mut SemInfo<D>,
 ) -> Result<libc::c_int, ParseError> {
-    let mut obj: UnsafeValue = UnsafeValue {
-        value_: UntaggedValue {
-            gc: 0 as *mut Object,
-        },
+    let mut obj = UnsafeValue::<D> {
+        value_: UntaggedValue { gc: null() },
         tt_: 0,
     };
     let mut expo: *const libc::c_char = b"Ee\0" as *const u8 as *const libc::c_char;
@@ -386,7 +403,7 @@ unsafe fn read_numeral(
     };
 }
 
-unsafe fn skip_sep(ls: *mut LexState) -> usize {
+unsafe fn skip_sep<D>(ls: *mut LexState<D>) -> usize {
     let mut count: usize = 0 as libc::c_int as usize;
     let s: libc::c_int = (*ls).current;
     save(ls, (*ls).current);
@@ -423,9 +440,9 @@ unsafe fn skip_sep(ls: *mut LexState) -> usize {
     };
 }
 
-unsafe fn read_long_string(
-    ls: *mut LexState,
-    seminfo: *mut SemInfo,
+unsafe fn read_long_string<D>(
+    ls: *mut LexState<D>,
+    seminfo: *mut SemInfo<D>,
     sep: usize,
 ) -> Result<(), ParseError> {
     let line: libc::c_int = (*ls).linenumber;
@@ -517,7 +534,11 @@ unsafe fn read_long_string(
     Ok(())
 }
 
-unsafe fn esccheck(ls: *mut LexState, c: libc::c_int, msg: impl Display) -> Result<(), ParseError> {
+unsafe fn esccheck<D>(
+    ls: *mut LexState<D>,
+    c: libc::c_int,
+    msg: impl Display,
+) -> Result<(), ParseError> {
     if c == 0 {
         if (*ls).current != -(1 as libc::c_int) {
             save(ls, (*ls).current);
@@ -537,7 +558,7 @@ unsafe fn esccheck(ls: *mut LexState, c: libc::c_int, msg: impl Display) -> Resu
     Ok(())
 }
 
-unsafe fn gethexa(ls: *mut LexState) -> Result<libc::c_int, ParseError> {
+unsafe fn gethexa<D>(ls: *mut LexState<D>) -> Result<libc::c_int, ParseError> {
     save(ls, (*ls).current);
     let fresh30 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -557,14 +578,14 @@ unsafe fn gethexa(ls: *mut LexState) -> Result<libc::c_int, ParseError> {
     return Ok(luaO_hexavalue((*ls).current));
 }
 
-unsafe fn readhexaesc(ls: *mut LexState) -> Result<libc::c_int, ParseError> {
+unsafe fn readhexaesc<D>(ls: *mut LexState<D>) -> Result<libc::c_int, ParseError> {
     let mut r: libc::c_int = gethexa(ls)?;
     r = (r << 4 as libc::c_int) + gethexa(ls)?;
     (*(*ls).buff).n = ((*(*ls).buff).n).wrapping_sub(2 as libc::c_int as usize);
     return Ok(r);
 }
 
-unsafe fn readutf8esc(ls: *mut LexState) -> Result<libc::c_ulong, ParseError> {
+unsafe fn readutf8esc<D>(ls: *mut LexState<D>) -> Result<libc::c_ulong, ParseError> {
     let mut r: libc::c_ulong = 0;
     let mut i: libc::c_int = 4 as libc::c_int;
     save(ls, (*ls).current);
@@ -626,7 +647,7 @@ unsafe fn readutf8esc(ls: *mut LexState) -> Result<libc::c_ulong, ParseError> {
     return Ok(r);
 }
 
-unsafe fn utf8esc(ls: *mut LexState) -> Result<(), ParseError> {
+unsafe fn utf8esc<D>(ls: *mut LexState<D>) -> Result<(), ParseError> {
     let mut buff: [libc::c_char; 8] = [0; 8];
     let mut n: libc::c_int = luaO_utf8esc(buff.as_mut_ptr(), readutf8esc(ls)?);
     while n > 0 as libc::c_int {
@@ -636,7 +657,7 @@ unsafe fn utf8esc(ls: *mut LexState) -> Result<(), ParseError> {
     Ok(())
 }
 
-unsafe fn readdecesc(ls: *mut LexState) -> Result<libc::c_int, ParseError> {
+unsafe fn readdecesc<D>(ls: *mut LexState<D>) -> Result<libc::c_int, ParseError> {
     let mut i: libc::c_int = 0;
     let mut r: libc::c_int = 0 as libc::c_int;
     i = 0 as libc::c_int;
@@ -667,10 +688,10 @@ unsafe fn readdecesc(ls: *mut LexState) -> Result<libc::c_int, ParseError> {
     return Ok(r);
 }
 
-unsafe fn read_string(
-    ls: *mut LexState,
+unsafe fn read_string<D>(
+    ls: *mut LexState<D>,
     del: libc::c_int,
-    seminfo: *mut SemInfo,
+    seminfo: *mut SemInfo<D>,
 ) -> Result<(), ParseError> {
     let mut current_block: u64;
     save(ls, (*ls).current);
@@ -840,7 +861,10 @@ unsafe fn read_string(
     Ok(())
 }
 
-unsafe fn llex(ls: *mut LexState, seminfo: *mut SemInfo) -> Result<libc::c_int, ParseError> {
+unsafe fn llex<D>(
+    ls: *mut LexState<D>,
+    seminfo: *mut SemInfo<D>,
+) -> Result<libc::c_int, ParseError> {
     (*(*ls).buff).n = 0 as libc::c_int as usize;
     loop {
         let current_block_85: u64;
@@ -883,7 +907,7 @@ unsafe fn llex(ls: *mut LexState, seminfo: *mut SemInfo) -> Result<libc::c_int, 
                     let sep: usize = skip_sep(ls);
                     (*(*ls).buff).n = 0 as libc::c_int as usize;
                     if sep >= 2 as libc::c_int as usize {
-                        read_long_string(ls, 0 as *mut SemInfo, sep)?;
+                        read_long_string(ls, null_mut(), sep)?;
                         (*(*ls).buff).n = 0 as libc::c_int as usize;
                         current_block_85 = 10512632378975961025;
                     } else {
@@ -1118,7 +1142,7 @@ unsafe fn llex(ls: *mut LexState, seminfo: *mut SemInfo) -> Result<libc::c_int, 
     }
 }
 
-pub unsafe fn luaX_next(ls: *mut LexState) -> Result<(), ParseError> {
+pub unsafe fn luaX_next<D>(ls: *mut LexState<D>) -> Result<(), ParseError> {
     (*ls).lastline = (*ls).linenumber;
     if (*ls).lookahead.token != TK_EOS as libc::c_int {
         (*ls).t = (*ls).lookahead;
@@ -1129,7 +1153,7 @@ pub unsafe fn luaX_next(ls: *mut LexState) -> Result<(), ParseError> {
     Ok(())
 }
 
-pub unsafe fn luaX_lookahead(ls: *mut LexState) -> Result<libc::c_int, ParseError> {
+pub unsafe fn luaX_lookahead<D>(ls: *mut LexState<D>) -> Result<libc::c_int, ParseError> {
     (*ls).lookahead.token = llex(ls, &mut (*ls).lookahead.seminfo)?;
     return Ok((*ls).lookahead.token);
 }

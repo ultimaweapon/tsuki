@@ -8,8 +8,8 @@ use crate::lapi::lua_checkstack;
 use crate::ldo::luaD_call;
 use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
-use crate::lobject::{StackValue, StkId, UpVal};
-use crate::lstate::{CallInfo, lua_Hook};
+use crate::lobject::{StackValue, UpVal};
+use crate::lstate::{CallInfo, lua_Debug};
 use crate::value::UnsafeValue;
 use crate::{Lua, NON_YIELDABLE_WAKER, Object};
 use alloc::alloc::handle_alloc_error;
@@ -27,19 +27,19 @@ mod stack;
 
 /// Lua thread (AKA coroutine).
 #[repr(C)]
-pub struct Thread {
-    pub(crate) hdr: Object,
+pub struct Thread<D> {
+    pub(crate) hdr: Object<D>,
     pub(crate) allowhook: Cell<u8>,
     pub(crate) nci: Cell<u16>,
-    pub(crate) top: StackPtr,
-    pub(crate) ci: Cell<*mut CallInfo>,
-    pub(crate) stack_last: Cell<StkId>,
-    pub(crate) stack: Cell<StkId>,
-    pub(crate) openupval: Cell<*mut UpVal>,
-    pub(crate) tbclist: Cell<StkId>,
-    pub(crate) twups: Cell<*const Thread>,
-    pub(crate) base_ci: UnsafeCell<CallInfo>,
-    pub(crate) hook: Cell<lua_Hook>,
+    pub(crate) top: StackPtr<D>,
+    pub(crate) ci: Cell<*mut CallInfo<D>>,
+    pub(crate) stack_last: Cell<*mut StackValue<D>>,
+    pub(crate) stack: Cell<*mut StackValue<D>>,
+    pub(crate) openupval: Cell<*mut UpVal<D>>,
+    pub(crate) tbclist: Cell<*mut StackValue<D>>,
+    pub(crate) twups: Cell<*const Self>,
+    pub(crate) base_ci: UnsafeCell<CallInfo<D>>,
+    pub(crate) hook: Cell<Option<unsafe fn(*const Self, *mut lua_Debug<D>)>>,
     pub(crate) oldpc: Cell<i32>,
     pub(crate) basehookcount: Cell<i32>,
     pub(crate) hookcount: Cell<i32>,
@@ -47,12 +47,12 @@ pub struct Thread {
     phantom: PhantomPinned,
 }
 
-impl Thread {
+impl<D> Thread<D> {
     #[inline(never)]
-    pub(crate) fn new(g: &Lua) -> *const Self {
+    pub(crate) fn new(g: &Lua<D>) -> *const Self {
         // Create new thread.
-        let layout = Layout::new::<Thread>();
-        let th = unsafe { g.gc.alloc(8, layout).cast::<Thread>() };
+        let layout = Layout::new::<Self>();
+        let th = unsafe { g.gc.alloc(8, layout).cast::<Self>() };
 
         unsafe { addr_of_mut!((*th).stack).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*th).ci).write(Cell::new(null_mut())) };
@@ -67,8 +67,8 @@ impl Thread {
         unsafe { addr_of_mut!((*th).oldpc).write(Cell::new(0)) };
 
         // Allocate stack.
-        let layout = Layout::array::<StackValue>(2 * 20 + 5).unwrap();
-        let stack = unsafe { alloc::alloc::alloc(layout) as *mut StackValue };
+        let layout = Layout::array::<StackValue<D>>(2 * 20 + 5).unwrap();
+        let stack = unsafe { alloc::alloc::alloc(layout) as *mut StackValue<D> };
 
         if stack.is_null() {
             handle_alloc_error(layout);
@@ -108,13 +108,13 @@ impl Thread {
     ///
     /// # Panics
     /// If `f` or some of `args` come from different [`Lua`] instance.
-    pub fn call<R: Outputs>(
+    pub fn call<R: Outputs<D>>(
         &self,
-        f: impl Into<UnsafeValue>,
-        args: impl Inputs,
+        f: impl Into<UnsafeValue<D>>,
+        args: impl Inputs<D>,
     ) -> Result<R, Box<dyn core::error::Error>> {
         // Check if function created from the same Lua.
-        let f: UnsafeValue = f.into();
+        let f = f.into();
 
         if unsafe { (f.tt_ & 1 << 6) != 0 && (*f.value_.gc).global != self.hdr.global } {
             panic!("attempt to call a value created from a different Lua");
@@ -165,7 +165,7 @@ impl Thread {
     }
 }
 
-impl Drop for Thread {
+impl<D> Drop for Thread<D> {
     #[inline(never)]
     fn drop(&mut self) {
         unsafe { luaF_closeupval(self, self.stack.get()) };
@@ -176,10 +176,10 @@ impl Drop for Thread {
 
         // Free CI.
         self.ci.set(self.base_ci.get());
-        let mut ci: *mut CallInfo = self.ci.get();
-        let mut next: *mut CallInfo = unsafe { (*ci).next };
+        let mut ci = self.ci.get();
+        let mut next = unsafe { (*ci).next };
 
-        unsafe { (*ci).next = 0 as *mut CallInfo };
+        unsafe { (*ci).next = null_mut() };
 
         loop {
             ci = next;
@@ -190,12 +190,12 @@ impl Drop for Thread {
 
             next = unsafe { (*ci).next };
 
-            unsafe { luaM_free_(ci.cast(), size_of::<CallInfo>()) };
+            unsafe { luaM_free_(ci.cast(), size_of::<CallInfo<D>>()) };
             self.nci.set(self.nci.get().wrapping_sub(1));
         }
 
         // Free stack.
-        let layout = Layout::array::<StackValue>(unsafe {
+        let layout = Layout::array::<StackValue<D>>(unsafe {
             self.stack_last.get().offset_from_unsigned(self.stack.get()) + 5
         })
         .unwrap();

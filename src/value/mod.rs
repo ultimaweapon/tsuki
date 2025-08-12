@@ -3,15 +3,14 @@ use alloc::boxed::Box;
 
 /// The outside **must** never be able to construct or have the value of this type.
 #[repr(C)]
-#[derive(Copy, Clone)]
-pub struct UnsafeValue {
-    pub value_: UntaggedValue,
+pub struct UnsafeValue<D> {
+    pub value_: UntaggedValue<D>,
     pub tt_: u8,
 }
 
-impl UnsafeValue {
+impl<D> UnsafeValue<D> {
     #[inline(always)]
-    pub(crate) unsafe fn from_obj(s: *const Object) -> Self {
+    pub(crate) unsafe fn from_obj(s: *const Object<D>) -> Self {
         Self {
             value_: UntaggedValue { gc: s },
             tt_: unsafe { (*s).tt | 1 << 6 },
@@ -19,7 +18,15 @@ impl UnsafeValue {
     }
 }
 
-impl From<Nil> for UnsafeValue {
+impl<D> Clone for UnsafeValue<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for UnsafeValue<D> {}
+
+impl<D> From<Nil> for UnsafeValue<D> {
     #[inline(always)]
     fn from(_: Nil) -> Self {
         Self {
@@ -29,7 +36,7 @@ impl From<Nil> for UnsafeValue {
     }
 }
 
-impl From<bool> for UnsafeValue {
+impl<D> From<bool> for UnsafeValue<D> {
     #[inline(always)]
     fn from(value: bool) -> Self {
         Self {
@@ -42,9 +49,9 @@ impl From<bool> for UnsafeValue {
     }
 }
 
-impl From<Fp> for UnsafeValue {
+impl<D> From<Fp<D>> for UnsafeValue<D> {
     #[inline(always)]
-    fn from(value: Fp) -> Self {
+    fn from(value: Fp<D>) -> Self {
         Self {
             value_: UntaggedValue { f: value.0 },
             tt_: 2 | 0 << 4,
@@ -52,7 +59,7 @@ impl From<Fp> for UnsafeValue {
     }
 }
 
-impl From<i32> for UnsafeValue {
+impl<D> From<i32> for UnsafeValue<D> {
     #[inline(always)]
     fn from(value: i32) -> Self {
         Self {
@@ -62,7 +69,7 @@ impl From<i32> for UnsafeValue {
     }
 }
 
-impl From<i64> for UnsafeValue {
+impl<D> From<i64> for UnsafeValue<D> {
     #[inline(always)]
     fn from(value: i64) -> Self {
         Self {
@@ -72,7 +79,7 @@ impl From<i64> for UnsafeValue {
     }
 }
 
-impl From<u8> for UnsafeValue {
+impl<D> From<u8> for UnsafeValue<D> {
     #[inline(always)]
     fn from(value: u8) -> Self {
         Self {
@@ -82,7 +89,7 @@ impl From<u8> for UnsafeValue {
     }
 }
 
-impl From<u32> for UnsafeValue {
+impl<D> From<u32> for UnsafeValue<D> {
     #[inline(always)]
     fn from(value: u32) -> Self {
         Self {
@@ -92,7 +99,7 @@ impl From<u32> for UnsafeValue {
     }
 }
 
-impl From<f64> for UnsafeValue {
+impl<D> From<f64> for UnsafeValue<D> {
     #[inline(always)]
     fn from(value: f64) -> Self {
         Self {
@@ -102,9 +109,9 @@ impl From<f64> for UnsafeValue {
     }
 }
 
-impl From<&Str> for UnsafeValue {
+impl<D> From<&Str<D>> for UnsafeValue<D> {
     #[inline(always)]
-    fn from(value: &Str) -> Self {
+    fn from(value: &Str<D>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: value.hdr.tt | 1 << 6,
@@ -112,8 +119,8 @@ impl From<&Str> for UnsafeValue {
     }
 }
 
-impl From<Ref<Str>> for UnsafeValue {
-    fn from(value: Ref<Str>) -> Self {
+impl<D> From<Ref<Str<D>, D>> for UnsafeValue<D> {
+    fn from(value: Ref<Str<D>, D>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: value.hdr.tt | 1 << 6,
@@ -121,9 +128,9 @@ impl From<Ref<Str>> for UnsafeValue {
     }
 }
 
-impl From<&Table> for UnsafeValue {
+impl<D> From<&Table<D>> for UnsafeValue<D> {
     #[inline(always)]
-    fn from(value: &Table) -> Self {
+    fn from(value: &Table<D>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: 5 | 0 << 4 | 1 << 6,
@@ -131,8 +138,8 @@ impl From<&Table> for UnsafeValue {
     }
 }
 
-impl From<Ref<Table>> for UnsafeValue {
-    fn from(value: Ref<Table>) -> Self {
+impl<D> From<Ref<Table<D>, D>> for UnsafeValue<D> {
+    fn from(value: Ref<Table<D>, D>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: 5 | 0 << 4 | 1 << 6,
@@ -140,9 +147,9 @@ impl From<Ref<Table>> for UnsafeValue {
     }
 }
 
-impl From<&LuaFn> for UnsafeValue {
+impl<D> From<&LuaFn<D>> for UnsafeValue<D> {
     #[inline(always)]
-    fn from(value: &LuaFn) -> Self {
+    fn from(value: &LuaFn<D>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: value.hdr.tt | 1 << 6,
@@ -150,8 +157,8 @@ impl From<&LuaFn> for UnsafeValue {
     }
 }
 
-impl From<Ref<LuaFn>> for UnsafeValue {
-    fn from(value: Ref<LuaFn>) -> Self {
+impl<D> From<Ref<LuaFn<D>, D>> for UnsafeValue<D> {
+    fn from(value: Ref<LuaFn<D>, D>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: value.hdr.tt | 1 << 6,
@@ -159,9 +166,9 @@ impl From<Ref<LuaFn>> for UnsafeValue {
     }
 }
 
-impl From<&Thread> for UnsafeValue {
+impl<D> From<&Thread<D>> for UnsafeValue<D> {
     #[inline(always)]
-    fn from(value: &Thread) -> Self {
+    fn from(value: &Thread<D>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: 8 | 0 << 4 | 1 << 6,
@@ -169,8 +176,8 @@ impl From<&Thread> for UnsafeValue {
     }
 }
 
-impl From<Ref<Thread>> for UnsafeValue {
-    fn from(value: Ref<Thread>) -> Self {
+impl<D> From<Ref<Thread<D>, D>> for UnsafeValue<D> {
+    fn from(value: Ref<Thread<D>, D>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: 8 | 0 << 4 | 1 << 6,
@@ -178,8 +185,8 @@ impl From<Ref<Thread>> for UnsafeValue {
     }
 }
 
-impl From<Value> for UnsafeValue {
-    fn from(value: Value) -> Self {
+impl<D> From<Value<D>> for UnsafeValue<D> {
+    fn from(value: Value<D>) -> Self {
         match value {
             Value::Nil => Self::from(Nil),
             Value::Bool(v) => Self::from(v),
@@ -194,9 +201,9 @@ impl From<Value> for UnsafeValue {
     }
 }
 
-impl<'a, 'b> From<&Arg<'a, 'b>> for UnsafeValue {
+impl<'a, 'b, D> From<&Arg<'a, 'b, D>> for UnsafeValue<D> {
     #[inline(always)]
-    fn from(value: &Arg<'a, 'b>) -> Self {
+    fn from(value: &Arg<'a, 'b, D>) -> Self {
         let v = value.get_raw_or_null();
 
         if v.is_null() {
@@ -207,18 +214,27 @@ impl<'a, 'b> From<&Arg<'a, 'b>> for UnsafeValue {
     }
 }
 
-impl<'a, 'b> From<Arg<'a, 'b>> for UnsafeValue {
+impl<'a, 'b, D> From<Arg<'a, 'b, D>> for UnsafeValue<D> {
     #[inline(always)]
-    fn from(value: Arg<'a, 'b>) -> Self {
+    fn from(value: Arg<'a, 'b, D>) -> Self {
         Self::from(&value)
     }
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
-pub union UntaggedValue {
-    pub gc: *const Object,
-    pub f: for<'a> fn(Context<'a, Args>) -> Result<Context<'a, Ret>, Box<dyn core::error::Error>>,
+pub union UntaggedValue<D> {
+    pub gc: *const Object<D>,
+    pub f: for<'a> fn(
+        Context<'a, D, Args>,
+    ) -> Result<Context<'a, D, Ret>, Box<dyn core::error::Error>>,
     pub i: i64,
     pub n: f64,
 }
+
+impl<D> Clone for UntaggedValue<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for UntaggedValue<D> {}

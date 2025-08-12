@@ -5,16 +5,16 @@ use core::ptr::null;
 use std::alloc::handle_alloc_error;
 
 /// Hash table contains all allocated short strings.
-pub(crate) struct StringTable {
-    hash: Cell<*mut *const Str>,
+pub(crate) struct StringTable<D> {
+    hash: Cell<*mut *const Str<D>>,
     nuse: Cell<usize>,
     size: Cell<usize>,
 }
 
-impl StringTable {
+impl<D> StringTable<D> {
     pub fn new() -> Self {
         let size = 128;
-        let layout = Layout::array::<*const Str>(size).unwrap();
+        let layout = Layout::array::<*const Str<D>>(size).unwrap();
         let hash = unsafe { alloc::alloc::alloc_zeroed(layout) };
 
         if hash.is_null() {
@@ -31,7 +31,11 @@ impl StringTable {
     /// # Safety
     /// The returned [`Str`] may already dead but not collected yet so the caller must check and
     /// resurrect it.
-    pub(super) unsafe fn insert(&self, h: u32, str: &[u8]) -> Result<*const Str, *mut *const Str> {
+    pub(super) unsafe fn insert(
+        &self,
+        h: u32,
+        str: &[u8],
+    ) -> Result<*const Str<D>, *mut *const Str<D>> {
         // Check if same string exists.
         let mut e = self.entry(h);
         let mut s = unsafe { *e };
@@ -55,7 +59,7 @@ impl StringTable {
         Err(e)
     }
 
-    pub(super) unsafe fn remove(&self, s: *mut Str) {
+    pub(super) unsafe fn remove(&self, s: *mut Str<D>) {
         let mut e = self.entry(unsafe { (*s).hash.get() });
 
         while unsafe { *e != s } {
@@ -67,7 +71,7 @@ impl StringTable {
     }
 
     #[inline(always)]
-    fn entry(&self, h: u32) -> *mut *const Str {
+    fn entry(&self, h: u32) -> *mut *const Str<D> {
         let t = self.hash.get();
 
         unsafe { t.add(usize::try_from(h).unwrap() & (self.size.get() - 1)) }
@@ -83,12 +87,13 @@ impl StringTable {
         }
 
         // Re-allocate.
-        let layout = Layout::array::<*const Str>(osize).unwrap();
-        let newvect =
-            unsafe { alloc::alloc::realloc(table.cast(), layout, nsize * size_of::<*const Str>()) };
+        let layout = Layout::array::<*const Str<D>>(osize).unwrap();
+        let newvect = unsafe {
+            alloc::alloc::realloc(table.cast(), layout, nsize * size_of::<*const Str<D>>())
+        };
 
         if newvect.is_null() {
-            handle_alloc_error(Layout::array::<*const Str>(nsize).unwrap());
+            handle_alloc_error(Layout::array::<*const Str<D>>(nsize).unwrap());
         }
 
         self.hash.set(newvect.cast());
@@ -100,7 +105,7 @@ impl StringTable {
         }
     }
 
-    unsafe fn rehash(vect: *mut *const Str, osize: usize, nsize: usize) {
+    unsafe fn rehash(vect: *mut *const Str<D>, osize: usize, nsize: usize) {
         // Fill new space with null.
         for i in osize..nsize {
             unsafe { vect.add(i).write(null()) };
@@ -123,9 +128,9 @@ impl StringTable {
     }
 }
 
-impl Drop for StringTable {
+impl<D> Drop for StringTable<D> {
     fn drop(&mut self) {
-        let layout = Layout::array::<*const Str>(self.size.get()).unwrap();
+        let layout = Layout::array::<*const Str<D>>(self.size.get()).unwrap();
 
         unsafe { alloc::alloc::dealloc(self.hash.get().cast(), layout) };
     }

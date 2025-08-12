@@ -13,14 +13,14 @@ use core::ptr::null;
 /// Beware for memory leak if the value of this type owned by Lua (e.g. put it in a table). If this
 /// value has a reference to its parent (either directly or indirectly) it will prevent GC from
 /// collect the parent, which in turn prevent this value from dropped.
-pub struct Ref<T> {
-    g: Pin<Rc<Lua>>,
+pub struct Ref<T, D> {
+    g: Pin<Rc<Lua<D>>>,
     o: *const T,
 }
 
-impl<T> Ref<T> {
+impl<T, D> Ref<T, D> {
     pub(crate) unsafe fn new(o: *const T) -> Self {
-        let h = o.cast::<Object>();
+        let h = o.cast::<Object<D>>();
         let g = (*h).global();
         let r = (*h).refs.get();
 
@@ -51,11 +51,11 @@ impl<T> Ref<T> {
     }
 }
 
-impl<T> Drop for Ref<T> {
+impl<T, D> Drop for Ref<T, D> {
     #[inline(always)]
     fn drop(&mut self) {
         // Decrease references.
-        let h = self.o.cast::<Object>();
+        let h = self.o.cast::<Object<D>>();
 
         unsafe { (*h).refs.set((*h).refs.get() - 1) };
 
@@ -81,10 +81,10 @@ impl<T> Drop for Ref<T> {
     }
 }
 
-impl<T> Clone for Ref<T> {
+impl<T, D> Clone for Ref<T, D> {
     #[inline(always)]
     fn clone(&self) -> Self {
-        let h = self.o.cast::<Object>();
+        let h = self.o.cast::<Object<D>>();
 
         match unsafe { (*h).refs.get().checked_add(1) } {
             Some(v) => unsafe { (*h).refs.set(v) },
@@ -98,7 +98,7 @@ impl<T> Clone for Ref<T> {
     }
 }
 
-impl<T> Deref for Ref<T> {
+impl<T, D> Deref for Ref<T, D> {
     type Target = T;
 
     #[inline(always)]
