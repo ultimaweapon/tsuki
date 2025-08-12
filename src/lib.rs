@@ -231,6 +231,12 @@ impl<T> Lua<T> {
         g
     }
 
+    /// Returns associated data that passed to [`Self::new()`] or [`Self::with_seed()`].
+    #[inline(always)]
+    pub fn associated_data(&self) -> &T {
+        &self.associated_data
+    }
+
     /// Setup [basic library](https://www.lua.org/manual/5.4/manual.html#6.1).
     ///
     /// Note that `print` only available with `std` feature.

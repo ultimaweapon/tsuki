@@ -36,6 +36,13 @@ impl<'a, D, T> Context<'a, D, T> {
         }
     }
 
+    /// Returns associated data that passed to [Lua::new()](crate::Lua::new()) or
+    /// [Lua::with_seed()](crate::Lua::with_seed()).
+    #[inline(always)]
+    pub fn associated_data(&self) -> &D {
+        &self.th.hdr.global().associated_data
+    }
+
     /// Create a Lua string.
     pub fn create_str<V>(&self, v: V) -> Ref<Str<D>, D>
     where
