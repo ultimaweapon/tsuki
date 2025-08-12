@@ -1,6 +1,9 @@
 [package]
 name = "tsuki"
+description = "Lua 5.4 ported to Rust"
 version = "0.1.0"
+license = "MIT"
+repository = "https://github.com/ultimaweapon/tsuki"
 edition = "2024"
 
 [features]
