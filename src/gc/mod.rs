@@ -13,7 +13,7 @@ use crate::lobject::{CClosure, Proto, Udata, UpVal};
 use crate::ltm::{TM_MODE, luaT_gettm};
 use crate::table::luaH_realasize;
 use crate::value::UnsafeValue;
-use crate::{Lua, LuaFn, Node, Str, Table, Thread, UserId};
+use crate::{Lua, LuaFn, Node, RustId, Str, Table, Thread};
 use alloc::alloc::handle_alloc_error;
 use core::alloc::Layout;
 use core::cell::Cell;
@@ -1015,8 +1015,8 @@ impl<D> Gc<D> {
                 alloc::alloc::dealloc(ts_0.cast(), layout);
             },
             11 => unsafe {
-                core::ptr::drop_in_place(o.cast::<UserId<D>>());
-                alloc::alloc::dealloc(o.cast(), Layout::new::<UserId<D>>());
+                core::ptr::drop_in_place(o.cast::<RustId<D>>());
+                alloc::alloc::dealloc(o.cast(), Layout::new::<RustId<D>>());
             },
             15 => unsafe {
                 let p = self.sweep_mark.replace(o).cast_mut();

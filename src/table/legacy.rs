@@ -1,11 +1,7 @@
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    unused_assignments
-)]
+#![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use super::RustId;
 use crate::gc::Object;
 use crate::hasher::LuaHasher;
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
@@ -13,7 +9,7 @@ use crate::lobject::luaO_ceillog2;
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{F2Ieq, luaV_flttointeger};
-use crate::{Node, Str, Table, TableError, UserId};
+use crate::{Node, Str, Table, TableError};
 use alloc::boxed::Box;
 use core::any::TypeId;
 use core::cell::Cell;
@@ -752,7 +748,7 @@ pub unsafe fn luaH_getid<D>(t: *const Table<D>, k: &TypeId) -> *const UnsafeValu
     loop {
         // Check key.
         if (*n).u.key_tt == 11 | 0 << 4 | 1 << 6
-            && (*(*n).u.key_val.gc.cast::<UserId<D>>()).value() == k
+            && (*(*n).u.key_val.gc.cast::<RustId<D>>()).value() == k
         {
             return &raw const (*n).i_val;
         }
@@ -781,7 +777,7 @@ pub unsafe fn luaH_get<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *co
                 return luaH_getint(t, k);
             }
         }
-        11 => return luaH_getid(t, (*(*key).value_.gc.cast::<UserId<D>>()).value()),
+        11 => return luaH_getid(t, (*(*key).value_.gc.cast::<RustId<D>>()).value()),
         _ => {}
     }
 

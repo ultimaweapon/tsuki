@@ -1,5 +1,6 @@
 pub(crate) use self::legacy::*;
 pub(crate) use self::node::*;
+pub(crate) use self::rust::*;
 
 use crate::lmem::luaM_free_;
 use crate::ltm::{TM_EQ, TM_GC, luaT_gettm};
@@ -13,6 +14,7 @@ use thiserror::Error;
 
 mod legacy;
 mod node;
+mod rust;
 
 /// Lua table.
 #[repr(C)]
