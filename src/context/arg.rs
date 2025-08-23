@@ -2,16 +2,16 @@ use super::{Args, Context};
 use crate::lapi::lua_typename;
 use crate::lauxlib::luaL_argerror;
 use crate::ldo::luaD_call;
-use crate::lobject::{Udata, luaO_tostring};
+use crate::lobject::luaO_tostring;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_};
-use crate::{NON_YIELDABLE_WAKER, Ref, Str, Table, Type, Value, luaH_get};
+use crate::{NON_YIELDABLE_WAKER, Ref, Str, Table, Type, UserData, Value, luaH_get};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
 use core::fmt::{Display, Write};
-use core::mem::{MaybeUninit, offset_of};
+use core::mem::MaybeUninit;
 use core::num::NonZero;
 use core::pin::pin;
 use core::ptr::{null, null_mut};
@@ -580,11 +580,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
                     7 => write!(
                         buf,
                         "{:p}",
-                        (*arg).value_.gc.byte_add(
-                            offset_of!(Udata<D>, uv)
-                                + size_of::<UnsafeValue<D>>()
-                                    * usize::from((*((*arg).value_.gc.cast::<Udata<D>>())).nuvalue),
-                        )
+                        (*(*arg).value_.gc.cast::<UserData<D, ()>>()).ptr
                     )
                     .unwrap(),
                     _ => unreachable!(),

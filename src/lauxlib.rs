@@ -9,8 +9,8 @@
 use crate::lapi::{
     lua_absindex, lua_checkstack, lua_concat, lua_copy, lua_createtable, lua_getfield,
     lua_getmetatable, lua_gettop, lua_next, lua_pushlstring, lua_pushnil, lua_pushstring,
-    lua_pushvalue, lua_rawequal, lua_rawget, lua_rotate, lua_setfield, lua_setmetatable,
-    lua_settop, lua_tolstring, lua_tonumberx, lua_touserdata, lua_type, lua_typename,
+    lua_pushvalue, lua_rawequal, lua_rawget, lua_rotate, lua_setfield, lua_settop, lua_tolstring,
+    lua_tonumberx, lua_type, lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::lua_Debug;
@@ -322,57 +322,6 @@ pub unsafe fn luaL_newmetatable<D>(
     lua_pushvalue(L, -(1 as libc::c_int));
     lua_setfield(L, -(1000000 as libc::c_int) - 1000 as libc::c_int, tname)?;
     return Ok(1 as libc::c_int);
-}
-
-pub unsafe fn luaL_setmetatable<D>(
-    L: *mut Thread<D>,
-    tname: *const c_char,
-) -> Result<(), Box<dyn core::error::Error>> {
-    lua_getfield(
-        L,
-        -(1000000 as libc::c_int) - 1000 as libc::c_int,
-        CStr::from_ptr(tname).to_bytes(),
-    )?;
-
-    if let Err(e) = lua_setmetatable(L, -2) {
-        lua_pop(L, 1)?;
-        return Err(e);
-    }
-
-    Ok(())
-}
-
-pub unsafe fn luaL_testudata<D>(
-    L: *mut Thread<D>,
-    ud: libc::c_int,
-    tname: &str,
-) -> Result<*mut libc::c_void, Box<dyn core::error::Error>> {
-    let mut p: *mut libc::c_void = lua_touserdata(L, ud);
-    if !p.is_null() {
-        if lua_getmetatable(L, ud) != 0 {
-            lua_getfield(L, -(1000000 as libc::c_int) - 1000 as libc::c_int, tname)?;
-            if lua_rawequal(L, -(1 as libc::c_int), -(2 as libc::c_int))? == 0 {
-                p = 0 as *mut libc::c_void;
-            }
-            lua_settop(L, -(2 as libc::c_int) - 1 as libc::c_int)?;
-            return Ok(p);
-        }
-    }
-    return Ok(0 as *mut libc::c_void);
-}
-
-pub unsafe fn luaL_checkudata<D>(
-    L: *mut Thread<D>,
-    ud: libc::c_int,
-    name: &str,
-) -> Result<*mut libc::c_void, Box<dyn core::error::Error>> {
-    let p: *mut libc::c_void = luaL_testudata(L, ud, name)?;
-
-    if p != 0 as *mut libc::c_void {
-        Ok(p)
-    } else {
-        Err(luaL_typeerror(L, ud, name))
-    }
 }
 
 pub unsafe fn luaL_checkstack<D>(

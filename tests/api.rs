@@ -2,8 +2,7 @@ use std::path::PathBuf;
 use tsuki::{ChunkInfo, Lua};
 
 #[test]
-fn dump() {
-    // Load.
+fn load() {
     let path = PathBuf::from_iter(["lua", "testes", "api.lua"]);
     let chunk = std::fs::read(path).unwrap();
     let lua = Lua::new(());

@@ -3,9 +3,8 @@
 
 use crate::ldo::luaD_growstack;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
-use crate::lobject::{CClosure, StackValue, Udata, luaO_str2num, luaO_tostring};
-use crate::lstring::luaS_newudata;
-use crate::ltm::{TM_GC, luaT_gettm, luaT_typenames_};
+use crate::lobject::{CClosure, StackValue, luaO_str2num, luaO_tostring};
+use crate::ltm::luaT_typenames_;
 use crate::table::{luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_resize, luaH_setint};
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{
@@ -13,12 +12,11 @@ use crate::vm::{
     luaV_lessthan, luaV_tointeger, luaV_tonumber_,
 };
 use crate::{
-    Args, Context, LuaFn, Nil, Object, Ret, StackOverflow, Str, Table, TableError, Thread,
+    Args, Context, LuaFn, Object, Ret, StackOverflow, Str, Table, TableError, Thread, UserData,
     api_incr_top,
 };
 use alloc::boxed::Box;
-use core::ffi::{CStr, c_void};
-use core::mem::offset_of;
+use core::ffi::CStr;
 use core::ptr::{null, null_mut};
 
 type c_int = i32;
@@ -394,31 +392,15 @@ pub unsafe fn lua_rawlen<D>(L: *const Thread<D>, idx: c_int) -> u64 {
     match (*o).tt_ as c_int & 0x3f as c_int {
         4 => return (*((*o).value_.gc as *mut Str<D>)).shrlen.get() as u64,
         20 => return (*(*((*o).value_.gc as *mut Str<D>)).u.get()).lnglen as u64,
-        7 => return (*((*o).value_.gc as *mut Udata<D>)).len as u64,
+        7 => {
+            let u = (*o).value_.gc.cast::<UserData<D, ()>>();
+            let v = (*u).ptr;
+
+            size_of_val(&*v).try_into().unwrap()
+        }
         5 => return luaH_getn((*o).value_.gc as *mut Table<D>),
         _ => return 0 as c_int as u64,
-    };
-}
-
-unsafe fn touserdata<D>(o: *const UnsafeValue<D>) -> *mut libc::c_void {
-    match (*o).tt_ as c_int & 0xf as c_int {
-        7 => (*o)
-            .value_
-            .gc
-            .byte_add(
-                offset_of!(Udata<D>, uv)
-                    + size_of::<UnsafeValue<D>>()
-                        * usize::from((*((*o).value_.gc as *mut Udata<D>)).nuvalue),
-            )
-            .cast_mut()
-            .cast(),
-        _ => null_mut(),
     }
-}
-
-pub unsafe fn lua_touserdata<D>(L: *const Thread<D>, idx: c_int) -> *mut libc::c_void {
-    let o = index2value(L, idx);
-    return touserdata(o);
 }
 
 pub unsafe fn lua_tothread<D>(L: *mut Thread<D>, idx: c_int) -> *const Thread<D> {
@@ -673,28 +655,6 @@ pub unsafe fn lua_getmetatable<D>(L: *const Thread<D>, objindex: c_int) -> c_int
     return res;
 }
 
-pub unsafe fn lua_getiuservalue<D>(L: *const Thread<D>, idx: c_int, n: c_int) -> c_int {
-    let mut t: c_int = 0;
-    let o = index2value(L, idx);
-    if n <= 0 as c_int || n > (*((*o).value_.gc as *mut Udata<D>)).nuvalue as c_int {
-        (*(*L).top.get()).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
-        t = -(1 as c_int);
-    } else {
-        let io1 = &raw mut (*(*L).top.get()).val;
-        let io2 = (*((*o).value_.gc as *mut Udata<D>))
-            .uv
-            .as_mut_ptr()
-            .offset((n - 1 as c_int) as isize);
-
-        (*io1).value_ = (*io2).value_;
-        (*io1).tt_ = (*io2).tt_;
-
-        t = (*(*L).top.get()).val.tt_ as c_int & 0xf as c_int;
-    }
-    api_incr_top(L);
-    return t;
-}
-
 unsafe fn auxsetstr<D>(
     L: *const Thread<D>,
     t: *const UnsafeValue<D>,
@@ -937,114 +897,6 @@ pub unsafe fn lua_rawseti<D>(L: *mut Thread<D>, idx: c_int, n: i64) {
     (*L).top.sub(1);
 }
 
-pub unsafe fn lua_setmetatable<D>(
-    L: *const Thread<D>,
-    objindex: c_int,
-) -> Result<(), Box<dyn core::error::Error>> {
-    let obj = index2value(L, objindex);
-    let mt = if (*((*L).top.get()).offset(-1)).val.tt_ & 0xf == 0 {
-        null()
-    } else {
-        (*((*L).top.get()).offset(-1)).val.value_.gc as *mut Table<D>
-    };
-
-    // Prevent __gc metamethod.
-    if !mt.is_null() && (*mt).flags.get() & 1 << TM_GC == 0 && !luaT_gettm(mt, TM_GC).is_null() {
-        return Err("__gc metamethod is not supported".into());
-    }
-
-    match (*obj).tt_ & 0xf {
-        5 => {
-            (*((*obj).value_.gc as *mut Table<D>)).metatable.set(mt);
-
-            if !mt.is_null() {
-                if (*(*obj).value_.gc).marked.get() as c_int & (1 as c_int) << 5 as c_int != 0
-                    && (*mt).hdr.marked.get() as c_int
-                        & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                        != 0
-                {
-                    (*L).hdr.global().gc.barrier((*obj).value_.gc, mt.cast());
-                };
-            }
-        }
-        7 => {
-            let ref mut fresh4 = (*((*obj).value_.gc as *mut Udata<D>)).metatable;
-            *fresh4 = mt;
-            if !mt.is_null() {
-                if (*((*obj).value_.gc as *mut Udata<D>)).hdr.marked.get() as c_int
-                    & (1 as c_int) << 5 as c_int
-                    != 0
-                    && (*mt).hdr.marked.get() as c_int
-                        & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                        != 0
-                {
-                    (*L).hdr.global().gc.barrier((*obj).value_.gc, mt.cast());
-                };
-            }
-        }
-        v => (*L)
-            .hdr
-            .global()
-            .metatables()
-            .set_unchecked(
-                v,
-                match mt.is_null() {
-                    true => UnsafeValue::from(Nil),
-                    false => UnsafeValue::from_obj(mt.cast()),
-                },
-            )
-            .unwrap_unchecked(),
-    }
-
-    (*L).top.sub(1);
-
-    Ok(())
-}
-
-pub unsafe fn lua_setiuservalue<D>(L: *const Thread<D>, idx: c_int, n: c_int) -> c_int {
-    let mut res: c_int = 0;
-    let o = index2value(L, idx);
-
-    if !((n as libc::c_uint).wrapping_sub(1 as libc::c_uint)
-        < (*((*o).value_.gc as *mut Udata<D>)).nuvalue as libc::c_uint)
-    {
-        res = 0 as c_int;
-    } else {
-        let io1 = (*((*o).value_.gc as *mut Udata<D>))
-            .uv
-            .as_mut_ptr()
-            .offset((n - 1 as c_int) as isize);
-        let io2 = &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val;
-
-        (*io1).value_ = (*io2).value_;
-        (*io1).tt_ = (*io2).tt_;
-
-        if (*((*L).top.get()).offset(-(1 as c_int as isize))).val.tt_ as c_int
-            & (1 as c_int) << 6 as c_int
-            != 0
-        {
-            if (*(*o).value_.gc).marked.get() as c_int & (1 as c_int) << 5 as c_int != 0
-                && (*(*((*L).top.get()).offset(-(1 as c_int as isize)))
-                    .val
-                    .value_
-                    .gc)
-                    .marked
-                    .get() as c_int
-                    & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                    != 0
-            {
-                (*L).hdr.global().gc.barrier_back((*o).value_.gc);
-            }
-        }
-
-        res = 1 as c_int;
-    }
-
-    (*L).top.sub(1);
-
-    return res;
-}
-
 pub unsafe fn lua_next<D>(
     L: *const Thread<D>,
     idx: c_int,
@@ -1101,25 +953,6 @@ pub unsafe fn lua_concat<D>(
     }
 
     Ok(())
-}
-
-pub unsafe fn lua_newuserdatauv<D>(
-    L: *const Thread<D>,
-    size: usize,
-    nuvalue: c_int,
-) -> *mut c_void {
-    let gc = (*L).hdr.global().lock_gc();
-    let u = luaS_newudata((*L).hdr.global, size, nuvalue);
-    let io = &raw mut (*(*L).top.get()).val;
-    let x_ = u;
-
-    (*io).value_.gc = x_.cast();
-    (*io).tt_ = (7 as c_int | (0 as c_int) << 4 as c_int | 1 << 6) as u8;
-
-    api_incr_top(L);
-
-    u.byte_add(offset_of!(Udata<D>, uv) + size_of::<UnsafeValue<D>>() * usize::from((*u).nuvalue))
-        .cast()
 }
 
 unsafe fn aux_upvalue<D>(

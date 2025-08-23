@@ -15,7 +15,6 @@ use self::lapi::lua_settop;
 use self::ldebug::lua_getinfo;
 use self::ldo::luaD_protectedparser;
 use self::llex::{TK_WHILE, luaX_tokens};
-use self::lobject::Udata;
 use self::lstate::{CallInfo, lua_Debug};
 use self::ltm::{
     TM_ADD, TM_BAND, TM_BNOT, TM_BOR, TM_BXOR, TM_CALL, TM_CLOSE, TM_CONCAT, TM_DIV, TM_EQ, TM_GC,
@@ -435,7 +434,7 @@ impl<T> Lua<T> {
     unsafe fn metatable(&self, o: *const UnsafeValue<T>) -> *const Table<T> {
         match unsafe { (*o).tt_ & 0xf } {
             5 => unsafe { (*(*o).value_.gc.cast::<Table<T>>()).metatable.get() },
-            7 => unsafe { (*(*o).value_.gc.cast::<Udata<T>>()).metatable },
+            7 => unsafe { (*(*o).value_.gc.cast::<UserData<T, ()>>()).mt },
             v => unsafe { self.metatables().get_raw_int_key(v.into()).value_.gc.cast() },
         }
     }

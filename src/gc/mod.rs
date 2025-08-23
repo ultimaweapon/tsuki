@@ -9,11 +9,11 @@ pub(crate) use self::object::*;
 
 use crate::ldo::luaD_shrinkstack;
 use crate::lfunc::luaF_unlinkupval;
-use crate::lobject::{CClosure, Proto, Udata, UpVal};
+use crate::lobject::{CClosure, Proto, UpVal};
 use crate::ltm::{TM_MODE, luaT_gettm};
 use crate::table::luaH_realasize;
 use crate::value::UnsafeValue;
-use crate::{Lua, LuaFn, Node, RustId, Str, Table, Thread};
+use crate::{Lua, LuaFn, Node, RustId, Str, Table, Thread, UserData};
 use alloc::alloc::handle_alloc_error;
 use core::alloc::Layout;
 use core::cell::Cell;
@@ -262,22 +262,22 @@ impl<D> Gc<D> {
                 return;
             }
             7 => {
-                let u = o as *const Udata<D>;
+                let u = o.cast::<UserData<D, ()>>();
+                let mt = (*u).mt;
+                let uv = (*u).uv;
 
-                if (*u).nuvalue == 0 {
-                    if !((*u).metatable).is_null() {
-                        if (*(*u).metatable).hdr.marked.get() as c_int
-                            & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                            != 0
-                        {
-                            self.mark((*u).metatable.cast());
-                        }
-                    }
-                    (*u).hdr
-                        .marked
-                        .set((*u).hdr.marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
-                    return;
+                if !mt.is_null() && (*mt).hdr.marked.is_white() {
+                    self.mark(mt.cast());
                 }
+
+                if uv.tt_ & 1 << 6 != 0 && (*uv.value_.gc).marked.is_white() {
+                    self.mark(uv.value_.gc);
+                }
+
+                (*u).hdr
+                    .marked
+                    .set((*u).hdr.marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
+                return;
             }
             6 | 38 | 5 | 8 | 10 => {}
             _ => unreachable!(),
@@ -295,7 +295,6 @@ impl<D> Gc<D> {
 
         match (*o).tt {
             5 => self.mark_table(o.cast()),
-            7 => self.mark_ud(o.cast()) as usize,
             6 => self.mark_lf(o.cast()),
             38 => self.mark_rf(o.cast()) as usize,
             10 => self.mark_proto(o.cast()) as usize,
@@ -532,37 +531,6 @@ impl<D> Gc<D> {
         }
 
         marked
-    }
-
-    unsafe fn mark_ud(&self, u: *const Udata<D>) -> i32 {
-        let mut i: c_int = 0;
-
-        if !((*u).metatable).is_null() {
-            if (*(*u).metatable).hdr.marked.get() as c_int
-                & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                != 0
-            {
-                self.mark((*u).metatable.cast());
-            }
-        }
-
-        i = 0 as c_int;
-
-        while i < (*u).nuvalue as c_int {
-            if (*((*u).uv).as_ptr().offset(i as isize)).tt_ & 1 << 6 != 0
-                && (*(*((*u).uv).as_ptr().offset(i as isize)).value_.gc)
-                    .marked
-                    .get() as c_int
-                    & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                    != 0
-            {
-                self.mark((*((*u).uv).as_ptr().offset(i as isize)).value_.gc);
-            }
-
-            i += 1;
-        }
-
-        return 1 as c_int + (*u).nuvalue as c_int;
     }
 
     unsafe fn mark_lf(&self, cl: *const LuaFn<D>) -> usize {
@@ -983,18 +951,14 @@ impl<D> Gc<D> {
                 alloc::alloc::dealloc(o.cast(), Layout::new::<Thread<D>>());
             },
             7 => unsafe {
-                let u = o as *mut Udata<D>;
-                let layout = Layout::from_size_align(
-                    offset_of!(Udata<D>, uv)
-                        + size_of::<UnsafeValue<D>>()
-                            .wrapping_mul((*u).nuvalue.into())
-                            .wrapping_add((*u).len),
-                    align_of::<Udata<D>>(),
-                )
-                .unwrap()
-                .pad_to_align();
+                let u = o.cast::<UserData<D, ()>>();
+                let v = (*u).ptr;
+                let layout = Layout::for_value(&*v);
+                let layout = Layout::new::<UserData<D, ()>>().extend(layout).unwrap().0;
 
-                alloc::alloc::dealloc(o.cast(), layout);
+                core::ptr::drop_in_place(v.cast_mut());
+                core::ptr::drop_in_place(u);
+                alloc::alloc::dealloc(u.cast(), layout);
             },
             4 => unsafe {
                 let ts: *mut Str<D> = o as *mut Str<D>;

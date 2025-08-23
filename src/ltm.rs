@@ -8,11 +8,11 @@
 
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
 use crate::ldo::{luaD_call, luaD_growstack};
-use crate::lobject::{Proto, StackValue, Udata};
+use crate::lobject::{Proto, StackValue};
 use crate::lstate::CallInfo;
 use crate::table::luaH_getshortstr;
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{CallError, Lua, NON_YIELDABLE_WAKER, Str, Table, Thread};
+use crate::{CallError, Lua, NON_YIELDABLE_WAKER, Str, Table, Thread, UserData};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::string::String;
@@ -109,7 +109,7 @@ pub unsafe fn luaT_objtypename<D>(g: *const Lua<D>, o: *const UnsafeValue<D>) ->
                 | (0 as libc::c_int) << 4 as libc::c_int
                 | (1 as libc::c_int) << 6 as libc::c_int
             && {
-                mt = (*((*o).value_.gc as *mut Udata<D>)).metatable;
+                mt = (*(*o).value_.gc.cast::<UserData<D, ()>>()).mt;
                 !mt.is_null()
             }
     {

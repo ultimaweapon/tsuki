@@ -7,10 +7,11 @@ use crate::value::UnsafeValue;
 use crate::vm::luaV_finishget;
 use crate::{
     CallError, ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, StackOverflow, Str, Table,
-    Thread, Type, luaH_get, luaH_getint,
+    Thread, Type, UserData, luaH_get, luaH_getint,
 };
 use alloc::boxed::Box;
 use alloc::vec::Vec;
+use core::any::Any;
 use core::cell::Cell;
 use core::num::NonZero;
 use core::pin::pin;
@@ -51,6 +52,13 @@ impl<'a, D, T> Context<'a, D, T> {
         let s = unsafe { Str::from_str(self.th.hdr.global, v) };
 
         unsafe { Ref::new(s) }
+    }
+
+    /// Create a full userdata.
+    pub fn create_ud<V: Any>(&self, v: V) -> Ref<UserData<D, V>, D> {
+        let u = unsafe { UserData::new(self.th.hdr.global, v).cast() };
+
+        unsafe { Ref::new(u) }
     }
 
     /// Load a Lua chunk.

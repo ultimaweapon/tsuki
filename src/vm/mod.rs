@@ -13,7 +13,7 @@ use crate::ldo::{luaD_call, luaD_hookcall, luaD_poscall, luaD_precall, luaD_pret
 use crate::lfunc::{
     luaF_close, luaF_closeupval, luaF_findupval, luaF_newLclosure, luaF_newtbcupval,
 };
-use crate::lobject::{Proto, StackValue, Udata, UpVal, luaO_str2num, luaO_tostring};
+use crate::lobject::{Proto, StackValue, UpVal, luaO_str2num, luaO_tostring};
 use crate::lstate::CallInfo;
 use crate::lstring::luaS_eqlngstr;
 use crate::ltm::{
@@ -26,7 +26,7 @@ use crate::table::{
     luaH_realasize, luaH_resize, luaH_resizearray,
 };
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{ArithError, LuaFn, NON_YIELDABLE_WAKER, Nil, Str, Table, Thread};
+use crate::{ArithError, LuaFn, NON_YIELDABLE_WAKER, Nil, Str, Table, Thread, UserData};
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -684,9 +684,10 @@ pub unsafe fn luaV_equalobj<D>(
             } else if L.is_null() {
                 return Ok(0 as c_int);
             }
-            tm = if ((*((*t1).value_.gc as *mut Udata<D>)).metatable).is_null() {
+
+            tm = if (*(*t1).value_.gc.cast::<UserData<D, ()>>()).mt.is_null() {
                 null()
-            } else if (*(*((*t1).value_.gc as *mut Udata<D>)).metatable)
+            } else if (*(*(*t1).value_.gc.cast::<UserData<D, ()>>()).mt)
                 .flags
                 .get() as c_uint
                 & (1 as c_uint) << TM_EQ as c_int
@@ -694,12 +695,12 @@ pub unsafe fn luaV_equalobj<D>(
             {
                 null()
             } else {
-                luaT_gettm((*((*t1).value_.gc as *mut Udata<D>)).metatable, TM_EQ)
+                luaT_gettm((*(*t1).value_.gc.cast::<UserData<D, ()>>()).mt, TM_EQ)
             };
             if tm.is_null() {
-                tm = if ((*((*t2).value_.gc as *mut Udata<D>)).metatable).is_null() {
+                tm = if (*(*t2).value_.gc.cast::<UserData<D, ()>>()).mt.is_null() {
                     null()
-                } else if (*(*((*t2).value_.gc as *mut Udata<D>)).metatable)
+                } else if (*(*(*t2).value_.gc.cast::<UserData<D, ()>>()).mt)
                     .flags
                     .get() as c_uint
                     & (1 as c_uint) << TM_EQ as c_int
@@ -707,7 +708,7 @@ pub unsafe fn luaV_equalobj<D>(
                 {
                     null()
                 } else {
-                    luaT_gettm((*((*t2).value_.gc as *mut Udata<D>)).metatable, TM_EQ)
+                    luaT_gettm((*(*t2).value_.gc.cast::<UserData<D, ()>>()).mt, TM_EQ)
                 };
             }
         }

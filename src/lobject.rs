@@ -12,7 +12,7 @@ use crate::lmem::luaM_free_;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
-use crate::{Args, ArithError, ChunkInfo, Context, Lua, Ops, Ret, Str, Table, Thread};
+use crate::{Args, ArithError, ChunkInfo, Context, Lua, Ops, Ret, Str, Thread};
 use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
 use libc::{c_char, c_int, sprintf, strpbrk, strspn, strtod};
@@ -81,15 +81,6 @@ impl<D> Clone for C2RustUnnamed_6<D> {
 }
 
 impl<D> Copy for C2RustUnnamed_6<D> {}
-
-#[repr(C)]
-pub struct Udata<D> {
-    pub hdr: Object<D>,
-    pub nuvalue: libc::c_ushort,
-    pub len: usize,
-    pub metatable: *const Table<D>,
-    pub uv: [UnsafeValue<D>; 1],
-}
 
 #[repr(C)]
 pub struct Upvaldesc<D> {
