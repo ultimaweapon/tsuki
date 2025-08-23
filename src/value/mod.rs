@@ -1,4 +1,6 @@
-use crate::{Arg, Args, Context, Fp, LuaFn, Nil, Object, Ref, Ret, Str, Table, Thread, Value};
+use crate::{
+    Arg, Args, Context, Fp, LuaFn, Nil, Object, Ref, Ret, Str, Table, Thread, UserData, Value,
+};
 use alloc::boxed::Box;
 
 /// The outside **must** never be able to construct or have the value of this type.
@@ -159,6 +161,26 @@ impl<D> From<&LuaFn<D>> for UnsafeValue<D> {
 
 impl<D> From<Ref<LuaFn<D>, D>> for UnsafeValue<D> {
     fn from(value: Ref<LuaFn<D>, D>) -> Self {
+        Self {
+            value_: UntaggedValue { gc: &value.hdr },
+            tt_: value.hdr.tt | 1 << 6,
+        }
+    }
+}
+
+impl<D, T> From<&UserData<D, T>> for UnsafeValue<D> {
+    #[inline(always)]
+    fn from(value: &UserData<D, T>) -> Self {
+        Self {
+            value_: UntaggedValue { gc: &value.hdr },
+            tt_: value.hdr.tt | 1 << 6,
+        }
+    }
+}
+
+impl<D, T> From<Ref<UserData<D, T>, D>> for UnsafeValue<D> {
+    #[inline(always)]
+    fn from(value: Ref<UserData<D, T>, D>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: value.hdr.tt | 1 << 6,

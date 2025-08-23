@@ -1,31 +1,31 @@
 use std::path::PathBuf;
 use std::sync::LazyLock;
-use tsuki::{CallError, ChunkInfo, Lua};
+use tsuki::{Args, CallError, ChunkInfo, Context, Fp, Lua, Ret};
 
 #[test]
 fn badkey() {
-    run("badkey.lua").unwrap();
+    run("badkey.lua", |_| {}).unwrap();
 }
 
 #[test]
 fn close() {
-    run("close.lua").unwrap();
+    run("close.lua", |_| {}).unwrap();
 }
 
 #[test]
 fn closure() {
-    run("closure.lua").unwrap();
+    run("closure.lua", |_| {}).unwrap();
 }
 
 #[test]
 #[ignore = "need Lua standard library"]
 fn coroutine() {
-    run("coroutine.lua").unwrap();
+    run("coroutine.lua", |_| {}).unwrap();
 }
 
 #[test]
 fn error() {
-    let e = run("error.lua")
+    let e = run("error.lua", |_| {})
         .unwrap_err()
         .downcast::<CallError>()
         .unwrap();
@@ -39,44 +39,68 @@ fn error() {
 #[test]
 #[ignore = "need Lua standard library"]
 fn errors() {
-    run("errors.lua").unwrap();
+    run("errors.lua", |_| {}).unwrap();
 }
 
 #[test]
 #[ignore = "need Lua standard library"]
 fn events() {
-    run("events.lua").unwrap();
+    run("events.lua", |_| {}).unwrap();
 }
 
 #[test]
 #[ignore = "need Lua standard library"]
 fn math() {
-    run("math.lua").unwrap();
+    run("math.lua", |_| {}).unwrap();
 }
 
 #[test]
 fn print() {
-    run("print.lua").unwrap();
+    run("print.lua", |_| {}).unwrap();
 }
 
 #[test]
 #[ignore = "need Lua standard library"]
 fn tpack() {
-    run("tpack.lua").unwrap();
+    run("tpack.lua", |_| {}).unwrap();
 }
 
 #[test]
 #[ignore = "need Lua standard library"]
 fn strings() {
-    run("strings.lua").unwrap();
+    run("strings.lua", |_| {}).unwrap();
+}
+
+#[test]
+fn userdata() {
+    struct MyUd(String);
+
+    impl Drop for MyUd {
+        fn drop(&mut self) {
+            println!("{}", self.0);
+        }
+    }
+
+    fn f(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
+        let ud = cx.create_ud(MyUd(String::from("abc")));
+
+        cx.push(ud)?;
+
+        Ok(cx.into())
+    }
+
+    run("userdata.lua", |lua| {
+        lua.global().set_str_key("createud", Fp(f))
+    })
+    .unwrap()
 }
 
 #[test]
 fn vararg() {
-    run("vararg.lua").unwrap();
+    run("vararg.lua", |_| {}).unwrap();
 }
 
-fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn run(file: &str, setup: impl FnOnce(&Lua<()>)) -> Result<(), Box<dyn std::error::Error>> {
     // Get path.
     let mut path = ROOT.join("tests");
 
@@ -92,6 +116,8 @@ fn run(file: &str) -> Result<(), Box<dyn std::error::Error>> {
     lua.setup_table();
     lua.setup_math();
     lua.setup_coroutine();
+
+    setup(&lua);
 
     // Run.
     let chunk = lua.load(ChunkInfo::new(path.to_string_lossy().into_owned()), content)?;
