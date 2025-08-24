@@ -1,3 +1,33 @@
+//! Lua 5.4 ported to Rust.
+//!
+//! # Types that can be converted to UnsafeValue.
+//!
+//! You can pass the value of the following types for `impl Into<UnsafeValue>`:
+//!
+//! - [`Nil`]
+//! - [`bool`]
+//! - [`Fp`]
+//! - [`AsyncFp`]
+//! - [`i8`]
+//! - [`i16`]
+//! - [`i32`]
+//! - [`i64`]
+//! - [`u8`]
+//! - [`u16`]
+//! - [`u32`]
+//! - [`f32`]
+//! - [`f64`]
+//! - Reference to [`Str`]
+//! - Reference to [`Table`]
+//! - Reference to [`LuaFn`]
+//! - Reference to [`UserData`]
+//! - Reference to [`Thread`]
+//! - [`Ref`]
+//! - [`Value`]
+//! - [`Arg`] or reference to it
+//!
+//! The value will be converted to corresponding Lua value. Tsuki does not expose [`UnsafeValue`] by
+//! design so you cannot construct its value. Tsuki also never handout the value of [`UnsafeValue`].
 #![no_std]
 
 pub use self::context::*;
@@ -28,6 +58,7 @@ use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::cell::UnsafeCell;
+use core::error::Error;
 use core::ffi::c_int;
 use core::fmt::{Display, Formatter};
 use core::hint::unreachable_unchecked;
@@ -73,7 +104,7 @@ extern crate alloc;
 extern crate std;
 
 #[inline(always)]
-unsafe fn lua_pop<D>(th: *const Thread<D>, n: c_int) -> Result<(), Box<dyn core::error::Error>> {
+unsafe fn lua_pop<D>(th: *const Thread<D>, n: c_int) -> Result<(), Box<dyn Error>> {
     unsafe { lua_settop(th, -(n) - 1) }
 }
 
@@ -84,6 +115,20 @@ unsafe fn api_incr_top<D>(th: *const Thread<D>) {
     if unsafe { (*th).top.get() > (*(*th).ci.get()).top } {
         panic!("stack overflow");
     }
+}
+
+/// Helper macro to construct [`Fp`] or [`AsyncFp`].
+#[macro_export]
+macro_rules! fp {
+    ($f:path) => {
+        $crate::Fp::new($f)
+    };
+    ($f:path as async) => {{
+        #[cfg(not(feature = "std"))]
+        use ::alloc::boxed::Box;
+
+        $crate::AsyncFp::new(|cx| Box::pin($f(cx)))
+    }};
 }
 
 /// Global states shared with all Lua threads.
@@ -418,7 +463,7 @@ impl<T> Lua<T> {
         &self,
         f: impl Into<UnsafeValue<T>>,
         args: impl Inputs<T>,
-    ) -> Result<R, Box<dyn core::error::Error>> {
+    ) -> Result<R, Box<dyn Error>> {
         self.main().call(f, args)
     }
 
@@ -476,7 +521,7 @@ impl<T> Lua<T> {
 pub enum Value<D> {
     Nil,
     Bool(bool),
-    Fp(fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>>),
+    Fp(fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>),
     Int(i64),
     Num(f64),
     Str(Ref<Str<D>, D>),
@@ -523,20 +568,44 @@ pub struct Nil;
 
 /// Non-Yieldable Rust function.
 #[derive(Clone, Copy)]
-pub struct Fp<D>(pub fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>>);
+pub struct Fp<D>(fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>);
+
+impl<D> Fp<D> {
+    /// Construct a new [`Fp`] from a function pointer.
+    ///
+    /// [`fp`] macro is more convenience than this function.
+    pub const fn new(v: fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>) -> Self {
+        Self(v)
+    }
+}
 
 #[derive(Clone, Copy)]
-pub struct YieldFp<D>(
-    pub fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>>,
-);
+pub struct YieldFp<D>(fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>);
 
+/// Asynchronous Rust function.
+///
+/// Each call into async function from Lua always incur one heap allocation so create async function
+/// only when necessary.
 #[derive(Clone, Copy)]
 pub struct AsyncFp<D>(
-    pub  fn(
+    fn(
         Context<D, Args>,
-    )
-        -> Box<dyn Future<Output = Result<Context<D, Ret>, Box<dyn core::error::Error>>> + '_>,
+    ) -> Pin<Box<dyn Future<Output = Result<Context<D, Ret>, Box<dyn Error>>> + '_>>,
 );
+
+impl<D> AsyncFp<D> {
+    /// Construct a new [`AsyncFp`] from a function pointer.
+    ///
+    /// [`fp`] macro is more convenience than this function.
+    pub const fn new(
+        v: fn(
+            Context<D, Args>,
+        )
+            -> Pin<Box<dyn Future<Output = Result<Context<D, Ret>, Box<dyn Error>>> + '_>>,
+    ) -> Self {
+        Self(v)
+    }
+}
 
 /// Type of operator.
 #[repr(u8)]
@@ -580,18 +649,18 @@ impl Ops {
     }
 }
 
-/// Represents an error when a call to function fails.
+/// Represents an error when [`Fp`] or [`AsyncFp`] return an error.
 #[derive(Debug)]
 pub struct CallError {
     chunk: Option<(String, u32)>,
-    reason: Box<dyn core::error::Error>,
+    reason: Box<dyn Error>,
 }
 
 impl CallError {
     unsafe fn new<D>(
         th: *const Thread<D>,
         caller: *mut CallInfo<D>,
-        mut reason: Box<dyn core::error::Error>,
+        mut reason: Box<dyn Error>,
     ) -> Box<Self> {
         // Forward ourself.
         reason = match reason.downcast() {
@@ -628,8 +697,8 @@ impl CallError {
     }
 }
 
-impl core::error::Error for CallError {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+impl Error for CallError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.reason.source()
     }
 }

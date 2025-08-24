@@ -116,7 +116,16 @@ unsafe fn mainpositionTV<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *
                         as c_uint,
                 ) as isize)
         }
-        18 | 34 | 50 => todo!(),
+        18 | 50 => todo!(),
+        34 => {
+            let f = (*key).value_.a;
+
+            (*t).node
+                .get()
+                .offset((((f as usize) & 0xffffffff) as c_uint).wrapping_rem(
+                    (((1 as c_int) << (*t).lsizenode.get()) - 1 as c_int | 1 as c_int) as c_uint,
+                ) as isize)
+        }
         _ => {
             let o = (*key).value_.gc;
             return ((*t).node.get()).offset(
@@ -154,7 +163,8 @@ unsafe fn equalkey<D>(k1: *const UnsafeValue<D>, n2: *const Node<D>, deadok: c_i
         0 | 1 | 17 => 1,
         3 => ((*k1).value_.i == (*n2).u.key_val.i) as c_int,
         19 => ((*k1).value_.n == (*n2).u.key_val.n) as c_int,
-        2 | 18 | 34 | 50 => core::ptr::fn_addr_eq((*k1).value_.f, (*n2).u.key_val.f) as c_int,
+        2 | 18 | 50 => core::ptr::fn_addr_eq((*k1).value_.f, (*n2).u.key_val.f) as c_int,
+        34 => core::ptr::fn_addr_eq((*k1).value_.a, (*n2).u.key_val.a) as c_int,
         84 => luaS_eqlngstr(
             (*k1).value_.gc as *mut Str<D>,
             (*n2).u.key_val.gc as *mut Str<D>,

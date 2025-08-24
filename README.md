@@ -18,7 +18,6 @@ Almost ready for release. Everything are working as expected and Lua test cases 
 - Any error propagated to the caller via Rust `Result` instead of a long jump.
 - `core::any::Any` as Lua userdata and can be created without the need to define its metatable.
 - Metatable for a userdata is lookup with `core::any::TypeId` instead of a string.
-- Arbitrary user value.
 
 ## Differences from Lua
 

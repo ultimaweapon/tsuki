@@ -668,9 +668,10 @@ pub unsafe fn luaV_equalobj<D>(
         0 | 1 | 17 => return Ok(1 as c_int),
         3 => return Ok(((*t1).value_.i == (*t2).value_.i) as c_int),
         19 => return Ok(((*t1).value_.n == (*t2).value_.n) as c_int),
-        2 | 18 | 34 | 50 => {
+        2 | 18 | 50 => {
             return Ok(core::ptr::fn_addr_eq((*t1).value_.f, (*t2).value_.f) as c_int);
         }
+        34 => return Ok(core::ptr::fn_addr_eq((*t1).value_.a, (*t2).value_.a) as c_int),
         4 => return Ok((((*t1).value_.gc) == ((*t2).value_.gc)) as c_int),
         20 => {
             return Ok(luaS_eqlngstr::<D>(

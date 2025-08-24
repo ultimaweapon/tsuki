@@ -149,8 +149,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
     /// Get address of argument value (if any).
     ///
-    /// This has the same semantic as `lua_topointer`, except it does not return the address of
-    /// userdata.
+    /// This has the same semantic as `lua_topointer`.
     #[inline(always)]
     pub fn as_ptr(&self) -> *const u8 {
         let v = self.get_raw_or_null();
@@ -161,7 +160,9 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
         match unsafe { (*v).tt_ & 0x3f } {
             2 => unsafe { (*v).value_.f as *const u8 },
-            18 | 34 | 50 => todo!(),
+            18 | 50 => todo!(),
+            34 => unsafe { (*v).value_.a as *const u8 },
+            7 => unsafe { (*(*v).value_.gc.cast::<UserData<D, ()>>()).ptr.cast() },
             _ => unsafe {
                 if (*v).tt_ & 1 << 6 != 0 {
                     (*v).value_.gc.cast()
@@ -565,7 +566,8 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
                 match v {
                     2 => write!(buf, "{:p}", (*arg).value_.f).unwrap(),
-                    18 | 34 | 50 => todo!(),
+                    18 | 50 => todo!(),
+                    34 => write!(buf, "{:p}", (*arg).value_.a).unwrap(),
                     4 => {
                         let v = (*arg).value_.gc.cast::<Str<D>>();
                         let v = (*v).as_bytes();

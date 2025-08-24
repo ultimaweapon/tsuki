@@ -16,6 +16,7 @@ use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use core::alloc::Layout;
 use core::cell::{Cell, UnsafeCell};
+use core::error::Error;
 use core::marker::PhantomPinned;
 use core::pin::pin;
 use core::ptr::{addr_of_mut, null, null_mut};
@@ -44,6 +45,7 @@ pub struct Thread<D> {
     pub(crate) basehookcount: Cell<i32>,
     pub(crate) hookcount: Cell<i32>,
     pub(crate) hookmask: Cell<i32>,
+    pub(crate) awaiting: Cell<bool>,
     phantom: PhantomPinned,
 }
 
@@ -65,6 +67,7 @@ impl<D> Thread<D> {
         unsafe { addr_of_mut!((*th).hookcount).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*th).openupval).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*th).oldpc).write(Cell::new(0)) };
+        unsafe { addr_of_mut!((*th).awaiting).write(Cell::new(false)) };
 
         // Allocate stack.
         let layout = Layout::array::<StackValue<D>>(2 * 20 + 5).unwrap();
@@ -102,9 +105,7 @@ impl<D> Thread<D> {
 
     /// Call a function or callable value.
     ///
-    /// The error will be either [CallError](crate::CallError) or
-    /// [StackOverflow](crate::StackOverflow). The latter will trigger when the stack is not enough
-    /// for `args`.
+    /// The error will be either [CallError](crate::CallError) or something else.
     ///
     /// # Panics
     /// If `f` or some of `args` come from different [`Lua`] instance.
@@ -112,7 +113,12 @@ impl<D> Thread<D> {
         &self,
         f: impl Into<UnsafeValue<D>>,
         args: impl Inputs<D>,
-    ) -> Result<R, Box<dyn core::error::Error>> {
+    ) -> Result<R, Box<dyn Error>> {
+        // Don't allow while async call is active.
+        if self.awaiting.get() {
+            return Err(AWAITING.into());
+        }
+
         // Check if function created from the same Lua.
         let f = f.into();
 
@@ -163,6 +169,73 @@ impl<D> Thread<D> {
 
         Ok(unsafe { R::new(self, n) })
     }
+
+    /// Call a function with ability to call into any [AsyncFp](crate::AsyncFp).
+    ///
+    /// The error will be either [CallError](crate::CallError) or something else.
+    ///
+    /// This method is not available on main thread so you need to create a [`Thread`] to use this
+    /// method.
+    ///
+    /// # Panics
+    /// If `f` or some of `args` come from different [`Lua`] instance.
+    pub async fn async_call<R: Outputs<D>>(
+        &self,
+        f: impl Into<UnsafeValue<D>>,
+        args: impl Inputs<D>,
+    ) -> Result<R, Box<dyn Error>> {
+        // Don't allow while another call is active.
+        let g = match AsyncGuard::new(&self.awaiting) {
+            Some(v) => v,
+            None => return Err(AWAITING.into()),
+        };
+
+        // Check if function created from the same Lua.
+        let f = f.into();
+
+        if unsafe { (f.tt_ & 1 << 6) != 0 && (*f.value_.gc).global != self.hdr.global } {
+            panic!("attempt to call a value created from a different Lua");
+        }
+
+        // Push function and its arguments.
+        let ot = unsafe { self.top.get().offset_from_unsigned(self.stack.get()) };
+        let nargs = args.len();
+
+        unsafe { lua_checkstack(self, 1 + nargs)? };
+
+        unsafe { self.top.write(f) };
+        unsafe { self.top.add(1) };
+        unsafe { args.push_to(self) };
+
+        // Call.
+        let f = unsafe { self.top.get().sub(nargs + 1) };
+
+        if let Err(e) = unsafe { luaD_call(self, f, R::N).await } {
+            return Err(e); // Required for unsized coercion.
+        }
+
+        // Get number of results.
+        let n = match R::N {
+            -1 => unsafe {
+                let ot = self.stack.get().add(ot);
+                let v = self.top.get().offset_from_unsigned(ot);
+
+                self.top.set(ot);
+
+                v
+            },
+            0 => 0,
+            v => unsafe {
+                let v = v.try_into().unwrap();
+                self.top.sub(v);
+                v
+            },
+        };
+
+        drop(g); // Suppress unused variable.
+
+        Ok(unsafe { R::new(self, n) })
+    }
 }
 
 impl<D> Drop for Thread<D> {
@@ -203,3 +276,26 @@ impl<D> Drop for Thread<D> {
         unsafe { alloc::alloc::dealloc(self.stack.get().cast(), layout) };
     }
 }
+
+/// RAII struct to toggle [`Thread::awaiting`].
+struct AsyncGuard<'a>(&'a Cell<bool>);
+
+impl<'a> AsyncGuard<'a> {
+    #[inline(always)]
+    fn new(awaiting: &'a Cell<bool>) -> Option<Self> {
+        match awaiting.replace(true) {
+            true => None,
+            false => Some(Self(awaiting)),
+        }
+    }
+}
+
+impl<'a> Drop for AsyncGuard<'a> {
+    #[inline(always)]
+    fn drop(&mut self) {
+        self.0.set(false);
+    }
+}
+
+static AWAITING: &str =
+    "attempt to make another call on the thread being awaiting on async function";

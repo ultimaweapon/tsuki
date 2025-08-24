@@ -1,9 +1,4 @@
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    unused_assignments
-)]
+#![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::ldebug::luaG_callerror;
@@ -16,13 +11,18 @@ use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lzio::{Mbuffer, Zio};
 use crate::vm::luaV_execute;
 use crate::{
-    Args, CallError, ChunkInfo, Context, Lua, LuaFn, ParseError, Ref, Ret, StackOverflow, Thread,
+    Args, CallError, ChunkInfo, Context, Lua, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, Ret,
+    StackOverflow, Thread,
 };
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use core::alloc::Layout;
+use core::error::Error;
+use core::future::poll_fn;
 use core::ops::Deref;
-use core::ptr::{null, null_mut};
+use core::pin::Pin;
+use core::ptr::{addr_eq, null, null_mut};
+use core::task::{Poll, RawWakerVTable};
 
 type c_int = i32;
 
@@ -189,7 +189,7 @@ pub unsafe fn luaD_hook<D>(
     line: c_int,
     ftransfer: c_int,
     ntransfer: usize,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Result<(), Box<dyn Error>> {
     let hook = (*L).hook.get();
     if hook.is_some() && (*L).allowhook.get() != 0 {
         let mut mask: c_int = (1 as c_int) << 3 as c_int;
@@ -240,7 +240,7 @@ pub unsafe fn luaD_hook<D>(
 pub unsafe fn luaD_hookcall<D>(
     L: *const Thread<D>,
     ci: *mut CallInfo<D>,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Result<(), Box<dyn Error>> {
     (*L).oldpc.set(0);
 
     if (*L).hookmask.get() & 1 << 0 != 0 {
@@ -263,7 +263,7 @@ unsafe fn rethook<D>(
     L: *const Thread<D>,
     mut ci: *mut CallInfo<D>,
     nres: c_int,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Result<(), Box<dyn Error>> {
     if (*L).hookmask.get() & 1 << 1 != 0 {
         let firstres = ((*L).top.get()).offset(-(nres as isize));
         let mut delta: c_int = 0 as c_int;
@@ -304,7 +304,7 @@ unsafe fn rethook<D>(
 unsafe fn tryfuncTM<D>(
     L: *const Thread<D>,
     mut func: *mut StackValue<D>,
-) -> Result<*mut StackValue<D>, Box<dyn core::error::Error>> {
+) -> Result<*mut StackValue<D>, Box<dyn Error>> {
     let mut tm = null();
     let mut p = null_mut();
 
@@ -344,7 +344,7 @@ unsafe fn moveresults<D>(
     mut res: *mut StackValue<D>,
     mut nres: c_int,
     mut wanted: c_int,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Result<(), Box<dyn Error>> {
     let mut firstresult = null_mut();
     let mut i: c_int = 0;
     match wanted {
@@ -418,7 +418,7 @@ pub unsafe fn luaD_poscall<D>(
     L: *const Thread<D>,
     ci: *mut CallInfo<D>,
     nres: c_int,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Result<(), Box<dyn Error>> {
     let wanted: c_int = (*ci).nresults as c_int;
     if (((*L).hookmask.get() != 0 && !(wanted < -(1 as c_int))) as c_int != 0 as c_int) as c_int
         as libc::c_long
@@ -457,7 +457,7 @@ async unsafe fn precallC<D>(
     func: *mut StackValue<D>,
     nresults: c_int,
     f: Func<D>,
-) -> Result<c_int, Box<dyn core::error::Error>> {
+) -> Result<c_int, Box<dyn Error>> {
     // Set current CI.
     let ci = prepCallInfo(L, func, nresults, 1 << 1, ((*L).top.get()).offset(20));
 
@@ -474,6 +474,15 @@ async unsafe fn precallC<D>(
     let cx = Context::new(&*L, Args::new(narg));
     let cx = match f {
         Func::NonYieldableFp(f) => f(cx)?,
+        Func::AsyncFp(f) => {
+            let yieldable = |vt: &RawWakerVTable| match addr_eq(vt, &NON_YIELDABLE_WAKER) {
+                true => Err("attempt to call async function fron non-async context".into()),
+                false => Result::<(), Box<dyn Error>>::Ok(()),
+            };
+
+            poll_fn(move |cx| Poll::Ready(yieldable(cx.waker().vtable()))).await?;
+            f(cx).await?
+        }
     };
 
     // Get number of results.
@@ -492,7 +501,7 @@ pub async unsafe fn luaD_pretailcall<D>(
     mut func: *mut StackValue<D>,
     mut narg1: c_int,
     delta: c_int,
-) -> Result<c_int, Box<dyn core::error::Error>> {
+) -> Result<c_int, Box<dyn Error>> {
     loop {
         match (*func).val.tt_ as c_int & 0x3f as c_int {
             38 => {
@@ -505,7 +514,8 @@ pub async unsafe fn luaD_pretailcall<D>(
                 .await;
             }
             2 => return precallC(L, func, -1, Func::NonYieldableFp((*func).val.value_.f)).await,
-            18 | 34 | 50 => todo!(),
+            18 | 50 => todo!(),
+            34 => return precallC(L, func, -1, Func::AsyncFp((*func).val.value_.a)).await,
             6 => {
                 let p = (*(*func).val.value_.gc.cast::<LuaFn<D>>()).p.get();
                 let fsize: c_int = (*p).maxstacksize as c_int;
@@ -556,7 +566,7 @@ pub async unsafe fn luaD_precall<D>(
     L: *const Thread<D>,
     mut func: *mut StackValue<D>,
     nresults: c_int,
-) -> Result<*mut CallInfo<D>, Box<dyn core::error::Error>> {
+) -> Result<*mut CallInfo<D>, Box<dyn Error>> {
     loop {
         match (*func).val.tt_ as c_int & 0x3f as c_int {
             38 => {
@@ -581,7 +591,11 @@ pub async unsafe fn luaD_precall<D>(
 
                 return Ok(null_mut());
             }
-            18 | 34 | 50 => todo!(),
+            18 | 50 => todo!(),
+            34 => {
+                precallC(L, func, nresults, Func::AsyncFp((*func).val.value_.a)).await?;
+                return Ok(null_mut());
+            }
             6 => {
                 let mut ci = null_mut();
                 let p = (*(*func).val.value_.gc.cast::<LuaFn<D>>()).p.get();
@@ -748,9 +762,10 @@ pub unsafe fn luaD_protectedparser<D>(
 }
 
 enum Func<D> {
-    NonYieldableFp(
-        for<'a> fn(
-            Context<'a, D, Args>,
-        ) -> Result<Context<'a, D, Ret>, Box<dyn core::error::Error>>,
+    NonYieldableFp(for<'a> fn(Context<'a, D, Args>) -> Result<Context<'a, D, Ret>, Box<dyn Error>>),
+    AsyncFp(
+        fn(
+            Context<D, Args>,
+        ) -> Pin<Box<dyn Future<Output = Result<Context<D, Ret>, Box<dyn Error>>> + '_>>,
     ),
 }

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::LazyLock;
-use tsuki::{Args, CallError, ChunkInfo, Context, Fp, Lua, Ret};
+use tsuki::{Args, CallError, ChunkInfo, Context, Lua, Ret, fp};
 
 #[test]
 fn badkey() {
@@ -90,7 +90,7 @@ fn userdata() {
     }
 
     run("userdata.lua", |lua| {
-        lua.global().set_str_key("createud", Fp(f))
+        lua.global().set_str_key("createud", fp!(f))
     })
     .unwrap()
 }

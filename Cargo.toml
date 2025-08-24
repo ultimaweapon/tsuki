@@ -18,4 +18,4 @@ rand = { version = "0.9.1", features = ["thread_rng"], default-features = false,
 thiserror = { version = "2.0.12", default-features = false }
 
 [dev-dependencies]
-pollster = "0.4.0"
+tokio = { version = "1.47.1", features = ["rt", "time"] }

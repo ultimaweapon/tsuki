@@ -1,7 +1,10 @@
 use crate::{
-    Arg, Args, Context, Fp, LuaFn, Nil, Object, Ref, Ret, Str, Table, Thread, UserData, Value,
+    Arg, Args, AsyncFp, Context, Fp, LuaFn, Nil, Object, Ref, Ret, Str, Table, Thread, UserData,
+    Value,
 };
 use alloc::boxed::Box;
+use core::error::Error;
+use core::pin::Pin;
 
 /// The outside **must** never be able to construct or have the value of this type.
 #[repr(C)]
@@ -61,6 +64,36 @@ impl<D> From<Fp<D>> for UnsafeValue<D> {
     }
 }
 
+impl<D> From<AsyncFp<D>> for UnsafeValue<D> {
+    #[inline(always)]
+    fn from(value: AsyncFp<D>) -> Self {
+        Self {
+            value_: UntaggedValue { a: value.0 },
+            tt_: 2 | 2 << 4,
+        }
+    }
+}
+
+impl<D> From<i8> for UnsafeValue<D> {
+    #[inline(always)]
+    fn from(value: i8) -> Self {
+        Self {
+            value_: UntaggedValue { i: value.into() },
+            tt_: 3 | 0 << 4,
+        }
+    }
+}
+
+impl<D> From<i16> for UnsafeValue<D> {
+    #[inline(always)]
+    fn from(value: i16) -> Self {
+        Self {
+            value_: UntaggedValue { i: value.into() },
+            tt_: 3 | 0 << 4,
+        }
+    }
+}
+
 impl<D> From<i32> for UnsafeValue<D> {
     #[inline(always)]
     fn from(value: i32) -> Self {
@@ -91,12 +124,32 @@ impl<D> From<u8> for UnsafeValue<D> {
     }
 }
 
+impl<D> From<u16> for UnsafeValue<D> {
+    #[inline(always)]
+    fn from(value: u16) -> Self {
+        Self {
+            value_: UntaggedValue { i: value.into() },
+            tt_: 3 | 0 << 4,
+        }
+    }
+}
+
 impl<D> From<u32> for UnsafeValue<D> {
     #[inline(always)]
     fn from(value: u32) -> Self {
         Self {
             value_: UntaggedValue { i: value.into() },
             tt_: 3 | 0 << 4,
+        }
+    }
+}
+
+impl<D> From<f32> for UnsafeValue<D> {
+    #[inline(always)]
+    fn from(value: f32) -> Self {
+        Self {
+            value_: UntaggedValue { n: value.into() },
+            tt_: 3 | 1 << 4,
         }
     }
 }
@@ -246,9 +299,10 @@ impl<'a, 'b, D> From<Arg<'a, 'b, D>> for UnsafeValue<D> {
 #[repr(C)]
 pub union UntaggedValue<D> {
     pub gc: *const Object<D>,
-    pub f: for<'a> fn(
-        Context<'a, D, Args>,
-    ) -> Result<Context<'a, D, Ret>, Box<dyn core::error::Error>>,
+    pub f: fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>,
+    pub a: fn(
+        Context<D, Args>,
+    ) -> Pin<Box<dyn Future<Output = Result<Context<D, Ret>, Box<dyn Error>>> + '_>>,
     pub i: i64,
     pub n: f64,
 }
