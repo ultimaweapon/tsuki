@@ -174,8 +174,9 @@ impl<D> From<&Str<D>> for UnsafeValue<D> {
     }
 }
 
-impl<D> From<Ref<Str<D>, D>> for UnsafeValue<D> {
-    fn from(value: Ref<Str<D>, D>) -> Self {
+impl<'a, D> From<Ref<'a, Str<D>>> for UnsafeValue<D> {
+    #[inline(always)]
+    fn from(value: Ref<'a, Str<D>>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: value.hdr.tt | 1 << 6,
@@ -193,8 +194,9 @@ impl<D> From<&Table<D>> for UnsafeValue<D> {
     }
 }
 
-impl<D> From<Ref<Table<D>, D>> for UnsafeValue<D> {
-    fn from(value: Ref<Table<D>, D>) -> Self {
+impl<'a, D> From<Ref<'a, Table<D>>> for UnsafeValue<D> {
+    #[inline(always)]
+    fn from(value: Ref<'a, Table<D>>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: 5 | 0 << 4 | 1 << 6,
@@ -212,8 +214,9 @@ impl<D> From<&LuaFn<D>> for UnsafeValue<D> {
     }
 }
 
-impl<D> From<Ref<LuaFn<D>, D>> for UnsafeValue<D> {
-    fn from(value: Ref<LuaFn<D>, D>) -> Self {
+impl<'a, D> From<Ref<'a, LuaFn<D>>> for UnsafeValue<D> {
+    #[inline(always)]
+    fn from(value: Ref<'a, LuaFn<D>>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: value.hdr.tt | 1 << 6,
@@ -231,9 +234,9 @@ impl<D, T> From<&UserData<D, T>> for UnsafeValue<D> {
     }
 }
 
-impl<D, T> From<Ref<UserData<D, T>, D>> for UnsafeValue<D> {
+impl<'a, D, T: ?Sized> From<Ref<'a, UserData<D, T>>> for UnsafeValue<D> {
     #[inline(always)]
-    fn from(value: Ref<UserData<D, T>, D>) -> Self {
+    fn from(value: Ref<'a, UserData<D, T>>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: value.hdr.tt | 1 << 6,
@@ -251,8 +254,9 @@ impl<D> From<&Thread<D>> for UnsafeValue<D> {
     }
 }
 
-impl<D> From<Ref<Thread<D>, D>> for UnsafeValue<D> {
-    fn from(value: Ref<Thread<D>, D>) -> Self {
+impl<'a, D> From<Ref<'a, Thread<D>>> for UnsafeValue<D> {
+    #[inline(always)]
+    fn from(value: Ref<'a, Thread<D>>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: 8 | 0 << 4 | 1 << 6,
@@ -260,17 +264,20 @@ impl<D> From<Ref<Thread<D>, D>> for UnsafeValue<D> {
     }
 }
 
-impl<D> From<Value<D>> for UnsafeValue<D> {
-    fn from(value: Value<D>) -> Self {
+impl<'a, D> From<Value<'a, D>> for UnsafeValue<D> {
+    #[inline(never)]
+    fn from(value: Value<'a, D>) -> Self {
         match value {
             Value::Nil => Self::from(Nil),
             Value::Bool(v) => Self::from(v),
             Value::Fp(v) => Self::from(Fp(v)),
+            Value::AsyncFp(v) => Self::from(AsyncFp(v)),
             Value::Int(v) => Self::from(v),
             Value::Num(v) => Self::from(v),
             Value::Str(v) => Self::from(v),
             Value::Table(v) => Self::from(v),
             Value::LuaFn(v) => Self::from(v),
+            Value::UserData(v) => Self::from(v),
             Value::Thread(v) => Self::from(v),
         }
     }

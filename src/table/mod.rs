@@ -46,7 +46,7 @@ impl<D> Table<D> {
     }
 
     /// Returns metatable for this table.
-    pub fn metatable(&self) -> Option<Ref<Self, D>> {
+    pub fn metatable(&self) -> Option<Ref<'_, Self>> {
         let v = self.metatable.get();
 
         match v.is_null() {
@@ -124,7 +124,7 @@ impl<D> Table<D> {
     ///
     /// # Panics
     /// If `k` come from different [Lua](crate::Lua) instance.
-    pub fn get(&self, k: impl Into<UnsafeValue<D>>) -> Value<D> {
+    pub fn get(&self, k: impl Into<UnsafeValue<D>>) -> Value<'_, D> {
         let k = k.into();
 
         if unsafe { (k.tt_ & 1 << 6 != 0) && (*k.value_.gc).global != self.hdr.global } {
@@ -135,7 +135,7 @@ impl<D> Table<D> {
     }
 
     /// Returns a value corresponding to the key.
-    pub fn get_str_key<K>(&self, k: K) -> Value<D>
+    pub fn get_str_key<K>(&self, k: K) -> Value<'_, D>
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,
     {

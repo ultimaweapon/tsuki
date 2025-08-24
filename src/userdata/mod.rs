@@ -17,6 +17,7 @@ pub struct UserData<D, T: ?Sized> {
 }
 
 impl<D, T: Any> UserData<D, T> {
+    #[inline(never)]
     pub(crate) unsafe fn new(g: *const Lua<D>, value: T) -> *const UserData<D, ()> {
         // Get layout.
         let layout = Layout::new::<T>();

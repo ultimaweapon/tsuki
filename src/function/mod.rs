@@ -19,11 +19,11 @@ impl<D> LuaFn<D> {
     /// # Panics
     /// - If `i` is zero.
     /// - If `v` was created from a different [Lua](crate::Lua) instance.
-    pub fn set_upvalue(
+    pub fn set_upvalue<'a>(
         &self,
         i: impl TryInto<NonZero<usize>>,
-        v: Value<D>,
-    ) -> Result<(), Value<D>> {
+        v: Value<'a, D>,
+    ) -> Result<(), Value<'a, D>> {
         // Check if index valid.
         let i = i.try_into().ok().unwrap().get() - 1;
         let u = match self.upvals.get(i) {

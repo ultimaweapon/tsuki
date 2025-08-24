@@ -109,8 +109,8 @@ impl<D> Thread<D> {
     ///
     /// # Panics
     /// If `f` or some of `args` come from different [`Lua`] instance.
-    pub fn call<R: Outputs<D>>(
-        &self,
+    pub fn call<'a, R: Outputs<'a, D>>(
+        &'a self,
         f: impl Into<UnsafeValue<D>>,
         args: impl Inputs<D>,
     ) -> Result<R, Box<dyn Error>> {
@@ -179,8 +179,8 @@ impl<D> Thread<D> {
     ///
     /// # Panics
     /// If `f` or some of `args` come from different [`Lua`] instance.
-    pub async fn async_call<R: Outputs<D>>(
-        &self,
+    pub async fn async_call<'a, R: Outputs<'a, D>>(
+        &'a self,
         f: impl Into<UnsafeValue<D>>,
         args: impl Inputs<D>,
     ) -> Result<R, Box<dyn Error>> {

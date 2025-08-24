@@ -37,7 +37,6 @@ use alloc::borrow::Cow;
 use alloc::format;
 use alloc::string::String;
 use core::fmt::Display;
-use core::ops::Deref;
 use core::ptr::{null, null_mut};
 
 type c_int = i32;
@@ -996,7 +995,7 @@ unsafe fn enterblock<D>(
 }
 
 unsafe fn undefgoto<D>(ls: *mut LexState<D>, gt: *mut Labeldesc<D>) -> ParseError {
-    if (*gt).name == Str::from_str((*ls).g.deref(), "break") {
+    if (*gt).name == Str::from_str((*ls).g, "break") {
         luaK_semerror(
             ls,
             format_args!("break outside loop at line {}", (*gt).line),
@@ -1019,12 +1018,7 @@ unsafe fn leaveblock<D>(ls: *mut LexState<D>, fs: *mut FuncState<D>) -> Result<(
     let stklevel: c_int = reglevel(ls, fs, (*bl).nactvar as c_int);
     removevars(ls, fs, (*bl).nactvar as c_int);
     if (*bl).isloop != 0 {
-        hasclose = createlabel(
-            ls,
-            Str::from_str((*ls).g.deref(), "break"),
-            0 as c_int,
-            0 as c_int,
-        )?;
+        hasclose = createlabel(ls, Str::from_str((*ls).g, "break"), 0 as c_int, 0 as c_int)?;
     }
     if hasclose == 0 && !((*bl).previous).is_null() && (*bl).upval as c_int != 0 {
         luaK_codeABCk(ls, fs, OP_CLOSE, stklevel, 0 as c_int, 0 as c_int, 0)?;
@@ -1044,7 +1038,7 @@ unsafe fn leaveblock<D>(ls: *mut LexState<D>, fs: *mut FuncState<D>) -> Result<(
 }
 
 unsafe fn addprototype<D>(ls: *mut LexState<D>) -> Result<*mut Proto<D>, ParseError> {
-    let g = (*ls).g.deref();
+    let g = (*ls).g;
     let fs = (*ls).fs;
     let f = (*fs).f;
 
@@ -1142,49 +1136,49 @@ unsafe fn close_func<D>(ls: *mut LexState<D>) -> Result<(), ParseError> {
     leaveblock(ls, fs)?;
     luaK_finish(ls, fs)?;
     (*f).code = luaM_shrinkvector_(
-        (*ls).g.deref(),
+        (*ls).g,
         (*f).code as *mut libc::c_void,
         &mut (*f).sizecode,
         (*fs).pc,
         ::core::mem::size_of::<u32>() as libc::c_ulong as c_int,
     ) as *mut u32;
     (*f).lineinfo = luaM_shrinkvector_(
-        (*ls).g.deref(),
+        (*ls).g,
         (*f).lineinfo as *mut libc::c_void,
         &mut (*f).sizelineinfo,
         (*fs).pc,
         ::core::mem::size_of::<i8>() as libc::c_ulong as c_int,
     ) as *mut i8;
     (*f).abslineinfo = luaM_shrinkvector_(
-        (*ls).g.deref(),
+        (*ls).g,
         (*f).abslineinfo as *mut libc::c_void,
         &mut (*f).sizeabslineinfo,
         (*fs).nabslineinfo,
         ::core::mem::size_of::<AbsLineInfo>() as libc::c_ulong as c_int,
     ) as *mut AbsLineInfo;
     (*f).k = luaM_shrinkvector_(
-        (*ls).g.deref(),
+        (*ls).g,
         (*f).k as *mut libc::c_void,
         &mut (*f).sizek,
         (*fs).nk,
         ::core::mem::size_of::<UnsafeValue<D>>() as libc::c_ulong as c_int,
     ) as *mut UnsafeValue<D>;
     (*f).p = luaM_shrinkvector_(
-        (*ls).g.deref(),
+        (*ls).g,
         (*f).p as *mut libc::c_void,
         &mut (*f).sizep,
         (*fs).np,
         ::core::mem::size_of::<*mut Proto<D>>() as libc::c_ulong as c_int,
     ) as *mut *mut Proto<D>;
     (*f).locvars = luaM_shrinkvector_(
-        (*ls).g.deref(),
+        (*ls).g,
         (*f).locvars as *mut libc::c_void,
         &mut (*f).sizelocvars,
         (*fs).ndebugvars as c_int,
         ::core::mem::size_of::<LocVar<D>>() as libc::c_ulong as c_int,
     ) as *mut LocVar<D>;
     (*f).upvalues = luaM_shrinkvector_(
-        (*ls).g.deref(),
+        (*ls).g,
         (*f).upvalues as *mut libc::c_void,
         &mut (*f).sizeupvalues,
         (*fs).nups as c_int,
@@ -2072,7 +2066,7 @@ unsafe fn breakstat<D>(ls: *mut LexState<D>) -> Result<(), ParseError> {
     luaX_next(ls)?;
     newgotoentry(
         ls,
-        Str::from_str((*ls).g.deref(), "break"),
+        Str::from_str((*ls).g, "break"),
         line,
         luaK_jump(ls, (*ls).fs)?,
     )?;
@@ -2446,7 +2440,7 @@ unsafe fn test_then_block<D>(
         luaK_goiffalse(ls, (*ls).fs, &mut v)?;
         luaX_next(ls)?;
         enterblock(ls, fs, &mut bl, 0 as c_int as u8);
-        newgotoentry(ls, Str::from_str((*ls).g.deref(), "break"), line, v.t)?;
+        newgotoentry(ls, Str::from_str((*ls).g, "break"), line, v.t)?;
         while testnext(ls, ';' as i32)? != 0 {}
         if block_follow(ls, 0 as c_int) != 0 {
             leaveblock(ls, fs)?;
@@ -2795,7 +2789,7 @@ pub unsafe fn luaY_parser<D>(
     dyd: *mut Dyndata<D>,
     info: ChunkInfo,
     firstchar: c_int,
-) -> Result<Ref<LuaFn<D>, D>, ParseError> {
+) -> Result<Ref<'_, LuaFn<D>>, ParseError> {
     let mut funcstate = FuncState::default();
     let cl = Ref::new(luaF_newLclosure(g, 1));
     let mut lexstate = LexState {
@@ -2811,7 +2805,7 @@ pub unsafe fn luaY_parser<D>(
             seminfo: SemInfo { r: 0. },
         },
         fs: null_mut(),
-        g: g.to_rc(),
+        g,
         z: 0 as *mut ZIO,
         buff: 0 as *mut Mbuffer,
         h: Ref::new(Table::new(g)),

@@ -45,28 +45,38 @@ impl<'a, D, T> Context<'a, D, T> {
     }
 
     /// Create a Lua string.
-    pub fn create_str<V>(&self, v: V) -> Ref<Str<D>, D>
+    #[inline(always)]
+    pub fn create_str<V>(&self, v: V) -> Ref<'a, Str<D>>
     where
         V: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
-        let s = unsafe { Str::from_str(self.th.hdr.global, v) };
+        unsafe { Ref::new(Str::from_str(self.th.hdr.global, v)) }
+    }
 
-        unsafe { Ref::new(s) }
+    /// Create a Lua table.
+    pub fn create_table(&self) -> Ref<'a, Table<D>> {
+        unsafe { Ref::new(Table::new(self.th.hdr.global)) }
     }
 
     /// Create a full userdata.
-    pub fn create_ud<V: Any>(&self, v: V) -> Ref<UserData<D, V>, D> {
-        let u = unsafe { UserData::new(self.th.hdr.global, v).cast() };
+    #[inline(always)]
+    pub fn create_ud<V: Any>(&self, v: V) -> Ref<'a, UserData<D, V>> {
+        unsafe { Ref::new(UserData::new(self.th.hdr.global, v).cast()) }
+    }
 
-        unsafe { Ref::new(u) }
+    /// Create a new Lua thread (AKA coroutine).
+    #[inline(always)]
+    pub fn create_thread(&self) -> Ref<'a, Thread<D>> {
+        unsafe { Ref::new(Thread::new(self.th.hdr.global())) }
     }
 
     /// Load a Lua chunk.
+    #[inline(always)]
     pub fn load(
         &self,
         info: ChunkInfo,
         chunk: impl AsRef<[u8]>,
-    ) -> Result<Ref<LuaFn<D>, D>, ParseError> {
+    ) -> Result<Ref<'a, LuaFn<D>>, ParseError> {
         self.th.hdr.global().load(info, chunk)
     }
 

@@ -702,7 +702,7 @@ pub unsafe fn luaD_protectedparser<D>(
     g: &Lua<D>,
     mut z: Zio,
     info: ChunkInfo,
-) -> Result<Ref<LuaFn<D>, D>, ParseError> {
+) -> Result<Ref<'_, LuaFn<D>>, ParseError> {
     let mut buff = Mbuffer {
         buffer: 0 as *mut libc::c_char,
         n: 0,

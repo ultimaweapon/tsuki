@@ -31,7 +31,7 @@ pub unsafe fn luaF_newCclosure<D>(g: *const Lua<D>, nupvals: libc::c_int) -> *mu
     o
 }
 
-pub unsafe fn luaF_newLclosure<D>(g: *const Lua<D>, nupvals: libc::c_int) -> *mut LuaFn<D> {
+pub unsafe fn luaF_newLclosure<D>(g: *const Lua<D>, nupvals: libc::c_int) -> *const LuaFn<D> {
     let nupvals = u8::try_from(nupvals).unwrap();
     let layout = Layout::new::<LuaFn<D>>();
     let o = (*g).gc.alloc(6 | 0 << 4, layout).cast::<LuaFn<D>>();

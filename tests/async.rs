@@ -21,14 +21,13 @@ fn async_call() {
     lua.global().set_str_key("sleep", fp!(sleep as async));
 
     exec.block_on(&rt, async move {
-        let chunk = lua.load(ChunkInfo::new("async.lua"), "sleep()").unwrap();
         let mut tasks = JoinSet::new();
 
         for _ in 0..10 {
             let lua = lua.clone();
-            let chunk = chunk.clone();
 
             tasks.spawn_local(async move {
+                let chunk = lua.load(ChunkInfo::new("async.lua"), "sleep()").unwrap();
                 let th = lua.create_thread();
 
                 th.async_call::<()>(chunk, ()).await.unwrap();

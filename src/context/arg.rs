@@ -178,7 +178,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     /// This method is expensive compared to a specialized method like [`Self::get_str()`]. Use this
     /// method only when you need [`Value`]. If you want to check type of this argument use
     /// [`Self::ty()`] instead since it much faster.
-    pub fn get(&self) -> Option<Value<D>> {
+    pub fn get(&self) -> Option<Value<'b, D>> {
         let v = self.get_raw_or_null();
 
         if v.is_null() {
@@ -285,7 +285,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     }
 
     /// Gets metatable for this argument.
-    pub fn get_metatable(&self) -> Option<Option<Ref<Table<D>, D>>> {
+    pub fn get_metatable(&self) -> Option<Option<Ref<'b, Table<D>>>> {
         // Get argument.
         let v = self.get_raw_or_null();
 
@@ -463,7 +463,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     /// The returned [`Str`] guarantee to be a UTF-8 string. If this argument is a string but it is
     /// not UTF-8 this method will return a new [`Str`] with content `string: CONTENT_IN_LOWER_HEX`
     /// instead.
-    pub fn display(&self) -> Result<Ref<Str<D>, D>, Box<dyn core::error::Error>> {
+    pub fn display(&self) -> Result<Ref<'b, Str<D>>, Box<dyn core::error::Error>> {
         // Try __tostring metamethod.
         let t = self.cx.th;
         let g = t.hdr.global();

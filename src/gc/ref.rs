@@ -1,26 +1,20 @@
 use super::Object;
-use crate::Lua;
-use alloc::rc::Rc;
+use core::marker::PhantomData;
 use core::ops::Deref;
-use core::pin::Pin;
 use core::ptr::null;
 
 /// Strong reference to Lua object.
 ///
-/// The value of this struct will prevent Garbage Collector from collect the encapsulated value. It
-/// also prevent [`Lua`] from dropping.
-///
-/// Beware for memory leak if the value of this type owned by Lua (e.g. put it in a table). If this
-/// value has a reference to its parent (either directly or indirectly) it will prevent GC from
-/// collect the parent, which in turn prevent this value from dropped.
-pub struct Ref<T, D> {
-    g: Pin<Rc<Lua<D>>>,
-    o: *const T,
+/// The value of this struct will prevent Garbage Collector from collect the encapsulated value.
+pub struct Ref<'a, T> {
+    obj: *const T,
+    phantom: PhantomData<&'a T>,
 }
 
-impl<T, D> Ref<T, D> {
+impl<'a, T> Ref<'a, T> {
+    #[inline(never)]
     pub(crate) unsafe fn new(o: *const T) -> Self {
-        let h = o.cast::<Object<D>>();
+        let h = o.cast::<Object<()>>();
         let g = (*h).global();
         let r = (*h).refs.get();
 
@@ -41,7 +35,10 @@ impl<T, D> Ref<T, D> {
             Self::too_many_refs();
         }
 
-        Self { g: g.to_rc(), o }
+        Self {
+            obj: o,
+            phantom: PhantomData,
+        }
     }
 
     #[cold]
@@ -51,11 +48,11 @@ impl<T, D> Ref<T, D> {
     }
 }
 
-impl<T, D> Drop for Ref<T, D> {
-    #[inline(always)]
+impl<'a, T> Drop for Ref<'a, T> {
+    #[inline(never)]
     fn drop(&mut self) {
         // Decrease references.
-        let h = self.o.cast::<Object<D>>();
+        let h = self.obj.cast::<Object<()>>();
 
         unsafe { (*h).refs.set((*h).refs.get() - 1) };
 
@@ -64,6 +61,7 @@ impl<T, D> Drop for Ref<T, D> {
         }
 
         // Remove from list.
+        let g = unsafe { (*h).global() };
         let n = unsafe { (*h).refn.replace(null()) };
         let p = unsafe { (*h).refp.replace(null()) };
 
@@ -75,16 +73,16 @@ impl<T, D> Drop for Ref<T, D> {
             unsafe { (*p).refn.set(n) };
         }
 
-        if self.g.gc.refs.get() == h {
-            self.g.gc.refs.set(p);
+        if g.gc.refs.get() == h {
+            g.gc.refs.set(p);
         }
     }
 }
 
-impl<T, D> Clone for Ref<T, D> {
+impl<'a, T> Clone for Ref<'a, T> {
     #[inline(always)]
     fn clone(&self) -> Self {
-        let h = self.o.cast::<Object<D>>();
+        let h = self.obj.cast::<Object<()>>();
 
         match unsafe { (*h).refs.get().checked_add(1) } {
             Some(v) => unsafe { (*h).refs.set(v) },
@@ -92,17 +90,17 @@ impl<T, D> Clone for Ref<T, D> {
         }
 
         Self {
-            g: self.g.clone(),
-            o: self.o,
+            obj: self.obj,
+            phantom: PhantomData,
         }
     }
 }
 
-impl<T, D> Deref for Ref<T, D> {
+impl<'a, T> Deref for Ref<'a, T> {
     type Target = T;
 
     #[inline(always)]
     fn deref(&self) -> &Self::Target {
-        unsafe { &*self.o }
+        unsafe { &*self.obj }
     }
 }

@@ -16,12 +16,10 @@ use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{ChunkInfo, Lua, Node, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;
-use alloc::rc::Rc;
 use alloc::string::ToString;
 use core::ffi::CStr;
 use core::fmt::Display;
 use core::ops::Deref;
-use core::pin::Pin;
 use core::ptr::{null, null_mut};
 
 pub type RESERVED = libc::c_uint;
@@ -92,17 +90,17 @@ impl<D> Clone for Token<D> {
 
 impl<D> Copy for Token<D> {}
 
-pub struct LexState<D> {
+pub struct LexState<'a, D> {
     pub current: libc::c_int,
     pub linenumber: libc::c_int,
     pub lastline: libc::c_int,
     pub t: Token<D>,
     pub lookahead: Token<D>,
     pub fs: *mut FuncState<D>,
-    pub g: Pin<Rc<Lua<D>>>,
+    pub g: &'a Lua<D>,
     pub z: *mut ZIO,
     pub buff: *mut Mbuffer,
-    pub h: Ref<Table<D>, D>,
+    pub h: Ref<'a, Table<D>>,
     pub dyd: *mut Dyndata<D>,
     pub source: ChunkInfo,
     pub envn: *const Str<D>,
@@ -155,7 +153,7 @@ unsafe fn save<D>(ls: *mut LexState<D>, c: libc::c_int) {
         let newsize = (*b).buffsize * 2 as libc::c_int as usize;
 
         (*b).buffer = luaM_saferealloc_(
-            (*ls).g.deref(),
+            (*ls).g,
             (*b).buffer as *mut libc::c_void,
             ((*b).buffsize).wrapping_mul(::core::mem::size_of::<libc::c_char>()),
             newsize.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
@@ -229,15 +227,15 @@ pub unsafe fn luaX_newstring<D>(
     let str = core::slice::from_raw_parts(str.cast(), l);
     let gc = (&(*ls).g).lock_gc();
     let mut ts = match core::str::from_utf8(str) {
-        Ok(v) => Str::from_str((*ls).g.deref(), v),
-        Err(_) => Str::from_bytes((*ls).g.deref(), str),
+        Ok(v) => Str::from_str((*ls).g, v),
+        Err(_) => Str::from_bytes((*ls).g, str),
     };
     let o = luaH_getstr((*ls).h.deref(), ts);
 
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
         ts = (*(o as *mut Node<D>)).u.key_val.gc as *mut Str<D>;
     } else {
-        let ts = Ref::<_, D>::new(ts);
+        let ts = Ref::new(ts); // TODO: Verify if luaH_finishset run the GC.
         let stv = UnsafeValue {
             value_: UntaggedValue { gc: &ts.hdr },
             tt_: ((*ts).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8,
@@ -282,9 +280,9 @@ pub unsafe fn luaX_setinput<D>(ls: &mut LexState<D>, z: *mut ZIO, firstchar: lib
     (*ls).fs = null_mut();
     (*ls).linenumber = 1 as libc::c_int;
     (*ls).lastline = 1 as libc::c_int;
-    (*ls).envn = Str::from_str((*ls).g.deref(), "_ENV");
+    (*ls).envn = Str::from_str((*ls).g, "_ENV");
     (*(*ls).buff).buffer = luaM_saferealloc_(
-        (*ls).g.deref(),
+        (*ls).g,
         (*(*ls).buff).buffer as *mut libc::c_void,
         ((*(*ls).buff).buffsize).wrapping_mul(::core::mem::size_of::<libc::c_char>()),
         32usize.wrapping_mul(::core::mem::size_of::<libc::c_char>()),

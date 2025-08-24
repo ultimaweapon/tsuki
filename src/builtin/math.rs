@@ -75,7 +75,7 @@ pub fn r#type<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
 }
 
 #[inline(always)]
-fn pushnumint<D>(d: f64) -> Value<D> {
+fn pushnumint<'a, D>(d: f64) -> Value<'a, D> {
     // TODO: This does not seems right even on Lua implementation. Lua said MININTEGER always has an
     // exact representation as a float but it does not.
     if d >= i64::MIN as f64 && d <= i64::MAX as f64 {

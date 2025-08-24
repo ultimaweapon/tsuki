@@ -57,6 +57,7 @@ use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::vec::Vec;
+use core::any::Any;
 use core::cell::UnsafeCell;
 use core::error::Error;
 use core::ffi::c_int;
@@ -393,7 +394,8 @@ impl<T> Lua<T> {
     }
 
     /// Create a Lua string.
-    pub fn create_str<V>(&self, v: V) -> Ref<Str<T>, T>
+    #[inline(always)]
+    pub fn create_str<V>(&self, v: V) -> Ref<'_, Str<T>>
     where
         V: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -401,13 +403,19 @@ impl<T> Lua<T> {
     }
 
     /// Create a Lua table.
-    pub fn create_table(&self) -> Ref<Table<T>, T> {
+    pub fn create_table(&self) -> Ref<'_, Table<T>> {
         unsafe { Ref::new(Table::new(self)) }
+    }
+
+    /// Create a full userdata.
+    #[inline(always)]
+    pub fn create_ud<V: Any>(&self, v: V) -> Ref<'_, UserData<T, V>> {
+        unsafe { Ref::new(UserData::new(self, v).cast()) }
     }
 
     /// Create a new Lua thread (AKA coroutine).
     #[inline(always)]
-    pub fn create_thread(&self) -> Ref<Thread<T>, T> {
+    pub fn create_thread(&self) -> Ref<'_, Thread<T>> {
         unsafe { Ref::new(Thread::new(self)) }
     }
 
@@ -416,7 +424,7 @@ impl<T> Lua<T> {
         &self,
         info: ChunkInfo,
         chunk: impl AsRef<[u8]>,
-    ) -> Result<Ref<LuaFn<T>, T>, ParseError> {
+    ) -> Result<Ref<'_, LuaFn<T>>, ParseError> {
         let chunk = chunk.as_ref();
         let z = Zio {
             n: chunk.len(),
@@ -459,8 +467,8 @@ impl<T> Lua<T> {
     ///
     /// See [`Thread::call()`] for more details.
     #[inline(always)]
-    pub fn call<R: Outputs<T>>(
-        &self,
+    pub fn call<'a, R: Outputs<'a, T>>(
+        &'a self,
         f: impl Into<UnsafeValue<T>>,
         args: impl Inputs<T>,
     ) -> Result<R, Box<dyn Error>> {
@@ -510,27 +518,28 @@ impl<T> Lua<T> {
 
         unsafe { &*tab }
     }
-
-    unsafe fn to_rc(&self) -> Pin<Rc<Self>> {
-        unsafe { Rc::increment_strong_count(self) };
-        unsafe { Pin::new_unchecked(Rc::from_raw(self)) }
-    }
 }
 
 /// Lua value.
-pub enum Value<D> {
+pub enum Value<'a, D> {
     Nil,
     Bool(bool),
     Fp(fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>),
+    AsyncFp(
+        fn(
+            Context<D, Args>,
+        ) -> Pin<Box<dyn Future<Output = Result<Context<D, Ret>, Box<dyn Error>>> + '_>>,
+    ),
     Int(i64),
     Num(f64),
-    Str(Ref<Str<D>, D>),
-    Table(Ref<Table<D>, D>),
-    LuaFn(Ref<LuaFn<D>, D>),
-    Thread(Ref<Thread<D>, D>),
+    Str(Ref<'a, Str<D>>),
+    Table(Ref<'a, Table<D>>),
+    LuaFn(Ref<'a, LuaFn<D>>),
+    UserData(Ref<'a, UserData<D, dyn Any>>),
+    Thread(Ref<'a, Thread<D>>),
 }
 
-impl<D> Value<D> {
+impl<'a, D> Value<'a, D> {
     unsafe fn from_unsafe(v: *const UnsafeValue<D>) -> Self {
         match unsafe { (*v).tt_ & 0xf } {
             0 => Self::Nil,
@@ -538,7 +547,7 @@ impl<D> Value<D> {
             2 => match unsafe { ((*v).tt_ >> 4) & 3 } {
                 0 => Self::Fp(unsafe { (*v).value_.f }),
                 1 => todo!(),
-                2 => todo!(),
+                2 => Self::AsyncFp(unsafe { (*v).value_.a }),
                 3 => todo!(),
                 _ => unsafe { unreachable_unchecked() },
             },
@@ -556,7 +565,7 @@ impl<D> Value<D> {
                 3 => todo!(),
                 _ => unsafe { unreachable_unchecked() },
             },
-            7 => todo!(),
+            7 => Self::UserData(unsafe { Ref::new((*v).value_.gc.cast()) }),
             8 => Self::Thread(unsafe { Ref::new((*v).value_.gc.cast()) }),
             _ => unreachable!(),
         }

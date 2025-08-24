@@ -21,9 +21,19 @@ Almost ready for release. Everything are working as expected and Lua test cases 
 
 ## Differences from Lua
 
+### Language
+
 - Binary chunk is not supported.
 - Panic when memory allocation is failed without retry (Rust behavior).
 - Chunk name does not have a prefix (e.g. `@`).
+- Second argument to `__close` metamethod always `nil`.
+- `__gc` metamethod is not supported.
+- `__name` metavalue must be UTF-8 string.
+- `__tostring` metamethod must return a UTF-8 string.
+- C locale is ignored (once `libc` has been completely removed).
+
+### Standard library
+
 - No `_VERSION`, `collectgarbage`, `dofile`, `loadfile`, `xpcall`, `string.dump` and debug library.
 - Second argument of `assert` accept only a UTF-8 string.
 - Arguments of `error`:
@@ -35,18 +45,13 @@ Almost ready for release. Everything are working as expected and Lua test cases 
   - Third argument must be `nil` or `"t"`.
 - `warn` is enabled by default without message prefixes and does not support control message.
 - `string.format` requires UTF-8 string for both format string and format value.
-- Second argument to `__close` metamethod always `nil`.
-- `__gc` metamethod is not supported.
-- `__name` metavalue must be UTF-8 string.
-- `__tostring` metamethod must return a UTF-8 string.
 - Native module is not supported.
 - Environment variable `LUA_PATH` and `LUA_PATH_5_4` is ignored.
 - `LUA_NOENV` in registry is ignored.
-- C locale is ignored (once `libc` has been completely removed).
 
 ## Non-goals
 
-- Becoming a superset of Lua (e.g. Luau).
+- Become a superset of Lua (e.g. Luau).
 - C API compatibility.
 - Stand-alone mode.
 - 16-bit systems.
