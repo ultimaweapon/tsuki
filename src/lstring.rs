@@ -2,6 +2,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::Str;
+use core::ffi::c_char;
 
 type c_int = i32;
 
@@ -9,11 +10,7 @@ pub unsafe fn luaS_eqlngstr<D>(a: *const Str<D>, b: *const Str<D>) -> c_int {
     (a == b || (*a).as_bytes() == (*b).as_bytes()).into()
 }
 
-pub unsafe fn luaS_hash(
-    str: *const libc::c_char,
-    mut l: usize,
-    seed: libc::c_uint,
-) -> libc::c_uint {
+pub unsafe fn luaS_hash(str: *const c_char, mut l: usize, seed: libc::c_uint) -> libc::c_uint {
     let mut h: libc::c_uint = seed ^ l as libc::c_uint;
     while l > 0 as c_int as usize {
         h ^= (h << 5 as c_int)

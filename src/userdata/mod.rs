@@ -4,6 +4,7 @@ use crate::{Lua, Nil, Table, luaH_getid};
 use core::alloc::Layout;
 use core::any::{Any, TypeId};
 use core::marker::PhantomData;
+use core::mem::transmute;
 use core::ptr::{addr_of_mut, null};
 
 /// Lua full userdata.
@@ -49,5 +50,27 @@ impl<D, T: Any> UserData<D, T> {
         unsafe { addr_of_mut!((*o).ptr).write(v) };
 
         o
+    }
+
+    /// Returns a reference to the encapsulated value.
+    #[inline(always)]
+    pub fn value(&self) -> &T {
+        unsafe { &*self.ptr.cast() }
+    }
+}
+
+impl<D> UserData<D, dyn Any> {
+    /// Returns `true` if the encapsulated value is `T`.
+    #[inline(always)]
+    pub fn is<T: Any>(&self) -> bool {
+        unsafe { (*self.ptr).is::<T>() }
+    }
+
+    #[inline(always)]
+    pub fn downcast<T: Any>(&self) -> Option<&UserData<D, T>> {
+        match self.is::<T>() {
+            true => Some(unsafe { transmute(self) }),
+            false => None,
+        }
     }
 }
