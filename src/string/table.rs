@@ -45,7 +45,7 @@ impl<D> StringTable<D> {
                 return Ok(s);
             }
 
-            s = unsafe { (*(*s).u.get()).hnext };
+            s = unsafe { (*s).hnext.get() };
         }
 
         // Check if we need to increase table size.
@@ -59,14 +59,15 @@ impl<D> StringTable<D> {
         Err(e)
     }
 
+    #[inline(never)]
     pub(super) unsafe fn remove(&self, s: *mut Str<D>) {
         let mut e = self.entry(unsafe { (*s).hash.get() });
 
         while unsafe { *e != s } {
-            e = unsafe { &raw mut (*(**e).u.get()).hnext };
+            e = unsafe { (**e).hnext.as_ptr() };
         }
 
-        unsafe { *e = (*(**e).u.get()).hnext };
+        unsafe { *e = (**e).hnext.get() };
         self.nuse.set(self.nuse.get() - 1);
     }
 
@@ -116,10 +117,10 @@ impl<D> StringTable<D> {
             let mut p = unsafe { vect.add(i).replace(null()) };
 
             while !p.is_null() {
-                let hnext = unsafe { (*(*p).u.get()).hnext };
+                let hnext = unsafe { (*p).hnext.get() };
                 let h = usize::try_from(unsafe { (*p).hash.get() }).unwrap() & (nsize - 1);
 
-                unsafe { (*(*p).u.get()).hnext = *vect.add(h) };
+                unsafe { (*p).hnext.set(*vect.add(h)) };
                 unsafe { vect.add(h).write(p) };
 
                 p = hnext;

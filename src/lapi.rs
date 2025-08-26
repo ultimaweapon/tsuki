@@ -390,8 +390,7 @@ pub unsafe fn lua_tolstring<D>(L: *const Thread<D>, idx: c_int, convert: bool) -
 pub unsafe fn lua_rawlen<D>(L: *const Thread<D>, idx: c_int) -> u64 {
     let o = index2value(L, idx);
     match (*o).tt_ as c_int & 0x3f as c_int {
-        4 => return (*((*o).value_.gc as *mut Str<D>)).shrlen.get() as u64,
-        20 => return (*(*((*o).value_.gc as *mut Str<D>)).u.get()).lnglen as u64,
+        4 | 20 => return (*((*o).value_.gc as *mut Str<D>)).len as u64,
         7 => {
             let u = (*o).value_.gc.cast::<UserData<D, ()>>();
             let v = (*u).ptr;

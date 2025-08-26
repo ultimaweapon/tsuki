@@ -960,23 +960,14 @@ impl<D> Gc<D> {
                 core::ptr::drop_in_place(u);
                 alloc::alloc::dealloc(u.cast(), layout);
             },
-            4 => unsafe {
+            4 | 20 => unsafe {
                 let ts: *mut Str<D> = o as *mut Str<D>;
-                let size = offset_of!(Str<D>, contents) + usize::from((*ts).shrlen.get()) + 1;
+                let size = offset_of!(Str<D>, contents) + (*ts).len + 1;
                 let align = align_of::<Str<D>>();
                 let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
 
                 core::ptr::drop_in_place(ts);
                 alloc::alloc::dealloc(ts.cast(), layout);
-            },
-            20 => unsafe {
-                let ts_0: *mut Str<D> = o as *mut Str<D>;
-                let size = offset_of!(Str<D>, contents) + (*(*ts_0).u.get()).lnglen + 1;
-                let align = align_of::<Str<D>>();
-                let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
-
-                core::ptr::drop_in_place(ts_0);
-                alloc::alloc::dealloc(ts_0.cast(), layout);
             },
             11 => unsafe {
                 core::ptr::drop_in_place(o.cast::<RustId<D>>());

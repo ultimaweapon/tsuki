@@ -4,10 +4,10 @@ use crate::lstring::luaS_hash;
 use crate::{Lua, Object};
 use alloc::vec::Vec;
 use core::alloc::Layout;
-use core::cell::{Cell, UnsafeCell};
+use core::cell::Cell;
 use core::ffi::c_char;
 use core::mem::offset_of;
-use core::ptr::addr_of_mut;
+use core::ptr::{addr_of_mut, null};
 
 mod table;
 
@@ -16,10 +16,10 @@ mod table;
 pub struct Str<D> {
     pub(crate) hdr: Object<D>,
     utf8: bool,
+    pub(crate) len: usize,
     pub(crate) extra: Cell<u8>,
-    pub(crate) shrlen: Cell<u8>,
     pub(crate) hash: Cell<u32>,
-    pub(crate) u: UnsafeCell<C2RustUnnamed_8<D>>,
+    pub(crate) hnext: Cell<*const Self>,
     pub(crate) contents: [c_char; 1],
 }
 
@@ -53,8 +53,7 @@ impl<D> Str<D> {
             let s = unsafe { Self::alloc(g, str.len(), 4 | 1 << 4, (*g).seed) };
 
             unsafe { addr_of_mut!((*s).utf8).write(utf8) };
-            unsafe { addr_of_mut!((*s).shrlen).write(Cell::new(0xff)) };
-            unsafe { (*(*s).u.get()).lnglen = str.len() };
+            unsafe { addr_of_mut!((*s).hnext).write(Cell::new(null())) };
             unsafe {
                 (*s).contents
                     .as_mut_ptr()
@@ -77,14 +76,12 @@ impl<D> Str<D> {
                 let v = Self::alloc(g, str.len(), 4 | 0 << 4, h);
 
                 addr_of_mut!((*v).utf8).write(utf8);
-                addr_of_mut!((*v).shrlen).write(Cell::new(str.len().try_into().unwrap()));
+                addr_of_mut!((*v).hnext).write(Cell::new(*e));
                 (*v).contents
                     .as_mut_ptr()
                     .copy_from_nonoverlapping(str.as_ptr().cast(), str.len());
 
-                (*(*v).u.get()).hnext = *e;
                 *e = v;
-
                 v
             },
         }
@@ -101,10 +98,7 @@ impl<D> Str<D> {
     /// Returns the length of this string, in bytes.
     #[inline(always)]
     pub fn len(&self) -> usize {
-        match self.shrlen.get() {
-            0xFF => unsafe { (*self.u.get()).lnglen },
-            v => v.into(),
-        }
+        self.len
     }
 
     /// Returns [`str`] if this string is UTF-8.
@@ -131,6 +125,7 @@ impl<D> Str<D> {
         let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();
         let o = unsafe { (*g).gc.alloc(tag, layout).cast::<Self>() };
 
+        unsafe { addr_of_mut!((*o).len).write(l) };
         unsafe { addr_of_mut!((*o).hash).write(Cell::new(h)) };
         unsafe { addr_of_mut!((*o).extra).write(Cell::new(0)) };
         unsafe { (*o).contents.as_mut_ptr().add(l).write(0) };
@@ -140,8 +135,9 @@ impl<D> Str<D> {
 }
 
 impl<D> Drop for Str<D> {
+    #[inline(always)]
     fn drop(&mut self) {
-        if self.shrlen.get() != 0xff {
+        if self.len <= 40 {
             unsafe { (*self.hdr.global).strt.remove(self) };
         }
     }
@@ -152,11 +148,4 @@ impl<D> PartialEq<str> for Str<D> {
     fn eq(&self, other: &str) -> bool {
         self.as_bytes() == other.as_bytes()
     }
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub(crate) union C2RustUnnamed_8<D> {
-    pub lnglen: usize,
-    pub hnext: *const Str<D>,
 }

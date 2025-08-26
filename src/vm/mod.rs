@@ -61,12 +61,7 @@ unsafe fn l_strton<D>(obj: *const UnsafeValue<D>, result: *mut UnsafeValue<D>) -
         let st = (*obj).value_.gc.cast::<Str<D>>();
 
         return (luaO_str2num((*st).contents.as_ptr(), result)
-            == (if (*st).shrlen.get() as c_int != 0xff as c_int {
-                (*st).shrlen.get() as usize
-            } else {
-                (*(*st).u.get()).lnglen
-            })
-            .wrapping_add(1 as c_int as usize)) as c_int;
+            == (*st).len.wrapping_add(1 as c_int as usize)) as c_int;
     }
 }
 
@@ -818,9 +813,7 @@ pub unsafe fn luaV_concat<D>(
             luaT_tryconcatTM(L)?;
         } else if (*top.offset(-(1 as c_int as isize))).val.tt_ as c_int
             == 4 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int
-            && (*((*top.offset(-(1 as c_int as isize))).val.value_.gc as *mut Str<D>))
-                .shrlen
-                .get() as c_int
+            && (*((*top.offset(-(1 as c_int as isize))).val.value_.gc as *mut Str<D>)).len as c_int
                 == 0 as c_int
         {
             ((*top.offset(-(2 as c_int as isize))).val.tt_ as c_int & 0xf as c_int == 4 as c_int
@@ -832,9 +825,7 @@ pub unsafe fn luaV_concat<D>(
                     }) as c_int;
         } else if (*top.offset(-(2 as c_int as isize))).val.tt_ as c_int
             == 4 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int
-            && (*((*top.offset(-(2 as c_int as isize))).val.value_.gc as *mut Str<D>))
-                .shrlen
-                .get() as c_int
+            && (*((*top.offset(-(2 as c_int as isize))).val.value_.gc as *mut Str<D>)).len as c_int
                 == 0 as c_int
         {
             let io1 = &raw mut (*top.offset(-(2 as c_int as isize))).val;
@@ -843,21 +834,7 @@ pub unsafe fn luaV_concat<D>(
             (*io1).value_ = (*io2).value_;
             (*io1).tt_ = (*io2).tt_;
         } else {
-            let mut tl: usize = if (*((*top.offset(-(1 as c_int as isize))).val.value_.gc
-                as *mut Str<D>))
-                .shrlen
-                .get()
-                != 0xff
-            {
-                (*((*top.offset(-(1 as c_int as isize))).val.value_.gc as *mut Str<D>))
-                    .shrlen
-                    .get() as usize
-            } else {
-                (*(*((*top.offset(-(1 as c_int as isize))).val.value_.gc as *mut Str<D>))
-                    .u
-                    .get())
-                .lnglen
-            };
+            let mut tl = (*((*top.offset(-1)).val.value_.gc as *mut Str<D>)).len;
 
             n = 1 as c_int;
             while n < total
@@ -879,29 +856,12 @@ pub unsafe fn luaV_concat<D>(
                             1 as c_int != 0
                         })
             {
-                let l: usize = if (*((*top.offset(-(n as isize)).offset(-(1 as c_int as isize)))
+                let l = (*((*top.offset(-(n as isize)).offset(-(1 as c_int as isize)))
                     .val
                     .value_
                     .gc as *mut Str<D>))
-                    .shrlen
-                    .get()
-                    != 0xff
-                {
-                    (*((*top.offset(-(n as isize)).offset(-(1 as c_int as isize)))
-                        .val
-                        .value_
-                        .gc as *mut Str<D>))
-                        .shrlen
-                        .get() as usize
-                } else {
-                    (*(*((*top.offset(-(n as isize)).offset(-(1 as c_int as isize)))
-                        .val
-                        .value_
-                        .gc as *mut Str<D>))
-                        .u
-                        .get())
-                    .lnglen
-                };
+                    .len;
+
                 if ((l
                     >= (if (::core::mem::size_of::<usize>() as c_ulong)
                         < ::core::mem::size_of::<i64>() as c_ulong
@@ -963,13 +923,10 @@ pub unsafe fn luaV_objlen<D>(
                 return Ok(i64::try_from(luaH_getn(h)).unwrap().into());
             }
         }
-        4 => return Ok(i64::from((*(*rb).value_.gc.cast::<Str<D>>()).shrlen.get()).into()),
-        20 => {
-            return Ok(
-                i64::try_from((*(*(*rb).value_.gc.cast::<Str<D>>()).u.get()).lnglen)
-                    .unwrap()
-                    .into(),
-            );
+        4 | 20 => {
+            return Ok(i64::try_from((*(*rb).value_.gc.cast::<Str<D>>()).len)
+                .unwrap()
+                .into());
         }
         _ => {
             tm = luaT_gettmbyobj(L, rb, TM_LEN);

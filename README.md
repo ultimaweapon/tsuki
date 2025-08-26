@@ -7,7 +7,7 @@ Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all
 
 ## Status
 
-Almost ready for release. Everything are working as expected and Lua test cases are passed. The developer want to revise the API that return Lua object before release. Note that the first release will have **incomplete** Lua standard library.
+Almost ready for release. Everything are working as expected and Lua test cases are passed. The developer being working on the final cleanup before release. Note that the first release will have **incomplete** Lua standard library.
 
 ## Features
 
