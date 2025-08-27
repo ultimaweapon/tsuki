@@ -81,7 +81,7 @@ fn userdata() {
         }
     }
 
-    fn f(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
+    fn createud(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
         let ud = cx.create_ud(MyUd(String::from("abc")));
 
         cx.push(ud)?;
@@ -89,8 +89,22 @@ fn userdata() {
         Ok(cx.into())
     }
 
+    fn method1(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
+        cx.push_str("abc")?;
+
+        Ok(cx.into())
+    }
+
     run("userdata.lua", |lua| {
-        lua.global().set_str_key("createud", fp!(f))
+        let mt = lua.create_table();
+        let methods = lua.create_table();
+
+        methods.set_str_key("method1", fp!(method1));
+
+        mt.set_str_key("__index", methods);
+
+        lua.register_metatable::<MyUd>(&mt);
+        lua.global().set_str_key("createud", fp!(createud))
     })
     .unwrap()
 }

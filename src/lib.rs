@@ -1,5 +1,37 @@
 //! Lua 5.4 ported to Rust.
 //!
+//! # Quickstart
+//!
+//! ```
+//! # use tsuki::{Lua, Context, Args, Ret, fp, ChunkInfo, Value};
+//! # fn main() {
+//! // Set up.
+//! let lua = Lua::new(());
+//!
+//! lua.setup_base();
+//! lua.setup_string();
+//! lua.setup_table();
+//! lua.setup_math();
+//! lua.setup_coroutine();
+//!
+//! lua.global().set_str_key("myfunc", fp!(myfunc));
+//!
+//! // Run.
+//! let chunk = lua.load(ChunkInfo::new("abc.lua"), "return myfunc()").unwrap();
+//! let result = lua.call::<Value<_>>(chunk, ()).unwrap();
+//!
+//! match result {
+//!     Value::Str(v) => assert_eq!(v.as_str(), Some("Hello world!")),
+//!     _ => todo!(),
+//! }
+//!
+//! fn myfunc(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
+//!     cx.push_str("Hello world!")?;
+//!     Ok(cx.into())
+//! }
+//! # }
+//! ```
+//!
 //! # Types that can be converted to UnsafeValue.
 //!
 //! You can pass the value of the following types for `impl Into<UnsafeValue>`:
@@ -57,7 +89,7 @@ use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::any::Any;
+use core::any::{Any, TypeId};
 use core::cell::UnsafeCell;
 use core::error::Error;
 use core::ffi::c_int;
@@ -372,6 +404,25 @@ impl<T> Lua<T> {
         let g = unsafe { UnsafeValue::from_obj(g.cast()) };
 
         unsafe { self.global().set_str_key_unchecked("coroutine", g) };
+    }
+
+    /// Register a metatable for userdata `V`. If the metatable for `V` already exists it will be
+    /// replaced.
+    ///
+    /// This does not change the metatable for the userdata that already created.
+    ///
+    /// # Panics
+    /// If `mt` come from different [Lua](crate::Lua) instance.
+    pub fn register_metatable<V: 'static>(&self, mt: &Table<T>) {
+        if mt.hdr.global != self {
+            panic!("attempt to register a metatable created from a different Lua");
+        }
+
+        // Get type ID.
+        let k = unsafe { RustId::new(self, TypeId::of::<V>()) };
+        let k = unsafe { UnsafeValue::from_obj(k.cast()) };
+
+        unsafe { self.metatables().set_unchecked(k, mt).unwrap_unchecked() };
     }
 
     /// Returns a global table.

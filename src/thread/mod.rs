@@ -105,6 +105,9 @@ impl<D> Thread<D> {
 
     /// Call a function or callable value.
     ///
+    /// `args` can be either `()`, any value that can be converted to [`UnsafeValue`] or a tuple or
+    /// [`DynamicInputs`].
+    ///
     /// The error will be either [CallError](crate::CallError) or something else.
     ///
     /// # Panics
@@ -171,6 +174,9 @@ impl<D> Thread<D> {
     }
 
     /// Call a function with ability to call into any [AsyncFp](crate::AsyncFp).
+    ///
+    /// `args` can be either `()`, any value that can be converted to [`UnsafeValue`] or a tuple or
+    /// [`DynamicInputs`].
     ///
     /// The error will be either [CallError](crate::CallError) or something else.
     ///

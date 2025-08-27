@@ -139,3 +139,45 @@ unsafe impl<T: Into<UnsafeValue<D>>, D> Inputs<D> for T {
         unsafe { th.top.add(1) };
     }
 }
+
+macro_rules! count {
+    () => (0usize);
+    ($x:tt,$($xs:tt)*) => (1usize + count!($($xs)*));
+}
+
+macro_rules! impl_tuple {
+    ($($idx:tt $name:tt),+) => {
+        unsafe impl<Z, $($name,)+> Inputs<Z> for ($($name,)+)
+        where
+            $($name: Into<UnsafeValue<Z>>,)+
+        {
+            #[inline(always)]
+            fn len(&self) -> usize {
+                count!($($name,)+)
+            }
+
+            unsafe fn push_to(self, th: &Thread<Z>) {
+                $({
+                    let v = self.$idx.into();
+
+                    if unsafe { (v.tt_ & 1 << 6 != 0) && (*v.value_.gc).global != th.hdr.global } {
+                        panic!("argument #{} come from a different Lua", $idx);
+                    }
+
+                    unsafe { th.top.write(v) };
+                    unsafe { th.top.add(1) };
+                })+
+            }
+        }
+    };
+}
+
+impl_tuple!(0 A, 1 B);
+impl_tuple!(0 A, 1 B, 2 C);
+impl_tuple!(0 A, 1 B, 2 C, 3 D);
+impl_tuple!(0 A, 1 B, 2 C, 3 D, 4 E);
+impl_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F);
+impl_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G);
+impl_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H);
+impl_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H, 8 I);
+impl_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H, 8 I, 9 J);
