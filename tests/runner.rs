@@ -75,12 +75,6 @@ fn strings() {
 fn userdata() {
     struct MyUd(String);
 
-    impl Drop for MyUd {
-        fn drop(&mut self) {
-            println!("{}", self.0);
-        }
-    }
-
     fn createud(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
         let ud = cx.create_ud(MyUd(String::from("abc")));
 
@@ -90,7 +84,9 @@ fn userdata() {
     }
 
     fn method1(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
-        cx.push_str("abc")?;
+        let ud = cx.arg(1).get_ud::<MyUd>()?;
+
+        cx.push_str(ud.value().0.as_str())?;
 
         Ok(cx.into())
     }

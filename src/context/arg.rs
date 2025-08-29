@@ -5,11 +5,11 @@ use crate::ldo::luaD_call;
 use crate::lobject::luaO_tostring;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_};
-use crate::{NON_YIELDABLE_WAKER, Ref, Str, Table, Type, UserData, Value, luaH_get};
-use alloc::borrow::Cow;
+use crate::{NON_YIELDABLE_WAKER, Ref, Str, Table, Type, UserData, Value, luaH_getshortstr};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
+use core::any::{Any, type_name};
 use core::fmt::{Display, Write};
 use core::mem::MaybeUninit;
 use core::num::NonZero;
@@ -281,6 +281,58 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
             0 => Ok(None),
             5 => Ok(Some(unsafe { &*(*v).value_.gc.cast() })),
             _ => Err(unsafe { self.type_error(expect, v) }),
+        }
+    }
+
+    /// Checks if this argument is a userdata `T` and return it.
+    #[inline(always)]
+    pub fn get_ud<T: Any>(&self) -> Result<&'a UserData<D, T>, Box<dyn core::error::Error>> {
+        let expect = type_name::<T>();
+        let v = self.get_raw(expect)?;
+        let ud = match unsafe { (*v).tt_ & 0xf } {
+            7 => unsafe { (*v).value_.gc.cast::<UserData<D, dyn Any>>() },
+            _ => return Err(unsafe { self.type_error(expect, v) }),
+        };
+
+        match unsafe { (*ud).downcast() } {
+            Some(v) => Ok(v),
+            None => Err(unsafe { self.type_error(expect, v) }),
+        }
+    }
+
+    /// Checks if this argument is a userdata `T` and return it.
+    ///
+    /// This method returns [`None`] in the following cases:
+    ///
+    /// - This argument is `nil`.
+    /// - This argument does not exists and `required` is `false`.
+    #[inline(always)]
+    pub fn get_nilable_ud<T: Any>(
+        &self,
+        required: bool,
+    ) -> Result<Option<&'a UserData<D, T>>, Box<dyn core::error::Error>> {
+        // Check if argument exists.
+        let name = type_name::<T>();
+        let expect = format_args!("nil or {name}");
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            match required {
+                true => return Err(self.invalid_type(expect, lua_typename(-1))),
+                false => return Ok(None),
+            }
+        }
+
+        // Check type.
+        let ud = match unsafe { (*v).tt_ & 0xf } {
+            0 => return Ok(None),
+            7 => unsafe { (*v).value_.gc.cast::<UserData<D, dyn Any>>() },
+            _ => return Err(unsafe { self.type_error(expect, v) }),
+        };
+
+        match unsafe { (*ud).downcast() } {
+            Some(v) => Ok(Some(v)),
+            None => Err(unsafe { self.type_error(expect, v) }),
         }
     }
 
@@ -647,21 +699,16 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     ) -> Box<dyn core::error::Error> {
         let g = self.cx.th.hdr.global();
         let mt = unsafe { g.metatable(actual) };
-        let actual: Cow<str> = if mt.is_null() {
-            lua_typename(unsafe { ((*actual).tt_ & 0xf).into() }).into()
-        } else {
-            let key = unsafe { UnsafeValue::from_obj(Str::from_str(g, "__name").cast()) };
-            let val = unsafe { luaH_get(mt, &key) };
+        let actual = (!mt.is_null())
+            .then(move || unsafe { luaH_getshortstr(mt, Str::from_str(g, "__name")) })
+            .and_then(|v| match unsafe { (*v).tt_ & 0xf } {
+                4 => Some(unsafe { (*v).value_.gc.cast::<Str<D>>() }),
+                _ => None,
+            })
+            .and_then(|v| unsafe { (*v).as_str() })
+            .unwrap_or_else(move || unsafe { lua_typename(((*actual).tt_ & 0xf).into()).into() });
 
-            match unsafe { (*val).tt_ & 0xf } {
-                4 => String::from_utf8_lossy(unsafe {
-                    (*(*val).value_.gc.cast::<Str<D>>()).as_bytes()
-                }),
-                _ => lua_typename(unsafe { ((*actual).tt_ & 0xf).into() }).into(),
-            }
-        };
-
-        self.error(format!("{expect} expected, got {actual}"))
+        self.error(format!("{} expected, got {}", expect, actual))
     }
 
     #[inline(never)]

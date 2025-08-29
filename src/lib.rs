@@ -81,7 +81,7 @@ use self::lstate::{CallInfo, lua_Debug};
 use self::ltm::{
     TM_ADD, TM_BAND, TM_BNOT, TM_BOR, TM_BXOR, TM_CALL, TM_CLOSE, TM_CONCAT, TM_DIV, TM_EQ, TM_GC,
     TM_IDIV, TM_INDEX, TM_LE, TM_LEN, TM_LT, TM_MOD, TM_MODE, TM_MUL, TM_NEWINDEX, TM_POW, TM_SHL,
-    TM_SHR, TM_SUB, TM_UNM,
+    TM_SHR, TM_SUB, TM_UNM, luaT_gettm,
 };
 use self::lzio::Zio;
 use self::value::{UnsafeValue, UntaggedValue};
@@ -412,10 +412,16 @@ impl<T> Lua<T> {
     /// This does not change the metatable for the userdata that already created.
     ///
     /// # Panics
-    /// If `mt` come from different [Lua](crate::Lua) instance.
-    pub fn register_metatable<V: 'static>(&self, mt: &Table<T>) {
+    /// - If `mt` come from different [Lua](crate::Lua) instance.
+    /// - If `mt` contains `__gc`.
+    pub fn register_metatable<V: Any>(&self, mt: &Table<T>) {
         if mt.hdr.global != self {
             panic!("attempt to register a metatable created from a different Lua");
+        }
+
+        // Prevent __gc metamethod.
+        if unsafe { mt.flags.get() & 1 << TM_GC == 0 && !luaT_gettm(mt, TM_GC).is_null() } {
+            panic!("__gc metamethod is not supported");
         }
 
         // Get type ID.
