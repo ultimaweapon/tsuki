@@ -64,7 +64,7 @@
 
 pub use self::context::*;
 pub use self::function::*;
-pub use self::gc::{GcLock, Ref};
+pub use self::gc::Ref;
 pub use self::parser::*;
 pub use self::string::*;
 pub use self::table::*;
@@ -441,38 +441,38 @@ impl<T> Lua<T> {
         unsafe { &*tab }
     }
 
-    /// Locks the GC and return a [`GcLock`] to constructs Lua objects.
-    ///
-    /// # Panics
-    /// If there are [`usize::MAX`] active [`GcLock`].
-    #[inline(always)]
-    pub fn lock_gc(&self) -> GcLock<'_, T> {
-        self.gc.lock()
-    }
-
     /// Create a Lua string.
     #[inline(always)]
     pub fn create_str<V>(&self, v: V) -> Ref<'_, Str<T>>
     where
         V: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
+        self.gc.step();
+
         unsafe { Ref::new(Str::from_str(self, v)) }
     }
 
     /// Create a Lua table.
+    #[inline(always)]
     pub fn create_table(&self) -> Ref<'_, Table<T>> {
+        self.gc.step();
+
         unsafe { Ref::new(Table::new(self)) }
     }
 
     /// Create a full userdata.
     #[inline(always)]
     pub fn create_ud<V: Any>(&self, v: V) -> Ref<'_, UserData<T, V>> {
+        self.gc.step();
+
         unsafe { Ref::new(UserData::new(self, v).cast()) }
     }
 
     /// Create a new Lua thread (AKA coroutine).
     #[inline(always)]
     pub fn create_thread(&self) -> Ref<'_, Thread<T>> {
+        self.gc.step();
+
         unsafe { Ref::new(Thread::new(self)) }
     }
 

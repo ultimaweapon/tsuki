@@ -198,7 +198,10 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         let v = self.get_raw(expect)?;
 
         match unsafe { (*v).tt_ & 0xf } {
-            3 => unsafe { luaO_tostring(self.cx.th.hdr.global, v) },
+            3 => unsafe {
+                self.cx.th.hdr.global().gc.step();
+                luaO_tostring(self.cx.th.hdr.global, v);
+            },
             4 => (),
             _ => return Err(unsafe { self.type_error(expect, v) }),
         }
@@ -234,7 +237,10 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         // Check type.
         match unsafe { (*v).tt_ & 0xf } {
             0 => return Ok(None),
-            3 => unsafe { luaO_tostring(self.cx.th.hdr.global, v) },
+            3 => unsafe {
+                self.cx.th.hdr.global().gc.step();
+                luaO_tostring(self.cx.th.hdr.global, v);
+            },
             4 => (),
             _ => return Err(unsafe { self.type_error(expect, v) }),
         }
@@ -554,16 +560,27 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
                 let mut r = unsafe { t.top.read(0) };
 
                 match r.tt_ & 0xf {
-                    3 => unsafe { luaO_tostring(g, &mut r) },
+                    3 => unsafe {
+                        luaO_tostring(g, &mut r);
+
+                        // Create a strong reference before running GC.
+                        let r = Ref::new(r.value_.gc.cast());
+
+                        g.gc.step();
+
+                        return Ok(r);
+                    },
                     4 => unsafe {
-                        if !(*r.value_.gc.cast::<Str<D>>()).is_utf8() {
+                        let r = r.value_.gc.cast::<Str<D>>();
+
+                        if !(*r).is_utf8() {
                             return Err(self.error("'__tostring' must return a UTF-8 string"));
                         }
+
+                        return Ok(Ref::new(r));
                     },
                     _ => return Err("'__tostring' must return a string".into()),
                 }
-
-                return Ok(unsafe { Ref::new(r.value_.gc.cast::<Str<D>>()) });
             }
         }
 

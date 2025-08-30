@@ -1902,7 +1902,6 @@ pub async unsafe fn luaV_execute<D>(
                         (*L).top.set(ra_17.offset(1 as c_int as isize));
 
                         // Create table.
-                        let gc = (*L).hdr.global().lock_gc();
                         let t = Table::new((*L).hdr.global);
                         let io_3 = &raw mut (*ra_17).val;
 
@@ -1915,7 +1914,7 @@ pub async unsafe fn luaV_execute<D>(
 
                         (*ci).u.savedpc = pc;
                         (*L).top.set(ra_17.offset(1 as c_int as isize));
-                        drop(gc);
+                        (*L).hdr.global().gc.step();
                         trap = (*ci).u.trap;
 
                         continue;
@@ -3621,7 +3620,7 @@ pub async unsafe fn luaV_execute<D>(
                         trap = (*ci).u.trap;
                         continue;
                     }
-                    53 => {
+                    OP_CONCAT => {
                         let ra_51 = base.offset(
                             (i >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -3637,6 +3636,7 @@ pub async unsafe fn luaV_execute<D>(
                         trap = (*ci).u.trap;
 
                         (*ci).u.savedpc = pc;
+                        (*L).hdr.global().gc.step();
                         trap = (*ci).u.trap;
 
                         continue;
@@ -4546,7 +4546,7 @@ pub async unsafe fn luaV_execute<D>(
                         }
                         continue;
                     }
-                    79 => {
+                    OP_CLOSURE => {
                         let ra_77 = base.offset(
                             (i >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -4563,6 +4563,7 @@ pub async unsafe fn luaV_execute<D>(
 
                         (*ci).u.savedpc = pc;
                         (*L).top.set(ra_77.offset(1 as c_int as isize));
+                        (*L).hdr.global().gc.step();
                         trap = (*ci).u.trap;
 
                         continue;

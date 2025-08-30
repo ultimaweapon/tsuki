@@ -380,6 +380,7 @@ pub unsafe fn lua_tolstring<D>(L: *const Thread<D>, idx: c_int, convert: bool) -
             return null();
         }
 
+        (*L).hdr.global().gc.step();
         luaO_tostring((*L).hdr.global, o);
         o = index2value(L, idx);
     }
@@ -419,7 +420,7 @@ pub unsafe fn lua_pushnil<D>(L: *const Thread<D>) {
 }
 
 pub unsafe fn lua_pushlstring<D>(L: *const Thread<D>, s: impl AsRef<[u8]>) -> *const libc::c_char {
-    let gc = (*L).hdr.global().lock_gc();
+    (*L).hdr.global().gc.step();
     let ts = match core::str::from_utf8(s.as_ref()) {
         Ok(v) => Str::from_str((*L).hdr.global, v),
         Err(_) => Str::from_bytes((*L).hdr.global, s.as_ref()),
@@ -439,7 +440,7 @@ pub unsafe fn lua_pushstring<D>(L: *const Thread<D>, s: *const libc::c_char) {
         (*(*L).top.get()).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
     } else {
         let s = CStr::from_ptr(s).to_bytes();
-        let gc = (*L).hdr.global().lock_gc();
+        (*L).hdr.global().gc.step();
         let ts = match core::str::from_utf8(s) {
             Ok(v) => Str::from_str((*L).hdr.global, v),
             Err(_) => Str::from_bytes((*L).hdr.global, s),
@@ -460,7 +461,6 @@ pub unsafe fn lua_pushcclosure<D>(
     ) -> Result<Context<'a, D, Ret>, Box<dyn core::error::Error>>,
     mut n: c_int,
 ) {
-    let gc = (*L).hdr.global().lock_gc();
     let cl = luaF_newCclosure((*L).hdr.global, n);
 
     (*cl).f = fn_0;
@@ -622,7 +622,7 @@ pub unsafe fn lua_rawgeti<D>(L: *const Thread<D>, idx: c_int, n: i64) -> c_int {
 }
 
 pub unsafe fn lua_createtable<D>(L: *const Thread<D>, narray: c_int, nrec: c_int) {
-    let gc = (*L).hdr.global().lock_gc();
+    (*L).hdr.global().gc.step();
     let t = Table::new((*L).hdr.global);
     let io = &raw mut (*(*L).top.get()).val;
 
@@ -938,10 +938,11 @@ pub unsafe fn lua_concat<D>(
     L: *const Thread<D>,
     n: c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
+    (*L).hdr.global().gc.step();
+
     if n > 0 as c_int {
         luaV_concat(L, n)?;
     } else {
-        let gc = (*L).hdr.global().lock_gc();
         let io = &raw mut (*(*L).top.get()).val;
         let x_ = Str::from_str((*L).hdr.global, "");
 

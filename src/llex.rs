@@ -224,8 +224,10 @@ pub unsafe fn luaX_newstring<D>(
     str: *const libc::c_char,
     l: usize,
 ) -> *const Str<D> {
+    (*ls).g.gc.step();
+
+    // Create string.
     let str = core::slice::from_raw_parts(str.cast(), l);
-    let gc = (&(*ls).g).lock_gc();
     let mut ts = match core::str::from_utf8(str) {
         Ok(v) => Str::from_str((*ls).g, v),
         Err(_) => Str::from_bytes((*ls).g, str),
@@ -235,11 +237,7 @@ pub unsafe fn luaX_newstring<D>(
     if !((*o).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int) {
         ts = (*(o as *mut Node<D>)).u.key_val.gc as *mut Str<D>;
     } else {
-        let ts = Ref::new(ts); // TODO: Verify if luaH_finishset run the GC.
-        let stv = UnsafeValue {
-            value_: UntaggedValue { gc: &ts.hdr },
-            tt_: ((*ts).hdr.tt as libc::c_int | (1 as libc::c_int) << 6 as libc::c_int) as u8,
-        };
+        let stv = UnsafeValue::from_obj(ts.cast());
 
         luaH_finishset((*ls).h.deref(), &stv, o, &stv).unwrap(); // This should never fails.
     }

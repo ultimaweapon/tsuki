@@ -1,7 +1,6 @@
 #![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-pub use self::lock::*;
 pub use self::r#ref::*;
 
 pub(crate) use self::mark::*;
@@ -20,7 +19,6 @@ use core::cell::Cell;
 use core::mem::offset_of;
 use core::ptr::{null, null_mut};
 
-mod lock;
 mod mark;
 mod object;
 mod r#ref;
@@ -44,7 +42,7 @@ pub(crate) struct Gc<D> {
     sweep_mark: Cell<*const Object<D>>,
     refs: Cell<*const Object<D>>,
     root: Cell<*const Object<D>>,
-    locks: Cell<usize>,
+    debt: Cell<isize>,
     paused: Cell<bool>,
 }
 
@@ -67,7 +65,7 @@ impl<D> Gc<D> {
             sweep_mark: Cell::new(null()),
             refs: Cell::new(null()),
             root: Cell::new(null()),
-            locks: Cell::new(0),
+            debt: Cell::new(0),
             paused: Cell::new(false),
         }
     }
@@ -113,21 +111,12 @@ impl<D> Gc<D> {
     }
 
     pub unsafe fn barrier_back(&self, o: *const Object<D>) {
-        if (*o).marked.get() as c_int & 7 as c_int == 6 as c_int {
-            (*o).marked
-                .set((*o).marked.get() & !(1 << 5 | (1 << 3 | 1 << 4)));
-        } else {
-            Self::linkgclist_(o, Self::getgclist(o), self.grayagain.as_ptr());
-        }
-
-        if (*o).marked.get() as c_int & 7 as c_int > 1 as c_int {
-            (*o).marked
-                .set(((*o).marked.get() as c_int & !(7 as c_int) | 5 as c_int) as u8);
-        }
+        self.linkgclist_(o, Self::getgclist(o), self.grayagain.as_ptr());
     }
 
     /// # Safety
     /// `layout` must have the layout of [`Object`] at the beginning.
+    #[inline(always)]
     pub unsafe fn alloc(&self, tt: u8, layout: Layout) -> *mut Object<D> {
         let o = unsafe { alloc::alloc::alloc(layout).cast::<Object<D>>() };
 
@@ -147,95 +136,83 @@ impl<D> Gc<D> {
         });
 
         self.all.set(o);
+        self.debt.update(|v| v.saturating_add(10));
 
         o
     }
 
-    #[inline(always)]
-    pub fn lock(&self) -> GcLock<'_, D> {
-        GcLock::new(self)
-    }
-
     #[inline(never)]
-    fn step(&self) {
+    pub fn step(&self) {
         if self.paused.get() {
             return;
         }
 
-        match self.state.get() {
-            8 => unsafe {
-                self.gray.set(null());
-                self.grayagain.set(null());
-                self.weak.set(null());
-                self.ephemeron.set(null());
-                self.allweak.set(null());
-                self.mark_roots();
-                self.state.set(0);
-            },
-            0 => unsafe {
-                if self.gray.get().is_null() {
-                    self.state.set(1);
-                } else {
-                    self.mark_one_gray();
-                }
-            },
-            1 => unsafe {
-                self.finish_marking();
+        while self.debt.get() > 0 {
+            match self.state.get() {
+                8 => unsafe {
+                    // Reset lists.
+                    self.gray.set(null());
+                    self.grayagain.set(null());
+                    self.weak.set(null());
+                    self.ephemeron.set(null());
+                    self.allweak.set(null());
 
-                // Insert sweep mark to the head.
-                let mut m = self.sweep_mark.replace(null());
+                    // Mark root.
+                    let o = self.root.get();
 
-                match m.is_null() {
-                    true => m = self.alloc(15 | 0 << 4, Layout::new::<Object<D>>()),
-                    false => {
-                        (*m).marked.set(self.currentwhite.get() & (1 << 3 | 1 << 4));
-                        (*m).next.set(self.all.get());
-
-                        self.all.set(m);
+                    if !o.is_null() && (*o).marked.is_white() {
+                        self.mark(o);
                     }
-                }
 
-                self.sweep.set((*m).next.as_ptr());
-                self.state.set(3);
-            },
-            3 => unsafe {
-                let p = self.sweep.get();
+                    self.state.set(0);
+                },
+                0 => unsafe {
+                    if self.gray.get().is_null() {
+                        self.state.set(1);
+                    } else {
+                        self.mark_one_gray();
+                    }
+                },
+                1 => unsafe {
+                    self.finish_marking();
 
-                if p.is_null() {
-                    self.state.set(8);
-                } else {
-                    self.sweep.set(self.sweep(p));
-                }
-            },
-            _ => unreachable!(),
-        }
-    }
+                    // Insert sweep mark to the head.
+                    let mut m = self.sweep_mark.replace(null());
 
-    unsafe fn mark_roots(&self) {
-        // Mark object with strong references.
-        let mut o = self.refs.get();
+                    match m.is_null() {
+                        true => m = self.alloc(15 | 0 << 4, Layout::new::<Object<D>>()),
+                        false => {
+                            (*m).marked.set(self.currentwhite.get() & (1 << 3 | 1 << 4));
+                            (*m).next.set(self.all.get());
 
-        while !o.is_null() {
-            if unsafe { ((*o).marked.get() & (1 << 3 | 1 << 4)) != 0 } {
-                self.mark(o);
+                            self.all.set(m);
+                        }
+                    }
+
+                    self.sweep.set((*m).next.as_ptr());
+                    self.state.set(3);
+                },
+                3 => unsafe {
+                    let p = self.sweep.get();
+
+                    if p.is_null() {
+                        self.state.set(8);
+                    } else {
+                        self.sweep.set(self.sweep(p));
+                    }
+                },
+                _ => unreachable!(),
             }
-
-            o = unsafe { (*o).refp.get() };
-        }
-
-        // Mark root.
-        let o = self.root.get();
-
-        if unsafe { !o.is_null() && (*o).marked.get() & (1 << 3 | 1 << 4) != 0 } {
-            self.mark(o);
         }
     }
 
+    #[inline(never)]
     unsafe fn mark(&self, o: *const Object<D>) {
         match (*o).tt {
             4 | 20 | 11 => {
                 (*o).marked
                     .set((*o).marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
                 return;
             }
             9 => {
@@ -252,6 +229,8 @@ impl<D> Gc<D> {
                         .marked
                         .set((*uv).hdr.marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
                 }
+
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
 
                 if (*(*uv).v.get()).tt_ & 1 << 6 != 0
                     && (*(*(*uv).v.get()).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
@@ -277,40 +256,46 @@ impl<D> Gc<D> {
                 (*u).hdr
                     .marked
                     .set((*u).hdr.marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
+
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
+
                 return;
             }
             6 | 38 | 5 | 8 | 10 => {}
             _ => unreachable!(),
         }
 
-        Self::linkgclist_(o, Self::getgclist(o), self.gray.as_ptr());
+        self.linkgclist_(o, Self::getgclist(o), self.gray.as_ptr());
     }
 
-    unsafe fn mark_one_gray(&self) -> usize {
+    #[inline(never)]
+    unsafe fn mark_one_gray(&self) {
         let o = self.gray.get();
 
         (*o).marked.set((*o).marked.get() | 1 << 5);
 
+        self.debt.update(|v| v.saturating_sub_unsigned(1));
         self.gray.set(*Self::getgclist(o));
 
         match (*o).tt {
             5 => self.mark_table(o.cast()),
             6 => self.mark_lf(o.cast()),
-            38 => self.mark_rf(o.cast()) as usize,
-            10 => self.mark_proto(o.cast()) as usize,
-            8 => self.mark_thread(o.cast()) as usize,
+            38 => self.mark_rf(o.cast()),
+            10 => self.mark_proto(o.cast()),
+            8 => self.mark_thread(o.cast()),
             _ => unreachable!(),
         }
     }
 
-    unsafe fn mark_table(&self, h: *const Table<D>) -> usize {
+    unsafe fn mark_table(&self, h: *const Table<D>) {
         // Get table mode.
-        let mode = if (*h).metatable.get().is_null() {
+        let mt = (*h).metatable.get();
+        let mode = if mt.is_null() {
             null()
-        } else if (*(*h).metatable.get()).flags.get() & 1 << TM_MODE != 0 {
+        } else if (*mt).flags.get() & 1 << TM_MODE != 0 {
             null()
         } else {
-            let s = luaT_gettm((*h).metatable.get(), TM_MODE);
+            let s = luaT_gettm(mt, TM_MODE);
 
             if !s.is_null() && (*s).tt_ == 4 | 0 << 4 | 1 << 6 {
                 (*s).value_.gc.cast::<Str<D>>()
@@ -320,13 +305,8 @@ impl<D> Gc<D> {
         };
 
         // Mark metatable.
-        if !((*h).metatable.get()).is_null() {
-            if (*(*h).metatable.get()).hdr.marked.get() as c_int
-                & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                != 0
-            {
-                self.mark((*h).metatable.get().cast());
-            }
+        if !mt.is_null() && (*mt).hdr.marked.is_white() {
+            self.mark(mt.cast());
         }
 
         // Traverse table.
@@ -336,28 +316,15 @@ impl<D> Gc<D> {
         };
 
         match (wk, wv) {
-            (true, true) => Self::linkgclist_(
-                h as *mut Object<D>,
-                (*h).hdr.gclist.as_ptr(),
-                self.allweak.as_ptr(),
-            ),
+            (true, true) => {
+                self.linkgclist_(h.cast(), (*h).hdr.gclist.as_ptr(), self.allweak.as_ptr());
+            }
             (true, false) => {
                 self.mark_ephemeron(h, 0);
             }
             (false, true) => self.mark_weak_value(h),
             (false, false) => self.mark_strong_table(h),
         }
-
-        (1 as c_int as c_uint)
-            .wrapping_add((*h).alimit.get())
-            .wrapping_add(
-                (2 as c_int
-                    * (if ((*h).lastfree.get()).is_null() {
-                        0 as c_int
-                    } else {
-                        (1 as c_int) << (*h).lsizenode.get() as c_int
-                    })) as c_uint,
-            ) as usize
     }
 
     unsafe fn mark_strong_table(&self, h: *const Table<D>) {
@@ -377,29 +344,43 @@ impl<D> Gc<D> {
                     != 0
             {
                 self.mark((*(*h).array.get().offset(i as isize)).value_.gc);
+            } else {
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
+
             i = i.wrapping_add(1);
         }
         n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node<D>;
         while n < limit {
             if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
                 Self::clear_key(n);
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
             } else {
+                let mut marked = false;
+
                 if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0
                     && (*(*n).u.key_val.gc).marked.get() as c_int
                         & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                         != 0
                 {
                     self.mark((*n).u.key_val.gc);
+                    marked = true;
                 }
+
                 if (*n).i_val.tt_ as c_int & (1 as c_int) << 6 as c_int != 0
                     && (*(*n).i_val.value_.gc).marked.get() as c_int
                         & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                         != 0
                 {
                     self.mark((*n).i_val.value_.gc);
+                    marked = true;
+                }
+
+                if !marked {
+                    self.debt.update(|v| v.saturating_sub_unsigned(1));
                 }
             }
+
             n = n.offset(1);
         }
     }
@@ -411,49 +392,41 @@ impl<D> Gc<D> {
             as *mut Node<D>;
         let mut hasclears: c_int = ((*h).alimit.get() > 0 as c_int as c_uint) as c_int;
         n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node<D>;
+
         while n < limit {
-            if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
+            if (*n).i_val.tt_ & 0xf == 0 {
                 Self::clear_key(n);
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
             } else {
-                if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0
-                    && (*(*n).u.key_val.gc).marked.get() as c_int
-                        & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                        != 0
-                {
+                if (*n).u.key_tt & 1 << 6 != 0 && (*(*n).u.key_val.gc).marked.is_white() {
                     self.mark((*n).u.key_val.gc);
+                } else {
+                    self.debt.update(|v| v.saturating_sub_unsigned(1));
                 }
+
                 if hasclears == 0
-                    && self.is_cleared(
-                        if (*n).i_val.tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {
-                            (*n).i_val.value_.gc
-                        } else {
-                            null()
-                        },
-                    )
+                    && self.is_cleared(if (*n).i_val.tt_ & 1 << 6 != 0 {
+                        (*n).i_val.value_.gc
+                    } else {
+                        null()
+                    })
                 {
                     hasclears = 1 as c_int;
                 }
             }
+
             n = n.offset(1);
         }
 
         if self.state.get() == 2 && hasclears != 0 {
-            Self::linkgclist_(
-                h as *const Object<D>,
-                (*h).hdr.gclist.as_ptr(),
-                self.weak.as_ptr(),
-            );
+            self.linkgclist_(h.cast(), (*h).hdr.gclist.as_ptr(), self.weak.as_ptr());
         } else {
-            Self::linkgclist_(
-                h as *const Object<D>,
-                (*h).hdr.gclist.as_ptr(),
-                self.grayagain.as_ptr(),
-            );
-        };
+            self.linkgclist_(h.cast(), (*h).hdr.gclist.as_ptr(), self.grayagain.as_ptr());
+        }
     }
 
-    unsafe fn mark_ephemeron(&self, h: *const Table<D>, inv: i32) -> i32 {
-        let mut marked: c_int = 0 as c_int;
+    unsafe fn mark_ephemeron(&self, h: *const Table<D>, inv: i32) -> bool {
+        let mut marked = false;
         let mut hasclears: c_int = 0 as c_int;
         let mut hasww: c_int = 0 as c_int;
         let mut i: c_uint = 0;
@@ -468,12 +441,17 @@ impl<D> Gc<D> {
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                     != 0
             {
-                marked = 1 as c_int;
+                marked = true;
                 self.mark((*(*h).array.get().offset(i as isize)).value_.gc);
+            } else {
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
+
             i = i.wrapping_add(1);
         }
+
         i = 0 as c_int as c_uint;
+
         while i < nsize {
             let n = if inv != 0 {
                 ((*h).node.get())
@@ -484,6 +462,7 @@ impl<D> Gc<D> {
             };
             if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
                 Self::clear_key(n);
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
             } else if self.is_cleared(
                 if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0 {
                     (*n).u.key_val.gc
@@ -499,41 +478,30 @@ impl<D> Gc<D> {
                 {
                     hasww = 1 as c_int;
                 }
-            } else if (*n).i_val.tt_ as c_int & (1 as c_int) << 6 as c_int != 0
-                && (*(*n).i_val.value_.gc).marked.get() as c_int
-                    & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                    != 0
-            {
-                marked = 1 as c_int;
+
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
+            } else if (*n).i_val.tt_ & 1 << 6 != 0 && (*(*n).i_val.value_.gc).marked.is_white() {
+                marked = true;
                 self.mark((*n).i_val.value_.gc);
+            } else {
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
+
             i = i.wrapping_add(1);
         }
 
         if self.state.get() == 0 {
-            Self::linkgclist_(
-                h as *const Object<D>,
-                (*h).hdr.gclist.as_ptr(),
-                self.grayagain.as_ptr(),
-            );
+            self.linkgclist_(h.cast(), (*h).hdr.gclist.as_ptr(), self.grayagain.as_ptr());
         } else if hasww != 0 {
-            Self::linkgclist_(
-                h as *const Object<D>,
-                (*h).hdr.gclist.as_ptr(),
-                self.ephemeron.as_ptr(),
-            );
+            self.linkgclist_(h.cast(), (*h).hdr.gclist.as_ptr(), self.ephemeron.as_ptr());
         } else if hasclears != 0 {
-            Self::linkgclist_(
-                h as *const Object<D>,
-                (*h).hdr.gclist.as_ptr(),
-                self.allweak.as_ptr(),
-            );
+            self.linkgclist_(h.cast(), (*h).hdr.gclist.as_ptr(), self.allweak.as_ptr());
         }
 
         marked
     }
 
-    unsafe fn mark_lf(&self, cl: *const LuaFn<D>) -> usize {
+    unsafe fn mark_lf(&self, cl: *const LuaFn<D>) {
         let p = (*cl).p.get();
 
         if !p.is_null() && (*p).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
@@ -548,13 +516,13 @@ impl<D> Gc<D> {
         {
             if (*uv).hdr.marked.get() as c_int & ((1 as c_int) << 3 | 1 << 4) != 0 {
                 self.mark(uv.cast());
+            } else {
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
         }
-
-        1 + (&(*cl).upvals).len()
     }
 
-    unsafe fn mark_rf(&self, cl: *const CClosure<D>) -> c_int {
+    unsafe fn mark_rf(&self, cl: *const CClosure<D>) {
         let mut i: c_int = 0;
 
         while i < (*cl).nupvalues as c_int {
@@ -568,14 +536,15 @@ impl<D> Gc<D> {
                     != 0
             {
                 self.mark((*((*cl).upvalue).as_ptr().offset(i as isize)).value_.gc);
+            } else {
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
+
             i += 1;
         }
-
-        return 1 as c_int + (*cl).nupvalues as c_int;
     }
 
-    unsafe fn mark_proto(&self, f: *const Proto<D>) -> c_int {
+    unsafe fn mark_proto(&self, f: *const Proto<D>) {
         let mut i = 0 as c_int;
 
         while i < (*f).sizek {
@@ -585,69 +554,70 @@ impl<D> Gc<D> {
                     != 0
             {
                 self.mark((*((*f).k).offset(i as isize)).value_.gc);
+            } else {
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
+
             i += 1;
         }
 
         i = 0 as c_int;
+
         while i < (*f).sizeupvalues {
-            if !((*((*f).upvalues).offset(i as isize)).name).is_null() {
-                if (*(*((*f).upvalues).offset(i as isize)).name)
-                    .hdr
-                    .marked
-                    .get() as c_int
-                    & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                    != 0
-                {
-                    self.mark((*((*f).upvalues).offset(i as isize)).name as *const Object<D>);
-                }
+            let name = (*(*f).upvalues.offset(i as isize)).name;
+
+            if !name.is_null() && (*name).hdr.marked.is_white() {
+                self.mark(name.cast());
+            } else {
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
+
             i += 1;
         }
+
         i = 0 as c_int;
+
         while i < (*f).sizep {
-            if !(*((*f).p).offset(i as isize)).is_null() {
-                if (**((*f).p).offset(i as isize)).hdr.marked.get() as c_int
-                    & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                    != 0
-                {
-                    self.mark(*((*f).p).offset(i as isize) as *const Object<D>);
-                }
+            let p = *(*f).p.offset(i as isize);
+
+            if !p.is_null() && (*p).hdr.marked.is_white() {
+                self.mark(p.cast());
+            } else {
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
+
             i += 1;
         }
+
         i = 0 as c_int;
+
         while i < (*f).sizelocvars {
-            if !((*((*f).locvars).offset(i as isize)).varname).is_null() {
-                if (*(*((*f).locvars).offset(i as isize)).varname)
-                    .hdr
-                    .marked
-                    .get() as c_int
-                    & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                    != 0
-                {
-                    self.mark((*((*f).locvars).offset(i as isize)).varname as *const Object<D>);
-                }
+            let name = (*(*f).locvars.offset(i as isize)).varname;
+
+            if !name.is_null() && (*name).hdr.marked.is_white() {
+                self.mark(name.cast());
+            } else {
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
+
             i += 1;
         }
-        return 1 as c_int + (*f).sizek + (*f).sizeupvalues + (*f).sizep + (*f).sizelocvars;
     }
 
-    unsafe fn mark_thread(&self, th: *const Thread<D>) -> i32 {
+    unsafe fn mark_thread(&self, th: *const Thread<D>) {
         let mut uv = null_mut();
         let mut o = (*th).stack.get();
 
         if self.state.get() == 0 {
-            Self::linkgclist_(
-                th as *const Object<D>,
+            self.linkgclist_(
+                th.cast(),
                 (*th).hdr.gclist.as_ptr(),
                 self.grayagain.as_ptr(),
             );
-        }
 
-        if o.is_null() {
-            return 1 as c_int;
+            return;
+        } else if o.is_null() {
+            return;
         }
 
         while o < (*th).top.get() {
@@ -657,7 +627,10 @@ impl<D> Gc<D> {
                     != 0
             {
                 self.mark((*o).val.value_.gc);
+            } else {
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
+
             o = o.offset(1);
         }
 
@@ -669,46 +642,61 @@ impl<D> Gc<D> {
                 != 0
             {
                 self.mark(uv.cast());
+            } else {
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
 
             uv = (*(*uv).u.get()).open.next;
         }
 
-        if self.state.get() == 2 {
-            luaD_shrinkstack(th);
+        luaD_shrinkstack(th);
 
-            o = (*th).top.get();
+        o = (*th).top.get();
 
-            while o < ((*th).stack_last.get()).offset(5 as c_int as isize) {
-                (*o).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
-                o = o.offset(1);
-            }
-
-            if !((*th).twups.get() != th) && !((*th).openupval.get()).is_null() {
-                (*th).twups.set(self.twups.get());
-                self.twups.set(th);
-            }
+        while o < ((*th).stack_last.get()).offset(5 as c_int as isize) {
+            (*o).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
+            o = o.offset(1);
         }
 
-        1 + ((*th).stack_last.get()).offset_from((*th).stack.get()) as c_long as c_int
+        if !((*th).twups.get() != th) && !((*th).openupval.get()).is_null() {
+            (*th).twups.set(self.twups.get());
+            self.twups.set(th);
+        }
     }
 
-    unsafe fn finish_marking(&self) -> usize {
-        let mut work = 0;
+    #[inline(never)]
+    unsafe fn finish_marking(&self) {
         let grayagain = self.grayagain.get();
 
         self.grayagain.set(null_mut());
         self.state.set(2);
 
-        self.mark_roots();
+        // Mark object with strong references.
+        let mut o = self.refs.get();
 
-        work += self.mark_all_gray();
-        work += self.remark_upvalues() as usize;
-        work += self.mark_all_gray();
+        while !o.is_null() {
+            if unsafe { ((*o).marked.get() & (1 << 3 | 1 << 4)) != 0 } {
+                self.mark(o);
+            } else {
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
+            }
+
+            o = unsafe { (*o).refp.get() };
+        }
+
+        // Mark root.
+        let o = self.root.get();
+
+        if unsafe { !o.is_null() && (*o).marked.get() & (1 << 3 | 1 << 4) != 0 } {
+            self.mark(o);
+        }
+
+        self.mark_all_gray();
+        self.remark_upvalues();
+        self.mark_all_gray();
 
         self.gray.set(grayagain);
-
-        work += self.mark_all_gray();
+        self.mark_all_gray();
 
         self.converge_ephemerons();
         self.clear_by_values(self.weak.get(), 0 as *mut Object<D>);
@@ -717,7 +705,7 @@ impl<D> Gc<D> {
         let ow = self.weak.get();
         let oa = self.allweak.get();
 
-        work += self.mark_all_gray();
+        self.mark_all_gray();
 
         self.converge_ephemerons();
         self.clear_by_keys(self.ephemeron.get());
@@ -727,23 +715,18 @@ impl<D> Gc<D> {
 
         self.currentwhite
             .set(self.currentwhite.get() ^ (1 << 3 | 1 << 4));
-
-        work
     }
 
-    unsafe fn mark_all_gray(&self) -> usize {
-        let mut tot: usize = 0 as c_int as usize;
-
+    #[inline(always)]
+    unsafe fn mark_all_gray(&self) {
         while !self.gray.get().is_null() {
-            tot += self.mark_one_gray();
+            self.mark_one_gray();
         }
-
-        return tot;
     }
 
-    unsafe fn remark_upvalues(&self) -> c_int {
+    #[inline(always)]
+    unsafe fn remark_upvalues(&self) {
         let mut p = self.twups.as_ptr();
-        let mut work: c_int = 0;
 
         loop {
             let th = *p;
@@ -752,7 +735,7 @@ impl<D> Gc<D> {
                 break;
             }
 
-            work += 1;
+            self.debt.update(|v| v.saturating_sub_unsigned(1));
 
             if (*th).hdr.marked.get() & (1 << 3 | 1 << 4) == 0 && !(*th).openupval.get().is_null() {
                 p = (*th).twups.as_ptr();
@@ -762,24 +745,24 @@ impl<D> Gc<D> {
                 *p = (*th).twups.replace(th);
 
                 while !uv.is_null() {
-                    work += 1;
+                    let v = (*uv).v.get();
 
-                    if (*uv).hdr.marked.get() & (1 << 3 | 1 << 4) == 0 {
-                        if (*(*uv).v.get()).tt_ & 1 << 6 != 0 {
-                            if (*(*(*uv).v.get()).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0 {
-                                self.mark((*(*uv).v.get()).value_.gc);
-                            }
-                        }
+                    if !(*uv).hdr.marked.is_white()
+                        && (*v).tt_ & 1 << 6 != 0
+                        && (*(*v).value_.gc).marked.is_white()
+                    {
+                        self.mark((*v).value_.gc);
+                    } else {
+                        self.debt.update(|v| v.saturating_sub_unsigned(1));
                     }
 
                     uv = (*(*uv).u.get()).open.next;
                 }
             }
         }
-
-        return work;
     }
 
+    #[inline(never)]
     unsafe fn converge_ephemerons(&self) {
         let mut changed: c_int = 0;
         let mut dir: c_int = 0 as c_int;
@@ -800,7 +783,9 @@ impl<D> Gc<D> {
 
                 (*w).hdr.marked.set((*w).hdr.marked.get() | 1 << 5);
 
-                if self.mark_ephemeron(w, dir) != 0 {
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
+
+                if self.mark_ephemeron(w, dir) {
                     self.mark_all_gray();
                     changed = 1 as c_int;
                 }
@@ -814,14 +799,17 @@ impl<D> Gc<D> {
         }
     }
 
+    #[inline(never)]
     unsafe fn clear_by_keys(&self, mut l: *const Object<D>) {
         while !l.is_null() {
             let h = l as *mut Table<D>;
             let limit = ((*h).node.get())
                 .offset(((1 as c_int) << (*h).lsizenode.get() as c_int) as usize as isize)
                 as *mut Node<D>;
-            let mut n = null_mut();
-            n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node<D>;
+            let mut n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node<D>;
+
+            self.debt.update(|v| v.saturating_sub_unsigned(1));
+
             while n < limit {
                 if self.is_cleared(
                     if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0 {
@@ -835,12 +823,17 @@ impl<D> Gc<D> {
                 if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
                     Self::clear_key(n);
                 }
+
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
+
                 n = n.offset(1);
             }
+
             l = (*(l as *mut Table<D>)).hdr.gclist.get();
         }
     }
 
+    #[inline(never)]
     unsafe fn clear_by_values(&self, mut l: *const Object<D>, f: *const Object<D>) {
         while l != f {
             let h = l as *mut Table<D>;
@@ -851,6 +844,9 @@ impl<D> Gc<D> {
             let mut i: c_uint = 0;
             let asize: c_uint = luaH_realasize(h);
             i = 0 as c_int as c_uint;
+
+            self.debt.update(|v| v.saturating_sub_unsigned(1));
+
             while i < asize {
                 let o = (*h).array.get().offset(i as isize) as *mut UnsafeValue<D>;
                 if self.is_cleared(if (*o).tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {
@@ -860,9 +856,14 @@ impl<D> Gc<D> {
                 }) {
                     (*o).tt_ = (0 as c_int | (1 as c_int) << 4 as c_int) as u8;
                 }
+
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
+
                 i = i.wrapping_add(1);
             }
+
             n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node<D>;
+
             while n < limit {
                 if self.is_cleared(
                     if (*n).i_val.tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {
@@ -876,8 +877,12 @@ impl<D> Gc<D> {
                 if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
                     Self::clear_key(n);
                 }
+
+                self.debt.update(|v| v.saturating_sub_unsigned(1));
+
                 n = n.offset(1);
             }
+
             l = (*(l as *mut Table<D>)).hdr.gclist.get();
         }
     }
@@ -888,12 +893,12 @@ impl<D> Gc<D> {
         }
     }
 
+    #[inline(never)]
     unsafe fn sweep(&self, mut p: *mut *const Object<D>) -> *mut *const Object<D> {
         let pw = self.currentwhite.get() ^ (1 << 3 | 1 << 4);
         let cw = self.currentwhite.get() & (1 << 3 | 1 << 4);
-        let mut i = 0;
 
-        while !(*p).is_null() && i < 100 {
+        while self.debt.get() > 0 && !(*p).is_null() {
             let o = *p;
             let m = (*o).marked.get();
 
@@ -905,12 +910,13 @@ impl<D> Gc<D> {
                 p = (*o).next.as_ptr();
             }
 
-            i += 1;
+            self.debt.update(|v| v.saturating_sub_unsigned(1));
         }
 
         if (*p).is_null() { null_mut() } else { p }
     }
 
+    #[inline(never)]
     unsafe fn free(&self, o: *mut Object<D>) {
         self.paused.set(true);
 
@@ -996,6 +1002,7 @@ impl<D> Gc<D> {
     }
 
     unsafe fn linkgclist_(
+        &self,
         o: *const Object<D>,
         pnext: *mut *const Object<D>,
         list: *mut *const Object<D>,
@@ -1004,6 +1011,8 @@ impl<D> Gc<D> {
         *list = o;
 
         (*o).marked.set_gray();
+
+        self.debt.update(|v| v.saturating_sub_unsigned(1));
     }
 
     unsafe fn is_cleared(&self, o: *const Object<D>) -> bool {

@@ -30,6 +30,7 @@ pub struct Table<D> {
 }
 
 impl<D> Table<D> {
+    #[inline(never)]
     pub(crate) unsafe fn new(g: *const Lua<D>) -> *const Self {
         let layout = Layout::new::<Self>();
         let o = unsafe { (*g).gc.alloc(5 | 0 << 4, layout).cast::<Self>() };

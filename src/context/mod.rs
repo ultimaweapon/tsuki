@@ -50,23 +50,32 @@ impl<'a, D, T> Context<'a, D, T> {
     where
         V: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
+        self.th.hdr.global().gc.step();
+
         unsafe { Ref::new(Str::from_str(self.th.hdr.global, v)) }
     }
 
     /// Create a Lua table.
+    #[inline(always)]
     pub fn create_table(&self) -> Ref<'a, Table<D>> {
+        self.th.hdr.global().gc.step();
+
         unsafe { Ref::new(Table::new(self.th.hdr.global)) }
     }
 
     /// Create a full userdata.
     #[inline(always)]
     pub fn create_ud<V: Any>(&self, v: V) -> Ref<'a, UserData<D, V>> {
+        self.th.hdr.global().gc.step();
+
         unsafe { Ref::new(UserData::new(self.th.hdr.global, v).cast()) }
     }
 
     /// Create a new Lua thread (AKA coroutine).
     #[inline(always)]
     pub fn create_thread(&self) -> Ref<'a, Thread<D>> {
+        self.th.hdr.global().gc.step();
+
         unsafe { Ref::new(Thread::new(self.th.hdr.global())) }
     }
 

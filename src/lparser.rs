@@ -1184,7 +1184,9 @@ unsafe fn close_func<D>(ls: *mut LexState<D>) -> Result<(), ParseError> {
         (*fs).nups as c_int,
         ::core::mem::size_of::<Upvaldesc<D>>() as libc::c_ulong as c_int,
     ) as *mut Upvaldesc<D>;
+
     (*ls).fs = (*fs).prev;
+    (*ls).g.gc.step();
 
     Ok(())
 }
