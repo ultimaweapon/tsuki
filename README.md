@@ -5,10 +5,6 @@ Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all
 > [!IMPORTANT]
 > Tsuki does not support multi-threading and no plan to support this at the moment.
 
-## Status
-
-Almost ready for release. Everything are working as expected and Lua test cases are passed. The developer being working on a final cleanup before release. Note that the first release will have **incomplete** Lua standard library.
-
 ## Features
 
 - 100% Rust code.
