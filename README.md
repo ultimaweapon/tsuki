@@ -1,4 +1,5 @@
 # Tsuki
+[![Crates.io Version](https://img.shields.io/crates/v/tsuki)](https://crates.io/crates/tsuki)
 
 Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all code are Rust and can be using without C compiler. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that this port was done **without** compatibility with the previous version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
 
