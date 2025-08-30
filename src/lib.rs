@@ -633,7 +633,6 @@ impl<'a, D> Value<'a, D> {
 pub struct Nil;
 
 /// Non-Yieldable Rust function.
-#[derive(Clone, Copy)]
 pub struct Fp<D>(fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>);
 
 impl<D> Fp<D> {
@@ -645,14 +644,29 @@ impl<D> Fp<D> {
     }
 }
 
-#[derive(Clone, Copy)]
+impl<D> Clone for Fp<D> {
+    #[inline(always)]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for Fp<D> {}
+
 pub struct YieldFp<D>(fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>);
+
+impl<D> Clone for YieldFp<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for YieldFp<D> {}
 
 /// Asynchronous Rust function.
 ///
 /// Each call into async function from Lua always incur one heap allocation so create async function
 /// only when necessary.
-#[derive(Clone, Copy)]
 pub struct AsyncFp<D>(
     fn(
         Context<D, Args>,
@@ -672,6 +686,15 @@ impl<D> AsyncFp<D> {
         Self(v)
     }
 }
+
+impl<D> Clone for AsyncFp<D> {
+    #[inline(always)]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for AsyncFp<D> {}
 
 /// Type of operator.
 #[repr(u8)]
