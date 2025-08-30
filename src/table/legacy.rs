@@ -152,9 +152,7 @@ unsafe fn mainpositionfromnode<D>(t: *const Table<D>, nd: *mut Node<D>) -> *mut 
 
 unsafe fn equalkey<D>(k1: *const UnsafeValue<D>, n2: *const Node<D>, deadok: c_int) -> c_int {
     if (*k1).tt_ != (*n2).u.key_tt
-        && !(deadok != 0
-            && (*n2).u.key_tt as c_int == 9 as c_int + 2 as c_int
-            && (*k1).tt_ as c_int & (1 as c_int) << 6 as c_int != 0)
+        && !(deadok != 0 && (*n2).u.key_tt == 11 && (*k1).tt_ & 1 << 6 != 0)
     {
         return 0 as c_int;
     }
@@ -757,7 +755,7 @@ pub unsafe fn luaH_getid<D>(t: *const Table<D>, k: &TypeId) -> *const UnsafeValu
 
     loop {
         // Check key.
-        if (*n).u.key_tt == 11 | 0 << 4 | 1 << 6
+        if (*n).u.key_tt == 14 | 0 << 4 | 1 << 6
             && (*(*n).u.key_val.gc.cast::<RustId<D>>()).value() == k
         {
             return &raw const (*n).i_val;
@@ -787,7 +785,7 @@ pub unsafe fn luaH_get<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *co
                 return luaH_getint(t, k);
             }
         }
-        11 => return luaH_getid(t, (*(*key).value_.gc.cast::<RustId<D>>()).value()),
+        14 => return luaH_getid(t, (*(*key).value_.gc.cast::<RustId<D>>()).value()),
         _ => {}
     }
 

@@ -25,7 +25,6 @@ mod r#ref;
 
 type c_int = i32;
 type c_uint = u32;
-type c_long = i64;
 
 /// Garbage Collector for Lua objects.
 pub(crate) struct Gc<D> {
@@ -209,7 +208,7 @@ impl<D> Gc<D> {
     #[inline(never)]
     unsafe fn mark(&self, o: *const Object<D>) {
         match (*o).tt {
-            4 | 20 | 11 => {
+            4 | 20 | 14 => {
                 (*o).marked
                     .set((*o).marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
                 self.debt.update(|v| v.saturating_sub_unsigned(1));
@@ -889,7 +888,7 @@ impl<D> Gc<D> {
 
     unsafe fn clear_key(n: *mut Node<D>) {
         if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0 {
-            (*n).u.key_tt = (9 as c_int + 2 as c_int) as u8;
+            (*n).u.key_tt = 11;
         }
     }
 
@@ -975,7 +974,7 @@ impl<D> Gc<D> {
                 core::ptr::drop_in_place(ts);
                 alloc::alloc::dealloc(ts.cast(), layout);
             },
-            11 => unsafe {
+            14 => unsafe {
                 core::ptr::drop_in_place(o.cast::<RustId<D>>());
                 alloc::alloc::dealloc(o.cast(), Layout::new::<RustId<D>>());
             },
