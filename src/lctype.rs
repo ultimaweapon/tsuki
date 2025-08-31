@@ -8,7 +8,6 @@
     unused_mut
 )]
 
-#[unsafe(no_mangle)]
 pub static mut luai_ctype_: [u8; 257] = [
     0 as libc::c_int as u8,
     0 as libc::c_int as u8,

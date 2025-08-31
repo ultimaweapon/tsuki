@@ -102,7 +102,6 @@ pub const iAsBx: OpMode = 2;
 pub const iABx: OpMode = 1;
 pub const iABC: OpMode = 0;
 
-#[unsafe(no_mangle)]
 pub static mut luaP_opmodes: [u8; 83] = [
     ((0 as libc::c_int) << 7 as libc::c_int
         | (0 as libc::c_int) << 6 as libc::c_int
