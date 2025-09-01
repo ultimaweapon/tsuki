@@ -191,7 +191,7 @@ unsafe fn forprep<D>(
         let step: i64 = (*pstep).value_.i;
         let mut limit: i64 = 0;
         if step == 0 as c_int as i64 {
-            luaG_runerror(L, "'for' step is zero")?;
+            return Err(luaG_runerror(L, "'for' step is zero"));
         }
         let io = &raw mut (*ra.offset(3 as c_int as isize)).val;
 
@@ -254,7 +254,7 @@ unsafe fn forprep<D>(
             luaG_forerror(L, pinit, "initial value")?;
         }
         if step_0 == 0 as c_int as f64 {
-            luaG_runerror(L, "'for' step is zero")?;
+            return Err(luaG_runerror(L, "'for' step is zero"));
         }
         if if (0 as c_int as f64) < step_0 {
             (limit_0 < init_0) as c_int
@@ -368,8 +368,8 @@ pub unsafe fn luaV_finishget<D>(
         }
         loop_0 += 1;
     }
-    luaG_runerror(L, "'__index' chain too long; possible loop")?;
-    unreachable!("luaG_runerror always return Err");
+
+    Err(luaG_runerror(L, "'__index' chain too long; possible loop"))
 }
 
 pub unsafe fn luaV_finishset<D>(
@@ -466,8 +466,11 @@ pub unsafe fn luaV_finishset<D>(
         }
         loop_0 += 1;
     }
-    luaG_runerror(L, "'__newindex' chain too long; possible loop")?;
-    unreachable!("luaG_runerror always return Err");
+
+    Err(luaG_runerror(
+        L,
+        "'__newindex' chain too long; possible loop",
+    ))
 }
 
 #[inline(always)]
@@ -876,7 +879,7 @@ pub unsafe fn luaV_concat<D>(
                     != 0
                 {
                     (*L).top.set(top.offset(-(total as isize)));
-                    luaG_runerror(L, "string length overflow")?;
+                    return Err(luaG_runerror(L, "string length overflow"));
                 }
                 tl = tl.wrapping_add(l);
                 n += 1;
@@ -2259,7 +2262,7 @@ pub async unsafe fn luaV_execute<D>(
 
                             (*io_12).value_.i = match luaV_mod(i1_2, i2_2) {
                                 Some(v) => v,
-                                None => return luaG_runerror(L, ArithError::ModZero),
+                                None => return Err(luaG_runerror(L, ArithError::ModZero)),
                             };
                             (*io_12).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         } else {
@@ -2433,7 +2436,7 @@ pub async unsafe fn luaV_execute<D>(
 
                             (*io_16).value_.i = match luaV_idiv(i1_3, i2_3) {
                                 Some(v) => v,
-                                None => return luaG_runerror(L, ArithError::DivZero),
+                                None => return Err(luaG_runerror(L, ArithError::DivZero)),
                             };
                             (*io_16).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         } else {
@@ -2889,7 +2892,7 @@ pub async unsafe fn luaV_execute<D>(
                             let io_29 = &raw mut (*ra_35).val;
                             (*io_29).value_.i = match luaV_mod(i1_10, i2_10) {
                                 Some(v) => v,
-                                None => return luaG_runerror(L, ArithError::ModZero),
+                                None => return Err(luaG_runerror(L, ArithError::ModZero)),
                             };
                             (*io_29).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         } else {
@@ -3069,7 +3072,7 @@ pub async unsafe fn luaV_execute<D>(
                             let io_33 = &raw mut (*ra_38).val;
                             (*io_33).value_.i = match luaV_idiv(i1_11, i2_11) {
                                 Some(v) => v,
-                                None => return luaG_runerror(L, ArithError::DivZero),
+                                None => return Err(luaG_runerror(L, ArithError::DivZero)),
                             };
                             (*io_33).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         } else {

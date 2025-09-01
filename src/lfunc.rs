@@ -153,13 +153,13 @@ unsafe fn checkclosemth<D>(
             vname = b"?\0" as *const u8 as *const libc::c_char;
         }
 
-        luaG_runerror(
+        return Err(luaG_runerror(
             L,
             format!(
                 "variable '{}' got a non-closable value",
                 CStr::from_ptr(vname).to_string_lossy()
             ),
-        )?;
+        ));
     }
     Ok(())
 }

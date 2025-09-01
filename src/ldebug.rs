@@ -890,14 +890,14 @@ pub unsafe fn luaG_forerror<D>(
     o: *const UnsafeValue<D>,
     what: impl Display,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    luaG_runerror(
+    Err(luaG_runerror(
         L,
         format_args!(
             "bad 'for' {} (number expected, got {})",
             what,
             luaT_objtypename((*L).hdr.global, o)
         ),
-    )
+    ))
 }
 
 pub unsafe fn luaG_concaterror<D>(
@@ -938,10 +938,10 @@ pub unsafe fn luaG_tointerror<D>(
         p2 = p1;
     }
 
-    luaG_runerror(
+    Err(luaG_runerror(
         L,
         format_args!("number{} has no integer representation", varinfo(L, p2)),
-    )
+    ))
 }
 
 pub unsafe fn luaG_ordererror<D>(
@@ -953,9 +953,15 @@ pub unsafe fn luaG_ordererror<D>(
     let t2 = luaT_objtypename((*L).hdr.global, p2);
 
     if t1 == t2 {
-        luaG_runerror(L, format_args!("attempt to compare two {t1} values"))
+        Err(luaG_runerror(
+            L,
+            format_args!("attempt to compare two {t1} values"),
+        ))
     } else {
-        luaG_runerror(L, format_args!("attempt to compare {t1} with {t2}"))
+        Err(luaG_runerror(
+            L,
+            format_args!("attempt to compare {t1} with {t2}"),
+        ))
     }
 }
 
@@ -966,7 +972,7 @@ pub unsafe fn luaG_addinfo(msg: impl Display, src: &ChunkInfo, line: c_int) -> S
 pub unsafe fn luaG_runerror<D>(
     L: *const Thread<D>,
     fmt: impl Display,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Box<dyn core::error::Error> {
     let ci = (*L).ci.get();
     let msg = if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
         luaG_addinfo(
@@ -978,7 +984,7 @@ pub unsafe fn luaG_runerror<D>(
         fmt.to_string()
     };
 
-    Err(msg.into())
+    msg.into()
 }
 
 unsafe fn changedline<D>(p: *const Proto<D>, oldpc: c_int, newpc: c_int) -> c_int {

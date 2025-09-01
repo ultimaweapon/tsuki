@@ -25,3 +25,6 @@ thiserror = { version = "2.0.12", default-features = false }
 criterion = { version = "0.7.0", features = ["html_reports"] }
 mlua = { version = "0.11.3", features = ["lua54", "vendored"] }
 tokio = { version = "1.47.1", features = ["rt", "time"] }
+
+[profile.bench]
+debug = "full"
