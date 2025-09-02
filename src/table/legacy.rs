@@ -677,35 +677,28 @@ pub unsafe fn luaH_getint<D>(t: *const Table<D>, key: i64) -> *const UnsafeValue
         return (*t).array.get().add((key - 1) as usize);
     }
 
-    #[inline(never)]
-    unsafe fn get_slow<D>(t: *const Table<D>, key: i64) -> *const UnsafeValue<D> {
-        let alimit = u64::from((*t).alimit.get());
+    if (*t).flags.get() & 1 << 7 != 0
+        && (key as u64).wrapping_sub(1) & !alimit.wrapping_sub(1) < alimit
+    {
+        (*t).alimit.set(key as c_uint);
+        (*t).array.get().offset((key - 1 as c_int as i64) as isize)
+    } else {
+        let mut n = hashint(t, key);
 
-        if (*t).flags.get() & 1 << 7 != 0
-            && (key as u64).wrapping_sub(1) & !alimit.wrapping_sub(1) < alimit
-        {
-            (*t).alimit.set(key as c_uint);
-            (*t).array.get().offset((key - 1 as c_int as i64) as isize)
-        } else {
-            let mut n = hashint(t, key);
-
-            loop {
-                if (*n).u.key_tt == 3 | 0 << 4 && (*n).u.key_val.i == key {
-                    return &raw const (*n).i_val;
-                } else {
-                    let nx: c_int = (*n).u.next;
-                    if nx == 0 as c_int {
-                        break;
-                    }
-                    n = n.offset(nx as isize);
+        loop {
+            if (*n).u.key_tt == 3 | 0 << 4 && (*n).u.key_val.i == key {
+                return &raw const (*n).i_val;
+            } else {
+                let nx: c_int = (*n).u.next;
+                if nx == 0 as c_int {
+                    break;
                 }
+                n = n.offset(nx as isize);
             }
-
-            &raw const (*t).hdr.global().absent_key
         }
-    }
 
-    get_slow(t, key)
+        &raw const (*t).hdr.global().absent_key
+    }
 }
 
 pub unsafe fn luaH_getshortstr<D>(t: *const Table<D>, key: *const Str<D>) -> *const UnsafeValue<D> {
@@ -774,6 +767,7 @@ pub unsafe fn luaH_getid<D>(t: *const Table<D>, k: &TypeId) -> *const UnsafeValu
     &raw const (*t).hdr.global().absent_key
 }
 
+#[inline(never)]
 pub unsafe fn luaH_get<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *const UnsafeValue<D> {
     match (*key).tt_ & 0x3f {
         4 => return luaH_getshortstr(t, (*key).value_.gc as *mut Str<D>),
