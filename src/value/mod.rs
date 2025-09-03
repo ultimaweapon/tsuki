@@ -10,9 +10,9 @@ use core::pin::Pin;
 /// The outside **must** never be able to construct or have the value of this type.
 #[repr(C)]
 pub struct UnsafeValue<D> {
-    pub value_: UntaggedValue<D>,
     pub tt_: u8,
     pub tbcdelta: u16,
+    pub value_: UntaggedValue<D>,
 }
 
 impl<D> UnsafeValue<D> {

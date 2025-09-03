@@ -18,9 +18,9 @@ impl<D> Copy for Node<D> {}
 
 #[repr(C)]
 pub(crate) struct NodeKey<D> {
-    pub value_: UntaggedValue<D>,
     pub tt_: u8,
     pub key_tt: u8,
+    pub value_: UntaggedValue<D>,
     pub next: c_int,
     pub key_val: UntaggedValue<D>,
 }
