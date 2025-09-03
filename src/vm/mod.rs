@@ -25,7 +25,7 @@ use crate::table::{
     luaH_finishset, luaH_get, luaH_getint, luaH_getn, luaH_getshortstr, luaH_getstr,
     luaH_realasize, luaH_resize, luaH_resizearray,
 };
-use crate::value::{UnsafeValue, UntaggedValue};
+use crate::value::UnsafeValue;
 use crate::{ArithError, LuaFn, NON_YIELDABLE_WAKER, Nil, Str, Table, Thread, UserData};
 use alloc::boxed::Box;
 use alloc::string::String;
@@ -68,10 +68,7 @@ unsafe fn l_strton<D>(obj: *const UnsafeValue<D>, result: *mut UnsafeValue<D>) -
 
 #[inline(never)]
 pub unsafe fn luaV_tonumber_<D>(obj: *const UnsafeValue<D>, n: *mut f64) -> c_int {
-    let mut v = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
+    let mut v = UnsafeValue::default();
     if (*obj).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
         *n = (*obj).value_.i as f64;
         return 1 as c_int;
@@ -121,10 +118,7 @@ pub unsafe fn luaV_tointeger<D>(
     p: *mut i64,
     mode: F2Imod,
 ) -> c_int {
-    let mut v = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
+    let mut v = UnsafeValue::default();
     if l_strton(obj, &mut v) != 0 {
         obj = &mut v;
     }
@@ -1451,10 +1445,7 @@ pub async unsafe fn luaV_execute<D>(
                             (*io1_6).value_ = (*io2_6).value_;
                             (*io1_6).tt_ = (*io2_6).tt_;
                         } else {
-                            let mut key_0 = UnsafeValue {
-                                value_: UntaggedValue { gc: null() },
-                                tt_: 0,
-                            };
+                            let mut key_0 = UnsafeValue::default();
                             let io_1 = &raw mut key_0;
 
                             (*io_1).value_.i = c as i64;
@@ -1775,10 +1766,7 @@ pub async unsafe fn luaV_execute<D>(
                                 }
                             }
                         } else {
-                            let mut key_3 = UnsafeValue {
-                                value_: UntaggedValue { gc: null() },
-                                tt_: 0,
-                            };
+                            let mut key_3 = UnsafeValue::default();
                             let io_2 = &raw mut key_3;
 
                             (*io_2).value_.i = c_0 as i64;

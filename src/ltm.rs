@@ -11,7 +11,7 @@ use crate::ldo::{luaD_call, luaD_growstack};
 use crate::lobject::{Proto, StackValue};
 use crate::lstate::CallInfo;
 use crate::table::luaH_getshortstr;
-use crate::value::{UnsafeValue, UntaggedValue};
+use crate::value::UnsafeValue;
 use crate::{CallError, Lua, NON_YIELDABLE_WAKER, Str, Table, Thread, UserData};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
@@ -286,10 +286,7 @@ pub unsafe fn luaT_trybiniTM<D>(
     flip: c_int,
     event: TMS,
 ) -> Result<UnsafeValue<D>, Box<dyn core::error::Error>> {
-    let mut aux = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
+    let mut aux = UnsafeValue::default();
     let io = &raw mut aux;
 
     (*io).value_.i = i2;
@@ -324,10 +321,7 @@ pub unsafe fn luaT_callorderiTM<D>(
     isfloat: c_int,
     event: TMS,
 ) -> Result<c_int, Box<dyn core::error::Error>> {
-    let mut aux = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
+    let mut aux = UnsafeValue::default();
     let mut p2 = null();
 
     if isfloat != 0 {

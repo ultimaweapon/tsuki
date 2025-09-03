@@ -16,7 +16,7 @@ use crate::lparser::{
 };
 use crate::ltm::{TM_ADD, TM_SHL, TM_SHR, TM_SUB, TMS};
 use crate::table::{luaH_finishset, luaH_get};
-use crate::value::{UnsafeValue, UntaggedValue};
+use crate::value::UnsafeValue;
 use crate::vm::{
     F2Ieq, OP_ADD, OP_ADDI, OP_ADDK, OP_CONCAT, OP_EQ, OP_EQI, OP_EQK, OP_EXTRAARG, OP_GETFIELD,
     OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI, OP_JMP, OP_LFALSESKIP, OP_LOADF,
@@ -780,10 +780,7 @@ unsafe fn addk<D>(
     key: *mut UnsafeValue<D>,
     v: *mut UnsafeValue<D>,
 ) -> Result<libc::c_int, ParseError> {
-    let mut val = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
+    let mut val = UnsafeValue::default();
 
     let f = (*fs).f;
     let idx = luaH_get((*ls).h.deref(), key);
@@ -859,10 +856,7 @@ unsafe fn stringK<D>(
     fs: *mut FuncState<D>,
     s: *const Str<D>,
 ) -> Result<libc::c_int, ParseError> {
-    let mut o = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
+    let mut o = UnsafeValue::default();
     let io = &raw mut o;
 
     (*io).value_.gc = s.cast();
@@ -876,10 +870,7 @@ unsafe fn luaK_intK<D>(
     fs: *mut FuncState<D>,
     n: i64,
 ) -> Result<libc::c_int, ParseError> {
-    let mut o = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
+    let mut o = UnsafeValue::default();
     let io = &raw mut o;
 
     (*io).value_.i = n;
@@ -892,10 +883,7 @@ unsafe fn luaK_numberK<D>(
     fs: *mut FuncState<D>,
     r: f64,
 ) -> Result<libc::c_int, ParseError> {
-    let mut o = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
+    let mut o = UnsafeValue::default();
     let mut ik: i64 = 0;
     let io = &raw mut o;
 
@@ -911,10 +899,7 @@ unsafe fn luaK_numberK<D>(
         } else {
             r + r * q
         };
-        let mut kv = UnsafeValue {
-            value_: UntaggedValue { gc: null() },
-            tt_: 0,
-        };
+        let mut kv = UnsafeValue::default();
         let io_0 = &raw mut kv;
 
         (*io_0).value_.n = k;
@@ -924,32 +909,20 @@ unsafe fn luaK_numberK<D>(
 }
 
 unsafe fn boolF<D>(ls: *mut LexState<D>, fs: *mut FuncState<D>) -> Result<libc::c_int, ParseError> {
-    let mut o = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
+    let mut o = UnsafeValue::default();
     o.tt_ = (1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     return addk(ls, fs, &mut o, &mut o);
 }
 
 unsafe fn boolT<D>(ls: *mut LexState<D>, fs: *mut FuncState<D>) -> Result<libc::c_int, ParseError> {
-    let mut o = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
+    let mut o = UnsafeValue::default();
     o.tt_ = (1 as libc::c_int | (1 as libc::c_int) << 4 as libc::c_int) as u8;
     return addk(ls, fs, &mut o, &mut o);
 }
 
 unsafe fn nilK<D>(ls: *mut LexState<D>, fs: *mut FuncState<D>) -> Result<libc::c_int, ParseError> {
-    let mut k = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
-    let mut v = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
+    let mut k = UnsafeValue::default();
+    let mut v = UnsafeValue::default();
     v.tt_ = (0 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int) as u8;
     let io = &raw mut k;
 
@@ -1830,14 +1803,8 @@ unsafe fn constfolding<D>(
     e1: *mut expdesc<D>,
     e2: *const expdesc<D>,
 ) -> Result<libc::c_int, ArithError> {
-    let mut v1 = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
-    let mut v2 = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
+    let mut v1 = UnsafeValue::default();
+    let mut v2 = UnsafeValue::default();
 
     if tonumeral(e1, &mut v1) == 0
         || tonumeral(e2, &mut v2) == 0

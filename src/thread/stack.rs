@@ -1,8 +1,7 @@
-use crate::Table;
 use crate::lobject::StackValue;
-use crate::value::{UnsafeValue, UntaggedValue};
+use crate::value::UnsafeValue;
+use crate::{Nil, Table};
 use core::cell::Cell;
-use core::mem::zeroed;
 
 /// Pointer to an item in the stack.
 pub(crate) struct StackPtr<D>(Cell<*mut StackValue<D>>);
@@ -45,21 +44,11 @@ impl<D> StackPtr<D> {
 
     #[inline(always)]
     pub fn write_nil(&self) {
-        let v = UnsafeValue {
-            value_: unsafe { zeroed() },
-            tt_: 0 | 0 << 4,
-        };
-
-        unsafe { self.write(v) };
+        unsafe { self.write(Nil.into()) };
     }
 
     #[inline(always)]
     pub fn write_table(&self, t: &Table<D>) {
-        let v = UnsafeValue {
-            value_: UntaggedValue { gc: &t.hdr },
-            tt_: 5 | 0 << 4 | 1 << 6,
-        };
-
-        unsafe { self.write(v) };
+        unsafe { self.write(t.into()) };
     }
 }

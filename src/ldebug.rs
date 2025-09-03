@@ -16,7 +16,7 @@ use crate::ltm::{
     luaT_objtypename,
 };
 use crate::table::luaH_setint;
-use crate::value::{UnsafeValue, UntaggedValue};
+use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, OpCode, luaP_opmodes, luaV_tointegerns};
 use crate::{ChunkInfo, LuaFn, Object, Str, Table, Thread, api_incr_top};
 use alloc::borrow::Cow;
@@ -327,10 +327,7 @@ unsafe fn collectvalidlines<D>(L: *const Thread<D>, f: *const Object<D>) {
 
         if !((*p).lineinfo).is_null() {
             let mut i: c_int = 0;
-            let mut v = UnsafeValue {
-                value_: UntaggedValue { gc: null() },
-                tt_: 0,
-            };
+            let mut v = UnsafeValue::default();
             v.tt_ = (1 as c_int | (1 as c_int) << 4 as c_int) as u8;
             if (*p).is_vararg == 0 {
                 i = 0 as c_int;

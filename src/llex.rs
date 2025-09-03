@@ -12,7 +12,7 @@ use crate::lobject::{luaO_hexavalue, luaO_str2num, luaO_utf8esc};
 use crate::lparser::{Dyndata, FuncState};
 use crate::lzio::{Mbuffer, ZIO};
 use crate::table::{luaH_finishset, luaH_getstr};
-use crate::value::{UnsafeValue, UntaggedValue};
+use crate::value::UnsafeValue;
 use crate::{ChunkInfo, Lua, Node, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;
@@ -20,7 +20,7 @@ use alloc::string::ToString;
 use core::ffi::CStr;
 use core::fmt::Display;
 use core::ops::Deref;
-use core::ptr::{null, null_mut};
+use core::ptr::null_mut;
 
 pub type RESERVED = libc::c_uint;
 pub const TK_STRING: RESERVED = 292;
@@ -329,10 +329,7 @@ unsafe fn read_numeral<D>(
     ls: *mut LexState<D>,
     seminfo: *mut SemInfo<D>,
 ) -> Result<libc::c_int, ParseError> {
-    let mut obj = UnsafeValue::<D> {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
+    let mut obj = UnsafeValue::<D>::default();
     let mut expo: *const libc::c_char = b"Ee\0" as *const u8 as *const libc::c_char;
     let first: libc::c_int = (*ls).current;
     save(ls, (*ls).current);

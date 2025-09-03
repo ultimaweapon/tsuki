@@ -10,7 +10,7 @@ use crate::gc::Object;
 use crate::lctype::luai_ctype_;
 use crate::lmem::luaM_free_;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
-use crate::value::{UnsafeValue, UntaggedValue};
+use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
 use crate::{Args, ArithError, ChunkInfo, Context, Lua, Ops, Ret, Str, Thread};
 use alloc::boxed::Box;
@@ -21,7 +21,6 @@ use libm::{floor, pow};
 #[repr(C)]
 pub union StackValue<D> {
     pub val: UnsafeValue<D>,
-    pub tbclist: TbcList<D>,
 }
 
 impl<D> Clone for StackValue<D> {
@@ -31,21 +30,6 @@ impl<D> Clone for StackValue<D> {
 }
 
 impl<D> Copy for StackValue<D> {}
-
-#[repr(C)]
-pub struct TbcList<D> {
-    pub value_: UntaggedValue<D>,
-    pub tt_: u8,
-    pub delta: libc::c_ushort,
-}
-
-impl<D> Clone for TbcList<D> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<D> Copy for TbcList<D> {}
 
 #[repr(C)]
 pub struct UpVal<D> {

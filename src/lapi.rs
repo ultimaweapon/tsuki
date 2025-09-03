@@ -6,7 +6,7 @@ use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::{CClosure, StackValue, luaO_str2num, luaO_tostring};
 use crate::ltm::luaT_typenames_;
 use crate::table::{luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_resize, luaH_setint};
-use crate::value::{UnsafeValue, UntaggedValue};
+use crate::value::UnsafeValue;
 use crate::vm::{
     F2Ieq, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_lessequal,
     luaV_lessthan, luaV_tointeger, luaV_tonumber_,
@@ -159,10 +159,7 @@ pub unsafe fn lua_closeslot<D>(
 
 unsafe fn reverse<D>(mut from: *mut StackValue<D>, mut to: *mut StackValue<D>) {
     while from < to {
-        let mut temp = UnsafeValue {
-            value_: UntaggedValue { gc: null() },
-            tt_: 0,
-        };
+        let mut temp = UnsafeValue::default();
         let io1 = &raw mut temp;
         let io2 = &raw mut (*from).val;
         (*io1).value_ = (*io2).value_;
@@ -834,10 +831,7 @@ pub unsafe fn lua_seti<D>(
             }
         }
     } else {
-        let mut aux = UnsafeValue {
-            value_: UntaggedValue { gc: null() },
-            tt_: 0,
-        };
+        let mut aux = UnsafeValue::default();
         let io = &raw mut aux;
         (*io).value_.i = n;
         (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;

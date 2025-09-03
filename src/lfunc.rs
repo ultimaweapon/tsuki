@@ -200,10 +200,10 @@ pub unsafe fn luaF_newtbcupval<D>(
                 .wrapping_sub(1) as isize,
             ),
         );
-        (*(*L).tbclist.get()).tbclist.delta = 0 as libc::c_int as libc::c_ushort;
+        (*(*L).tbclist.get()).val.tbcdelta = 0 as libc::c_int as libc::c_ushort;
     }
 
-    (*level).tbclist.delta = level.offset_from((*L).tbclist.get()).try_into().unwrap();
+    (*level).val.tbcdelta = level.offset_from((*L).tbclist.get()).try_into().unwrap();
     (*L).tbclist.set(level);
 
     Ok(())
@@ -258,8 +258,8 @@ pub unsafe fn luaF_closeupval<D>(L: *const Thread<D>, level: *mut StackValue<D>)
 
 unsafe fn poptbclist<D>(L: *const Thread<D>) {
     let mut tbc = (*L).tbclist.get();
-    tbc = tbc.offset(-((*tbc).tbclist.delta as libc::c_int as isize));
-    while tbc > (*L).stack.get() && (*tbc).tbclist.delta as libc::c_int == 0 as libc::c_int {
+    tbc = tbc.offset(-((*tbc).val.tbcdelta as libc::c_int as isize));
+    while tbc > (*L).stack.get() && (*tbc).val.tbcdelta as libc::c_int == 0 as libc::c_int {
         tbc = tbc.offset(
             -(((256 as libc::c_ulong)
                 << (::core::mem::size_of::<libc::c_ushort>() as libc::c_ulong)

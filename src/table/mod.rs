@@ -288,6 +288,7 @@ impl<D> Table<D> {
                 let key = UnsafeValue {
                     value_: unsafe { (*n).u.key_val },
                     tt_: unsafe { (*n).u.key_tt },
+                    tbcdelta: 0,
                 };
 
                 return Ok(unsafe { Some([key, (*n).i_val]) });

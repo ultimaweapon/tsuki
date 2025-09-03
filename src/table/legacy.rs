@@ -7,7 +7,7 @@ use crate::hasher::LuaHasher;
 use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
 use crate::lobject::luaO_ceillog2;
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
-use crate::value::{UnsafeValue, UntaggedValue};
+use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_flttointeger};
 use crate::{Node, Str, Table, TableError};
 use alloc::boxed::Box;
@@ -139,10 +139,7 @@ unsafe fn mainpositionTV<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *
 }
 
 unsafe fn mainpositionfromnode<D>(t: *const Table<D>, nd: *mut Node<D>) -> *mut Node<D> {
-    let mut key = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
+    let mut key = UnsafeValue::default();
     let io_ = &raw mut key;
     let n_ = nd;
     (*io_).value_ = (*n_).u.key_val;
@@ -439,10 +436,7 @@ unsafe fn reinsert<D>(ot: *const Table<D>, t: *const Table<D>) {
     while j < size {
         let old = ((*ot).node.get()).offset(j as isize) as *mut Node<D>;
         if !((*old).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int) {
-            let mut k = UnsafeValue {
-                value_: UntaggedValue { gc: null() },
-                tt_: 0,
-            };
+            let mut k = UnsafeValue::default();
             let io_ = &raw mut k;
             let n_ = old;
             (*io_).value_ = (*n_).u.key_val;
@@ -590,10 +584,7 @@ unsafe fn luaH_newkey<D>(
     value: *const UnsafeValue<D>,
 ) -> Result<(), TableError> {
     let mut mp = null_mut();
-    let mut aux = UnsafeValue {
-        value_: UntaggedValue { gc: null() },
-        tt_: 0,
-    };
+    let mut aux = UnsafeValue::default();
 
     if (*key).tt_ & 0xf == 0 {
         return Err(TableError::NilKey);
@@ -722,10 +713,7 @@ pub unsafe fn luaH_getstr<D>(t: *const Table<D>, key: *const Str<D>) -> *const U
     if (*key).hdr.tt as c_int == 4 as c_int | (0 as c_int) << 4 as c_int {
         return luaH_getshortstr(t, key);
     } else {
-        let mut ko = UnsafeValue {
-            value_: UntaggedValue { gc: null() },
-            tt_: 0,
-        };
+        let mut ko = UnsafeValue::default();
         let io = &raw mut ko;
 
         (*io).value_.gc = key.cast();
@@ -817,10 +805,7 @@ pub unsafe fn luaH_setint<D>(t: *const Table<D>, key: i64, value: *const UnsafeV
     let p = luaH_getint(t, key);
 
     if (*p).tt_ as c_int == 0 as c_int | (2 as c_int) << 4 as c_int {
-        let mut k = UnsafeValue {
-            value_: UntaggedValue { gc: null() },
-            tt_: 0,
-        };
+        let mut k = UnsafeValue::default();
         let io = &raw mut k;
         (*io).value_.i = key;
         (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;

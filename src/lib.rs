@@ -199,14 +199,8 @@ impl<T> Lua<T> {
         let g = Rc::pin(Lua {
             gc: unsafe { Gc::new() }, // SAFETY: gc in the first field on Lua.
             strt: StringTable::new(),
-            l_registry: UnsafeCell::new(UnsafeValue {
-                value_: UntaggedValue { i: 0 },
-                tt_: (0 | 0 << 4),
-            }),
-            nilvalue: UnsafeCell::new(UnsafeValue {
-                value_: UntaggedValue { i: 0 },
-                tt_: (0 | 0 << 4),
-            }),
+            l_registry: UnsafeCell::new(Nil.into()),
+            nilvalue: UnsafeCell::new(Nil.into()),
             dummy_node: Node {
                 u: NodeKey {
                     value_: UntaggedValue { gc: null() },
@@ -219,6 +213,7 @@ impl<T> Lua<T> {
             absent_key: UnsafeValue {
                 value_: UntaggedValue { gc: null() },
                 tt_: (0 as c_int | (2 as c_int) << 4 as c_int) as u8,
+                tbcdelta: 0,
             },
             seed,
             associated_data,
