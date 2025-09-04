@@ -17,6 +17,6 @@ jobs:
     - name: Install Rust nightly
       run: rustup toolchain install nightly
     - name: Run tests
-      run: cargo +nightly test --target x86_64-unknown-linux-gnu -r --lib
+      run: cargo +nightly test --target x86_64-unknown-linux-gnu -r --all-targets
       env:
         RUSTFLAGS: -Zsanitizer=address
