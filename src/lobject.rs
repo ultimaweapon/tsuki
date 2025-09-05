@@ -8,6 +8,7 @@
 
 use crate::gc::Object;
 use crate::lctype::luai_ctype_;
+use crate::libc::snprintf;
 use crate::lmem::luaM_free_;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::value::UnsafeValue;
@@ -15,7 +16,7 @@ use crate::vm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointeg
 use crate::{Args, ArithError, ChunkInfo, Context, Lua, Ops, Ret, Str, Thread};
 use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
-use libc::{c_char, c_int, sprintf, strpbrk, strspn, strtod};
+use libc::{c_char, c_int, strpbrk, strspn, strtod};
 use libm::{floor, pow};
 
 #[repr(C)]
@@ -771,14 +772,16 @@ pub unsafe fn luaO_utf8esc(buff: *mut c_char, mut x: libc::c_ulong) -> c_int {
 
 unsafe fn tostringbuff<D>(obj: *const UnsafeValue<D>, buff: *mut c_char) -> c_int {
     if (*obj).tt_ == 3 | 0 << 4 {
-        sprintf(
+        snprintf(
             buff,
+            44,
             b"%lld\0" as *const u8 as *const c_char,
             (*obj).value_.i,
         )
     } else {
-        let mut len = sprintf(
+        let mut len = snprintf(
             buff,
+            44,
             b"%.14g\0" as *const u8 as *const c_char,
             (*obj).value_.n,
         );

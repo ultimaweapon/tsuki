@@ -1,14 +1,14 @@
 # Tsuki
 [![Crates.io Version](https://img.shields.io/crates/v/tsuki)](https://crates.io/crates/tsuki)
 
-Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all code are Rust and can be using without C compiler. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that this port was done **without** compatibility with the previous version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
+Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all code are Rust and can be using without C compiler[^1]. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that this port was done **without** compatibility with the previous version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
 
 > [!IMPORTANT]
 > Tsuki does not support multi-threading and no plan to support this at the moment.
 
 ## Safety
 
-All public API of Tsuki should provide 100% safety as long as you don't use unsafe API.
+All public API of Tsuki should provide 100% safety as long as you don't use unsafe API incorrectly.
 
 ## Features
 
@@ -59,10 +59,11 @@ All public API of Tsuki should provide 100% safety as long as you don't use unsa
 
 ## Roadmap
 
-- Support Windows.
 - Remove libc.
 - JIT using Cranelift.
 
 ## License
 
 MIT
+
+[^1]: On Windows, a proxy to `sprintf` written in C++ is required at the moment. This proxy will be removed when we replace `sprintf` calls with Rust equivalent.

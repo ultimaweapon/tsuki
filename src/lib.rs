@@ -3,33 +3,34 @@
 //! # Quickstart
 //!
 //! ```
-//! # use tsuki::{Lua, Context, Args, Ret, fp, ChunkInfo, Value};
-//! # fn main() {
-//! // Set up.
-//! let lua = Lua::new(());
+//! use tsuki::{Args, ChunkInfo, Context, Lua, Ret, Value, fp};
 //!
-//! lua.setup_base();
-//! lua.setup_string();
-//! lua.setup_table();
-//! lua.setup_math();
-//! lua.setup_coroutine();
+//! fn main() {
+//!     // Set up.
+//!     let lua = Lua::new(());
 //!
-//! lua.global().set_str_key("myfunc", fp!(myfunc));
+//!     lua.setup_base();
+//!     lua.setup_string();
+//!     lua.setup_table();
+//!     lua.setup_math();
+//!     lua.setup_coroutine();
 //!
-//! // Run.
-//! let chunk = lua.load(ChunkInfo::new("abc.lua"), "return myfunc()").unwrap();
-//! let result = lua.call::<Value<_>>(chunk, ()).unwrap();
+//!     lua.global().set_str_key("myfunc", fp!(myfunc));
 //!
-//! match result {
-//!     Value::Str(v) => assert_eq!(v.as_str(), Some("Hello world!")),
-//!     _ => todo!(),
+//!     // Run.
+//!     let chunk = lua.load(ChunkInfo::new("abc.lua"), "return myfunc()").unwrap();
+//!     let result = lua.call::<Value<_>>(chunk, ()).unwrap();
+//!
+//!     match result {
+//!         Value::Str(v) => assert_eq!(v.as_str(), Some("Hello world!")),
+//!         _ => todo!(),
+//!     }
 //! }
 //!
 //! fn myfunc(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
 //!     cx.push_str("Hello world!")?;
 //!     Ok(cx.into())
 //! }
-//! # }
 //! ```
 //!
 //! # Types that can be converted to UnsafeValue.
@@ -115,6 +116,7 @@ mod lctype;
 mod ldebug;
 mod ldo;
 mod lfunc;
+mod libc;
 mod llex;
 mod lmem;
 mod lobject;
@@ -287,7 +289,7 @@ impl<T> Lua<T> {
 
         // Create table for Lua tokens.
         let tokens = unsafe { Table::new(g.deref()) };
-        let n = TK_WHILE as libc::c_int - (255 as libc::c_int + 1 as libc::c_int) + 1;
+        let n = TK_WHILE - (255 + 1) + 1;
 
         unsafe { luaH_resize(tokens, 0, n.try_into().unwrap()) };
 
@@ -499,7 +501,7 @@ impl<T> Lua<T> {
             unsafe { (*io1).value_ = (*gt).value_ };
             unsafe { (*io1).tt_ = (*gt).tt_ };
 
-            if unsafe { (*gt).tt_ as libc::c_int & (1 as libc::c_int) << 6 as libc::c_int != 0 } {
+            if unsafe { (*gt).tt_ & 1 << 6 != 0 } {
                 if unsafe {
                     (*(*f).upvals[0].get()).hdr.marked.get() & 1 << 5 != 0
                         && (*(*gt).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0

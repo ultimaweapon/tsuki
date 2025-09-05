@@ -1,9 +1,9 @@
+use crate::libc::snprintf;
 use crate::{Args, Context, Ret, Type};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
-use libc::snprintf;
 
 /// Implementation of [string.format](https://www.lua.org/manual/5.4/manual.html#pdf-string.format).
 pub fn format<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
