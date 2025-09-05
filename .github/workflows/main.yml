@@ -26,3 +26,7 @@ jobs:
     name: Build
     uses: ./.github/workflows/ci-mac.yml
     needs: prebuild
+  build-windows:
+    name: Build
+    uses: ./.github/workflows/ci-windows.yml
+    needs: prebuild
