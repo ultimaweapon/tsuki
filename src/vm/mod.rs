@@ -1095,7 +1095,7 @@ pub async unsafe fn luaV_execute<D>(
             loop {
                 macro_rules! vmbreak {
                     () => {
-                        if trap != 0 {
+                        if unlikely(trap != 0) {
                             trap = luaG_traceexec(L, pc)?;
                             base = (*ci).func.add(1);
                         }
@@ -1351,8 +1351,8 @@ pub async unsafe fn luaV_execute<D>(
                         ))
                         .val;
                         slot = null();
-                        let found = match (*tab).tt_ == 5 | 0 << 4 | 1 << 6 {
-                            true => match (*key).tt_ == 3 | 0 << 4 {
+                        let found = match likely((*tab).tt_ == 5 | 0 << 4 | 1 << 6) {
+                            true => match likely((*key).tt_ == 3 | 0 << 4) {
                                 true => {
                                     slot = luaH_getint((*tab).value_.gc.cast(), (*key).value_.i);
                                     (*slot).tt_ & 0xf != 0
@@ -1365,7 +1365,7 @@ pub async unsafe fn luaV_execute<D>(
                             false => false,
                         };
 
-                        if found {
+                        if likely(found) {
                             let io1_5 = &raw mut (*ra_11).val;
                             io1_5.copy_from_nonoverlapping(slot, 1);
                             vmbreak!();
@@ -1915,7 +1915,7 @@ pub async unsafe fn luaV_execute<D>(
                             current_block = 0;
                         }
                     }
-                    21 => {
+                    OP_ADDI => {
                         let ra_19 = base.offset(
                             (i >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1932,22 +1932,30 @@ pub async unsafe fn luaV_execute<D>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int
                             - (((1 as c_int) << 8 as c_int) - 1 as c_int >> 1 as c_int);
-                        if (*v1).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
+                        let tt = (*v1).tt_;
+
+                        if tt & 0xf != 3 {
+                            vmbreak!();
+                        }
+
+                        (*ra_19).val.tt_ = tt;
+
+                        if tt as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
                             let iv1: i64 = (*v1).value_.i;
-                            pc = pc.offset(1);
                             let io_4 = &raw mut (*ra_19).val;
 
                             (*io_4).value_.i = (iv1 as u64).wrapping_add(imm as u64) as i64;
-                            (*io_4).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
-                        } else if (*v1).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
+                        } else if tt as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
                             let nb: f64 = (*v1).value_.n;
                             let fimm: f64 = imm as f64;
-                            pc = pc.offset(1);
                             let io_5 = &raw mut (*ra_19).val;
 
                             (*io_5).value_.n = nb + fimm;
-                            (*io_5).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
+                        } else {
+                            unreachable_unchecked();
                         }
+
+                        pc = pc.offset(1);
                         vmbreak!();
                     }
                     22 => {
@@ -4627,5 +4635,31 @@ pub async unsafe fn luaV_execute<D>(
             ci = (*ci).previous;
         }
         ci = newci;
+    }
+}
+
+// Taken from https://github.com/rust-lang/hashbrown/commit/64bd7db1d1b148594edfde112cdb6d6260e2cfc3
+
+#[cold]
+#[inline(always)]
+fn cold_path() {}
+
+#[inline(always)]
+fn likely(b: bool) -> bool {
+    if b {
+        true
+    } else {
+        cold_path();
+        false
+    }
+}
+
+#[inline(always)]
+fn unlikely(b: bool) -> bool {
+    if b {
+        cold_path();
+        true
+    } else {
+        false
     }
 }
