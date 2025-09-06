@@ -623,12 +623,13 @@ unsafe fn isneg(s: *mut *const c_char) -> c_int {
     return 0 as c_int;
 }
 
-unsafe fn l_str2dloc(s: *const c_char, result: *mut f64) -> *const c_char {
+unsafe fn l_str2dloc(s: *const c_char) -> Option<f64> {
     // TODO: How to handle hex floating point in Rust?
     let mut endptr: *mut c_char = 0 as *mut c_char;
-    *result = strtod(s, &mut endptr);
+    let result = strtod(s, &mut endptr);
+
     if endptr == s as *mut c_char {
-        return 0 as *const c_char;
+        return None;
     }
     while luai_ctype_[(*endptr as libc::c_uchar as c_int + 1 as c_int) as usize] as c_int
         & (1 as c_int) << 3 as c_int
@@ -637,13 +638,13 @@ unsafe fn l_str2dloc(s: *const c_char, result: *mut f64) -> *const c_char {
         endptr = endptr.offset(1);
     }
     return if *endptr as c_int == '\0' as i32 {
-        endptr
+        Some(result)
     } else {
-        0 as *mut c_char
+        None
     };
 }
 
-unsafe fn l_str2d(s: *const c_char, result: *mut f64) -> *const c_char {
+unsafe fn l_str2d(s: *const c_char) -> Option<f64> {
     let pmode: *const c_char = strpbrk(s, b".xXnN\0" as *const u8 as *const c_char);
     let mode: c_int = if !pmode.is_null() {
         *pmode as libc::c_uchar as c_int | 'A' as i32 ^ 'a' as i32
@@ -652,23 +653,24 @@ unsafe fn l_str2d(s: *const c_char, result: *mut f64) -> *const c_char {
     };
 
     if mode == 'n' as i32 {
-        return 0 as *const c_char;
+        return None;
     }
 
-    l_str2dloc(s, result)
+    l_str2dloc(s)
 }
 
-unsafe fn l_str2int(mut s: *const c_char, result: *mut i64) -> *const c_char {
+unsafe fn l_str2int(mut s: *const c_char) -> Option<i64> {
     let mut a: u64 = 0 as c_int as u64;
     let mut empty: c_int = 1 as c_int;
     let mut neg: c_int = 0;
-    while luai_ctype_[(*s as libc::c_uchar as c_int + 1 as c_int) as usize] as c_int
-        & (1 as c_int) << 3 as c_int
-        != 0
-    {
+
+    // Skip leading whitespace.
+    while luai_ctype_[(*s as libc::c_uchar as c_int + 1 as c_int) as usize] as c_int & 1 << 3 != 0 {
         s = s.offset(1);
     }
+
     neg = isneg(&mut s);
+
     if *s.offset(0 as c_int as isize) as c_int == '0' as i32
         && (*s.offset(1 as c_int as isize) as c_int == 'x' as i32
             || *s.offset(1 as c_int as isize) as c_int == 'X' as i32)
@@ -699,7 +701,7 @@ unsafe fn l_str2int(mut s: *const c_char, result: *mut i64) -> *const c_char {
                         % 10 as c_int as libc::c_longlong) as c_int
                         + neg)
             {
-                return 0 as *const c_char;
+                return None;
             }
             a = (a * 10 as c_int as u64).wrapping_add(d as u64);
             empty = 0 as c_int;
@@ -712,39 +714,24 @@ unsafe fn l_str2int(mut s: *const c_char, result: *mut i64) -> *const c_char {
     {
         s = s.offset(1);
     }
+
     if empty != 0 || *s as c_int != '\0' as i32 {
-        return 0 as *const c_char;
+        None
     } else {
-        *result = (if neg != 0 {
-            (0 as libc::c_uint as u64).wrapping_sub(a)
-        } else {
-            a
-        }) as i64;
-        return s;
-    };
+        let v = if neg != 0 { 0u64.wrapping_sub(a) } else { a };
+
+        Some(v as i64)
+    }
 }
 
-pub unsafe fn luaO_str2num<D>(s: *const c_char, o: *mut UnsafeValue<D>) -> usize {
-    let mut i: i64 = 0;
-    let mut n: f64 = 0.;
-    let mut e = l_str2int(s, &mut i);
-
-    if !e.is_null() {
-        let io = o;
-        (*io).value_.i = i;
-        (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
-    } else {
-        e = l_str2d(s, &mut n);
-        if !e.is_null() {
-            let io_0 = o;
-            (*io_0).value_.n = n;
-            (*io_0).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
-        } else {
-            return 0 as c_int as usize;
-        }
+pub unsafe fn luaO_str2num<D>(s: *const c_char) -> Option<UnsafeValue<D>> {
+    match l_str2int(s) {
+        Some(i) => Some(i.into()),
+        None => match l_str2d(s) {
+            Some(n) => Some(n.into()),
+            None => None,
+        },
     }
-
-    e.offset_from_unsigned(s) + 1
 }
 
 pub unsafe fn luaO_utf8esc(buff: *mut c_char, mut x: libc::c_ulong) -> c_int {

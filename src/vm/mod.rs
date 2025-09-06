@@ -55,24 +55,22 @@ type c_double = f64;
 
 mod opcode;
 
-unsafe fn l_strton<D>(obj: *const UnsafeValue<D>, result: *mut UnsafeValue<D>) -> c_int {
+unsafe fn l_strton<D>(obj: *const UnsafeValue<D>) -> Option<UnsafeValue<D>> {
     if !((*obj).tt_ as c_int & 0xf as c_int == 4 as c_int) {
-        return 0 as c_int;
+        None
     } else {
         let st = (*obj).value_.gc.cast::<Str<D>>();
 
-        return (luaO_str2num((*st).contents.as_ptr(), result)
-            == (*st).len.wrapping_add(1 as c_int as usize)) as c_int;
+        luaO_str2num((*st).contents.as_ptr())
     }
 }
 
 #[inline(never)]
 pub unsafe fn luaV_tonumber_<D>(obj: *const UnsafeValue<D>, n: *mut f64) -> c_int {
-    let mut v = UnsafeValue::default();
     if (*obj).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
         *n = (*obj).value_.i as f64;
         return 1 as c_int;
-    } else if l_strton(obj, &mut v) != 0 {
+    } else if let Some(v) = l_strton(obj) {
         *n = if v.tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
             v.value_.i as f64
         } else {
@@ -113,16 +111,11 @@ pub unsafe fn luaV_tointegerns<D>(obj: *const UnsafeValue<D>, p: *mut i64, mode:
 }
 
 #[inline(never)]
-pub unsafe fn luaV_tointeger<D>(
-    mut obj: *const UnsafeValue<D>,
-    p: *mut i64,
-    mode: F2Imod,
-) -> c_int {
-    let mut v = UnsafeValue::default();
-    if l_strton(obj, &mut v) != 0 {
-        obj = &mut v;
+pub unsafe fn luaV_tointeger<D>(obj: *const UnsafeValue<D>, p: *mut i64, mode: F2Imod) -> c_int {
+    match l_strton(obj) {
+        Some(v) => luaV_tointegerns(&v, p, mode),
+        None => luaV_tointegerns(obj, p, mode),
     }
-    return luaV_tointegerns(obj, p, mode);
 }
 
 unsafe fn forlimit<D>(

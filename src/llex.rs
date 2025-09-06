@@ -384,9 +384,12 @@ unsafe fn read_numeral<D>(
         };
     }
     save(ls, '\0' as i32);
-    if luaO_str2num((*(*ls).buff).buffer, &mut obj) == 0 as libc::c_int as usize {
-        return Err(lexerror(ls, "malformed number", TK_FLT as libc::c_int));
-    }
+
+    obj = match luaO_str2num((*(*ls).buff).buffer) {
+        Some(v) => v,
+        None => return Err(lexerror(ls, "malformed number", TK_FLT as libc::c_int)),
+    };
+
     if obj.tt_ as libc::c_int == 3 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int {
         (*seminfo).i = obj.value_.i;
         return Ok(TK_INT as libc::c_int);

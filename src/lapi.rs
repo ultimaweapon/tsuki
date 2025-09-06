@@ -3,7 +3,7 @@
 
 use crate::ldo::luaD_growstack;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
-use crate::lobject::{CClosure, StackValue, luaO_str2num, luaO_tostring};
+use crate::lobject::{CClosure, StackValue, luaO_tostring};
 use crate::ltm::luaT_typenames_;
 use crate::table::{luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_resize, luaH_setint};
 use crate::value::UnsafeValue;
@@ -319,14 +319,6 @@ pub unsafe fn lua_compare<D>(
     }
 
     return Ok(i);
-}
-
-pub unsafe fn lua_stringtonumber<D>(L: *const Thread<D>, s: *const libc::c_char) -> usize {
-    let sz: usize = luaO_str2num(s, &raw mut (*(*L).top.get()).val);
-    if sz != 0 as c_int as usize {
-        api_incr_top(L);
-    }
-    return sz;
 }
 
 pub unsafe fn lua_tonumberx<D>(L: *const Thread<D>, idx: c_int, pisnum: *mut c_int) -> f64 {
