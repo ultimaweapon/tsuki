@@ -174,7 +174,6 @@ pub struct Lua<T> {
     l_registry: UnsafeCell<UnsafeValue<T>>,
     nilvalue: UnsafeCell<UnsafeValue<T>>,
     dummy_node: Node<T>,
-    absent_key: UnsafeValue<T>,
     seed: u32,
     associated_data: T,
     _phantom: PhantomPinned,
@@ -182,6 +181,9 @@ pub struct Lua<T> {
 
 impl<T> Lua<T> {
     /// Create a new [`Lua`] with a random seed to hash Lua string.
+    ///
+    /// You can retrieve `associated_data` later with [`Self::associated_data()`] or
+    /// [`Context::associated_data()`].
     ///
     /// Note that all built-in functions (e.g. `print`) are not enabled by default.
     #[cfg(feature = "rand")]
@@ -195,6 +197,9 @@ impl<T> Lua<T> {
     /// can pass `0` as a seed if
     /// [HashDoS](https://en.wikipedia.org/wiki/Collision_attack#Hash_flooding) attack is not
     /// possible for your application.
+    ///
+    /// You can retrieve `associated_data` later with [`Self::associated_data()`] or
+    /// [`Context::associated_data()`].
     ///
     /// Note that all built-in functions (e.g. `print`) are not enabled by default.
     pub fn with_seed(seed: u32, associated_data: T) -> Pin<Rc<Self>> {
@@ -211,11 +216,6 @@ impl<T> Lua<T> {
                     next: 0 as c_int,
                     key_val: UntaggedValue { gc: null() },
                 },
-            },
-            absent_key: UnsafeValue {
-                value_: UntaggedValue { gc: null() },
-                tt_: (0 as c_int | (2 as c_int) << 4 as c_int) as u8,
-                tbcdelta: 0,
             },
             seed,
             associated_data,

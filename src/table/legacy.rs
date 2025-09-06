@@ -211,7 +211,7 @@ unsafe fn getgeneric<D>(
         } else {
             let nx: c_int = (*n).u.next;
             if nx == 0 as c_int {
-                return &raw const (*t).hdr.global().absent_key;
+                return &raw const (*t).absent_key;
             }
             n = n.offset(nx as isize);
         }
@@ -473,6 +473,7 @@ pub unsafe fn luaH_resize<D>(t: *const Table<D>, newasize: c_uint, nhsize: c_uin
         node: Cell::new(null_mut()),
         lastfree: Cell::new(null_mut()),
         metatable: Cell::new(null()),
+        absent_key: UnsafeValue::default(),
     };
     let oldasize: c_uint = setlimittosize(t);
     let mut newarray = null_mut();
@@ -688,7 +689,7 @@ pub unsafe fn luaH_getint<D>(t: *const Table<D>, key: i64) -> *const UnsafeValue
             }
         }
 
-        &raw const (*t).hdr.global().absent_key
+        &raw const (*t).absent_key
     }
 }
 
@@ -702,7 +703,7 @@ pub unsafe fn luaH_getshortstr<D>(t: *const Table<D>, key: *const Str<D>) -> *co
         } else {
             let nx: c_int = (*n).u.next;
             if nx == 0 as c_int {
-                return &raw const (*t).hdr.global().absent_key;
+                return &raw const (*t).absent_key;
             }
             n = n.offset(nx as isize);
         }
@@ -752,7 +753,7 @@ pub unsafe fn luaH_getid<D>(t: *const Table<D>, k: &TypeId) -> *const UnsafeValu
         n = n.offset(nx as isize);
     }
 
-    &raw const (*t).hdr.global().absent_key
+    &raw const (*t).absent_key
 }
 
 #[inline(never)]
@@ -760,7 +761,7 @@ pub unsafe fn luaH_get<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *co
     match (*key).tt_ & 0x3f {
         4 => return luaH_getshortstr(t, (*key).value_.gc as *mut Str<D>),
         3 => return luaH_getint(t, (*key).value_.i),
-        0 => return &raw const (*t).hdr.global().absent_key,
+        0 => return &raw const (*t).absent_key,
         19 => {
             let mut k: i64 = 0;
             if luaV_flttointeger((*key).value_.n, &mut k, F2Ieq) != 0 {

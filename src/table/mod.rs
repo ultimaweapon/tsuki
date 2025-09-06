@@ -9,6 +9,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::cell::Cell;
+use core::mem::zeroed;
 use core::ptr::{addr_of_mut, null, null_mut};
 use thiserror::Error;
 
@@ -27,6 +28,7 @@ pub struct Table<D> {
     pub(crate) node: Cell<*mut Node<D>>,
     pub(crate) lastfree: Cell<*mut Node<D>>,
     pub(crate) metatable: Cell<*const Self>,
+    absent_key: UnsafeValue<D>,
 }
 
 impl<D> Table<D> {
@@ -34,6 +36,11 @@ impl<D> Table<D> {
     pub(crate) unsafe fn new(g: *const Lua<D>) -> *const Self {
         let layout = Layout::new::<Self>();
         let o = unsafe { (*g).gc.alloc(5 | 0 << 4, layout).cast::<Self>() };
+        let absent_key = UnsafeValue {
+            value_: unsafe { zeroed() },
+            tt_: 0 | 2 << 4,
+            tbcdelta: 0,
+        };
 
         unsafe { addr_of_mut!((*o).flags).write(Cell::new(!(!(0 as u32) << TM_EQ + 1) as u8)) };
         unsafe { addr_of_mut!((*o).lsizenode).write(Cell::new(0)) };
@@ -42,6 +49,7 @@ impl<D> Table<D> {
         unsafe { addr_of_mut!((*o).node).write(Cell::new(&raw const (*g).dummy_node as _)) };
         unsafe { addr_of_mut!((*o).lastfree).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*o).metatable).write(Cell::new(null_mut())) };
+        unsafe { addr_of_mut!((*o).absent_key).write(absent_key) };
 
         o
     }
