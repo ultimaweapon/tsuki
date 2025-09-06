@@ -8,7 +8,7 @@ Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all
 
 ## Safety
 
-All public API of Tsuki should provide 100% safety as long as you don't use unsafe API incorrectly.
+All public API of Tsuki should provide 100% safety as long as you don't use unsafe API incorrectly. Note that currently there is no way to limit the amount of memory to be used by Lua scripts. If this unacceptable you should not use Tsuki for now until this feature is implemented.
 
 ## Features
 
