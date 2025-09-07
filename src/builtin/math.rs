@@ -38,7 +38,7 @@ pub fn max<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::err
     for i in 2..=cx.args() {
         let v = cx.arg(i);
 
-        if r.lt(&v)? == Some(true) {
+        if cx.is_value_lt(&r, &v)? {
             r = v;
         }
     }

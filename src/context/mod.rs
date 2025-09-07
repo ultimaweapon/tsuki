@@ -4,7 +4,7 @@ use crate::lapi::lua_checkstack;
 use crate::ldo::luaD_call;
 use crate::lobject::{StackValue, luaO_arith};
 use crate::value::UnsafeValue;
-use crate::vm::{F2Ieq, luaV_finishget, luaV_objlen, luaV_tointeger};
+use crate::vm::{F2Ieq, luaV_finishget, luaV_lessthan, luaV_objlen, luaV_tointeger};
 use crate::{
     CallError, ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, Ops, ParseError, Ref, StackOverflow, Str,
     Table, Thread, Type, UserData, luaH_get, luaH_getint,
@@ -131,6 +131,33 @@ impl<'a, D, T> Context<'a, D, T> {
         }
 
         Ok(unsafe { v.assume_init() })
+    }
+
+    /// Check if `lhs` less than `rhs` according to Lua operator `<`.
+    ///
+    /// # Panics
+    /// If either `lhs` or `rhs` come from different [Lua](crate::Lua) instance.
+    #[inline(always)]
+    pub fn is_value_lt(
+        &self,
+        lhs: impl Into<UnsafeValue<D>>,
+        rhs: impl Into<UnsafeValue<D>>,
+    ) -> Result<bool, Box<dyn core::error::Error>> {
+        // Check if the first operand created from the same Lua.
+        let lhs = lhs.into();
+
+        if unsafe { (lhs.tt_ & 1 << 6 != 0) && (*lhs.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to compare a value created from a different Lua");
+        }
+
+        // Check if the second operand created from the same Lua.
+        let rhs = rhs.into();
+
+        if unsafe { (rhs.tt_ & 1 << 6 != 0) && (*rhs.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to compare a value created from a different Lua");
+        }
+
+        Ok(unsafe { luaV_lessthan(self.th, &lhs, &rhs)? != 0 })
     }
 
     /// Push value to the result of this call.

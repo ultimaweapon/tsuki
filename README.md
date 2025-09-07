@@ -73,6 +73,7 @@ Note that currently there is no way to limit the amount of memory to be used by 
 - `Arg::to_num` renamed to `Arg::to_float`.
 - `Arg::to_nilable_num` renamed to `Arg::to_nilable_float`.
 - `Arg::len` is removed in favor of `Context::get_value_len`.
+- `Arg::lt` is removed in favor of `Context::is_value_lt`.
 
 ## License
 

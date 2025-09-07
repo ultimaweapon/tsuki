@@ -4,7 +4,7 @@ use crate::lauxlib::luaL_argerror;
 use crate::ldo::luaD_call;
 use crate::lobject::luaO_tostring;
 use crate::value::UnsafeValue;
-use crate::vm::{F2Ieq, luaV_lessthan, luaV_tointeger, luaV_tonumber_};
+use crate::vm::{F2Ieq, luaV_tointeger, luaV_tonumber_};
 use crate::{NON_YIELDABLE_WAKER, Ref, Str, Table, Type, UserData, Value, luaH_getshortstr};
 use alloc::boxed::Box;
 use alloc::format;
@@ -89,34 +89,6 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         } else {
             Some(unsafe { (*v).tt_ == 3 | 0 << 4 })
         }
-    }
-
-    /// Check if the value of this argument less than `v` according to Lua operator `<`.
-    ///
-    /// Returns [`None`] if this argument does not exists.
-    ///
-    /// # Panics
-    /// If `rhs` come from different [Lua](crate::Lua) instance.
-    #[inline(always)]
-    pub fn lt(
-        &self,
-        rhs: impl Into<UnsafeValue<D>>,
-    ) -> Result<Option<bool>, Box<dyn core::error::Error>> {
-        // Get argument.
-        let lhs = self.get_raw_or_null();
-
-        if lhs.is_null() {
-            return Ok(None);
-        }
-
-        // Check if the value to compare with created from the same Lua.
-        let rhs = rhs.into();
-
-        if unsafe { (rhs.tt_ & 1 << 6 != 0) && (*rhs.value_.gc).global != self.cx.th.hdr.global } {
-            panic!("attempt to compare a value created from a different Lua");
-        }
-
-        Ok(Some(unsafe { luaV_lessthan(self.cx.th, lhs, &rhs)? != 0 }))
     }
 
     /// Get address of argument value (if any).
