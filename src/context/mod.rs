@@ -2,12 +2,12 @@ pub use self::arg::*;
 
 use crate::lapi::lua_checkstack;
 use crate::ldo::luaD_call;
-use crate::lobject::StackValue;
+use crate::lobject::{StackValue, luaO_arith};
 use crate::value::UnsafeValue;
 use crate::vm::luaV_finishget;
 use crate::{
-    CallError, ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, StackOverflow, Str, Table,
-    Thread, Type, UserData, luaH_get, luaH_getint,
+    CallError, ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, Ops, ParseError, Ref, StackOverflow, Str,
+    Table, Thread, Type, UserData, luaH_get, luaH_getint,
 };
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -21,6 +21,15 @@ use core::task::{Poll, Waker};
 mod arg;
 
 /// Context to invoke Rust function.
+///
+/// This provides [`Self::arg()`] to get arguments passed from Lua and [`Self::push()`] to returns
+/// the values back to Lua. It also contains other methods like [`Self::create_table()`].
+///
+/// This type has two variants, which is indicated by `T` (either [`Args`] or [`Ret`]). The method
+/// to get arguments will only available on [`Args`] variant. [`Ret`] variant is used to return the
+/// values back to Lua. [`Args`] variant can be converted to [`Ret`] variant using standard Rust
+/// [`From`] and [`Into`] or [`Self::into_results()`] (the former will returns all pushed values).
+/// There is no way to get [`Args`] variant back once you converted it.
 pub struct Context<'a, D, T> {
     th: &'a Thread<D>,
     ret: Cell<usize>,
@@ -355,6 +364,41 @@ impl<'a, D, T> Context<'a, D, T> {
         self.ret.set(self.ret.get() + 1);
 
         Ok(Type::from_tt(v.tt_))
+    }
+
+    /// Push the result of addition between `lhs` and `rhs`, returns the type of pushed value.
+    ///
+    /// This method honor `__add` metavalue.
+    ///
+    /// # Panics
+    /// If either `lhs` or `rhs` come from different [Lua](crate::Lua) instance.
+    pub fn push_add(
+        &self,
+        lhs: impl Into<UnsafeValue<D>>,
+        rhs: impl Into<UnsafeValue<D>>,
+    ) -> Result<Type, Box<dyn core::error::Error>> {
+        // Check operands.
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+
+        if unsafe { (lhs.tt_ & 1 << 6 != 0) && (*lhs.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to perform addition on a value created from different Lua");
+        }
+
+        if unsafe { (rhs.tt_ & 1 << 6 != 0) && (*rhs.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to perform addition on a value created from different Lua");
+        }
+
+        // Perform addition.
+        let r = unsafe { luaO_arith(self.th, Ops::Add, &lhs, &rhs)? };
+
+        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { self.th.top.write(r) };
+        unsafe { self.th.top.add(1) };
+
+        self.ret.update(|v| v + 1);
+
+        Ok(Type::from_tt(r.tt_))
     }
 
     /// Reserves capacity for at least `additional` more elements to be pushed.

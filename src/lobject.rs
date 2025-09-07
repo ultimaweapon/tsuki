@@ -558,11 +558,10 @@ pub unsafe fn luaO_rawarith<D>(
         op => {
             let mut n1_0: f64 = 0.;
             let mut n2_0: f64 = 0.;
-            if (*p1).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int
-                && (*p2).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int
-            {
+
+            if (*p1).tt_ == 3 | 0 << 4 && (*p2).tt_ == 3 | 0 << 4 {
                 intarith(op, (*p1).value_.i, (*p2).value_.i).map(|v| Some(v.into()))
-            } else if (if (*p1).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
+            } else if (if (*p1).tt_ == 3 | 1 << 4 {
                 n1_0 = (*p1).value_.n;
                 1 as c_int
             } else {

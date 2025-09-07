@@ -6,6 +6,10 @@ Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all
 > [!IMPORTANT]
 > All types in Tsuki does not implement `Send` and `Sync` and no plan to implement this at the moment.
 
+## Status
+
+The VM to run Lua code is fully working almost exactly as vanilla Lua (see the list of differences below). Some functions on Lua standard library are still missing.
+
 ## Safety
 
 All public API of Tsuki should provide 100% safety as long as you don't use unsafe API incorrectly.
@@ -66,6 +70,6 @@ Note that currently there is no way to limit the amount of memory to be used by 
 
 ## License
 
-MIT
+Same as Lua, which is MIT.
 
 [^1]: On Windows, a proxy to `sprintf` written in C++ is required at the moment. This proxy will be removed when we replace `sprintf` calls with Rust equivalent.
