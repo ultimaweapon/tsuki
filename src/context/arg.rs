@@ -4,7 +4,7 @@ use crate::lauxlib::luaL_argerror;
 use crate::ldo::luaD_call;
 use crate::lobject::luaO_tostring;
 use crate::value::UnsafeValue;
-use crate::vm::{F2Ieq, luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_};
+use crate::vm::{F2Ieq, luaV_lessthan, luaV_tointeger, luaV_tonumber_};
 use crate::{NON_YIELDABLE_WAKER, Ref, Str, Table, Type, UserData, Value, luaH_getshortstr};
 use alloc::boxed::Box;
 use alloc::format;
@@ -89,34 +89,6 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         } else {
             Some(unsafe { (*v).tt_ == 3 | 0 << 4 })
         }
-    }
-
-    /// Returns length of the value.
-    ///
-    /// This has the same semantic as `luaL_len`, which mean it is honor `__len` metamethod.
-    pub fn len(&self) -> Result<i64, Box<dyn core::error::Error>> {
-        // Get argument.
-        let v = self.get_raw_or_null();
-
-        if v.is_null() {
-            return Err(self.error(ArgNotFound));
-        }
-
-        // Get length.
-        let l = unsafe { luaV_objlen(self.cx.th, v)? };
-
-        if l.tt_ == 3 | 0 << 4 {
-            return Ok(unsafe { l.value_.i });
-        }
-
-        // Try convert to integer.
-        let mut v = MaybeUninit::uninit();
-
-        if unsafe { luaV_tointeger(&l, v.as_mut_ptr(), F2Ieq) == 0 } {
-            return Err("object length is not an integer".into());
-        }
-
-        Ok(unsafe { v.assume_init() })
     }
 
     /// Check if the value of this argument less than `v` according to Lua operator `<`.

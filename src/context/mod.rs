@@ -4,7 +4,7 @@ use crate::lapi::lua_checkstack;
 use crate::ldo::luaD_call;
 use crate::lobject::{StackValue, luaO_arith};
 use crate::value::UnsafeValue;
-use crate::vm::luaV_finishget;
+use crate::vm::{F2Ieq, luaV_finishget, luaV_objlen, luaV_tointeger};
 use crate::{
     CallError, ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, Ops, ParseError, Ref, StackOverflow, Str,
     Table, Thread, Type, UserData, luaH_get, luaH_getint,
@@ -13,6 +13,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::any::Any;
 use core::cell::Cell;
+use core::mem::MaybeUninit;
 use core::num::NonZero;
 use core::pin::pin;
 use core::ptr::null;
@@ -20,7 +21,7 @@ use core::task::{Poll, Waker};
 
 mod arg;
 
-/// Context to invoke Rust function.
+/// Context to invoke [Fp](crate::Fp) and [AsyncFp](crate::AsyncFp).
 ///
 /// This provides [`Self::arg()`] to get arguments passed from Lua and [`Self::push()`] to returns
 /// the values back to Lua. It also contains other methods like [`Self::create_table()`].
@@ -96,6 +97,40 @@ impl<'a, D, T> Context<'a, D, T> {
         chunk: impl AsRef<[u8]>,
     ) -> Result<Ref<'a, LuaFn<D>>, ParseError> {
         self.th.hdr.global().load(info, chunk)
+    }
+
+    /// Returns length of `v`.
+    ///
+    /// This has the same semantic as `luaL_len`, which mean it is honor `__len` metamethod.
+    ///
+    /// # Panics
+    /// If `v` come from different [Lua](crate::Lua) instance.
+    pub fn get_value_len(
+        &self,
+        v: impl Into<UnsafeValue<D>>,
+    ) -> Result<i64, Box<dyn core::error::Error>> {
+        // Check if value come from the same Lua.
+        let v = v.into();
+
+        if unsafe { (v.tt_ & 1 << 6 != 0) && (*v.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to get a length of the value created from a different Lua");
+        }
+
+        // Get length.
+        let l = unsafe { luaV_objlen(self.th, &v)? };
+
+        if l.tt_ == 3 | 0 << 4 {
+            return Ok(unsafe { l.value_.i });
+        }
+
+        // Try convert to integer.
+        let mut v = MaybeUninit::uninit();
+
+        if unsafe { luaV_tointeger(&l, v.as_mut_ptr(), F2Ieq) == 0 } {
+            return Err("object length is not an integer".into());
+        }
+
+        Ok(unsafe { v.assume_init() })
     }
 
     /// Push value to the result of this call.

@@ -21,7 +21,7 @@ Note that currently there is no way to limit the amount of memory to be used by 
 - 100% Rust code.
   - [libc](https://crates.io/crates/libc) is required at the moment.
 - Support both synchronous and asynchronous.
-- Safe and low overhead API.
+- Safe, ergonomic and low overhead API.
 - Any error propagated to the caller via Rust `Result` instead of a long jump.
 - `core::any::Any` as Lua userdata and can be created without the need to define its metatable.
 - Metatable for a userdata is lookup with `core::any::TypeId` instead of a string.
@@ -72,6 +72,7 @@ Note that currently there is no way to limit the amount of memory to be used by 
 
 - `Arg::to_num` renamed to `Arg::to_float`.
 - `Arg::to_nilable_num` renamed to `Arg::to_nilable_float`.
+- `Arg::len` is removed in favor of `Context::get_value_len`.
 
 ## License
 
