@@ -29,4 +29,12 @@ jobs:
   build-windows:
     name: Build
     uses: ./.github/workflows/ci-windows.yml
+    with:
+      target: x86_64-pc-windows-msvc
+    needs: prebuild
+  build-32:
+    name: Build
+    uses: ./.github/workflows/ci-windows.yml
+    with:
+      target: i686-pc-windows-msvc
     needs: prebuild
