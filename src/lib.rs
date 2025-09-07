@@ -595,6 +595,20 @@ pub enum Value<'a, D> {
 }
 
 impl<'a, D> Value<'a, D> {
+    /// Constructs [`Value`] from [`Arg`].
+    ///
+    /// Returns [`None`] if argument `v` does not exists.
+    #[inline(always)]
+    pub fn from_arg(v: &Arg<'_, 'a, D>) -> Option<Self> {
+        let v = v.get_raw_or_null();
+
+        match v.is_null() {
+            true => None,
+            false => Some(unsafe { Self::from_unsafe(v) }),
+        }
+    }
+
+    #[inline(never)]
     unsafe fn from_unsafe(v: *const UnsafeValue<D>) -> Self {
         match unsafe { (*v).tt_ & 0xf } {
             0 => Self::Nil,
