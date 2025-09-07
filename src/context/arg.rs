@@ -451,11 +451,11 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         }
     }
 
-    /// Gets the argument and convert it to Lua number.
+    /// Gets the argument and convert it to Lua floating-point.
     ///
     /// This has the same semantic as `luaL_checknumber`.
     #[inline(always)]
-    pub fn to_num(&self) -> Result<f64, Box<dyn core::error::Error>> {
+    pub fn to_float(&self) -> Result<f64, Box<dyn core::error::Error>> {
         // Check if number.
         let expect = lua_typename(3);
         let raw = self.get_raw(expect)?;
@@ -474,7 +474,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         }
     }
 
-    /// Gets the argument and convert it to Lua number.
+    /// Gets the argument and convert it to Lua floating-point.
     ///
     /// This method returns [`None`] in the following cases:
     ///
@@ -483,7 +483,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     ///
     /// This has the same semantic as `luaL_optnumber`.
     #[inline(always)]
-    pub fn to_nilable_num(
+    pub fn to_nilable_float(
         &self,
         required: bool,
     ) -> Result<Option<f64>, Box<dyn core::error::Error>> {

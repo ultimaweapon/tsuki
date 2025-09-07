@@ -91,11 +91,11 @@ pub fn format<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
                     buff.as_mut_ptr().cast(),
                     buff.len(),
                     form.as_ptr().cast(),
-                    arg.to_num()?,
+                    arg.to_float()?,
                 );
             },
             Some('f') | Some('e') | Some('E') | Some('g') | Some('G') => unsafe {
-                let n_0 = arg.to_num()?;
+                let n_0 = arg.to_float()?;
 
                 checkformat(&form, b"-+#0 ", true)?;
                 form.push(0);
@@ -183,7 +183,7 @@ pub fn format<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
 
                             unsafe { snprintf(buff.as_mut_ptr().cast(), buff.len(), f, n) }
                         } else {
-                            let n = arg.to_num()?;
+                            let n = arg.to_float()?;
                             let f = if n == f64::INFINITY {
                                 c"1e9999".as_ptr()
                             } else if n == -f64::INFINITY {

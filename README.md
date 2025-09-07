@@ -68,6 +68,11 @@ Note that currently there is no way to limit the amount of memory to be used by 
 - Remove libc.
 - JIT using Cranelift.
 
+## Breaking changes in 0.2
+
+- `Arg::to_num` renamed to `Arg::to_float`.
+- `Arg::to_nilable_num` renamed to `Arg::to_nilable_float`.
+
 ## License
 
 Same as Lua, which is MIT.

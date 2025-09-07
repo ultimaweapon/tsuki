@@ -10,7 +10,7 @@ pub fn floor<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::e
         r.truncate(1);
         r
     } else {
-        cx.push(pushnumint(v.to_num()?.floor()))?;
+        cx.push(pushnumint(v.to_float()?.floor()))?;
         cx.into()
     };
 
@@ -19,9 +19,9 @@ pub fn floor<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::e
 
 /// Implementation of [math.log](https://www.lua.org/manual/5.4/manual.html#pdf-math.log).
 pub fn log<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
-    let v = cx.arg(1).to_num()?;
+    let v = cx.arg(1).to_float()?;
 
-    match cx.arg(2).to_nilable_num(false)? {
+    match cx.arg(2).to_nilable_float(false)? {
         Some(2.0) => cx.push(v.log2())?,
         Some(10.0) => cx.push(v.log10())?,
         Some(b) => cx.push(v.log(b))?,
@@ -50,7 +50,7 @@ pub fn max<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::err
 
 /// Implementation of [math.sin](https://www.lua.org/manual/5.4/manual.html#pdf-math.sin).
 pub fn sin<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
-    let v = cx.arg(1).to_num()?;
+    let v = cx.arg(1).to_float()?;
 
     cx.push(v.sin())?;
 
