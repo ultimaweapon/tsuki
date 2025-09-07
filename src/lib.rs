@@ -17,7 +17,7 @@
 //!
 //!     lua.global().set_str_key("myfunc", fp!(myfunc));
 //!
-//!     // Run.
+//!     // Run on main thread.
 //!     let chunk = lua.load(ChunkInfo::new("abc.lua"), "return myfunc()").unwrap();
 //!     let result = lua.call::<Value<_>>(chunk, ()).unwrap();
 //!
@@ -50,6 +50,7 @@
 //! - [`u32`]
 //! - [`f32`]
 //! - [`f64`]
+//! - [`Number`]
 //! - Reference to [`Str`]
 //! - Reference to [`Table`]
 //! - Reference to [`LuaFn`]
@@ -692,6 +693,27 @@ impl<D> Clone for AsyncFp<D> {
 }
 
 impl<D> Copy for AsyncFp<D> {}
+
+/// Helper enum to encapsulates either integer or float.
+#[derive(Clone, Copy, PartialEq)]
+pub enum Number {
+    Int(i64),
+    Float(f64),
+}
+
+impl From<i64> for Number {
+    #[inline(always)]
+    fn from(value: i64) -> Self {
+        Self::Int(value)
+    }
+}
+
+impl From<f64> for Number {
+    #[inline(always)]
+    fn from(value: f64) -> Self {
+        Self::Float(value)
+    }
+}
 
 /// Type of operator.
 #[repr(u8)]

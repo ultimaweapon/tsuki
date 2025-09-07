@@ -1,9 +1,4 @@
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    unused_assignments
-)]
+#![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
@@ -13,16 +8,18 @@ use crate::{CallError, ChunkInfo, Thread};
 use alloc::boxed::Box;
 use core::ptr::{null, null_mut};
 
+type c_int = i32;
+
 #[repr(C)]
 pub struct lua_Debug<D> {
-    pub event: libc::c_int,
+    pub event: c_int,
     pub name: *const libc::c_char,
     pub namewhat: *const libc::c_char,
     pub what: *const libc::c_char,
     pub source: Option<ChunkInfo>,
-    pub currentline: libc::c_int,
-    pub linedefined: libc::c_int,
-    pub lastlinedefined: libc::c_int,
+    pub currentline: c_int,
+    pub linedefined: c_int,
+    pub lastlinedefined: c_int,
     pub nups: libc::c_uchar,
     pub nparams: libc::c_uchar,
     pub isvararg: libc::c_char,
@@ -78,8 +75,8 @@ impl<D> Copy for CallInfo<D> {}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed {
-    pub funcidx: libc::c_int,
-    pub nres: libc::c_int,
+    pub funcidx: c_int,
+    pub nres: c_int,
     pub transferinfo: C2RustUnnamed_0,
 }
 
@@ -94,8 +91,8 @@ pub struct C2RustUnnamed_0 {
 #[repr(C)]
 pub struct C2RustUnnamed_3 {
     pub savedpc: *const u32,
-    pub trap: libc::c_int,
-    pub nextraargs: libc::c_int,
+    pub trap: c_int,
+    pub nextraargs: c_int,
 }
 
 pub unsafe fn luaE_extendCI<D>(L: *const Thread<D>) -> *mut CallInfo<D> {
@@ -104,7 +101,7 @@ pub unsafe fn luaE_extendCI<D>(L: *const Thread<D>) -> *mut CallInfo<D> {
     (*(*L).ci.get()).next = ci;
     (*ci).previous = (*L).ci.get();
     (*ci).next = null_mut();
-    ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut libc::c_int, 0 as libc::c_int);
+    ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut c_int, 0 as c_int);
     (*L).nci.set((*L).nci.get().wrapping_add(1));
 
     return ci;
@@ -143,13 +140,12 @@ pub unsafe fn lua_closethread<D>(L: *const Thread<D>) -> Result<(), Box<CallErro
 
     (*(*L).stack.get()).val.tt_ = 0 | 0 << 4;
     (*ci).func = (*L).stack.get();
-    (*ci).callstatus = ((1 as libc::c_int) << 1 as libc::c_int) as libc::c_ushort;
+    (*ci).callstatus = ((1 as c_int) << 1 as c_int) as libc::c_ushort;
 
     let status = luaD_closeprotected(L, 1, Ok(()));
 
-    (*L).top
-        .set(((*L).stack.get()).offset(1 as libc::c_int as isize));
-    (*ci).top = ((*L).top.get()).offset(20 as libc::c_int as isize);
+    (*L).top.set(((*L).stack.get()).offset(1 as c_int as isize));
+    (*ci).top = ((*L).top.get()).offset(20 as c_int as isize);
 
     luaD_reallocstack(L, ((*ci).top).offset_from_unsigned((*L).stack.get()));
 

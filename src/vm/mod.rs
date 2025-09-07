@@ -61,7 +61,7 @@ unsafe fn l_strton<D>(obj: *const UnsafeValue<D>) -> Option<UnsafeValue<D>> {
     } else {
         let st = (*obj).value_.gc.cast::<Str<D>>();
 
-        luaO_str2num((*st).contents.as_ptr())
+        luaO_str2num((*st).contents.as_ptr()).map(|v| v.into())
     }
 }
 

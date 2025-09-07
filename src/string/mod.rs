@@ -1,7 +1,8 @@
 pub(crate) use self::table::*;
 
+use crate::lobject::luaO_str2num;
 use crate::lstring::luaS_hash;
-use crate::{Lua, Object};
+use crate::{Lua, Number, Object};
 use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::cell::Cell;
@@ -112,6 +113,13 @@ impl<D> Str<D> {
     #[inline(always)]
     pub fn as_bytes(&self) -> &[u8] {
         unsafe { core::slice::from_raw_parts(self.contents.as_ptr().cast(), self.len()) }
+    }
+
+    /// Parses this string as a Lua number.
+    ///
+    /// return [`None`] if the content is not valid number literal.
+    pub fn to_num(&self) -> Option<Number> {
+        unsafe { luaO_str2num(self.contents.as_ptr()) }
     }
 
     #[inline(always)]

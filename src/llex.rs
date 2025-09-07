@@ -386,7 +386,7 @@ unsafe fn read_numeral<D>(
     save(ls, '\0' as i32);
 
     obj = match luaO_str2num((*(*ls).buff).buffer) {
-        Some(v) => v,
+        Some(v) => v.into(),
         None => return Err(lexerror(ls, "malformed number", TK_FLT as libc::c_int)),
     };
 

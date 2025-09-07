@@ -1,6 +1,6 @@
 use crate::{
-    Arg, Args, AsyncFp, Context, Fp, LuaFn, Nil, Object, Ref, Ret, Str, Table, Thread, UserData,
-    Value,
+    Arg, Args, AsyncFp, Context, Fp, LuaFn, Nil, Number, Object, Ref, Ret, Str, Table, Thread,
+    UserData, Value,
 };
 use alloc::boxed::Box;
 use core::error::Error;
@@ -186,6 +186,16 @@ impl<D> From<f64> for UnsafeValue<D> {
             value_: UntaggedValue { n: value },
             tt_: 3 | 1 << 4,
             tbcdelta: 0,
+        }
+    }
+}
+
+impl<D> From<Number> for UnsafeValue<D> {
+    #[inline(always)]
+    fn from(value: Number) -> Self {
+        match value {
+            Number::Int(v) => v.into(),
+            Number::Float(v) => v.into(),
         }
     }
 }

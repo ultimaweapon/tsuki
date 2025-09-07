@@ -13,7 +13,7 @@ use crate::lmem::luaM_free_;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
-use crate::{Args, ArithError, ChunkInfo, Context, Lua, Ops, Ret, Str, Thread};
+use crate::{Args, ArithError, ChunkInfo, Context, Lua, Number, Ops, Ret, Str, Thread};
 use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
 use libc::{c_char, c_int, strpbrk, strspn, strtod};
@@ -724,7 +724,7 @@ unsafe fn l_str2int(mut s: *const c_char) -> Option<i64> {
     }
 }
 
-pub unsafe fn luaO_str2num<D>(s: *const c_char) -> Option<UnsafeValue<D>> {
+pub unsafe fn luaO_str2num(s: *const c_char) -> Option<Number> {
     match l_str2int(s) {
         Some(i) => Some(i.into()),
         None => match l_str2d(s) {
