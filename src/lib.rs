@@ -353,6 +353,7 @@ impl<T> Lua<T> {
         // Setup metatable.
         let mt = unsafe { Table::new(self) };
 
+        unsafe { (*mt).set_str_key_unchecked("__add", fp!(crate::builtin::string::add)) };
         unsafe { (*mt).set_str_key_unchecked("__index", g) };
 
         // Set metatable.
@@ -586,7 +587,7 @@ pub enum Value<'a, D> {
         ) -> Pin<Box<dyn Future<Output = Result<Context<D, Ret>, Box<dyn Error>>> + '_>>,
     ),
     Int(i64),
-    Num(f64),
+    Float(f64),
     Str(Ref<'a, Str<D>>),
     Table(Ref<'a, Table<D>>),
     LuaFn(Ref<'a, LuaFn<D>>),
@@ -608,6 +609,14 @@ impl<'a, D> Value<'a, D> {
         }
     }
 
+    /// Returns `true` if this value is [`Value::Nil`].
+    pub const fn is_nil(&self) -> bool {
+        match self {
+            Self::Nil => true,
+            _ => false,
+        }
+    }
+
     #[inline(never)]
     unsafe fn from_unsafe(v: *const UnsafeValue<D>) -> Self {
         match unsafe { (*v).tt_ & 0xf } {
@@ -622,7 +631,7 @@ impl<'a, D> Value<'a, D> {
             },
             3 => match unsafe { ((*v).tt_ >> 4) & 3 } {
                 0 => Self::Int(unsafe { (*v).value_.i }),
-                1 => Self::Num(unsafe { (*v).value_.n }),
+                1 => Self::Float(unsafe { (*v).value_.n }),
                 _ => unreachable!(),
             },
             4 => Self::Str(unsafe { Ref::new((*v).value_.gc.cast()) }),

@@ -32,32 +32,6 @@ use std::ptr::{null, null_mut};
 use std::string::{String, ToString};
 use std::{format, print, println};
 
-unsafe fn luaB_warn(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut n: libc::c_int = lua_gettop(L);
-    let mut i: libc::c_int = 0;
-    luaL_checklstring(L, 1 as libc::c_int, 0 as *mut usize)?;
-    i = 2 as libc::c_int;
-    while i <= n {
-        luaL_checklstring(L, i, 0 as *mut usize)?;
-        i += 1;
-    }
-
-    // Print to stderr.
-    let mut dst = std::io::stderr().lock();
-
-    for i in 1..=n {
-        let mut len = 0;
-        let msg = lua_tolstring(L, i, &mut len);
-        let msg = std::slice::from_raw_parts(msg.cast(), len);
-
-        dst.write_all(msg).unwrap();
-    }
-
-    writeln!(dst).unwrap();
-
-    Ok(0)
-}
-
 unsafe extern "C" fn b_str2int(
     mut s: *const c_char,
     mut base: libc::c_int,
@@ -234,13 +208,6 @@ static mut base_funcs: [luaL_Reg; 21] = [
         let mut init = luaL_Reg {
             name: b"pairs\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_pairs),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"warn\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_warn),
         };
         init
     },

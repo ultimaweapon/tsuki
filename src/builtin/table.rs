@@ -8,7 +8,7 @@ pub fn unpack<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
     let i = cx.arg(2).to_nilable_int(false)?.unwrap_or(1);
     let e = match cx.arg(3).to_nilable_int(false)? {
         Some(v) => v,
-        None => l.len()?,
+        None => cx.get_value_len(&l)?,
     };
 
     if i > e {

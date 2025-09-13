@@ -319,7 +319,7 @@ impl<'a, D> From<Value<'a, D>> for UnsafeValue<D> {
             Value::Fp(v) => Self::from(Fp(v)),
             Value::AsyncFp(v) => Self::from(AsyncFp(v)),
             Value::Int(v) => Self::from(v),
-            Value::Num(v) => Self::from(v),
+            Value::Float(v) => Self::from(v),
             Value::Str(v) => Self::from(v),
             Value::Table(v) => Self::from(v),
             Value::LuaFn(v) => Self::from(v),

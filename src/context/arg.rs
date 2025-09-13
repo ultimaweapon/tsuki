@@ -4,7 +4,7 @@ use crate::lauxlib::luaL_argerror;
 use crate::ldo::luaD_call;
 use crate::lobject::luaO_tostring;
 use crate::value::UnsafeValue;
-use crate::vm::{F2Ieq, luaV_lessthan, luaV_objlen, luaV_tointeger, luaV_tonumber_};
+use crate::vm::{F2Ieq, luaV_tointeger, luaV_tonumber_};
 use crate::{NON_YIELDABLE_WAKER, Ref, Str, Table, Type, UserData, Value, luaH_getshortstr};
 use alloc::boxed::Box;
 use alloc::format;
@@ -91,60 +91,24 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         }
     }
 
-    /// Returns length of the value.
-    ///
-    /// This has the same semantic as `luaL_len`, which mean it is honor `__len` metamethod.
-    pub fn len(&self) -> Result<i64, Box<dyn core::error::Error>> {
+    /// Gets metatable for this argument.
+    pub fn get_metatable(&self) -> Option<Option<Ref<'b, Table<D>>>> {
         // Get argument.
         let v = self.get_raw_or_null();
 
         if v.is_null() {
-            return Err(self.error(ArgNotFound));
+            return None;
         }
 
-        // Get length.
-        let l = unsafe { luaV_objlen(self.cx.th, v)? };
+        // Get metatable.
+        let g = self.cx.th.hdr.global();
+        let mt = unsafe { g.metatable(v) };
+        let mt = match mt.is_null() {
+            true => None,
+            false => Some(unsafe { Ref::new(mt) }),
+        };
 
-        if l.tt_ == 3 | 0 << 4 {
-            return Ok(unsafe { l.value_.i });
-        }
-
-        // Try convert to integer.
-        let mut v = MaybeUninit::uninit();
-
-        if unsafe { luaV_tointeger(&l, v.as_mut_ptr(), F2Ieq) == 0 } {
-            return Err("object length is not an integer".into());
-        }
-
-        Ok(unsafe { v.assume_init() })
-    }
-
-    /// Check if the value of this argument less than `v` according to Lua operator `<`.
-    ///
-    /// Returns [`None`] if this argument does not exists.
-    ///
-    /// # Panics
-    /// If `rhs` come from different [Lua](crate::Lua) instance.
-    #[inline(always)]
-    pub fn lt(
-        &self,
-        rhs: impl Into<UnsafeValue<D>>,
-    ) -> Result<Option<bool>, Box<dyn core::error::Error>> {
-        // Get argument.
-        let lhs = self.get_raw_or_null();
-
-        if lhs.is_null() {
-            return Ok(None);
-        }
-
-        // Check if the value to compare with created from the same Lua.
-        let rhs = rhs.into();
-
-        if unsafe { (rhs.tt_ & 1 << 6 != 0) && (*rhs.value_.gc).global != self.cx.th.hdr.global } {
-            panic!("attempt to compare a value created from a different Lua");
-        }
-
-        Ok(Some(unsafe { luaV_lessthan(self.cx.th, lhs, &rhs)? != 0 }))
+        Some(mt)
     }
 
     /// Get address of argument value (if any).
@@ -342,26 +306,6 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         }
     }
 
-    /// Gets metatable for this argument.
-    pub fn get_metatable(&self) -> Option<Option<Ref<'b, Table<D>>>> {
-        // Get argument.
-        let v = self.get_raw_or_null();
-
-        if v.is_null() {
-            return None;
-        }
-
-        // Get metatable.
-        let g = self.cx.th.hdr.global();
-        let mt = unsafe { g.metatable(v) };
-        let mt = match mt.is_null() {
-            true => None,
-            false => Some(unsafe { Ref::new(mt) }),
-        };
-
-        Some(mt)
-    }
-
     /// Gets the argument and convert it to Lua boolean.
     ///
     /// This method has the same mechanism as Lua conditional check, which mean it only returns
@@ -451,11 +395,11 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         }
     }
 
-    /// Gets the argument and convert it to Lua number.
+    /// Gets the argument and convert it to Lua floating-point.
     ///
     /// This has the same semantic as `luaL_checknumber`.
     #[inline(always)]
-    pub fn to_num(&self) -> Result<f64, Box<dyn core::error::Error>> {
+    pub fn to_float(&self) -> Result<f64, Box<dyn core::error::Error>> {
         // Check if number.
         let expect = lua_typename(3);
         let raw = self.get_raw(expect)?;
@@ -474,7 +418,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         }
     }
 
-    /// Gets the argument and convert it to Lua number.
+    /// Gets the argument and convert it to Lua floating-point.
     ///
     /// This method returns [`None`] in the following cases:
     ///
@@ -483,7 +427,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     ///
     /// This has the same semantic as `luaL_optnumber`.
     #[inline(always)]
-    pub fn to_nilable_num(
+    pub fn to_nilable_float(
         &self,
         required: bool,
     ) -> Result<Option<f64>, Box<dyn core::error::Error>> {
