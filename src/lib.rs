@@ -609,6 +609,14 @@ impl<'a, D> Value<'a, D> {
         }
     }
 
+    /// Returns `true` if this value is [`Value::Nil`].
+    pub const fn is_nil(&self) -> bool {
+        match self {
+            Self::Nil => true,
+            _ => false,
+        }
+    }
+
     #[inline(never)]
     unsafe fn from_unsafe(v: *const UnsafeValue<D>) -> Self {
         match unsafe { (*v).tt_ & 0xf } {
