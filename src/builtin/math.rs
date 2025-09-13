@@ -81,6 +81,6 @@ fn pushnumint<'a, D>(d: f64) -> Value<'a, D> {
     if d >= i64::MIN as f64 && d <= i64::MAX as f64 {
         Value::Int(d as i64)
     } else {
-        Value::Num(d)
+        Value::Float(d)
     }
 }

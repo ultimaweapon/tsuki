@@ -41,7 +41,7 @@ Note that currently there is no way to limit the amount of memory to be used by 
 
 ### Standard library
 
-- No `_VERSION`, `collectgarbage`, `dofile`, `loadfile`, `xpcall`, `string.dump` and debug library.
+- No `_VERSION`, `collectgarbage`, `dofile`, `loadfile`, `warn`, `xpcall`, `string.dump` and debug library.
 - Second argument of `assert` accept only a UTF-8 string.
 - Arguments of `error`:
   - First argument accept only a UTF-8 string.
@@ -50,7 +50,6 @@ Note that currently there is no way to limit the amount of memory to be used by 
   - First argument accept only a string.
   - Second argument accept only a UTF-8 string and will be empty when absent.
   - Third argument must be `nil` or `"t"`.
-- `warn` is enabled by default without message prefixes and does not support control message.
 - `string.format` requires UTF-8 string for both format string and format value.
 - Native module is not supported.
 - Environment variable `LUA_PATH` and `LUA_PATH_5_4` is ignored.
@@ -74,6 +73,7 @@ Note that currently there is no way to limit the amount of memory to be used by 
 - `Arg::to_nilable_num` renamed to `Arg::to_nilable_float`.
 - `Arg::len` is removed in favor of `Context::get_value_len`.
 - `Arg::lt` is removed in favor of `Context::is_value_lt`.
+- `Value::Num` is renamed to `Value::Float`.
 
 ## License
 

@@ -255,67 +255,6 @@ unsafe fn str_char(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Er
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn tonum(
-    mut L: *const Thread,
-    mut arg: libc::c_int,
-) -> Result<libc::c_int, Box<dyn std::error::Error>> {
-    if lua_type(L, arg) == 3 as libc::c_int {
-        lua_pushvalue(L, arg);
-        return Ok(1 as libc::c_int);
-    } else {
-        let mut len: usize = 0;
-        let mut s: *const libc::c_char = lua_tolstring(L, arg, &mut len);
-        return Ok((!s.is_null()
-            && lua_stringtonumber(L, s) == len.wrapping_add(1 as libc::c_int as usize))
-            as libc::c_int);
-    };
-}
-
-unsafe fn trymt(
-    mut L: *const Thread,
-    mut mtname: *const libc::c_char,
-) -> Result<(), Box<dyn std::error::Error>> {
-    lua_settop(L, 2 as libc::c_int)?;
-    if ((lua_type(L, 2 as libc::c_int) == 4 as libc::c_int
-        || luaL_getmetafield(L, 2 as libc::c_int, mtname)? == 0) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
-        != 0
-    {
-        luaL_error(
-            L,
-            format!(
-                "attempt to {} a '{}' with a '{}'",
-                CStr::from_ptr(mtname.offset(2)).to_string_lossy(),
-                lua_typename(lua_type(L, -2)),
-                lua_typename(lua_type(L, -1))
-            ),
-        )?;
-    }
-    lua_rotate(L, -(3 as libc::c_int), 1 as libc::c_int);
-    lua_call(L, 2 as libc::c_int, 1 as libc::c_int)
-}
-
-unsafe fn arith(
-    mut L: *const Thread,
-    mut op: libc::c_int,
-    mut mtname: *const libc::c_char,
-) -> Result<c_int, Box<dyn std::error::Error>> {
-    if tonum(L, 1 as libc::c_int)? != 0 && tonum(L, 2 as libc::c_int)? != 0 {
-        lua_arith(L, op)?;
-    } else {
-        trymt(L, mtname)?;
-    }
-    return Ok(1 as libc::c_int);
-}
-
-unsafe fn arith_add(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    return arith(
-        L,
-        0 as libc::c_int,
-        b"__add\0" as *const u8 as *const libc::c_char,
-    );
-}
-
 unsafe fn arith_sub(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return arith(
         L,
@@ -373,13 +312,6 @@ unsafe fn arith_unm(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
 }
 
 static mut stringmetamethods: [luaL_Reg; 10] = [
-    {
-        let mut init = luaL_Reg {
-            name: b"__add\0" as *const u8 as *const libc::c_char,
-            func: Some(arith_add),
-        };
-        init
-    },
     {
         let mut init = luaL_Reg {
             name: b"__sub\0" as *const u8 as *const libc::c_char,

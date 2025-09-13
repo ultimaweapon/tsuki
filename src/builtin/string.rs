@@ -1,9 +1,16 @@
 use crate::libc::snprintf;
-use crate::{Args, Context, Ret, Type};
+use crate::{Arg, Args, Context, Number, Ret, TryCall, Type, Value};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+
+/// Implementation of `__add` metamethod for string.
+pub fn add<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+    arith(cx, "__add", |cx, lhs, rhs| {
+        cx.push_add(lhs, rhs).map(|_| ())
+    })
+}
 
 /// Implementation of [string.format](https://www.lua.org/manual/5.4/manual.html#pdf-string.format).
 pub fn format<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
@@ -297,6 +304,84 @@ pub fn sub<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::err
     }
 
     Ok(cx.into())
+}
+
+fn arith<'a, D>(
+    cx: Context<'a, D, Args>,
+    mt: &str,
+    f: impl FnOnce(&Context<'a, D, Args>, Number, Number) -> Result<(), Box<dyn core::error::Error>>,
+) -> Result<Context<'a, D, Ret>, Box<dyn core::error::Error>> {
+    // Get first operand.
+    let lhs = cx.arg(1);
+    let lhs = match tonum(&lhs) {
+        Some(v) => v,
+        None => return trymt(cx, mt),
+    };
+
+    // Get second operand.
+    let rhs = cx.arg(2);
+    let rhs = match tonum(&rhs) {
+        Some(v) => v,
+        None => return trymt(cx, mt),
+    };
+
+    f(&cx, lhs, rhs)?;
+
+    Ok(cx.into())
+}
+
+fn tonum<D>(arg: &Arg<D>) -> Option<Number> {
+    arg.get().and_then(|v| match v {
+        Value::Int(v) => Some(Number::Int(v)),
+        Value::Float(v) => Some(Number::Float(v)),
+        Value::Str(v) => v.to_num(),
+        _ => None,
+    })
+}
+
+fn trymt<'a, D>(
+    cx: Context<'a, D, Args>,
+    name: &str,
+) -> Result<Context<'a, D, Ret>, Box<dyn core::error::Error>> {
+    // Get metamethod.
+    let lhs = cx.arg(1);
+    let rhs = cx.arg(2);
+    let mt = (rhs.ty() != Some(Type::String)).then(|| rhs.get_metatable().unwrap());
+    let mt = match mt
+        .as_ref()
+        .and_then(|t| t.as_ref())
+        .and_then(|t| match t.get_str_key(name) {
+            Value::Nil => None,
+            v => Some(v),
+        }) {
+        Some(v) => v,
+        None => {
+            let e = format!(
+                "attempt to {} a '{}' with a '{}'",
+                &name[2..],
+                lhs.ty().unwrap(),
+                rhs.ty().unwrap()
+            );
+
+            return Err(e.into());
+        }
+    };
+
+    // Prepare to call metamethod.
+    let mut cx = cx.into_results(1);
+
+    cx.truncate(2);
+    cx.insert(1, mt)?;
+
+    // Call metamethod.
+    let mut cx = match cx.try_forward(1)? {
+        TryCall::Ok(v) => v,
+        TryCall::Err(_, e) => return Err(e),
+    };
+
+    cx.truncate(1);
+
+    Ok(cx)
 }
 
 fn checkformat(

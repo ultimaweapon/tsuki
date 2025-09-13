@@ -91,6 +91,26 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         }
     }
 
+    /// Gets metatable for this argument.
+    pub fn get_metatable(&self) -> Option<Option<Ref<'b, Table<D>>>> {
+        // Get argument.
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            return None;
+        }
+
+        // Get metatable.
+        let g = self.cx.th.hdr.global();
+        let mt = unsafe { g.metatable(v) };
+        let mt = match mt.is_null() {
+            true => None,
+            false => Some(unsafe { Ref::new(mt) }),
+        };
+
+        Some(mt)
+    }
+
     /// Get address of argument value (if any).
     ///
     /// This has the same semantic as `lua_topointer`.
@@ -284,26 +304,6 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
             Some(v) => Ok(Some(v)),
             None => Err(unsafe { self.type_error(expect, v) }),
         }
-    }
-
-    /// Gets metatable for this argument.
-    pub fn get_metatable(&self) -> Option<Option<Ref<'b, Table<D>>>> {
-        // Get argument.
-        let v = self.get_raw_or_null();
-
-        if v.is_null() {
-            return None;
-        }
-
-        // Get metatable.
-        let g = self.cx.th.hdr.global();
-        let mt = unsafe { g.metatable(v) };
-        let mt = match mt.is_null() {
-            true => None,
-            false => Some(unsafe { Ref::new(mt) }),
-        };
-
-        Some(mt)
     }
 
     /// Gets the argument and convert it to Lua boolean.
