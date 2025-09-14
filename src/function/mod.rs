@@ -6,6 +6,9 @@ use core::cell::Cell;
 use core::num::NonZero;
 
 /// Lua function.
+///
+/// The only way to create the value of this type is either [Lua::load()](crate::Lua::load()) or
+/// [Context::load()](crate::Context::load()).
 #[repr(C)]
 pub struct LuaFn<D> {
     pub(crate) hdr: Object<D>,

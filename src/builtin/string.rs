@@ -15,12 +15,12 @@ pub fn add<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::err
 /// Implementation of [string.format](https://www.lua.org/manual/5.4/manual.html#pdf-string.format).
 pub fn format<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     // Get format.
-    let mut arg = 1;
-    let fmt = cx.arg(arg);
+    let mut next = 1;
+    let arg = cx.arg(next);
+    let fmt = arg.to_str()?;
     let fmt = fmt
-        .get_str()?
         .as_str()
-        .ok_or_else(|| fmt.error("expect UTF-8 string"))?;
+        .ok_or_else(|| arg.error("expect UTF-8 string"))?;
 
     // Parse format.
     let mut buf = String::with_capacity(fmt.len() * 2);
@@ -44,10 +44,10 @@ pub fn format<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
         };
 
         // Check if argument exists. The reason we need to do it here is to match with Lua behavior.
-        arg += 1;
+        next += 1;
 
-        if arg > cx.args() {
-            return Err(cx.arg(arg).error("no value"));
+        if next > cx.args() {
+            return Err(cx.arg(next).error("no value"));
         }
 
         // Create null-terminated format.
@@ -68,7 +68,7 @@ pub fn format<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
         }
 
         // Format.
-        let arg = cx.arg(arg);
+        let arg = cx.arg(next);
         let mut flags = None::<&[u8]>;
         let mut buff = [0u8; 418];
         let mut nb = 0;
@@ -283,7 +283,8 @@ pub fn format<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
 
 /// Implementation of [string.sub](https://www.lua.org/manual/5.4/manual.html#pdf-string.sub).
 pub fn sub<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
-    let s = cx.arg(1).get_str()?.as_bytes();
+    let s = cx.arg(1).to_str()?;
+    let s = s.as_bytes();
     let start = cx.arg(2).to_int()?;
     let start = posrelatI(start, s.len().try_into().unwrap());
     let end = cx.arg(3).to_nilable_int(false)?.unwrap_or(-1);

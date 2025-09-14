@@ -683,13 +683,6 @@ impl<D> Gc<D> {
             o = unsafe { (*o).refp.get() };
         }
 
-        // Mark root.
-        let o = self.root.get();
-
-        if unsafe { !o.is_null() && (*o).marked.get() & (1 << 3 | 1 << 4) != 0 } {
-            self.mark(o);
-        }
-
         self.mark_all_gray();
         self.remark_upvalues();
         self.mark_all_gray();

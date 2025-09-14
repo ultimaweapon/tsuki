@@ -27,6 +27,12 @@ mod output;
 mod stack;
 
 /// Lua thread (AKA coroutine).
+///
+/// Use [Lua::create_thread()] or [Context::create_thread()](crate::Context::create_thread()) to
+/// create the value of this type.
+///
+/// You can also use [Lua::call()] to call any Lua function without creating a new thread. You only
+/// need to create a new thread when you need to call into async function.
 #[repr(C)]
 pub struct Thread<D> {
     pub(crate) hdr: Object<D>,

@@ -13,6 +13,15 @@ use core::ptr::{addr_of_mut, null};
 mod table;
 
 /// Lua string.
+///
+/// Use [Lua::create_str()] or [Context::create_str()](crate::Context::create_str()) to create the
+/// value of this type.
+///
+/// There are 2 variants of this, UTF-8 string and binary string. The variant cannot be changed
+/// after the string is created. The binary string can contains any data, including a UTF-8 string.
+///
+/// Although the string is currently null-terminated but there is a plan to remove this so
+/// **do not** rely on this.
 #[repr(C)]
 pub struct Str<D> {
     pub(crate) hdr: Object<D>,
@@ -91,27 +100,25 @@ impl<D> Str<D> {
     /// Returns `true` if this string is UTF-8.
     ///
     /// Use [`Self::as_str()`] instead if you want [`str`] from this string.
-    #[inline(always)]
-    pub fn is_utf8(&self) -> bool {
+    pub const fn is_utf8(&self) -> bool {
         self.utf8
     }
 
     /// Returns the length of this string, in bytes.
-    #[inline(always)]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.len
     }
 
     /// Returns [`str`] if this string is UTF-8.
-    #[inline(always)]
-    pub fn as_str(&self) -> Option<&str> {
-        self.utf8
-            .then(|| unsafe { core::str::from_utf8_unchecked(self.as_bytes()) })
+    pub const fn as_str(&self) -> Option<&str> {
+        match self.utf8 {
+            true => Some(unsafe { core::str::from_utf8_unchecked(self.as_bytes()) }),
+            false => None,
+        }
     }
 
     /// Returns byte slice of this string.
-    #[inline(always)]
-    pub fn as_bytes(&self) -> &[u8] {
+    pub const fn as_bytes(&self) -> &[u8] {
         unsafe { core::slice::from_raw_parts(self.contents.as_ptr().cast(), self.len()) }
     }
 

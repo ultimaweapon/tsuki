@@ -18,6 +18,9 @@ mod node;
 mod rust;
 
 /// Lua table.
+///
+/// Use [Lua::create_table()] or [Context::create_table()](crate::Context::create_table()) to create
+/// the value of this type.
 #[repr(C)]
 pub struct Table<D> {
     pub(crate) hdr: Object<D>,

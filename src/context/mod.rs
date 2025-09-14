@@ -74,6 +74,11 @@ impl<'a, D, T> Context<'a, D, T> {
     }
 
     /// Create a full userdata.
+    ///
+    /// The metatable for the userdata that was registered with
+    /// [Lua::register_metatable()](crate::Lua::register_metatable()) will be loaded during
+    /// creation. A call to [Lua::register_metatable()](crate::Lua::register_metatable()) has no
+    /// effect for any userdata that already created.
     #[inline(always)]
     pub fn create_ud<V: Any>(&self, v: V) -> Ref<'a, UserData<D, V>> {
         self.th.hdr.global().gc.step();

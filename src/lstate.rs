@@ -9,6 +9,7 @@ use alloc::boxed::Box;
 use core::ffi::c_char;
 use core::ptr::{null, null_mut};
 
+type c_uchar = u8;
 type c_int = i32;
 
 #[repr(C)]
@@ -21,8 +22,8 @@ pub struct lua_Debug<D> {
     pub currentline: c_int,
     pub linedefined: c_int,
     pub lastlinedefined: c_int,
-    pub nups: libc::c_uchar,
-    pub nparams: libc::c_uchar,
+    pub nups: c_uchar,
+    pub nparams: c_uchar,
     pub isvararg: c_char,
     pub istailcall: c_char,
     pub ftransfer: usize,

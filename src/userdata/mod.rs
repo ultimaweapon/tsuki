@@ -8,6 +8,9 @@ use core::mem::transmute;
 use core::ptr::{addr_of_mut, null};
 
 /// Lua full userdata.
+///
+/// Use [Lua::create_ud()] or [Context::create_ud()](crate::Context::create_ud()) to create the
+/// value of this type.
 #[repr(C)]
 pub struct UserData<D, T: ?Sized> {
     pub(crate) hdr: Object<D>,

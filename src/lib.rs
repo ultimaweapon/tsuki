@@ -461,6 +461,10 @@ impl<T> Lua<T> {
     }
 
     /// Create a full userdata.
+    ///
+    /// The metatable for the userdata that was registered with [Self::register_metatable()] will be
+    /// loaded during creation. A call to [Self::register_metatable()] has no effect for any
+    /// userdata that already created.
     #[inline(always)]
     pub fn create_ud<V: Any>(&self, v: V) -> Ref<'_, UserData<T, V>> {
         self.gc.step();

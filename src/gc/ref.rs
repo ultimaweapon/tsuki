@@ -104,3 +104,13 @@ impl<'a, T> Deref for Ref<'a, T> {
         unsafe { &*self.obj }
     }
 }
+
+impl<'a, T> PartialEq<str> for Ref<'a, T>
+where
+    T: PartialEq<str>,
+{
+    #[inline(always)]
+    fn eq(&self, other: &str) -> bool {
+        PartialEq::eq(self.deref(), other)
+    }
+}

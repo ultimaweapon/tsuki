@@ -17,28 +17,26 @@ pub fn assert<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
     }
 
     // Raise error.
-    let m = if cx.args() > 1 {
-        let m = cx.arg(2);
+    if cx.args() > 1 {
+        let a = cx.arg(2);
+        let m = a.to_str()?;
+        let m = m.as_str().ok_or_else(|| a.error("expect UTF-8 string"))?;
 
-        m.get_str()?
-            .as_str()
-            .ok_or_else(|| m.error("expect UTF-8 string"))?
+        Err(m.into())
     } else {
-        "assertion failed!"
-    };
-
-    Err(m.into())
+        Err("assertion failed!".into())
+    }
 }
 
 /// Implementation of [error](https://www.lua.org/manual/5.4/manual.html#pdf-error) function.
 ///
 /// Note that first argument accept only a string and second argument is not supported.
 pub fn error<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
-    let msg = cx.arg(1);
+    let arg = cx.arg(1);
+    let msg = arg.to_str()?;
     let msg = msg
-        .get_str()?
         .as_str()
-        .ok_or_else(|| msg.error("expect UTF-8 string"))?;
+        .ok_or_else(|| arg.error("expect UTF-8 string"))?;
 
     if cx.args() > 1 {
         return Err("second argument of 'error' is not supported".into());
@@ -79,22 +77,21 @@ pub fn getmetatable<D>(
 /// - Second argument accept only a UTF-8 string and will be empty when absent.
 /// - Third argument must be `nil` or `"t"`.
 pub fn load<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
-    let s = cx.arg(1).get_str()?;
+    let s = cx.arg(1).to_str()?;
 
     // Get name.
-    let name = cx.arg(2);
-    let name = match name.get_nilable_str(false)? {
-        Some(v) => v
-            .as_str()
-            .ok_or_else(|| name.error("expect UTF-8 string"))?,
+    let a = cx.arg(2);
+    let name = a.to_nilable_str(false)?;
+    let name = match &name {
+        Some(v) => v.as_str().ok_or_else(|| a.error("expect UTF-8 string"))?,
         None => "",
     };
 
     // Get mode.
     let mode = cx.arg(3);
 
-    if let Some(v) = mode.get_nilable_str(false)? {
-        if v != "t" {
+    if let Some(v) = mode.to_nilable_str(false)? {
+        if v.ne("t") {
             return Err(mode.error("mode other than 't' is not supported"));
         }
     }

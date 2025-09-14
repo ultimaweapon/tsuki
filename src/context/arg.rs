@@ -152,36 +152,30 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         }
     }
 
-    /// Checks if this argument is Lua string or number and return it as string.
+    /// Checks if this argument is a string and return it.
     ///
-    /// This has the same semantic as `luaL_checklstring`, which mean if this argument is a number
-    /// it will convert to string **in-place**.
+    /// This method **does not** convert a number to string. Use [Self::to_str()] if you want that
+    /// behavior.
     #[inline(always)]
     pub fn get_str(&self) -> Result<&'a Str<D>, Box<dyn core::error::Error>> {
         let expect = lua_typename(4);
         let v = self.get_raw(expect)?;
 
         match unsafe { (*v).tt_ & 0xf } {
-            3 => unsafe {
-                self.cx.th.hdr.global().gc.step();
-                luaO_tostring(self.cx.th.hdr.global, v);
-            },
-            4 => (),
-            _ => return Err(unsafe { self.type_error(expect, v) }),
+            4 => Ok(unsafe { &*(*v).value_.gc.cast() }),
+            _ => Err(unsafe { self.type_error(expect, v) }),
         }
-
-        Ok(unsafe { &*(*v).value_.gc.cast::<Str<D>>() })
     }
 
-    /// Checks if this argument is Lua string or number and return it as string.
+    /// Checks if this argument is a string and return it.
     ///
     /// This method returns [`None`] in the following cases:
     ///
     /// - This argument is `nil`.
     /// - This argument does not exists and `required` is `false`.
     ///
-    /// This has the same semantic as `luaL_optlstring`, which mean if this argument is a number it
-    /// will convert to string **in-place**.
+    /// This method **does not** convert a number to string. Use [Self::to_nilable_str()] if you
+    /// want that behavior.
     #[inline(always)]
     pub fn get_nilable_str(
         &self,
@@ -200,16 +194,10 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
         // Check type.
         match unsafe { (*v).tt_ & 0xf } {
-            0 => return Ok(None),
-            3 => unsafe {
-                self.cx.th.hdr.global().gc.step();
-                luaO_tostring(self.cx.th.hdr.global, v);
-            },
-            4 => (),
-            _ => return Err(unsafe { self.type_error(expect, v) }),
+            0 => Ok(None),
+            4 => Ok(Some(unsafe { &*(*v).value_.gc.cast() })),
+            _ => Err(unsafe { self.type_error(expect, v) }),
         }
-
-        Ok(Some(unsafe { &*(*v).value_.gc.cast::<Str<D>>() }))
     }
 
     /// Checks if this argument is a table and return it.
@@ -454,6 +442,73 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         } else {
             Err(unsafe { self.type_error(expect, raw) })
         }
+    }
+
+    /// Checks if this argument is a string or number and return it as string.
+    ///
+    /// This has the same semantic as `luaL_checklstring`, except it **does not** convert the
+    /// argument in-place if it is a number.
+    #[inline(always)]
+    pub fn to_str(&self) -> Result<Ref<'b, Str<D>>, Box<dyn core::error::Error>> {
+        let expect = lua_typename(4);
+        let v = self.get_raw(expect)?;
+        let v = match unsafe { (*v).tt_ & 0xf } {
+            3 => unsafe {
+                let mut v = v.read();
+
+                self.cx.th.hdr.global().gc.step();
+                luaO_tostring(self.cx.th.hdr.global, &mut v);
+
+                v.value_.gc.cast()
+            },
+            4 => unsafe { (*v).value_.gc.cast() },
+            _ => return Err(unsafe { self.type_error(expect, v) }),
+        };
+
+        Ok(unsafe { Ref::new(v) })
+    }
+
+    /// Checks if this argument is a string or number and return it as string.
+    ///
+    /// This method returns [`None`] in the following cases:
+    ///
+    /// - This argument is `nil`.
+    /// - This argument does not exists and `required` is `false`.
+    ///
+    /// This has the same semantic as `luaL_checklstring`, except it **does not** convert the
+    /// argument in-place if it is a number.
+    #[inline(always)]
+    pub fn to_nilable_str(
+        &self,
+        required: bool,
+    ) -> Result<Option<Ref<'b, Str<D>>>, Box<dyn core::error::Error>> {
+        // Get argument.
+        let expect = "nil or string";
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            match required {
+                true => return Err(self.invalid_type(expect, lua_typename(-1))),
+                false => return Ok(None),
+            }
+        }
+
+        // Check type.
+        let v = match unsafe { (*v).tt_ & 0xf } {
+            0 => return Ok(None),
+            3 => unsafe {
+                let mut v = v.read();
+
+                self.cx.th.hdr.global().gc.step();
+                luaO_tostring(self.cx.th.hdr.global, &mut v);
+
+                v.value_.gc.cast()
+            },
+            4 => unsafe { (*v).value_.gc.cast() },
+            _ => return Err(unsafe { self.type_error(expect, v) }),
+        };
+
+        Ok(Some(unsafe { Ref::new(v) }))
     }
 
     /// Gets the argument and convert it to Lua string suitable for display.

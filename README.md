@@ -70,6 +70,7 @@ Note that currently there is no way to limit the amount of memory to be used by 
 
 ## Breaking changes in 0.2
 
+- `Arg::get_str` and `Arg::get_nilable_str` no longer accept a number. Use `Arg::to_str` or `Arg::to_nilable_str` instead of you want old behavior.
 - `Arg::to_num` renamed to `Arg::to_float`.
 - `Arg::to_nilable_num` renamed to `Arg::to_nilable_float`.
 - `Arg::len` is removed in favor of `Context::get_value_len`.
