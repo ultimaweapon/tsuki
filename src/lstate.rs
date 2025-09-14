@@ -6,6 +6,7 @@ use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::lobject::StackValue;
 use crate::{CallError, ChunkInfo, Thread};
 use alloc::boxed::Box;
+use core::ffi::c_char;
 use core::ptr::{null, null_mut};
 
 type c_int = i32;
@@ -13,17 +14,17 @@ type c_int = i32;
 #[repr(C)]
 pub struct lua_Debug<D> {
     pub event: c_int,
-    pub name: *const libc::c_char,
-    pub namewhat: *const libc::c_char,
-    pub what: *const libc::c_char,
+    pub name: *const c_char,
+    pub namewhat: *const c_char,
+    pub what: *const c_char,
     pub source: Option<ChunkInfo>,
     pub currentline: c_int,
     pub linedefined: c_int,
     pub lastlinedefined: c_int,
     pub nups: libc::c_uchar,
     pub nparams: libc::c_uchar,
-    pub isvararg: libc::c_char,
-    pub istailcall: libc::c_char,
+    pub isvararg: c_char,
+    pub istailcall: c_char,
     pub ftransfer: usize,
     pub ntransfer: usize,
     pub(crate) i_ci: *mut CallInfo<D>,

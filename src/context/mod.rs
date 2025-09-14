@@ -463,6 +463,41 @@ impl<'a, D, T> Context<'a, D, T> {
         Ok(Type::from_tt(r.tt_))
     }
 
+    /// Push the result of subtraction `lhs` with `rhs`, returns the type of pushed value.
+    ///
+    /// This method honor `__sub` metavalue.
+    ///
+    /// # Panics
+    /// If either `lhs` or `rhs` come from different [Lua](crate::Lua) instance.
+    pub fn push_sub(
+        &self,
+        lhs: impl Into<UnsafeValue<D>>,
+        rhs: impl Into<UnsafeValue<D>>,
+    ) -> Result<Type, Box<dyn core::error::Error>> {
+        // Check operands.
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+
+        if unsafe { (lhs.tt_ & 1 << 6 != 0) && (*lhs.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to perform subtraction on a value created from different Lua");
+        }
+
+        if unsafe { (rhs.tt_ & 1 << 6 != 0) && (*rhs.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to perform subtraction on a value created from different Lua");
+        }
+
+        // Perform subtraction.
+        let r = unsafe { luaO_arith(self.th, Ops::Sub, &lhs, &rhs)? };
+
+        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { self.th.top.write(r) };
+        unsafe { self.th.top.add(1) };
+
+        self.ret.update(|v| v + 1);
+
+        Ok(Type::from_tt(r.tt_))
+    }
+
     /// Reserves capacity for at least `additional` more elements to be pushed.
     ///
     /// Usually you don't need this method unless you try to push a large amount of results.

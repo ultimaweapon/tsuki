@@ -64,6 +64,7 @@ Note that currently there is no way to limit the amount of memory to be used by 
 
 ## Roadmap
 
+- Complete Lua standard library.
 - Remove libc.
 - JIT using Cranelift.
 
