@@ -306,6 +306,13 @@ pub fn sub<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::err
     Ok(cx.into())
 }
 
+/// Implementation of `__sub` metamethod for string.
+pub fn subtract<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+    arith(cx, "__sub", |cx, lhs, rhs| {
+        cx.push_sub(lhs, rhs).map(|_| ())
+    })
+}
+
 fn arith<'a, D>(
     cx: Context<'a, D, Args>,
     mt: &str,

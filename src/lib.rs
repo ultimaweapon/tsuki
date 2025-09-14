@@ -355,6 +355,7 @@ impl<T> Lua<T> {
 
         unsafe { (*mt).set_str_key_unchecked("__add", fp!(crate::builtin::string::add)) };
         unsafe { (*mt).set_str_key_unchecked("__index", g) };
+        unsafe { (*mt).set_str_key_unchecked("__sub", fp!(crate::builtin::string::subtract)) };
 
         // Set metatable.
         let mt = unsafe { UnsafeValue::from_obj(mt.cast()) };

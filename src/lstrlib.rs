@@ -255,14 +255,6 @@ unsafe fn str_char(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Er
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn arith_sub(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    return arith(
-        L,
-        1 as libc::c_int,
-        b"__sub\0" as *const u8 as *const libc::c_char,
-    );
-}
-
 unsafe fn arith_mul(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return arith(
         L,
@@ -312,13 +304,6 @@ unsafe fn arith_unm(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
 }
 
 static mut stringmetamethods: [luaL_Reg; 10] = [
-    {
-        let mut init = luaL_Reg {
-            name: b"__sub\0" as *const u8 as *const libc::c_char,
-            func: Some(arith_sub),
-        };
-        init
-    },
     {
         let mut init = luaL_Reg {
             name: b"__mul\0" as *const u8 as *const libc::c_char,
