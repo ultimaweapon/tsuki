@@ -5,7 +5,9 @@ use crate::ldo::luaD_call;
 use crate::lobject::luaO_tostring;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_tointeger, luaV_tonumber_};
-use crate::{NON_YIELDABLE_WAKER, Ref, Str, Table, Type, UserData, Value, luaH_getshortstr};
+use crate::{
+    NON_YIELDABLE_WAKER, Number, Ref, Str, Table, Type, UserData, Value, luaH_getshortstr,
+};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -109,6 +111,24 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         };
 
         Some(mt)
+    }
+
+    /// Checks if this argument is a number and return it.
+    ///
+    /// This method will return [`None`] if this argument does not exists or not a number.
+    #[inline(always)]
+    pub fn as_num(&self) -> Option<Number> {
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            None
+        } else if unsafe { (*v).tt_ == 3 | 0 << 4 } {
+            Some(Number::Int(unsafe { (*v).value_.i }))
+        } else if unsafe { (*v).tt_ == 3 | 1 << 4 } {
+            Some(Number::Float(unsafe { (*v).value_.n }))
+        } else {
+            None
+        }
     }
 
     /// Get address of argument value (if any).
