@@ -131,6 +131,22 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         }
     }
 
+    /// Checks if this argument is a string and return it.
+    ///
+    /// This method will return [`None`] if this argument does not exists or not a string.
+    #[inline(always)]
+    pub fn as_str(&self) -> Option<&'a Str<D>> {
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            None
+        } else if unsafe { (*v).tt_ & 0xf == 4 } {
+            Some(unsafe { &*(*v).value_.gc.cast() })
+        } else {
+            None
+        }
+    }
+
     /// Get address of argument value (if any).
     ///
     /// This has the same semantic as `lua_topointer`.

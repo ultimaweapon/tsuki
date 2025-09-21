@@ -339,12 +339,13 @@ fn arith<'a, D>(
 }
 
 fn tonum<D>(arg: &Arg<D>) -> Option<Number> {
-    arg.get().and_then(|v| match v {
-        Value::Int(v) => Some(Number::Int(v)),
-        Value::Float(v) => Some(Number::Float(v)),
-        Value::Str(v) => v.to_num(),
-        _ => None,
-    })
+    if let Some(v) = arg.as_num() {
+        Some(v)
+    } else if let Some(v) = arg.as_str() {
+        v.to_num()
+    } else {
+        None
+    }
 }
 
 fn trymt<'a, D>(
