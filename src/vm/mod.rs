@@ -8,6 +8,7 @@
 
 pub use self::opcode::*;
 
+use crate::hint::{likely, unlikely};
 use crate::ldebug::{luaG_forerror, luaG_runerror, luaG_tracecall, luaG_traceexec, luaG_typeerror};
 use crate::ldo::{luaD_call, luaD_hookcall, luaD_poscall, luaD_precall, luaD_pretailcall};
 use crate::lfunc::{
@@ -4628,31 +4629,5 @@ pub async unsafe fn luaV_execute<D>(
             ci = (*ci).previous;
         }
         ci = newci;
-    }
-}
-
-// Taken from https://github.com/rust-lang/hashbrown/commit/64bd7db1d1b148594edfde112cdb6d6260e2cfc3
-
-#[cold]
-#[inline(always)]
-fn cold_path() {}
-
-#[inline(always)]
-fn likely(b: bool) -> bool {
-    if b {
-        true
-    } else {
-        cold_path();
-        false
-    }
-}
-
-#[inline(always)]
-fn unlikely(b: bool) -> bool {
-    if b {
-        cold_path();
-        true
-    } else {
-        false
     }
 }
