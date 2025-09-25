@@ -1552,20 +1552,19 @@ pub async unsafe fn luaV_execute<D>(
                         }
                         vmbreak!();
                     }
-                    16 => {
-                        let ra_14 = base.offset(
+                    OP_SETTABLE => {
+                        let tab = base.offset(
                             (i >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                 as c_int as isize,
                         );
-                        let mut slot_4 = null();
-                        let rb_5 = &raw mut (*base.offset(
+                        let key = &raw mut (*base.offset(
                             (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                 as c_int as isize,
                         ))
                         .val;
-                        let rc_3 = if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int)
+                        let val = if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int)
                             as c_int
                             != 0
                         {
@@ -1579,7 +1578,7 @@ pub async unsafe fn luaV_execute<D>(
                                     as c_int as isize,
                             )
                         } else {
-                            &mut (*base.offset(
+                            &raw mut (*base.offset(
                                 (i >> 0 as c_int
                                     + 7 as c_int
                                     + 8 as c_int
@@ -1590,60 +1589,35 @@ pub async unsafe fn luaV_execute<D>(
                             ))
                             .val
                         };
-                        let mut n_0: u64 = 0;
-                        if if (*rb_5).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
-                            n_0 = (*rb_5).value_.i as u64;
-                            if !((*ra_14).val.tt_ as c_int
-                                == 5 as c_int
-                                    | (0 as c_int) << 4 as c_int
-                                    | (1 as c_int) << 6 as c_int)
-                            {
-                                slot_4 = null();
-                                0 as c_int
-                            } else {
-                                slot_4 = if n_0.wrapping_sub(1 as c_uint as u64)
-                                    < (*((*ra_14).val.value_.gc as *mut Table<D>)).alimit.get()
-                                        as u64
-                                {
-                                    (*((*ra_14).val.value_.gc as *mut Table<D>))
-                                        .array
-                                        .get()
-                                        .offset(n_0.wrapping_sub(1 as c_int as u64) as isize)
+                        let slot = match (*tab).val.tt_ == 5 | 0 << 4 | 1 << 6 {
+                            true => {
+                                if (*key).tt_ == 3 | 0 << 4 {
+                                    luaH_getint((*tab).val.value_.gc.cast(), (*key).value_.i)
                                 } else {
-                                    luaH_getint((*ra_14).val.value_.gc.cast(), n_0 as i64)
-                                };
-                                !((*slot_4).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int
+                                    luaH_get((*tab).val.value_.gc.cast(), key)
+                                }
                             }
-                        } else if !((*ra_14).val.tt_ as c_int
-                            == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
-                        {
-                            slot_4 = null();
-                            0 as c_int
-                        } else {
-                            slot_4 = luaH_get((*ra_14).val.value_.gc.cast(), rb_5);
-                            !((*slot_4).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int
-                        } != 0
-                        {
-                            let io1_9 = slot_4.cast_mut();
-                            let io2_9 = rc_3;
+                            false => null(),
+                        };
 
-                            (*io1_9).value_ = (*io2_9).value_;
-                            (*io1_9).tt_ = (*io2_9).tt_;
-                            if (*rc_3).tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {
-                                if (*(*ra_14).val.value_.gc).marked.get() as c_int
+                        if !slot.is_null() && (*slot).tt_ & 0xf != 0 {
+                            slot.cast_mut().copy_from_nonoverlapping(val, 1);
+
+                            if (*val).tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {
+                                if (*(*tab).val.value_.gc).marked.get() as c_int
                                     & (1 as c_int) << 5 as c_int
                                     != 0
-                                    && (*(*rc_3).value_.gc).marked.get() as c_int
+                                    && (*(*val).value_.gc).marked.get() as c_int
                                         & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                                         != 0
                                 {
-                                    (*L).hdr.global().gc.barrier_back((*ra_14).val.value_.gc);
+                                    (*L).hdr.global().gc.barrier_back((*tab).val.value_.gc);
                                 }
                             }
                         } else {
                             (*ci).u.savedpc = pc;
                             (*L).top.set((*ci).top);
-                            luaV_finishset(L, &mut (*ra_14).val, rb_5, rc_3, slot_4)?;
+                            luaV_finishset(L, &raw mut (*tab).val, key, val, slot)?;
                             trap = (*ci).u.trap;
                         }
                         vmbreak!();
