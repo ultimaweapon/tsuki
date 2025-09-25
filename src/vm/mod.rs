@@ -1084,6 +1084,11 @@ pub async unsafe fn luaV_execute<D>(
             let mut key = null_mut();
             let mut slot = null();
 
+            if unlikely(trap != 0) {
+                trap = luaG_traceexec(L, pc)?;
+                base = (*ci).func.add(1);
+            }
+
             pc = pc.offset(1);
 
             loop {
