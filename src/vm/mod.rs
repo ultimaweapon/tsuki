@@ -8,7 +8,6 @@
 
 pub use self::opcode::*;
 
-use crate::hint::{likely, unlikely};
 use crate::ldebug::{luaG_forerror, luaG_runerror, luaG_tracecall, luaG_traceexec, luaG_typeerror};
 use crate::ldo::{luaD_call, luaD_hookcall, luaD_poscall, luaD_precall, luaD_pretailcall};
 use crate::lfunc::{
@@ -1076,15 +1075,13 @@ pub async unsafe fn luaV_execute<D>(
                 trap = luaG_tracecall(L)?;
             }
 
-            // The reason the following loop looks weird is because we need to optimize it. A single
-            // mistake can easily make us slower 2x or more than Lua.
             let mut base = ((*ci).func).add(1);
             let mut i = pc.read();
             let mut tab = null_mut();
             let mut key = null_mut();
             let mut slot = null();
 
-            if unlikely(trap != 0) {
+            if trap != 0 {
                 trap = luaG_traceexec(L, pc)?;
                 base = (*ci).func.add(1);
             }
@@ -1092,9 +1089,11 @@ pub async unsafe fn luaV_execute<D>(
             pc = pc.offset(1);
 
             loop {
+                // We need to do this at the end of each instruction instead of begining of the loop
+                // otherwise it will slow down almost 2x.
                 macro_rules! vmbreak {
                     () => {
-                        if unlikely(trap != 0) {
+                        if trap != 0 {
                             trap = luaG_traceexec(L, pc)?;
                             base = (*ci).func.add(1);
                         }
@@ -1105,7 +1104,7 @@ pub async unsafe fn luaV_execute<D>(
                     };
                 }
 
-                match (i & 0x7F) as OpCode {
+                match i & 0x7F {
                     0 => {
                         let ra = base.offset(
                             (i >> 0 as c_int + 7 as c_int
@@ -1337,6 +1336,7 @@ pub async unsafe fn luaV_execute<D>(
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                 as c_int as isize,
                         );
+
                         tab = &raw mut (*base.offset(
                             (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1349,22 +1349,18 @@ pub async unsafe fn luaV_execute<D>(
                                 as c_int as isize,
                         ))
                         .val;
-                        slot = null();
-                        let found = match likely((*tab).tt_ == 5 | 0 << 4 | 1 << 6) {
-                            true => match likely((*key).tt_ == 3 | 0 << 4) {
-                                true => {
-                                    slot = luaH_getint((*tab).value_.gc.cast(), (*key).value_.i);
-                                    (*slot).tt_ & 0xf != 0
+                        slot = match (*tab).tt_ == 5 | 0 << 4 | 1 << 6 {
+                            true => {
+                                if (*key).tt_ == 3 | 0 << 4 {
+                                    luaH_getint((*tab).value_.gc.cast(), (*key).value_.i)
+                                } else {
+                                    luaH_get((*tab).value_.gc.cast(), key)
                                 }
-                                false => {
-                                    slot = luaH_get((*tab).value_.gc.cast(), key);
-                                    (*slot).tt_ & 0xf != 0
-                                }
-                            },
-                            false => false,
+                            }
+                            false => null(),
                         };
 
-                        if likely(found) {
+                        if !slot.is_null() && (*slot).tt_ & 0xf != 0 {
                             let io1_5 = &raw mut (*ra_11).val;
                             io1_5.copy_from_nonoverlapping(slot, 1);
                             vmbreak!();

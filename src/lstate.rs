@@ -10,6 +10,7 @@ use core::ffi::c_char;
 use core::ptr::{null, null_mut};
 
 type c_uchar = u8;
+type c_short = i16;
 type c_int = i32;
 
 #[repr(C)]
@@ -62,7 +63,7 @@ pub struct CallInfo<D> {
     pub next: *mut Self,
     pub u: C2RustUnnamed_3,
     pub u2: C2RustUnnamed,
-    pub nresults: libc::c_short,
+    pub nresults: c_short,
     pub callstatus: libc::c_ushort,
 }
 

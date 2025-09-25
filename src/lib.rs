@@ -110,7 +110,6 @@ mod context;
 mod function;
 mod gc;
 mod hasher;
-mod hint;
 mod lapi;
 mod lauxlib;
 mod lcode;
