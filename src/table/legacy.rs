@@ -673,24 +673,31 @@ pub unsafe fn luaH_getint<D>(t: *const Table<D>, key: i64) -> *const UnsafeValue
         && (key as u64).wrapping_sub(1) & !alimit.wrapping_sub(1) < alimit
     {
         (*t).alimit.set(key as c_uint);
-        (*t).array.get().offset((key - 1 as c_int as i64) as isize)
+        (*t).array.get().offset((key - 1) as isize)
     } else {
-        let mut n = hashint(t, key);
-
-        loop {
-            if (*n).u.key_tt == 3 | 0 << 4 && (*n).u.key_val.i == key {
-                return &raw const (*n).i_val;
-            } else {
-                let nx: c_int = (*n).u.next;
-                if nx == 0 as c_int {
-                    break;
-                }
-                n = n.offset(nx as isize);
-            }
-        }
-
-        &raw const (*t).absent_key
+        luaH_searchint(t, key)
     }
+}
+
+#[inline(never)]
+unsafe fn luaH_searchint<A>(t: *const Table<A>, key: i64) -> *const UnsafeValue<A> {
+    let mut n = hashint(t, key);
+
+    loop {
+        if (*n).u.key_tt == 3 | 0 << 4 && (*n).u.key_val.i == key {
+            return &raw const (*n).i_val;
+        } else {
+            let nx = (*n).u.next;
+
+            if nx == 0 {
+                break;
+            }
+
+            n = n.offset(nx as isize);
+        }
+    }
+
+    &raw const (*t).absent_key
 }
 
 pub unsafe fn luaH_getshortstr<D>(t: *const Table<D>, key: *const Str<D>) -> *const UnsafeValue<D> {

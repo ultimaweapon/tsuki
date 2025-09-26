@@ -1105,7 +1105,7 @@ pub async unsafe fn luaV_execute<D>(
                 }
 
                 match i & 0x7F {
-                    0 => {
+                    OP_MOVE => {
                         let ra = base.offset(
                             (i >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1118,8 +1118,8 @@ pub async unsafe fn luaV_execute<D>(
                                 as c_int as isize,
                         ))
                         .val;
-                        (*io1).value_ = (*io2).value_;
                         (*io1).tt_ = (*io2).tt_;
+                        (*io1).value_ = (*io2).value_;
                         vmbreak!();
                     }
                     1 => {
@@ -1362,7 +1362,10 @@ pub async unsafe fn luaV_execute<D>(
 
                         if !slot.is_null() && (*slot).tt_ & 0xf != 0 {
                             let io1_5 = &raw mut (*ra_11).val;
-                            io1_5.copy_from_nonoverlapping(slot, 1);
+
+                            (*io1_5).tt_ = (*slot).tt_;
+                            (*io1_5).value_ = (*slot).value_;
+
                             vmbreak!();
                         }
 
@@ -1597,7 +1600,10 @@ pub async unsafe fn luaV_execute<D>(
                         };
 
                         if !slot.is_null() && (*slot).tt_ & 0xf != 0 {
-                            slot.cast_mut().copy_from_nonoverlapping(val, 1);
+                            let slot = slot.cast_mut();
+
+                            (*slot).tt_ = (*val).tt_;
+                            (*slot).value_ = (*val).value_;
 
                             if (*val).tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {
                                 if (*(*tab).val.value_.gc).marked.get() as c_int

@@ -11,6 +11,7 @@ use core::ptr::{null, null_mut};
 
 type c_uchar = u8;
 type c_short = i16;
+type c_ushort = u16;
 type c_int = i32;
 
 #[repr(C)]
@@ -64,7 +65,7 @@ pub struct CallInfo<D> {
     pub u: C2RustUnnamed_3,
     pub u2: C2RustUnnamed,
     pub nresults: c_short,
-    pub callstatus: libc::c_ushort,
+    pub callstatus: c_ushort,
 }
 
 impl<D> Clone for CallInfo<D> {
@@ -86,7 +87,7 @@ pub union C2RustUnnamed {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct C2RustUnnamed_0 {
-    pub ftransfer: libc::c_ushort,
+    pub ftransfer: c_ushort,
     pub ntransfer: usize,
 }
 
@@ -143,7 +144,7 @@ pub unsafe fn lua_closethread<D>(L: *const Thread<D>) -> Result<(), Box<CallErro
 
     (*(*L).stack.get()).val.tt_ = 0 | 0 << 4;
     (*ci).func = (*L).stack.get();
-    (*ci).callstatus = ((1 as c_int) << 1 as c_int) as libc::c_ushort;
+    (*ci).callstatus = ((1 as c_int) << 1 as c_int) as c_ushort;
 
     let status = luaD_closeprotected(L, 1, Ok(()));
 
