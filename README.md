@@ -16,6 +16,10 @@ All public API of Tsuki should provide 100% safety as long as you don't use unsa
 
 Note that currently there is no way to limit the amount of memory to be used by Lua scripts. If this unacceptable you should not use Tsuki for now until this feature is implemented.
 
+## Performance
+
+Tsuki VM is slower than Lua about 30% for any platform that Lua can use computed goto (e.g. Linux) otherwise we are faster than Lua about 10%. See issue [18](https://github.com/ultimaweapon/tsuki/issues/18) for more details.
+
 ## Features
 
 - 100% Rust code.
@@ -28,7 +32,7 @@ Note that currently there is no way to limit the amount of memory to be used by 
 
 ## Differences from Lua
 
-### Language
+### Language and VM
 
 - Binary chunk is not supported.
 - Panic when memory allocation is failed without retry (Rust behavior).
