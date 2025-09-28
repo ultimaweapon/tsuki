@@ -9,10 +9,10 @@ use core::pin::Pin;
 
 /// The outside **must** never be able to construct or have the value of this type.
 #[repr(C)]
-pub struct UnsafeValue<D> {
+pub struct UnsafeValue<A> {
     pub tt_: u8,
     pub tbcdelta: u16,
-    pub value_: UntaggedValue<D>,
+    pub value_: UntaggedValue<A>,
 }
 
 impl<D> UnsafeValue<D> {
@@ -349,21 +349,21 @@ impl<'a, 'b, D> From<Arg<'a, 'b, D>> for UnsafeValue<D> {
     }
 }
 
-#[repr(C)]
-pub union UntaggedValue<D> {
-    pub gc: *const Object<D>,
-    pub f: fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>,
+#[repr(C, align(8))]
+pub union UntaggedValue<A> {
+    pub gc: *const Object<A>,
+    pub f: fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>,
     pub a: fn(
-        Context<D, Args>,
-    ) -> Pin<Box<dyn Future<Output = Result<Context<D, Ret>, Box<dyn Error>>> + '_>>,
+        Context<A, Args>,
+    ) -> Pin<Box<dyn Future<Output = Result<Context<A, Ret>, Box<dyn Error>>> + '_>>,
     pub i: i64,
     pub n: f64,
 }
 
-impl<D> Clone for UntaggedValue<D> {
+impl<A> Clone for UntaggedValue<A> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<D> Copy for UntaggedValue<D> {}
+impl<A> Copy for UntaggedValue<A> {}
