@@ -13,7 +13,7 @@ use crate::ldo::{luaD_call, luaD_hookcall, luaD_poscall, luaD_precall, luaD_pret
 use crate::lfunc::{
     luaF_close, luaF_closeupval, luaF_findupval, luaF_newLclosure, luaF_newtbcupval,
 };
-use crate::lobject::{Proto, StackValue, UpVal, luaO_str2num, luaO_tostring};
+use crate::lobject::{Proto, UpVal, luaO_str2num, luaO_tostring};
 use crate::lstate::CallInfo;
 use crate::lstring::luaS_eqlngstr;
 use crate::ltm::{
@@ -26,7 +26,9 @@ use crate::table::{
     luaH_realasize, luaH_resize, luaH_resizearray,
 };
 use crate::value::UnsafeValue;
-use crate::{ArithError, LuaFn, NON_YIELDABLE_WAKER, Nil, Str, Table, Thread, UserData};
+use crate::{
+    ArithError, LuaFn, NON_YIELDABLE_WAKER, Nil, StackValue, Str, Table, Thread, UserData,
+};
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;

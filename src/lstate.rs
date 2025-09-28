@@ -3,8 +3,7 @@
 
 use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
 use crate::lmem::{luaM_free_, luaM_malloc_};
-use crate::lobject::StackValue;
-use crate::{CallError, ChunkInfo, Thread};
+use crate::{CallError, ChunkInfo, StackValue, Thread};
 use alloc::boxed::Box;
 use core::ffi::c_char;
 use core::ptr::{null, null_mut};

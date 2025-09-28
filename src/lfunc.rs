@@ -3,10 +3,10 @@
 
 use crate::ldebug::{luaG_findlocal, luaG_runerror};
 use crate::ldo::luaD_call;
-use crate::lobject::{AbsLineInfo, CClosure, Proto, StackValue, UpVal};
+use crate::lobject::{AbsLineInfo, CClosure, Proto, UpVal};
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
 use crate::value::UnsafeValue;
-use crate::{CallError, ChunkInfo, Lua, LuaFn, NON_YIELDABLE_WAKER, Thread};
+use crate::{CallError, ChunkInfo, Lua, LuaFn, NON_YIELDABLE_WAKER, StackValue, Thread};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::vec::Vec;

@@ -1,7 +1,20 @@
-use crate::lobject::StackValue;
 use crate::value::UnsafeValue;
 use crate::{Nil, Table};
 use core::cell::Cell;
+
+/// Each item in the stack.
+#[repr(C)]
+pub(crate) struct StackValue<A> {
+    pub val: UnsafeValue<A>,
+}
+
+impl<A> Clone for StackValue<A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<A> Copy for StackValue<A> {}
 
 /// Pointer to an item in the stack.
 pub(crate) struct StackPtr<D>(Cell<*mut StackValue<D>>);

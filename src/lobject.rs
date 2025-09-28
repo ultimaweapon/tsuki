@@ -20,19 +20,6 @@ use libc::{c_char, c_int, strpbrk, strspn, strtod};
 use libm::{floor, pow};
 
 #[repr(C)]
-pub union StackValue<D> {
-    pub val: UnsafeValue<D>,
-}
-
-impl<D> Clone for StackValue<D> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<D> Copy for StackValue<D> {}
-
-#[repr(C)]
 pub struct UpVal<D> {
     pub hdr: Object<D>,
     pub v: Cell<*mut UnsafeValue<D>>,

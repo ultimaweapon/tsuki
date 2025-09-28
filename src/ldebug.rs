@@ -9,7 +9,7 @@
 
 use crate::ldo::{luaD_hook, luaD_hookcall};
 use crate::lfunc::luaF_getlocalname;
-use crate::lobject::{CClosure, Proto, StackValue};
+use crate::lobject::{CClosure, Proto};
 use crate::lstate::{CallInfo, lua_Debug};
 use crate::ltm::{
     TM_BNOT, TM_CLOSE, TM_CONCAT, TM_EQ, TM_INDEX, TM_LE, TM_LEN, TM_LT, TM_NEWINDEX, TM_UNM, TMS,
@@ -18,7 +18,7 @@ use crate::ltm::{
 use crate::table::luaH_setint;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, OpCode, luaP_opmodes, luaV_tointegerns};
-use crate::{ChunkInfo, LuaFn, Object, Str, Table, Thread, api_incr_top};
+use crate::{ChunkInfo, LuaFn, Object, StackValue, Str, Table, Thread, api_incr_top};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;

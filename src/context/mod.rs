@@ -2,12 +2,12 @@ pub use self::arg::*;
 
 use crate::lapi::lua_checkstack;
 use crate::ldo::luaD_call;
-use crate::lobject::{StackValue, luaO_arith};
+use crate::lobject::luaO_arith;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_finishget, luaV_lessthan, luaV_objlen, luaV_tointeger};
 use crate::{
-    CallError, ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, Ops, ParseError, Ref, StackOverflow, Str,
-    Table, Thread, Type, UserData, luaH_get, luaH_getint,
+    CallError, ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, Ops, ParseError, Ref, StackOverflow,
+    StackValue, Str, Table, Thread, Type, UserData, luaH_get, luaH_getint,
 };
 use alloc::boxed::Box;
 use alloc::vec::Vec;

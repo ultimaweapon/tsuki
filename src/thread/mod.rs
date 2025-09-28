@@ -8,7 +8,7 @@ use crate::lapi::lua_checkstack;
 use crate::ldo::luaD_call;
 use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
-use crate::lobject::{StackValue, UpVal};
+use crate::lobject::UpVal;
 use crate::lstate::{CallInfo, lua_Debug};
 use crate::value::UnsafeValue;
 use crate::{Lua, NON_YIELDABLE_WAKER, Object};

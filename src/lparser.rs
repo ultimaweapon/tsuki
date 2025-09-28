@@ -39,6 +39,7 @@ use alloc::string::String;
 use core::fmt::Display;
 use core::ptr::{null, null_mut};
 
+type c_short = i16;
 type c_int = i32;
 
 #[repr(C)]
@@ -123,7 +124,7 @@ pub struct C2RustUnnamed_10<D> {
     pub tt_: u8,
     pub kind: u8,
     pub ridx: u8,
-    pub pidx: libc::c_short,
+    pub pidx: c_short,
     pub name: *const Str<D>,
 }
 
@@ -148,7 +149,7 @@ pub struct FuncState<D> {
     pub nabslineinfo: c_int,
     pub firstlocal: c_int,
     pub firstlabel: c_int,
-    pub ndebugvars: libc::c_short,
+    pub ndebugvars: c_short,
     pub nactvar: u8,
     pub nups: u8,
     pub freereg: u8,
@@ -258,7 +259,7 @@ pub struct C2RustUnnamed_12 {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct C2RustUnnamed_13 {
-    pub idx: libc::c_short,
+    pub idx: c_short,
     pub t: u8,
 }
 
@@ -589,7 +590,7 @@ unsafe fn adjustlocalvars<D>(ls: *mut LexState<D>, nvars: c_int) -> Result<(), P
         let fresh7 = reglevel_0;
         reglevel_0 = reglevel_0 + 1;
         (*var).vd.ridx = fresh7 as u8;
-        (*var).vd.pidx = registerlocalvar(ls, fs, (*var).vd.name)? as libc::c_short;
+        (*var).vd.pidx = registerlocalvar(ls, fs, (*var).vd.name)? as c_short;
         i += 1;
     }
     Ok(())
@@ -1117,7 +1118,7 @@ unsafe fn open_func<D>(ls: *mut LexState<D>, fs: *mut FuncState<D>, bl: *mut Blo
     (*fs).nabslineinfo = 0 as c_int;
     (*fs).np = 0 as c_int;
     (*fs).nups = 0 as c_int as u8;
-    (*fs).ndebugvars = 0 as c_int as libc::c_short;
+    (*fs).ndebugvars = 0 as c_int as c_short;
     (*fs).nactvar = 0 as c_int as u8;
     (*fs).needclose = 0 as c_int as u8;
     (*fs).firstlocal = (*(*ls).dyd).actvar.n;
@@ -1940,7 +1941,7 @@ unsafe fn check_conflict<D>(
                     && (*lh).v.u.ind.idx as c_int == (*v).u.var.ridx as c_int
                 {
                     conflict = 1 as c_int;
-                    (*lh).v.u.ind.idx = extra as libc::c_short;
+                    (*lh).v.u.ind.idx = extra as c_short;
                 }
             }
         }

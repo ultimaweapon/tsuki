@@ -4,7 +4,7 @@
 use crate::ldebug::luaG_callerror;
 use crate::lfunc::{luaF_close, luaF_initupvals};
 use crate::lmem::{luaM_free_, luaM_saferealloc_};
-use crate::lobject::{CClosure, StackValue};
+use crate::lobject::CClosure;
 use crate::lparser::{C2RustUnnamed_9, Dyndata, Labeldesc, Labellist, Vardesc, luaY_parser};
 use crate::lstate::{CallInfo, lua_Debug, luaE_extendCI, luaE_shrinkCI};
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
@@ -12,7 +12,7 @@ use crate::lzio::{Mbuffer, Zio};
 use crate::vm::luaV_execute;
 use crate::{
     Args, CallError, ChunkInfo, Context, Lua, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, Ret,
-    StackOverflow, Thread,
+    StackOverflow, StackValue, Thread,
 };
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;

@@ -3,7 +3,7 @@
 
 use crate::ldo::luaD_growstack;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
-use crate::lobject::{CClosure, StackValue, luaO_tostring};
+use crate::lobject::{CClosure, luaO_tostring};
 use crate::ltm::luaT_typenames_;
 use crate::table::{luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_resize, luaH_setint};
 use crate::value::UnsafeValue;
@@ -12,8 +12,8 @@ use crate::vm::{
     luaV_lessthan, luaV_tointeger, luaV_tonumber_,
 };
 use crate::{
-    Args, Context, LuaFn, Object, Ret, StackOverflow, Str, Table, TableError, Thread, UserData,
-    api_incr_top,
+    Args, Context, LuaFn, Object, Ret, StackOverflow, StackValue, Str, Table, TableError, Thread,
+    UserData, api_incr_top,
 };
 use alloc::boxed::Box;
 use core::ffi::CStr;

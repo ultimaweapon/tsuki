@@ -8,11 +8,11 @@
 
 use crate::ldebug::{luaG_concaterror, luaG_opinterror, luaG_ordererror, luaG_tointerror};
 use crate::ldo::{luaD_call, luaD_growstack};
-use crate::lobject::{Proto, StackValue};
+use crate::lobject::Proto;
 use crate::lstate::CallInfo;
 use crate::table::luaH_getshortstr;
 use crate::value::UnsafeValue;
-use crate::{CallError, Lua, NON_YIELDABLE_WAKER, Str, Table, Thread, UserData};
+use crate::{CallError, Lua, NON_YIELDABLE_WAKER, StackValue, Str, Table, Thread, UserData};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::string::String;
