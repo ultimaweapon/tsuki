@@ -126,10 +126,7 @@ pub unsafe fn luaE_shrinkCI<D>(L: *const Thread<D>) {
         (*ci).next = next2;
         (*L).nci.set((*L).nci.get().wrapping_sub(1));
 
-        luaM_free_(
-            next as *mut libc::c_void,
-            ::core::mem::size_of::<CallInfo<D>>(),
-        );
+        luaM_free_(next.cast(), ::core::mem::size_of::<CallInfo<D>>());
         if next2.is_null() {
             break;
         }

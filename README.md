@@ -4,7 +4,7 @@
 Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all code are Rust and can be using without C compiler[^1]. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that this port was done **without** compatibility with the previous version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
 
 > [!IMPORTANT]
-> All types in Tsuki does not implement `Send` and `Sync` and no plan to implement this at the moment.
+> All types in Tsuki does not implement `Send` and `Sync` and no plan to support this at the moment.
 
 ## Status
 
@@ -14,7 +14,7 @@ The VM to run Lua code is fully working almost exactly as vanilla Lua (see the l
 
 All public API of Tsuki should provide 100% safety as long as you don't use unsafe API incorrectly.
 
-Note that currently there is no way to limit the amount of memory to be used by Lua scripts. If this unacceptable you should not use Tsuki for now until this feature is implemented.
+Tsuki is not designed to run untrusted Lua script. Although you can limit what Lua script can do by not expose a function to it but there is no way to limit amount of memory or execution time used by Lua script. The meaning of this is Lua script can cause a panic due to out of memory or never return the control back to Rust with infinite loop.
 
 ## Performance
 
