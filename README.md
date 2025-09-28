@@ -18,7 +18,13 @@ Note that currently there is no way to limit the amount of memory to be used by 
 
 ## Performance
 
-Tsuki VM is slower than Lua about 30% for any platform that Lua can use computed goto (e.g. Linux) otherwise we are faster than Lua about 10%. See issue [18](https://github.com/ultimaweapon/tsuki/issues/18) for more details.
+### VM
+
+On platform that Lua cannot use computed goto (e.g. Windows with MSVC) Tsuki VM is faster than Lua about 10% otherwise Lua is faster about 30%. The only possibility for Tsuki to be faster than Lua with computed goto is JIT since computed goto does not available on Rust. See issue [18](https://github.com/ultimaweapon/tsuki/issues/18) for more details.
+
+### Async
+
+A call to async function without any suspend on Tsuki is faster than mlua about 3.5x. For 1 suspend Tsuki it faster about 3x. For 8 suspend Tsuki is faster about 2x.
 
 ## Features
 
