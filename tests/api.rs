@@ -1,11 +1,11 @@
 use std::path::PathBuf;
-use tsuki::{ChunkInfo, Lua};
+use tsuki::{Builder, ChunkInfo};
 
 #[test]
 fn load() {
     let path = PathBuf::from_iter(["lua", "testes", "api.lua"]);
     let chunk = std::fs::read(path).unwrap();
-    let lua = Lua::new(());
+    let lua = Builder::new().build(());
     let info = ChunkInfo::default();
 
     lua.load(info, chunk).unwrap();

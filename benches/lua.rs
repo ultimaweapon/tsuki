@@ -10,7 +10,7 @@ fn fannkuch_redux(c: &mut Criterion) {
     let src = read_source();
 
     {
-        let lua = tsuki::Lua::new(());
+        let lua = tsuki::Builder::new().build(());
         let chunk = lua
             .load(tsuki::ChunkInfo::new("fannkuch-redux.lua"), &src)
             .unwrap();

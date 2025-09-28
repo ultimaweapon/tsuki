@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::LazyLock;
-use tsuki::{Args, CallError, ChunkInfo, Context, Lua, Ret, fp};
+use tsuki::{Args, Builder, CallError, ChunkInfo, Context, Lua, Ret, fp};
 
 #[test]
 fn badkey() {
@@ -119,7 +119,7 @@ fn run(file: &str, setup: impl FnOnce(&Lua<()>)) -> Result<(), Box<dyn std::erro
 
     // Setup Lua.
     let content = std::fs::read(&path).unwrap();
-    let lua = Lua::new(());
+    let lua = Builder::new().build(());
 
     lua.setup_base();
     lua.setup_string();
