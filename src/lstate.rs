@@ -138,7 +138,7 @@ pub unsafe fn lua_closethread<D>(L: *const Thread<D>) -> Result<(), Box<CallErro
     (*L).ci.set((*L).base_ci.get());
     let ci = (*L).ci.get();
 
-    (*(*L).stack.get()).val.tt_ = 0 | 0 << 4;
+    (*(*L).stack.get()).tt_ = 0 | 0 << 4;
     (*ci).func = (*L).stack.get();
     (*ci).callstatus = ((1 as c_int) << 1 as c_int) as c_ushort;
 

@@ -727,7 +727,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         if self.index.get() > self.cx.payload.0 {
             Err(self.invalid_type(expect, lua_typename(-1)))
         } else {
-            Ok(unsafe { &raw mut (*(*ci).func.add(self.index.get())).val })
+            Ok(unsafe { (*ci).func.add(self.index.get()).cast() })
         }
     }
 
@@ -739,7 +739,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         if self.index.get() > self.cx.payload.0 {
             null_mut()
         } else {
-            unsafe { &raw mut (*(*ci).func.add(self.index.get())).val }
+            unsafe { (*ci).func.add(self.index.get()).cast() }
         }
     }
 

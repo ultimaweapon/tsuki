@@ -6,8 +6,8 @@ use crate::lobject::luaO_arith;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_finishget, luaV_lessthan, luaV_objlen, luaV_tointeger};
 use crate::{
-    CallError, ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, Ops, ParseError, Ref, StackOverflow,
-    StackValue, Str, Table, Thread, Type, UserData, luaH_get, luaH_getint,
+    CallError, ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, Ops, ParseError, Ref, StackOverflow, Str,
+    Table, Thread, Type, UserData, luaH_get, luaH_getint,
 };
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -666,8 +666,17 @@ impl<'a, D> Context<'a, D, Ret> {
         let src = unsafe { (*ci).func.add(i.get()) };
         let dst = unsafe { (*ci).func.add(i.get() + 1) };
 
-        unsafe { src.copy_to(dst, top - i.get()) };
-        unsafe { src.write(StackValue { val: v }) };
+        for i in 0..(top - i.get()) {
+            let src = unsafe { src.add(i) };
+            let dst = unsafe { dst.add(i) };
+
+            unsafe { (*dst).tt_ = (*src).tt_ };
+            unsafe { (*dst).value_ = (*src).value_ };
+        }
+
+        unsafe { (*src).tt_ = v.tt_ };
+        unsafe { (*src).value_ = v.value_ };
+
         unsafe { self.th.top.add(1) };
         self.ret.set(self.ret.get() + 1);
 

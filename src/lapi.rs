@@ -12,8 +12,8 @@ use crate::vm::{
     luaV_lessthan, luaV_tointeger, luaV_tonumber_,
 };
 use crate::{
-    Args, Context, LuaFn, Object, Ret, StackOverflow, StackValue, Str, Table, TableError, Thread,
-    UserData, api_incr_top,
+    Args, Context, LuaFn, Object, Ret, StackOverflow, StackValue, Str, Table, Thread, UserData,
+    api_incr_top,
 };
 use alloc::boxed::Box;
 use core::ffi::CStr;
@@ -28,18 +28,18 @@ unsafe fn index2value<D>(L: *const Thread<D>, mut idx: c_int) -> *mut UnsafeValu
         if o >= (*L).top.get() {
             return (*(*L).hdr.global).nilvalue.get();
         } else {
-            return &raw mut (*o).val;
+            return o.cast();
         }
     } else if !(idx <= -(1000000 as c_int) - 1000 as c_int) {
-        return &raw mut (*((*L).top.get()).offset(idx as isize)).val;
+        return ((*L).top.get()).offset(idx as isize).cast();
     } else if idx == -(1000000 as c_int) - 1000 as c_int {
         return (*(*L).hdr.global).l_registry.get();
     } else {
         idx = -(1000000 as c_int) - 1000 as c_int - idx;
-        if (*(*ci).func).val.tt_ as c_int
+        if (*(*ci).func).tt_ as c_int
             == 6 as c_int | (2 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int
         {
-            let func = (*(*ci).func).val.value_.gc as *mut CClosure<D>;
+            let func = (*(*ci).func).value_.gc as *mut CClosure<D>;
             return if idx <= (*func).nupvalues as c_int {
                 &mut *((*func).upvalue)
                     .as_mut_ptr()
@@ -87,8 +87,8 @@ pub unsafe fn lua_xmove<D>(from: *mut Thread<D>, to: *mut Thread<D>, n: c_int) {
     (*from).top.sub(n.try_into().unwrap());
     i = 0 as c_int;
     while i < n {
-        let io1 = &raw mut (*(*to).top.get()).val;
-        let io2 = &raw mut (*((*from).top.get()).offset(i as isize)).val;
+        let io1 = (*to).top.get();
+        let io2 = ((*from).top.get()).offset(i as isize);
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
         (*to).top.add(1);
@@ -128,7 +128,7 @@ pub unsafe fn lua_settop<D>(
         while diff > 0 as c_int as isize {
             let fresh1 = (*L).top.get();
             (*L).top.add(1);
-            (*fresh1).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
+            (*fresh1).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
             diff -= 1;
         }
     } else {
@@ -153,7 +153,7 @@ pub unsafe fn lua_closeslot<D>(
     let mut level = null_mut();
     level = index2stack(L, idx);
     level = luaF_close(L, level)?;
-    (*level).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
+    (*level).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
     Ok(())
 }
 
@@ -161,14 +161,14 @@ unsafe fn reverse<D>(mut from: *mut StackValue<D>, mut to: *mut StackValue<D>) {
     while from < to {
         let mut temp = UnsafeValue::default();
         let io1 = &raw mut temp;
-        let io2 = &raw mut (*from).val;
+        let io2 = from;
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
-        let io1_0 = &raw mut (*from).val;
-        let io2_0 = &raw mut (*to).val;
+        let io1_0 = from;
+        let io2_0 = to;
         (*io1_0).value_ = (*io2_0).value_;
         (*io1_0).tt_ = (*io2_0).tt_;
-        let io1_1 = &raw mut (*to).val;
+        let io1_1 = to;
         let io2_1 = &raw mut temp;
         (*io1_1).value_ = (*io2_1).value_;
         (*io1_1).tt_ = (*io2_1).tt_;
@@ -204,7 +204,7 @@ pub unsafe fn lua_copy<D>(L: *const Thread<D>, fromidx: c_int, toidx: c_int) {
     (*io1).tt_ = (*io2).tt_;
     if toidx < -(1000000 as c_int) - 1000 as c_int {
         if (*fr).tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {
-            if (*((*(*(*L).ci.get()).func).val.value_.gc as *mut CClosure<D>))
+            if (*((*(*(*L).ci.get()).func).value_.gc as *mut CClosure<D>))
                 .hdr
                 .marked
                 .get() as c_int
@@ -215,7 +215,7 @@ pub unsafe fn lua_copy<D>(L: *const Thread<D>, fromidx: c_int, toidx: c_int) {
                     != 0
             {
                 (*L).hdr.global().gc.barrier(
-                    ((*(*(*L).ci.get()).func).val.value_.gc as *mut CClosure<D>) as *mut Object<D>,
+                    ((*(*(*L).ci.get()).func).value_.gc as *mut CClosure<D>) as *mut Object<D>,
                     (*fr).value_.gc as *mut Object<D>,
                 );
             }
@@ -224,7 +224,7 @@ pub unsafe fn lua_copy<D>(L: *const Thread<D>, fromidx: c_int, toidx: c_int) {
 }
 
 pub unsafe fn lua_pushvalue<D>(L: *const Thread<D>, idx: c_int) {
-    let io1 = &raw mut (*(*L).top.get()).val;
+    let io1 = (*L).top.get();
     let io2 = index2value(L, idx);
     (*io1).value_ = (*io2).value_;
     (*io1).tt_ = (*io2).tt_;
@@ -404,7 +404,7 @@ pub unsafe fn lua_tothread<D>(L: *mut Thread<D>, idx: c_int) -> *const Thread<D>
 }
 
 pub unsafe fn lua_pushnil<D>(L: *const Thread<D>) {
-    (*(*L).top.get()).val.tt_ = 0 | 0 << 4;
+    (*(*L).top.get()).tt_ = 0 | 0 << 4;
     api_incr_top(L);
 }
 
@@ -414,7 +414,7 @@ pub unsafe fn lua_pushlstring<D>(L: *const Thread<D>, s: impl AsRef<[u8]>) -> *c
         Ok(v) => Str::from_str((*L).hdr.global, v),
         Err(_) => Str::from_bytes((*L).hdr.global, s.as_ref()),
     };
-    let io = &raw mut (*(*L).top.get()).val;
+    let io = (*L).top.get();
 
     (*io).value_.gc = ts.cast();
     (*io).tt_ = ((*ts).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
@@ -426,7 +426,7 @@ pub unsafe fn lua_pushlstring<D>(L: *const Thread<D>, s: impl AsRef<[u8]>) -> *c
 
 pub unsafe fn lua_pushstring<D>(L: *const Thread<D>, s: *const libc::c_char) {
     if s.is_null() {
-        (*(*L).top.get()).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
+        (*(*L).top.get()).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
     } else {
         let s = CStr::from_ptr(s).to_bytes();
         (*L).hdr.global().gc.step();
@@ -434,7 +434,7 @@ pub unsafe fn lua_pushstring<D>(L: *const Thread<D>, s: *const libc::c_char) {
             Ok(v) => Str::from_str((*L).hdr.global, v),
             Err(_) => Str::from_bytes((*L).hdr.global, s),
         };
-        let io = &raw mut (*(*L).top.get()).val;
+        let io = (*L).top.get();
 
         (*io).value_.gc = ts.cast();
         (*io).tt_ = ((*ts).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
@@ -462,12 +462,12 @@ pub unsafe fn lua_pushcclosure<D>(
             break;
         }
         let io1 = &raw mut *((*cl).upvalue).as_mut_ptr().offset(n as isize) as *mut UnsafeValue<D>;
-        let io2 = &raw mut (*((*L).top.get()).offset(n as isize)).val;
+        let io2 = ((*L).top.get()).offset(n as isize);
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
     }
 
-    let io_0 = &raw mut (*(*L).top.get()).val;
+    let io_0 = (*L).top.get();
     let x_ = cl;
 
     (*io_0).value_.gc = x_.cast();
@@ -492,79 +492,27 @@ unsafe fn auxgetstr<D>(
         !((*slot).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int
     } != 0
     {
-        let io1 = &raw mut (*(*L).top.get()).val;
+        let io1 = (*L).top.get();
         let io2 = slot;
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
         api_incr_top(L);
     } else {
-        let io = &raw mut (*(*L).top.get()).val;
+        let io = (*L).top.get();
 
         (*io).value_.gc = str.cast();
         (*io).tt_ = ((*str).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
 
         api_incr_top(L);
 
-        let val = luaV_finishget(
-            L,
-            t,
-            &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val,
-            slot,
-        )?;
+        let val = luaV_finishget(L, t, ((*L).top.get()).offset(-1).cast(), slot)?;
+        let io = (*L).top.get().offset(-1);
 
-        (*L).top.get().offset(-1).write(StackValue { val });
+        (*io).value_ = val.value_;
+        (*io).tt_ = val.tt_;
     }
 
-    return Ok((*((*L).top.get()).offset(-(1 as c_int as isize))).val.tt_ as c_int & 0xf as c_int);
-}
-
-pub unsafe fn lua_getglobal<D>(
-    L: *mut Thread<D>,
-    name: impl AsRef<[u8]>,
-) -> Result<c_int, Box<dyn core::error::Error>> {
-    let mut G = null();
-    G = (*((*(*(*L).hdr.global).l_registry.get()).value_.gc as *mut Table<D>))
-        .array
-        .get()
-        .offset((2 as c_int - 1 as c_int) as isize) as *mut UnsafeValue<D>;
-    return auxgetstr(L, G, name.as_ref());
-}
-
-pub unsafe fn lua_gettable<D>(
-    L: *const Thread<D>,
-    idx: c_int,
-) -> Result<c_int, Box<dyn core::error::Error>> {
-    let mut slot = null();
-    let mut t = null_mut();
-    t = index2value(L, idx);
-    if if !((*t).tt_ as c_int
-        == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
-    {
-        slot = null();
-        0 as c_int
-    } else {
-        slot = luaH_get(
-            (*t).value_.gc.cast(),
-            &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val,
-        );
-        !((*slot).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int
-    } != 0
-    {
-        let io1 = &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val;
-        let io2 = slot;
-        (*io1).value_ = (*io2).value_;
-        (*io1).tt_ = (*io2).tt_;
-    } else {
-        let val = luaV_finishget(
-            L,
-            t,
-            &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val,
-            slot,
-        )?;
-
-        (*L).top.get().offset(-1).write(StackValue { val });
-    }
-    return Ok((*((*L).top.get()).offset(-(1 as c_int as isize))).val.tt_ as c_int & 0xf as c_int);
+    return Ok((*((*L).top.get()).offset(-(1 as c_int as isize))).tt_ as c_int & 0xf as c_int);
 }
 
 pub unsafe fn lua_getfield<D>(
@@ -577,15 +525,15 @@ pub unsafe fn lua_getfield<D>(
 
 unsafe fn finishrawget<D>(L: *const Thread<D>, val: *const UnsafeValue<D>) -> c_int {
     if (*val).tt_ as c_int & 0xf as c_int == 0 as c_int {
-        (*(*L).top.get()).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
+        (*(*L).top.get()).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
     } else {
-        let io1 = &raw mut (*(*L).top.get()).val;
+        let io1 = (*L).top.get();
         let io2 = val;
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
     }
     api_incr_top(L);
-    return (*((*L).top.get()).offset(-(1 as c_int as isize))).val.tt_ as c_int & 0xf as c_int;
+    return (*((*L).top.get()).offset(-(1 as c_int as isize))).tt_ as c_int & 0xf as c_int;
 }
 
 unsafe fn gettable<D>(L: *const Thread<D>, idx: c_int) -> *const Table<D> {
@@ -596,10 +544,7 @@ unsafe fn gettable<D>(L: *const Thread<D>, idx: c_int) -> *const Table<D> {
 
 pub unsafe fn lua_rawget<D>(L: *const Thread<D>, idx: c_int) -> c_int {
     let t = gettable(L, idx);
-    let val = luaH_get(
-        t,
-        &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val,
-    );
+    let val = luaH_get(t, ((*L).top.get()).offset(-(1 as c_int as isize)).cast());
     (*L).top.sub(1);
 
     return finishrawget(L, val);
@@ -613,7 +558,7 @@ pub unsafe fn lua_rawgeti<D>(L: *const Thread<D>, idx: c_int, n: i64) -> c_int {
 pub unsafe fn lua_createtable<D>(L: *const Thread<D>, narray: c_int, nrec: c_int) {
     (*L).hdr.global().gc.step();
     let t = Table::new((*L).hdr.global);
-    let io = &raw mut (*(*L).top.get()).val;
+    let io = (*L).top.get();
 
     (*io).value_.gc = t.cast();
     (*io).tt_ = 5 | 0 << 4 | 1 << 6;
@@ -631,7 +576,7 @@ pub unsafe fn lua_getmetatable<D>(L: *const Thread<D>, objindex: c_int) -> c_int
     let mt = (*L).hdr.global().metatable(obj);
 
     if !mt.is_null() {
-        let io = &raw mut (*(*L).top.get()).val;
+        let io = (*L).top.get();
 
         (*io).value_.gc = mt.cast();
         (*io).tt_ = (5 as c_int | (0 as c_int) << 4 as c_int | 1 << 6) as u8;
@@ -660,18 +605,15 @@ unsafe fn auxsetstr<D>(
     } != 0
     {
         let io1 = slot.cast_mut();
-        let io2 = &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val;
+        let io2 = ((*L).top.get()).offset(-(1 as c_int as isize));
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
-        if (*((*L).top.get()).offset(-(1 as c_int as isize))).val.tt_ as c_int
+        if (*((*L).top.get()).offset(-(1 as c_int as isize))).tt_ as c_int
             & (1 as c_int) << 6 as c_int
             != 0
         {
             if (*(*t).value_.gc).marked.get() as c_int & (1 as c_int) << 5 as c_int != 0
-                && (*(*((*L).top.get()).offset(-(1 as c_int as isize)))
-                    .val
-                    .value_
-                    .gc)
+                && (*(*((*L).top.get()).offset(-(1 as c_int as isize))).value_.gc)
                     .marked
                     .get() as c_int
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
@@ -683,7 +625,7 @@ unsafe fn auxsetstr<D>(
 
         (*L).top.sub(1);
     } else {
-        let io = &raw mut (*(*L).top.get()).val;
+        let io = (*L).top.get();
 
         (*io).value_.gc = str.cast();
         (*io).tt_ = ((*str).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
@@ -692,8 +634,8 @@ unsafe fn auxsetstr<D>(
         luaV_finishset(
             L,
             t,
-            &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val,
-            &raw mut (*((*L).top.get()).offset(-(2 as c_int as isize))).val,
+            ((*L).top.get()).offset(-(1 as c_int as isize)).cast(),
+            ((*L).top.get()).offset(-(2 as c_int as isize)).cast(),
             slot,
         )?;
         (*L).top.sub(2);
@@ -725,26 +667,20 @@ pub unsafe fn lua_settable<D>(
         slot = null();
         0 as c_int
     } else {
-        slot = luaH_get(
-            (*t).value_.gc.cast(),
-            &raw mut (*((*L).top.get()).offset(-(2 as c_int as isize))).val,
-        );
+        slot = luaH_get((*t).value_.gc.cast(), ((*L).top.get()).offset(-2).cast());
         !((*slot).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int
     } != 0
     {
         let io1 = slot.cast_mut();
-        let io2 = &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val;
+        let io2 = ((*L).top.get()).offset(-(1 as c_int as isize));
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
-        if (*((*L).top.get()).offset(-(1 as c_int as isize))).val.tt_ as c_int
+        if (*((*L).top.get()).offset(-(1 as c_int as isize))).tt_ as c_int
             & (1 as c_int) << 6 as c_int
             != 0
         {
             if (*(*t).value_.gc).marked.get() as c_int & (1 as c_int) << 5 as c_int != 0
-                && (*(*((*L).top.get()).offset(-(1 as c_int as isize)))
-                    .val
-                    .value_
-                    .gc)
+                && (*(*((*L).top.get()).offset(-(1 as c_int as isize))).value_.gc)
                     .marked
                     .get() as c_int
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
@@ -757,8 +693,8 @@ pub unsafe fn lua_settable<D>(
         luaV_finishset(
             L,
             t,
-            &raw mut (*((*L).top.get()).offset(-(2 as c_int as isize))).val,
-            &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val,
+            ((*L).top.get()).offset(-(2 as c_int as isize)).cast(),
+            ((*L).top.get()).offset(-(1 as c_int as isize)).cast(),
             slot,
         )?;
     }
@@ -802,18 +738,15 @@ pub unsafe fn lua_seti<D>(
     } != 0
     {
         let io1 = slot.cast_mut();
-        let io2 = &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val;
+        let io2 = ((*L).top.get()).offset(-(1 as c_int as isize));
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
-        if (*((*L).top.get()).offset(-(1 as c_int as isize))).val.tt_ as c_int
+        if (*((*L).top.get()).offset(-(1 as c_int as isize))).tt_ as c_int
             & (1 as c_int) << 6 as c_int
             != 0
         {
             if (*(*t).value_.gc).marked.get() as c_int & (1 as c_int) << 5 as c_int != 0
-                && (*(*((*L).top.get()).offset(-(1 as c_int as isize)))
-                    .val
-                    .value_
-                    .gc)
+                && (*(*((*L).top.get()).offset(-(1 as c_int as isize))).value_.gc)
                     .marked
                     .get() as c_int
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
@@ -831,7 +764,7 @@ pub unsafe fn lua_seti<D>(
             L,
             t,
             &mut aux,
-            &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val,
+            ((*L).top.get()).offset(-(1 as c_int as isize)).cast(),
             slot,
         )?;
     }
@@ -841,35 +774,16 @@ pub unsafe fn lua_seti<D>(
     Ok(())
 }
 
-pub unsafe fn lua_rawset<D>(L: *const Thread<D>, idx: c_int) -> Result<(), TableError> {
-    let v = (*((*L).top.get()).offset(-1)).val;
-    let k = (*(*L).top.get().offset(-2)).val;
-    let t = gettable(L, idx);
-
-    (*t).set(k, v)?;
-    (*L).top.sub(2);
-
-    Ok(())
-}
-
 pub unsafe fn lua_rawseti<D>(L: *mut Thread<D>, idx: c_int, n: i64) {
     let t = gettable(L, idx);
 
-    luaH_setint(
-        t,
-        n,
-        &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val,
-    );
+    luaH_setint(t, n, ((*L).top.get()).offset(-(1 as c_int as isize)).cast());
 
-    if (*((*L).top.get()).offset(-(1 as c_int as isize))).val.tt_ as c_int
-        & (1 as c_int) << 6 as c_int
+    if (*((*L).top.get()).offset(-(1 as c_int as isize))).tt_ as c_int & (1 as c_int) << 6 as c_int
         != 0
     {
         if (*t).hdr.marked.get() as c_int & (1 as c_int) << 5 as c_int != 0
-            && (*(*((*L).top.get()).offset(-(1 as c_int as isize)))
-                .val
-                .value_
-                .gc)
+            && (*(*((*L).top.get()).offset(-(1 as c_int as isize))).value_.gc)
                 .marked
                 .get() as c_int
                 & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
@@ -889,10 +803,14 @@ pub unsafe fn lua_next<D>(
     let t = gettable(L, idx);
     let k = (*L).top.get().offset(-1);
 
-    match (*t).next_raw(&(*k).val)? {
+    match (*t).next_raw(&(*k.cast()))? {
         Some(v) => {
-            k.add(0).write(StackValue { val: v[0] });
-            k.add(1).write(StackValue { val: v[1] });
+            for i in [0, 1] {
+                let k = k.add(i);
+
+                (*k).tt_ = v[i].tt_;
+                (*k).value_ = v[i].value_;
+            }
 
             api_incr_top(L);
 
@@ -929,7 +847,7 @@ pub unsafe fn lua_concat<D>(
     if n > 0 as c_int {
         luaV_concat(L, n)?;
     } else {
-        let io = &raw mut (*(*L).top.get()).val;
+        let io = (*L).top.get();
         let x_ = Str::from_str((*L).hdr.global, "");
 
         (*io).value_.gc = x_.cast();
@@ -999,7 +917,7 @@ pub unsafe fn lua_getupvalue<D>(
     let mut val = null_mut();
     name = aux_upvalue(index2value(L, funcindex), n, &mut val, null_mut());
     if !name.is_null() {
-        let io1 = &raw mut (*(*L).top.get()).val;
+        let io1 = (*L).top.get();
         let io2 = val;
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
@@ -1022,7 +940,7 @@ pub unsafe fn lua_setupvalue<D>(
         (*L).top.sub(1);
 
         let io1 = val;
-        let io2 = &raw mut (*(*L).top.get()).val;
+        let io2 = (*L).top.get();
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
         if (*val).tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {

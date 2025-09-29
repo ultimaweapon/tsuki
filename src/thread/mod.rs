@@ -84,7 +84,7 @@ impl<D> Thread<D> {
         }
 
         for i in 0..(2 * 20 + 5) {
-            unsafe { (*stack.offset(i)).val.tt_ = 0 | 0 << 4 };
+            unsafe { (*stack.offset(i)).tt_ = 0 | 0 << 4 };
         }
 
         unsafe { (*th).stack.set(stack) };

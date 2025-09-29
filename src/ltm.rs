@@ -132,19 +132,19 @@ pub unsafe fn luaT_callTM<D>(
     p3: *const UnsafeValue<D>,
 ) -> Result<(), Box<CallError>> {
     let func = (*L).top.get();
-    let io1 = &raw mut (*func).val;
+    let io1 = func;
     let io2 = f;
     (*io1).value_ = (*io2).value_;
     (*io1).tt_ = (*io2).tt_;
-    let io1_0 = &raw mut (*func.offset(1 as c_int as isize)).val;
+    let io1_0 = func.offset(1 as c_int as isize);
     let io2_0 = p1;
     (*io1_0).value_ = (*io2_0).value_;
     (*io1_0).tt_ = (*io2_0).tt_;
-    let io1_1 = &raw mut (*func.offset(2 as c_int as isize)).val;
+    let io1_1 = func.offset(2 as c_int as isize);
     let io2_1 = p2;
     (*io1_1).value_ = (*io2_1).value_;
     (*io1_1).tt_ = (*io2_1).tt_;
-    let io1_2 = &raw mut (*func.offset(3 as c_int as isize)).val;
+    let io1_2 = func.offset(3 as c_int as isize);
     let io2_2 = p3;
     (*io1_2).value_ = (*io2_2).value_;
     (*io1_2).tt_ = (*io2_2).tt_;
@@ -168,15 +168,15 @@ pub unsafe fn luaT_callTMres<D>(
     p2: *const UnsafeValue<D>,
 ) -> Result<(), Box<CallError>> {
     let func = (*L).top.get();
-    let io1 = &raw mut (*func).val;
+    let io1 = func;
     let io2 = f;
     (*io1).value_ = (*io2).value_;
     (*io1).tt_ = (*io2).tt_;
-    let io1_0 = &raw mut (*func.offset(1 as c_int as isize)).val;
+    let io1_0 = func.offset(1 as c_int as isize);
     let io2_0 = p1;
     (*io1_0).value_ = (*io2_0).value_;
     (*io1_0).tt_ = (*io2_0).tt_;
-    let io1_1 = &raw mut (*func.offset(2 as c_int as isize)).val;
+    let io1_1 = func.offset(2 as c_int as isize);
     let io2_1 = p2;
     (*io1_1).value_ = (*io2_1).value_;
     (*io1_1).tt_ = (*io2_1).tt_;
@@ -243,24 +243,21 @@ pub unsafe fn luaT_tryconcatTM<D>(L: *const Thread<D>) -> Result<(), Box<dyn cor
 
     if callbinTM(
         L,
-        &raw const (*top.offset(-(2 as c_int as isize))).val,
-        &raw const (*top.offset(-(1 as c_int as isize))).val,
+        top.offset(-(2 as c_int as isize)).cast(),
+        top.offset(-(1 as c_int as isize)).cast(),
         TM_CONCAT,
     )? == 0
     {
         return Err(luaG_concaterror(
             L,
-            &raw const (*top.offset(-(2 as c_int as isize))).val,
-            &raw const (*top.offset(-(1 as c_int as isize))).val,
+            top.offset(-(2 as c_int as isize)).cast(),
+            top.offset(-(1 as c_int as isize)).cast(),
         ));
     }
 
-    (*L).top.sub(1);
-
     // Move result.
-    let val = (*L).top.read(0);
-
-    (*L).top.get().sub(2).write(StackValue { val });
+    (*L).top.sub(1);
+    (*L).top.copy(0, -2);
 
     Ok(())
 }
@@ -304,8 +301,8 @@ pub unsafe fn luaT_callorderTM<D>(
         (*L).top.sub(1);
 
         return Ok(
-            !((*(*L).top.get()).val.tt_ as c_int == 1 as c_int | (0 as c_int) << 4 as c_int
-                || (*(*L).top.get()).val.tt_ as c_int & 0xf as c_int == 0 as c_int)
+            !((*(*L).top.get()).tt_ as c_int == 1 as c_int | (0 as c_int) << 4 as c_int
+                || (*(*L).top.get()).tt_ as c_int & 0xf as c_int == 0 as c_int)
                 as c_int,
         );
     }
@@ -365,8 +362,8 @@ pub unsafe fn luaT_adjustvarargs<D>(
 
     let fresh0 = (*L).top.get();
     (*L).top.add(1);
-    let io1 = &raw mut (*fresh0).val;
-    let io2 = &raw mut (*(*ci).func).val;
+    let io1 = fresh0;
+    let io2 = (*ci).func;
 
     (*io1).value_ = (*io2).value_;
     (*io1).tt_ = (*io2).tt_;
@@ -374,13 +371,12 @@ pub unsafe fn luaT_adjustvarargs<D>(
     while i <= nfixparams {
         let fresh1 = (*L).top.get();
         (*L).top.add(1);
-        let io1_0 = &raw mut (*fresh1).val;
-        let io2_0 = &raw mut (*((*ci).func).offset(i as isize)).val;
+        let io1_0 = fresh1;
+        let io2_0 = ((*ci).func).offset(i as isize);
 
         (*io1_0).value_ = (*io2_0).value_;
         (*io1_0).tt_ = (*io2_0).tt_;
-        (*((*ci).func).offset(i as isize)).val.tt_ =
-            (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
+        (*((*ci).func).offset(i as isize)).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
         i += 1;
     }
     (*ci).func = ((*ci).func).offset((actual + 1 as c_int) as isize);
@@ -410,8 +406,8 @@ pub unsafe fn luaT_getvarargs<D>(
     }
     i = 0 as c_int;
     while i < wanted && i < nextra {
-        let io1 = &raw mut (*where_0.offset(i as isize)).val;
-        let io2 = &raw mut (*((*ci).func).offset(-(nextra as isize)).offset(i as isize)).val;
+        let io1 = where_0.offset(i as isize);
+        let io2 = ((*ci).func).offset(-(nextra as isize)).offset(i as isize);
 
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
@@ -419,7 +415,7 @@ pub unsafe fn luaT_getvarargs<D>(
     }
 
     while i < wanted {
-        (*where_0.offset(i as isize)).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
+        (*where_0.offset(i as isize)).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
         i += 1;
     }
 

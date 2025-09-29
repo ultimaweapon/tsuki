@@ -34,7 +34,7 @@ type c_long = i64;
 
 unsafe fn currentpc<D>(ci: *mut CallInfo<D>) -> c_int {
     return ((*ci).u.savedpc)
-        .offset_from((*(*(*(*ci).func).val.value_.gc.cast::<LuaFn<D>>()).p.get()).code)
+        .offset_from((*(*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get()).code)
         as c_int
         - 1;
 }
@@ -79,7 +79,7 @@ pub unsafe fn luaG_getfuncline<D>(f: *const Proto<D>, pc: c_int) -> c_int {
 
 unsafe fn getcurrentline<D>(ci: *mut CallInfo<D>) -> c_int {
     luaG_getfuncline(
-        (*(*(*ci).func).val.value_.gc.cast::<LuaFn<D>>()).p.get(),
+        (*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get(),
         currentpc(ci),
     )
 }
@@ -171,7 +171,7 @@ unsafe fn findvararg<D>(
     n: c_int,
     pos: *mut *mut StackValue<D>,
 ) -> *const c_char {
-    if (*(*(*(*ci).func).val.value_.gc.cast::<LuaFn<D>>()).p.get()).is_vararg != 0 {
+    if (*(*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get()).is_vararg != 0 {
         let nextra: c_int = (*ci).u.nextraargs;
         if n >= -nextra {
             *pos = ((*ci).func)
@@ -196,7 +196,7 @@ pub unsafe fn luaG_findlocal<D>(
             return findvararg(ci, n, pos);
         } else {
             name = luaF_getlocalname(
-                (*(*(*ci).func).val.value_.gc.cast::<LuaFn<D>>()).p.get(),
+                (*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get(),
                 n,
                 currentpc(ci),
             );
@@ -231,19 +231,15 @@ pub unsafe fn lua_getlocal<D>(
 ) -> *const c_char {
     let mut name: *const c_char = 0 as *const c_char;
     if ar.is_null() {
-        if !((*((*L).top.get()).offset(-(1 as c_int as isize))).val.tt_ as c_int
+        if !((*((*L).top.get()).offset(-(1 as c_int as isize))).tt_ as c_int
             == 6 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
         {
             name = 0 as *const c_char;
         } else {
             name = luaF_getlocalname(
-                (*(*((*L).top.get()).offset(-1))
-                    .val
-                    .value_
-                    .gc
-                    .cast::<LuaFn<D>>())
-                .p
-                .get(),
+                (*(*((*L).top.get()).offset(-1)).value_.gc.cast::<LuaFn<D>>())
+                    .p
+                    .get(),
                 n,
                 0 as c_int,
             );
@@ -252,8 +248,8 @@ pub unsafe fn lua_getlocal<D>(
         let mut pos = null_mut();
         name = luaG_findlocal(L, (*ar).i_ci, n, &mut pos);
         if !name.is_null() {
-            let io1 = &raw mut (*(*L).top.get()).val;
-            let io2 = &raw mut (*pos).val;
+            let io1 = (*L).top.get();
+            let io2 = pos;
 
             (*io1).value_ = (*io2).value_;
             (*io1).tt_ = (*io2).tt_;
@@ -272,8 +268,8 @@ pub unsafe fn lua_setlocal<D>(
     let mut name: *const c_char = 0 as *const c_char;
     name = luaG_findlocal(L, (*ar).i_ci, n, &mut pos);
     if !name.is_null() {
-        let io1 = &raw mut (*pos).val;
-        let io2 = &raw mut (*((*L).top.get()).offset(-1)).val;
+        let io1 = pos;
+        let io2 = ((*L).top.get()).offset(-1);
 
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
@@ -312,13 +308,13 @@ unsafe fn nextline<D>(p: *const Proto<D>, currentline: c_int, pc: c_int) -> c_in
 
 unsafe fn collectvalidlines<D>(L: *const Thread<D>, f: *const Object<D>) {
     if !(!f.is_null() && (*f).tt as c_int == 6 as c_int | (0 as c_int) << 4) {
-        (*(*L).top.get()).val.tt_ = (0 as c_int | (0 as c_int) << 4) as u8;
+        (*(*L).top.get()).tt_ = (0 as c_int | (0 as c_int) << 4) as u8;
         api_incr_top(L);
     } else {
         let p = (*f.cast::<LuaFn<D>>()).p.get();
         let mut currentline: c_int = (*p).linedefined;
         let t = Table::new((*L).hdr.global);
-        let io = &raw mut (*(*L).top.get()).val;
+        let io = (*L).top.get();
 
         (*io).value_.gc = t.cast();
         (*io).tt_ = (5 as c_int | (0 as c_int) << 4 as c_int | 1 << 6) as u8;
@@ -434,12 +430,12 @@ pub unsafe fn lua_getinfo<D>(
 
     if *what as c_int == '>' as i32 {
         ci = null_mut();
-        func = &raw mut (*((*L).top.get()).offset(-(1 as c_int as isize))).val;
+        func = ((*L).top.get()).offset(-(1 as c_int as isize));
         what = what.offset(1);
         (*L).top.sub(1);
     } else {
         ci = (*ar).i_ci;
-        func = &raw mut (*(*ci).func).val;
+        func = (*ci).func;
     }
 
     let cl = if (*func).tt_ as c_int
@@ -453,7 +449,7 @@ pub unsafe fn lua_getinfo<D>(
     };
     status = auxgetinfo(L, what, ar, cl, ci);
     if !(strchr(what, 'f' as i32)).is_null() {
-        let io1 = &raw mut (*(*L).top.get()).val;
+        let io1 = (*L).top.get();
         let io2 = func;
 
         (*io1).value_ = (*io2).value_;
@@ -773,7 +769,7 @@ unsafe fn funcnamefromcall<D>(
     } else if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
         return funcnamefromcode(
             L,
-            (*(*(*ci).func).val.value_.gc.cast::<LuaFn<D>>()).p.get(),
+            (*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get(),
             currentpc(ci),
             name,
         );
@@ -787,7 +783,7 @@ unsafe fn instack<D>(ci: *mut CallInfo<D>, o: *const UnsafeValue<D>) -> c_int {
     let base = ((*ci).func).offset(1 as c_int as isize);
     pos = 0 as c_int;
     while base.offset(pos as isize) < (*ci).top {
-        if o == &raw const (*base.offset(pos as isize)).val {
+        if o == base.offset(pos as isize).cast() {
             return pos;
         }
         pos += 1;
@@ -800,7 +796,7 @@ unsafe fn getupvalname<D>(
     o: *const UnsafeValue<D>,
     name: *mut *const c_char,
 ) -> *const c_char {
-    let c = (*(*ci).func).val.value_.gc.cast::<LuaFn<D>>();
+    let c = (*(*ci).func).value_.gc.cast::<LuaFn<D>>();
 
     for (i, uv) in (*c).upvals.iter().map(|v| v.get()).enumerate() {
         if (*uv).v.get() == o.cast_mut() {
@@ -835,7 +831,7 @@ unsafe fn varinfo<D>(L: *const Thread<D>, o: *const UnsafeValue<D>) -> Cow<'stat
             let reg: c_int = instack(ci, o);
             if reg >= 0 as c_int {
                 kind = getobjname(
-                    (*(*(*ci).func).val.value_.gc.cast::<LuaFn<D>>()).p.get(),
+                    (*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get(),
                     currentpc(ci),
                     reg,
                     &mut name,
@@ -974,7 +970,7 @@ pub unsafe fn luaG_runerror<D>(
     let msg = if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
         luaG_addinfo(
             fmt,
-            &(*(*(*(*ci).func).val.value_.gc.cast::<LuaFn<D>>()).p.get()).chunk,
+            &(*(*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get()).chunk,
             getcurrentline(ci),
         )
     } else {
@@ -1008,7 +1004,7 @@ unsafe fn changedline<D>(p: *const Proto<D>, oldpc: c_int, newpc: c_int) -> c_in
 
 pub unsafe fn luaG_tracecall<D>(L: *const Thread<D>) -> Result<c_int, Box<dyn core::error::Error>> {
     let ci = (*L).ci.get();
-    let p = (*(*(*ci).func).val.value_.gc.cast::<LuaFn<D>>()).p.get();
+    let p = (*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get();
 
     ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut c_int, 1 as c_int);
     if (*ci).u.savedpc == (*p).code as *const u32 {
@@ -1027,7 +1023,7 @@ pub unsafe fn luaG_traceexec<D>(
 ) -> Result<c_int, Box<dyn core::error::Error>> {
     let ci = (*L).ci.get();
     let mask: u8 = (*L).hookmask.get() as u8;
-    let p = (*(*(*ci).func).val.value_.gc.cast::<LuaFn<D>>()).p.get();
+    let p = (*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get();
     let mut counthook: c_int = 0;
     if mask as c_int & ((1 as c_int) << 2 as c_int | (1 as c_int) << 3 as c_int) == 0 {
         ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut c_int, 0 as c_int);

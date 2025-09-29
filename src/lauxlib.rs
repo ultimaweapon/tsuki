@@ -7,10 +7,9 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::lapi::{
-    lua_absindex, lua_checkstack, lua_concat, lua_copy, lua_createtable, lua_getfield,
-    lua_getmetatable, lua_gettop, lua_next, lua_pushlstring, lua_pushnil, lua_pushstring,
-    lua_pushvalue, lua_rawequal, lua_rawget, lua_rotate, lua_setfield, lua_settop, lua_tolstring,
-    lua_tonumberx, lua_type, lua_typename,
+    lua_checkstack, lua_concat, lua_copy, lua_getfield, lua_getmetatable, lua_gettop, lua_next,
+    lua_pushlstring, lua_pushnil, lua_pushstring, lua_rawequal, lua_rawget, lua_rotate, lua_settop,
+    lua_tolstring, lua_tonumberx, lua_type, lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::lua_Debug;
@@ -299,31 +298,6 @@ pub unsafe fn luaL_error<D>(L: *const Thread<D>, m: impl Display) -> Box<dyn cor
     format!("{}{}", luaL_where(L, 1), m).into()
 }
 
-pub unsafe fn luaL_newmetatable<D>(
-    L: *mut Thread<D>,
-    tname: *const c_char,
-) -> Result<libc::c_int, Box<dyn core::error::Error>> {
-    if lua_getfield(
-        L,
-        -(1000000 as libc::c_int) - 1000 as libc::c_int,
-        CStr::from_ptr(tname).to_bytes(),
-    )? != 0
-    {
-        return Ok(0 as libc::c_int);
-    }
-    lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-    lua_createtable(L, 0 as libc::c_int, 2 as libc::c_int);
-    lua_pushstring(L, tname);
-    lua_setfield(
-        L,
-        -(2 as libc::c_int),
-        b"__name\0" as *const u8 as *const c_char,
-    )?;
-    lua_pushvalue(L, -(1 as libc::c_int));
-    lua_setfield(L, -(1000000 as libc::c_int) - 1000 as libc::c_int, tname)?;
-    return Ok(1 as libc::c_int);
-}
-
 pub unsafe fn luaL_checkstack<D>(
     L: *const Thread<D>,
     space: usize,
@@ -386,23 +360,6 @@ pub unsafe fn luaL_getmetafield<D>(
             lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
         }
         return Ok(tt);
-    };
-}
-
-pub unsafe fn luaL_getsubtable<D>(
-    L: *const Thread<D>,
-    mut idx: libc::c_int,
-    fname: *const c_char,
-) -> Result<libc::c_int, Box<dyn core::error::Error>> {
-    if lua_getfield(L, idx, CStr::from_ptr(fname).to_bytes())? == 5 {
-        return Ok(1 as libc::c_int);
-    } else {
-        lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-        idx = lua_absindex(L, idx);
-        lua_createtable(L, 0 as libc::c_int, 0 as libc::c_int);
-        lua_pushvalue(L, -(1 as libc::c_int));
-        lua_setfield(L, idx, fname)?;
-        return Ok(0 as libc::c_int);
     };
 }
 

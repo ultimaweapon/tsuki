@@ -67,7 +67,7 @@ unsafe fn correctstack<D>(L: *const Thread<D>) {
     while !up.is_null() {
         (*up)
             .v
-            .set(&raw mut (*(((*L).stack.get()).byte_add((*up).v.get() as usize))).val);
+            .set((((*L).stack.get()).byte_add((*up).v.get() as usize)).cast());
         up = (*(*up).u.get()).open.next;
     }
 
@@ -109,7 +109,7 @@ pub unsafe fn luaD_reallocstack<D>(th: *const Thread<D>, newsize: usize) {
     let mut i = oldsize + 5;
 
     while i < newsize + 5 {
-        (*newstack.add(i)).val.tt_ = 0 | 0 << 4;
+        (*newstack.add(i)).tt_ = 0 | 0 << 4;
         i += 1;
     }
 }
@@ -249,7 +249,7 @@ pub unsafe fn luaD_hookcall<D>(
         } else {
             0 as c_int
         };
-        let p = (*(*(*ci).func).val.value_.gc.cast::<LuaFn<D>>()).p.get();
+        let p = (*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get();
         (*ci).u.savedpc = ((*ci).u.savedpc).offset(1);
         (*ci).u.savedpc;
         luaD_hook(L, event, -(1 as c_int), 1 as c_int, (*p).numparams.into())?;
@@ -269,7 +269,7 @@ unsafe fn rethook<D>(
         let mut delta: c_int = 0 as c_int;
         let mut ftransfer: c_int = 0;
         if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
-            let p = (*(*(*ci).func).val.value_.gc.cast::<LuaFn<D>>()).p.get();
+            let p = (*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get();
             if (*p).is_vararg != 0 {
                 delta = (*ci).u.nextraargs + (*p).numparams as c_int + 1 as c_int;
             }
@@ -292,7 +292,7 @@ unsafe fn rethook<D>(
     if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
         (*L).oldpc.set(
             ((*ci).u.savedpc)
-                .offset_from((*(*(*(*ci).func).val.value_.gc.cast::<LuaFn<D>>()).p.get()).code)
+                .offset_from((*(*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get()).code)
                 as libc::c_long as c_int
                 - 1,
         );
@@ -315,16 +315,16 @@ unsafe fn tryfuncTM<D>(
         luaD_growstack(L, 1)?;
         func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as _;
     }
-    tm = luaT_gettmbyobj(L, &mut (*func).val, TM_CALL);
+    tm = luaT_gettmbyobj(L, func.cast(), TM_CALL);
 
     if (*tm).tt_ & 0xf == 0 {
-        return Err(luaG_callerror(L, &raw const (*func).val));
+        return Err(luaG_callerror(L, func.cast()));
     }
 
     p = (*L).top.get();
     while p > func {
-        let io1 = &raw mut (*p).val;
-        let io2 = &raw mut (*p.offset(-(1 as c_int as isize))).val;
+        let io1 = p;
+        let io2 = p.offset(-(1 as c_int as isize));
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
         p = p.offset(-1);
@@ -332,7 +332,7 @@ unsafe fn tryfuncTM<D>(
 
     (*L).top.add(1);
 
-    let io1_0 = &raw mut (*func).val;
+    let io1_0 = func;
     let io2_0 = tm;
     (*io1_0).value_ = (*io2_0).value_;
     (*io1_0).tt_ = (*io2_0).tt_;
@@ -354,10 +354,10 @@ unsafe fn moveresults<D>(
         }
         1 => {
             if nres == 0 as c_int {
-                (*res).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
+                (*res).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
             } else {
-                let io1 = &raw mut (*res).val;
-                let io2 = &raw mut (*((*L).top.get()).offset(-(nres as isize))).val;
+                let io1 = res;
+                let io2 = ((*L).top.get()).offset(-(nres as isize));
                 (*io1).value_ = (*io2).value_;
                 (*io1).tt_ = (*io2).tt_;
             }
@@ -399,14 +399,14 @@ unsafe fn moveresults<D>(
     }
     i = 0 as c_int;
     while i < nres {
-        let io1_0 = &raw mut (*res.offset(i as isize)).val;
-        let io2_0 = &raw mut (*firstresult.offset(i as isize)).val;
+        let io1_0 = res.offset(i as isize);
+        let io2_0 = firstresult.offset(i as isize);
         (*io1_0).value_ = (*io2_0).value_;
         (*io1_0).tt_ = (*io2_0).tt_;
         i += 1;
     }
     while i < wanted {
-        (*res.offset(i as isize)).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
+        (*res.offset(i as isize)).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
         i += 1;
     }
     (*L).top.set(res.offset(wanted as isize));
@@ -503,21 +503,21 @@ pub async unsafe fn luaD_pretailcall<D>(
     delta: c_int,
 ) -> Result<c_int, Box<dyn Error>> {
     loop {
-        match (*func).val.tt_ as c_int & 0x3f as c_int {
+        match (*func).tt_ as c_int & 0x3f as c_int {
             38 => {
                 return precallC(
                     L,
                     func,
                     -(1 as c_int),
-                    Func::NonYieldableFp((*((*func).val.value_.gc as *mut CClosure<D>)).f),
+                    Func::NonYieldableFp((*((*func).value_.gc as *mut CClosure<D>)).f),
                 )
                 .await;
             }
-            2 => return precallC(L, func, -1, Func::NonYieldableFp((*func).val.value_.f)).await,
+            2 => return precallC(L, func, -1, Func::NonYieldableFp((*func).value_.f)).await,
             18 | 50 => todo!(),
-            34 => return precallC(L, func, -1, Func::AsyncFp((*func).val.value_.a)).await,
+            34 => return precallC(L, func, -1, Func::AsyncFp((*func).value_.a)).await,
             6 => {
-                let p = (*(*func).val.value_.gc.cast::<LuaFn<D>>()).p.get();
+                let p = (*(*func).value_.gc.cast::<LuaFn<D>>()).p.get();
                 let fsize: c_int = (*p).maxstacksize as c_int;
                 let nfixparams: c_int = (*p).numparams as c_int;
                 let mut i: c_int = 0;
@@ -535,15 +535,15 @@ pub async unsafe fn luaD_pretailcall<D>(
                 (*ci).func = ((*ci).func).offset(-(delta as isize));
                 i = 0 as c_int;
                 while i < narg1 {
-                    let io1 = &raw mut (*((*ci).func).offset(i as isize)).val;
-                    let io2 = &raw mut (*func.offset(i as isize)).val;
+                    let io1 = ((*ci).func).offset(i as isize);
+                    let io2 = func.offset(i as isize);
                     (*io1).value_ = (*io2).value_;
                     (*io1).tt_ = (*io2).tt_;
                     i += 1;
                 }
                 func = (*ci).func;
                 while narg1 <= nfixparams {
-                    (*func.offset(narg1 as isize)).val.tt_ =
+                    (*func.offset(narg1 as isize)).tt_ =
                         (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     narg1 += 1;
                 }
@@ -568,37 +568,31 @@ pub async unsafe fn luaD_precall<D>(
     nresults: c_int,
 ) -> Result<*mut CallInfo<D>, Box<dyn Error>> {
     loop {
-        match (*func).val.tt_ as c_int & 0x3f as c_int {
+        match (*func).tt_ as c_int & 0x3f as c_int {
             38 => {
                 precallC(
                     L,
                     func,
                     nresults,
-                    Func::NonYieldableFp((*((*func).val.value_.gc as *mut CClosure<D>)).f),
+                    Func::NonYieldableFp((*((*func).value_.gc as *mut CClosure<D>)).f),
                 )
                 .await?;
 
                 return Ok(null_mut());
             }
             2 => {
-                precallC(
-                    L,
-                    func,
-                    nresults,
-                    Func::NonYieldableFp((*func).val.value_.f),
-                )
-                .await?;
+                precallC(L, func, nresults, Func::NonYieldableFp((*func).value_.f)).await?;
 
                 return Ok(null_mut());
             }
             18 | 50 => todo!(),
             34 => {
-                precallC(L, func, nresults, Func::AsyncFp((*func).val.value_.a)).await?;
+                precallC(L, func, nresults, Func::AsyncFp((*func).value_.a)).await?;
                 return Ok(null_mut());
             }
             6 => {
                 let mut ci = null_mut();
-                let p = (*(*func).val.value_.gc.cast::<LuaFn<D>>()).p.get();
+                let p = (*(*func).value_.gc.cast::<LuaFn<D>>()).p.get();
                 let mut narg = (*L).top.get().offset_from(func) as libc::c_long as c_int - 1;
                 let nfixparams: c_int = (*p).numparams as c_int;
                 let fsize = usize::from((*p).maxstacksize);
@@ -623,7 +617,7 @@ pub async unsafe fn luaD_precall<D>(
                 while narg < nfixparams {
                     let fresh2 = (*L).top.get();
                     (*L).top.add(1);
-                    (*fresh2).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
+                    (*fresh2).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     narg += 1;
                 }
                 return Ok(ci);

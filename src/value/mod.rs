@@ -1,17 +1,19 @@
 use crate::{
-    Arg, Args, AsyncFp, Context, Fp, LuaFn, Nil, Number, Object, Ref, Ret, Str, Table, Thread,
-    UserData, Value,
+    Arg, Args, AsyncFp, Context, Fp, LuaFn, Nil, Number, Object, Ref, Ret, StackValue, Str, Table,
+    Thread, UserData, Value,
 };
 use alloc::boxed::Box;
 use core::error::Error;
-use core::mem::zeroed;
+use core::mem::{transmute, zeroed};
 use core::pin::Pin;
 
 /// The outside **must** never be able to construct or have the value of this type.
+///
+/// Do not change layout of this type or add a new field to it since there are other structs that
+/// assume the layout of this type and make use of padded space.
 #[repr(C)]
 pub struct UnsafeValue<A> {
     pub tt_: u8,
-    pub tbcdelta: u16,
     pub value_: UntaggedValue<A>,
 }
 
@@ -21,22 +23,22 @@ impl<D> UnsafeValue<D> {
         Self {
             value_: UntaggedValue { gc: s },
             tt_: unsafe { (*s).tt | 1 << 6 },
-            tbcdelta: 0,
         }
     }
 }
 
 impl<D> Default for UnsafeValue<D> {
+    #[inline(always)]
     fn default() -> Self {
         Self {
             value_: unsafe { zeroed() },
             tt_: 0,
-            tbcdelta: 0,
         }
     }
 }
 
 impl<D> Clone for UnsafeValue<D> {
+    #[inline(always)]
     fn clone(&self) -> Self {
         *self
     }
@@ -50,7 +52,6 @@ impl<D> From<Nil> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { i: 0 },
             tt_: 0 | 0 << 4,
-            tbcdelta: 0,
         }
     }
 }
@@ -64,7 +65,6 @@ impl<D> From<bool> for UnsafeValue<D> {
                 true => 1 | 1 << 4,
                 false => 1 | 0 << 4,
             },
-            tbcdelta: 0,
         }
     }
 }
@@ -75,7 +75,6 @@ impl<D> From<Fp<D>> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { f: value.0 },
             tt_: 2 | 0 << 4,
-            tbcdelta: 0,
         }
     }
 }
@@ -86,7 +85,6 @@ impl<D> From<AsyncFp<D>> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { a: value.0 },
             tt_: 2 | 2 << 4,
-            tbcdelta: 0,
         }
     }
 }
@@ -97,7 +95,6 @@ impl<D> From<i8> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { i: value.into() },
             tt_: 3 | 0 << 4,
-            tbcdelta: 0,
         }
     }
 }
@@ -108,7 +105,6 @@ impl<D> From<i16> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { i: value.into() },
             tt_: 3 | 0 << 4,
-            tbcdelta: 0,
         }
     }
 }
@@ -119,7 +115,6 @@ impl<D> From<i32> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { i: value.into() },
             tt_: 3 | 0 << 4,
-            tbcdelta: 0,
         }
     }
 }
@@ -130,7 +125,6 @@ impl<D> From<i64> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { i: value },
             tt_: 3 | 0 << 4,
-            tbcdelta: 0,
         }
     }
 }
@@ -141,7 +135,6 @@ impl<D> From<u8> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { i: value.into() },
             tt_: 3 | 0 << 4,
-            tbcdelta: 0,
         }
     }
 }
@@ -152,7 +145,6 @@ impl<D> From<u16> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { i: value.into() },
             tt_: 3 | 0 << 4,
-            tbcdelta: 0,
         }
     }
 }
@@ -163,7 +155,6 @@ impl<D> From<u32> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { i: value.into() },
             tt_: 3 | 0 << 4,
-            tbcdelta: 0,
         }
     }
 }
@@ -174,7 +165,6 @@ impl<D> From<f32> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { n: value.into() },
             tt_: 3 | 1 << 4,
-            tbcdelta: 0,
         }
     }
 }
@@ -185,7 +175,6 @@ impl<D> From<f64> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { n: value },
             tt_: 3 | 1 << 4,
-            tbcdelta: 0,
         }
     }
 }
@@ -206,7 +195,6 @@ impl<D> From<&Str<D>> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: value.hdr.tt | 1 << 6,
-            tbcdelta: 0,
         }
     }
 }
@@ -217,7 +205,6 @@ impl<'a, D> From<Ref<'a, Str<D>>> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: value.hdr.tt | 1 << 6,
-            tbcdelta: 0,
         }
     }
 }
@@ -228,7 +215,6 @@ impl<D> From<&Table<D>> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: 5 | 0 << 4 | 1 << 6,
-            tbcdelta: 0,
         }
     }
 }
@@ -239,7 +225,6 @@ impl<'a, D> From<Ref<'a, Table<D>>> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: 5 | 0 << 4 | 1 << 6,
-            tbcdelta: 0,
         }
     }
 }
@@ -250,7 +235,6 @@ impl<D> From<&LuaFn<D>> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: value.hdr.tt | 1 << 6,
-            tbcdelta: 0,
         }
     }
 }
@@ -261,7 +245,6 @@ impl<'a, D> From<Ref<'a, LuaFn<D>>> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: value.hdr.tt | 1 << 6,
-            tbcdelta: 0,
         }
     }
 }
@@ -272,7 +255,6 @@ impl<D, T> From<&UserData<D, T>> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: value.hdr.tt | 1 << 6,
-            tbcdelta: 0,
         }
     }
 }
@@ -283,7 +265,6 @@ impl<'a, D, T: ?Sized> From<Ref<'a, UserData<D, T>>> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: value.hdr.tt | 1 << 6,
-            tbcdelta: 0,
         }
     }
 }
@@ -294,7 +275,6 @@ impl<D> From<&Thread<D>> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: 8 | 0 << 4 | 1 << 6,
-            tbcdelta: 0,
         }
     }
 }
@@ -305,13 +285,11 @@ impl<'a, D> From<Ref<'a, Thread<D>>> for UnsafeValue<D> {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
             tt_: 8 | 0 << 4 | 1 << 6,
-            tbcdelta: 0,
         }
     }
 }
 
 impl<'a, D> From<Value<'a, D>> for UnsafeValue<D> {
-    #[inline(never)]
     fn from(value: Value<'a, D>) -> Self {
         match value {
             Value::Nil => Self::from(Nil),
@@ -346,6 +324,13 @@ impl<'a, 'b, D> From<Arg<'a, 'b, D>> for UnsafeValue<D> {
     #[inline(always)]
     fn from(value: Arg<'a, 'b, D>) -> Self {
         Self::from(&value)
+    }
+}
+
+impl<A> From<StackValue<A>> for UnsafeValue<A> {
+    #[inline(always)]
+    fn from(value: StackValue<A>) -> Self {
+        unsafe { transmute(value) }
     }
 }
 

@@ -42,7 +42,6 @@ impl<D> Table<D> {
         let absent_key = UnsafeValue {
             value_: unsafe { zeroed() },
             tt_: 0 | 2 << 4,
-            tbcdelta: 0,
         };
 
         unsafe { addr_of_mut!((*o).flags).write(Cell::new(!(!(0 as u32) << TM_EQ + 1) as u8)) };
@@ -299,7 +298,6 @@ impl<D> Table<D> {
                 let key = UnsafeValue {
                     value_: unsafe { (*n).u.key_val },
                     tt_: unsafe { (*n).u.key_tt },
-                    tbcdelta: 0,
                 };
 
                 return Ok(unsafe { Some([key, (*n).i_val]) });

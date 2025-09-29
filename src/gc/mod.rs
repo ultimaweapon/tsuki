@@ -620,12 +620,12 @@ impl<D> Gc<D> {
         }
 
         while o < (*th).top.get() {
-            if (*o).val.tt_ as c_int & (1 as c_int) << 6 as c_int != 0
-                && (*(*o).val.value_.gc).marked.get() as c_int
+            if (*o).tt_ as c_int & (1 as c_int) << 6 as c_int != 0
+                && (*(*o).value_.gc).marked.get() as c_int
                     & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
                     != 0
             {
-                self.mark((*o).val.value_.gc);
+                self.mark((*o).value_.gc);
             } else {
                 self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
@@ -653,7 +653,7 @@ impl<D> Gc<D> {
         o = (*th).top.get();
 
         while o < ((*th).stack_last.get()).offset(5 as c_int as isize) {
-            (*o).val.tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
+            (*o).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
             o = o.offset(1);
         }
 

@@ -77,7 +77,7 @@ unsafe fn newupval<D>(
         .cast::<UpVal<D>>();
     let next = *prev;
 
-    (*uv).v.set(&raw mut (*level).val);
+    (*uv).v.set(level.cast());
     (*(*uv).u.get()).open.next = next;
     (*(*uv).u.get()).open.previous = prev;
     if !next.is_null() {
@@ -110,20 +110,20 @@ pub unsafe fn luaF_findupval<D>(L: *const Thread<D>, level: *mut StackValue<D>) 
 
 unsafe fn callclosemethod<D>(
     L: *const Thread<D>,
-    obj: *mut UnsafeValue<D>,
+    obj: *const StackValue<D>,
     err: *mut UnsafeValue<D>,
 ) -> Result<(), Box<CallError>> {
     let top = (*L).top.get();
-    let tm = luaT_gettmbyobj(L, obj, TM_CLOSE);
-    let io1 = &raw mut (*top).val;
+    let tm = luaT_gettmbyobj(L, obj.cast(), TM_CLOSE);
+    let io1 = top;
     let io2 = tm;
     (*io1).value_ = (*io2).value_;
     (*io1).tt_ = (*io2).tt_;
-    let io1_0 = &raw mut (*top.offset(1 as libc::c_int as isize)).val;
+    let io1_0 = top.offset(1 as libc::c_int as isize);
     let io2_0 = obj;
     (*io1_0).value_ = (*io2_0).value_;
     (*io1_0).tt_ = (*io2_0).tt_;
-    let io1_1 = &raw mut (*top.offset(2 as libc::c_int as isize)).val;
+    let io1_1 = top.offset(2 as libc::c_int as isize);
     let io2_1 = err;
     (*io1_1).value_ = (*io2_1).value_;
     (*io1_1).tt_ = (*io2_1).tt_;
@@ -143,7 +143,7 @@ unsafe fn checkclosemth<D>(
     L: *const Thread<D>,
     level: *mut StackValue<D>,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    let tm = luaT_gettmbyobj(L, &mut (*level).val, TM_CLOSE);
+    let tm = luaT_gettmbyobj(L, level.cast(), TM_CLOSE);
 
     if (*tm).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int {
         let idx: libc::c_int =
@@ -166,20 +166,19 @@ unsafe fn checkclosemth<D>(
 
 unsafe fn prepcallclosemth<D>(
     L: *const Thread<D>,
-    level: *mut StackValue<D>,
+    level: *const StackValue<D>,
 ) -> Result<(), Box<CallError>> {
-    let uv = &raw mut (*level).val;
     let errobj = (*(*L).hdr.global).nilvalue.get();
 
-    callclosemethod(L, uv, errobj)
+    callclosemethod(L, level, errobj)
 }
 
 pub unsafe fn luaF_newtbcupval<D>(
     L: *const Thread<D>,
     level: *mut StackValue<D>,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    if (*level).val.tt_ as libc::c_int == 1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
-        || (*level).val.tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int
+    if (*level).tt_ as libc::c_int == 1 as libc::c_int | (0 as libc::c_int) << 4 as libc::c_int
+        || (*level).tt_ as libc::c_int & 0xf as libc::c_int == 0 as libc::c_int
     {
         return Ok(());
     }
@@ -200,10 +199,10 @@ pub unsafe fn luaF_newtbcupval<D>(
                 .wrapping_sub(1) as isize,
             ),
         );
-        (*(*L).tbclist.get()).val.tbcdelta = 0 as libc::c_int as libc::c_ushort;
+        (*(*L).tbclist.get()).tbcdelta = 0 as libc::c_int as libc::c_ushort;
     }
 
-    (*level).val.tbcdelta = level.offset_from((*L).tbclist.get()).try_into().unwrap();
+    (*level).tbcdelta = level.offset_from((*L).tbclist.get()).try_into().unwrap();
     (*L).tbclist.set(level);
 
     Ok(())
@@ -258,8 +257,8 @@ pub unsafe fn luaF_closeupval<D>(L: *const Thread<D>, level: *mut StackValue<D>)
 
 unsafe fn poptbclist<D>(L: *const Thread<D>) {
     let mut tbc = (*L).tbclist.get();
-    tbc = tbc.offset(-((*tbc).val.tbcdelta as libc::c_int as isize));
-    while tbc > (*L).stack.get() && (*tbc).val.tbcdelta as libc::c_int == 0 as libc::c_int {
+    tbc = tbc.offset(-((*tbc).tbcdelta as libc::c_int as isize));
+    while tbc > (*L).stack.get() && (*tbc).tbcdelta as libc::c_int == 0 as libc::c_int {
         tbc = tbc.offset(
             -(((256 as libc::c_ulong)
                 << (::core::mem::size_of::<libc::c_ushort>() as libc::c_ulong)

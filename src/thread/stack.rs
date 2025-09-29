@@ -1,11 +1,15 @@
-use crate::value::UnsafeValue;
+use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{Nil, Table};
 use core::cell::Cell;
 
 /// Each item in the stack.
+///
+/// The value of this type must be able to copy directly to [UnsafeValue].
 #[repr(C)]
 pub(crate) struct StackValue<A> {
-    pub val: UnsafeValue<A>,
+    pub tt_: u8,
+    pub tbcdelta: u16,
+    pub value_: UntaggedValue<A>,
 }
 
 impl<A> Clone for StackValue<A> {
@@ -46,13 +50,29 @@ impl<D> StackPtr<D> {
     }
 
     #[inline(always)]
+    pub unsafe fn copy(&self, from: isize, to: isize) {
+        let s = self.0.get();
+        let from = unsafe { s.offset(from) };
+        let to = unsafe { s.offset(to) };
+
+        unsafe { (*to).tt_ = (*from).tt_ };
+        unsafe { (*to).value_ = (*from).value_ };
+    }
+
+    #[inline(always)]
     pub unsafe fn read(&self, i: isize) -> UnsafeValue<D> {
-        unsafe { self.0.get().offset(i).read().val }
+        unsafe { self.0.get().offset(i).read().into() }
     }
 
     #[inline(always)]
     pub unsafe fn write(&self, val: UnsafeValue<D>) {
-        unsafe { self.0.get().write(StackValue { val }) };
+        let val = StackValue {
+            tt_: val.tt_,
+            tbcdelta: 0,
+            value_: val.value_,
+        };
+
+        unsafe { self.0.get().write(val) };
     }
 
     #[inline(always)]

@@ -35,7 +35,7 @@ unsafe impl<'a, D> Outputs<'a, D> for Vec<Value<'a, D>> {
         for i in 0..n {
             let v = unsafe { th.top.get().add(i) };
 
-            r.push(unsafe { Value::from_unsafe(&raw const (*v).val) });
+            r.push(unsafe { Value::from_unsafe(v.cast()) });
         }
 
         r
