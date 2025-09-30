@@ -1071,7 +1071,7 @@ unsafe fn addprototype<D>(ls: *mut LexState<D>) -> Result<*mut Proto<D>, ParseEr
         }
     }
 
-    let clp = luaF_newproto(g, ChunkInfo::default());
+    let clp = luaF_newproto(g, ChunkInfo::new(""));
     let fresh14 = (*fs).np;
     (*fs).np = (*fs).np + 1;
     let ref mut fresh15 = *((*f).p).offset(fresh14 as isize);

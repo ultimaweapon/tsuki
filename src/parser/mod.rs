@@ -5,7 +5,7 @@ use core::ffi::c_int;
 use core::fmt::{Display, Formatter};
 
 /// Contains information for Lua chunk.
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct ChunkInfo {
     pub(crate) name: String,
 }
