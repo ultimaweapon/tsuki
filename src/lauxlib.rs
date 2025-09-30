@@ -55,13 +55,13 @@ unsafe fn pushglobalfuncname<D>(
     ar: &mut lua_Debug<D>,
 ) -> Result<libc::c_int, Box<dyn core::error::Error>> {
     let top: libc::c_int = lua_gettop(L);
+    luaL_checkstack(L, 8, b"not enough stack\0" as *const u8 as *const c_char)?;
     lua_getinfo(L, b"f\0" as *const u8 as *const c_char, ar);
     lua_getfield(
         L,
         -(1000000 as libc::c_int) - 1000 as libc::c_int,
         "_LOADED",
     )?;
-    luaL_checkstack(L, 6, b"not enough stack\0" as *const u8 as *const c_char)?;
 
     if findfield(L, top + 1 as libc::c_int, 2 as libc::c_int)? != 0 {
         let name = (*lua_tolstring(L, -1, true)).as_bytes();

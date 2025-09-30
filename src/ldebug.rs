@@ -372,7 +372,7 @@ unsafe fn auxgetinfo<D>(
                     -(1 as c_int)
                 };
             }
-            117 => {
+            b'u' => {
                 (*ar).nups = (if f.is_null() {
                     0 as c_int
                 } else {
@@ -386,21 +386,21 @@ unsafe fn auxgetinfo<D>(
                     (*ar).nparams = (*(*f.cast::<LuaFn<D>>()).p.get()).numparams;
                 }
             }
-            116 => {
+            b't' => {
                 (*ar).istailcall = (if !ci.is_null() {
                     (*ci).callstatus as c_int & (1 as c_int) << 5 as c_int
                 } else {
                     0 as c_int
                 }) as c_char;
             }
-            110 => {
+            b'n' => {
                 (*ar).namewhat = getfuncname(L, ci, &mut (*ar).name);
                 if ((*ar).namewhat).is_null() {
                     (*ar).namewhat = b"\0" as *const u8 as *const c_char;
                     (*ar).name = 0 as *const c_char;
                 }
             }
-            114 => {
+            b'r' => {
                 if ci.is_null() || (*ci).callstatus as c_int & (1 as c_int) << 8 == 0 {
                     (*ar).ntransfer = 0;
                     (*ar).ftransfer = (*ar).ntransfer;
@@ -409,7 +409,7 @@ unsafe fn auxgetinfo<D>(
                     (*ar).ntransfer = (*ci).u2.transferinfo.ntransfer;
                 }
             }
-            76 | 102 => {}
+            b'L' | b'f' => {}
             _ => {
                 status = 0 as c_int;
             }
@@ -438,11 +438,7 @@ pub unsafe fn lua_getinfo<D>(
         func = (*ci).func;
     }
 
-    let cl = if (*func).tt_ as c_int
-        == 6 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int
-        || (*func).tt_ as c_int
-            == 6 as c_int | (2 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int
-    {
+    let cl = if (*func).tt_ == 6 | 0 << 4 | 1 << 6 || (*func).tt_ == 6 | 2 << 4 | 1 << 6 {
         (*func).value_.gc
     } else {
         null()

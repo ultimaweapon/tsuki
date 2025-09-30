@@ -459,7 +459,7 @@ async unsafe fn precallC<D>(
     f: Func<D>,
 ) -> Result<c_int, Box<dyn Error>> {
     // Set current CI.
-    let ci = prepCallInfo(L, func, nresults, 1 << 1, ((*L).top.get()).offset(20));
+    let ci = prepCallInfo(L, func, nresults, 1 << 1, (*L).top.get());
 
     (*L).ci.set(ci);
 
