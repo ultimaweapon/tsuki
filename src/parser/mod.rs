@@ -1,4 +1,4 @@
-use alloc::borrow::Cow;
+use alloc::borrow::{Cow, ToOwned};
 use alloc::string::String;
 use core::error::Error;
 use core::ffi::c_int;
@@ -15,8 +15,25 @@ impl ChunkInfo {
         Self { name: name.into() }
     }
 
+    /// Returns name of the chunk.
+    #[inline(always)]
     pub fn name(&self) -> &str {
         &self.name
+    }
+}
+
+impl From<&str> for ChunkInfo {
+    fn from(value: &str) -> Self {
+        Self {
+            name: value.to_owned(),
+        }
+    }
+}
+
+impl From<String> for ChunkInfo {
+    #[inline(always)]
+    fn from(value: String) -> Self {
+        Self { name: value }
     }
 }
 

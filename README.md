@@ -81,6 +81,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 ## Breaking changes in 0.2
 
 - `Lua::new` and `Lua::with_seed` has been replaced with `Builder` struct.
+- `Lua::load` and `Context::load` accept `Into<ChunkInfo>` instead of `ChunkInfo`.
 - `Arg::get_str` and `Arg::get_nilable_str` no longer accept a number. Use `Arg::to_str` or `Arg::to_nilable_str` instead of you want old behavior.
 - `Arg::to_num` renamed to `Arg::to_float`.
 - `Arg::to_nilable_num` renamed to `Arg::to_nilable_float`.

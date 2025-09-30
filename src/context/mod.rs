@@ -98,7 +98,7 @@ impl<'a, D, T> Context<'a, D, T> {
     #[inline(always)]
     pub fn load(
         &self,
-        info: ChunkInfo,
+        info: impl Into<ChunkInfo>,
         chunk: impl AsRef<[u8]>,
     ) -> Result<Ref<'a, LuaFn<D>>, ParseError> {
         self.th.hdr.global().load(info, chunk)

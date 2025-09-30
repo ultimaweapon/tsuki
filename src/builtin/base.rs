@@ -1,4 +1,4 @@
-use crate::{ArgNotFound, Args, ChunkInfo, Context, Nil, Ret, TryCall, Type};
+use crate::{ArgNotFound, Args, Context, Nil, Ret, TryCall, Type};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -97,7 +97,7 @@ pub fn load<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::er
     }
 
     // Load.
-    let f = match cx.load(ChunkInfo::new(name), s.as_bytes()) {
+    let f = match cx.load(name, s.as_bytes()) {
         Ok(v) => v,
         Err(e) => {
             cx.push(Nil)?;

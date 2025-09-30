@@ -3,7 +3,7 @@
 //! # Quickstart
 //!
 //! ```
-//! use tsuki::{Args, ChunkInfo, Context, Ret, Value, fp};
+//! use tsuki::{Args, Context, Ret, Value, fp};
 //!
 //! fn main() {
 //!     // Set up.
@@ -18,7 +18,7 @@
 //!     lua.global().set_str_key("myfunc", fp!(myfunc));
 //!
 //!     // Run on main thread.
-//!     let chunk = lua.load(ChunkInfo::new("abc.lua"), "return myfunc()").unwrap();
+//!     let chunk = lua.load("abc.lua", "return myfunc()").unwrap();
 //!     let result = lua.call::<Value<_>>(chunk, ()).unwrap();
 //!
 //!     match result {
@@ -354,7 +354,7 @@ impl<T> Lua<T> {
     /// Load a Lua chunk.
     pub fn load(
         &self,
-        info: ChunkInfo,
+        info: impl Into<ChunkInfo>,
         chunk: impl AsRef<[u8]>,
     ) -> Result<Ref<'_, LuaFn<T>>, ParseError> {
         let chunk = chunk.as_ref();
@@ -364,7 +364,7 @@ impl<T> Lua<T> {
         };
 
         // Load.
-        let f = unsafe { luaD_protectedparser(self, z, info)? };
+        let f = unsafe { luaD_protectedparser(self, z, info.into())? };
 
         if !(*f).upvals.is_empty() {
             let gt = unsafe {
