@@ -8,7 +8,7 @@ use crate::ltm::{
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{Lua, Nil, Node, NodeKey, Str, StringTable, Table, Thread, luaH_resize};
 use alloc::rc::Rc;
-use core::cell::UnsafeCell;
+use core::cell::{Cell, UnsafeCell};
 use core::marker::PhantomPinned;
 use core::ops::Deref;
 use core::pin::Pin;
@@ -60,6 +60,7 @@ impl Builder {
                 },
             },
             seed: self.seed,
+            active_rust_call: Cell::new(0),
             associated_data,
             _phantom: PhantomPinned,
         });

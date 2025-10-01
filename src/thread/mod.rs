@@ -34,19 +34,19 @@ mod stack;
 /// You can also use [Lua::call()] to call any Lua function without creating a new thread. You only
 /// need to create a new thread when you need to call into async function.
 #[repr(C)]
-pub struct Thread<D> {
-    pub(crate) hdr: Object<D>,
+pub struct Thread<A> {
+    pub(crate) hdr: Object<A>,
     pub(crate) allowhook: Cell<u8>,
     pub(crate) nci: Cell<u16>,
-    pub(crate) top: StackPtr<D>,
-    pub(crate) ci: Cell<*mut CallInfo<D>>,
-    pub(crate) stack_last: Cell<*mut StackValue<D>>,
-    pub(crate) stack: Cell<*mut StackValue<D>>,
-    pub(crate) openupval: Cell<*mut UpVal<D>>,
-    pub(crate) tbclist: Cell<*mut StackValue<D>>,
+    pub(crate) top: StackPtr<A>,
+    pub(crate) ci: Cell<*mut CallInfo<A>>,
+    pub(crate) stack_last: Cell<*mut StackValue<A>>,
+    pub(crate) stack: Cell<*mut StackValue<A>>,
+    pub(crate) openupval: Cell<*mut UpVal<A>>,
+    pub(crate) tbclist: Cell<*mut StackValue<A>>,
     pub(crate) twups: Cell<*const Self>,
-    pub(crate) base_ci: UnsafeCell<CallInfo<D>>,
-    pub(crate) hook: Cell<Option<unsafe fn(*const Self, *mut lua_Debug<D>)>>,
+    pub(crate) base_ci: UnsafeCell<CallInfo<A>>,
+    pub(crate) hook: Cell<Option<unsafe fn(*const Self, *mut lua_Debug<A>)>>,
     pub(crate) oldpc: Cell<i32>,
     pub(crate) basehookcount: Cell<i32>,
     pub(crate) hookcount: Cell<i32>,
@@ -56,7 +56,6 @@ pub struct Thread<D> {
 }
 
 impl<D> Thread<D> {
-    #[inline(never)]
     pub(crate) fn new(g: &Lua<D>) -> *const Self {
         // Create new thread.
         let layout = Layout::new::<Self>();

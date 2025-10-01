@@ -87,7 +87,7 @@ use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::any::{Any, TypeId};
-use core::cell::UnsafeCell;
+use core::cell::{Cell, UnsafeCell};
 use core::error::Error;
 use core::ffi::c_int;
 use core::fmt::{Display, Formatter};
@@ -172,6 +172,7 @@ pub struct Lua<T> {
     nilvalue: UnsafeCell<UnsafeValue<T>>,
     dummy_node: Node<T>,
     seed: u32,
+    active_rust_call: Cell<usize>,
     associated_data: T,
     _phantom: PhantomPinned,
 }
@@ -344,7 +345,6 @@ impl<T> Lua<T> {
     }
 
     /// Create a new Lua thread (AKA coroutine).
-    #[inline(always)]
     pub fn create_thread(&self) -> Ref<'_, Thread<T>> {
         self.gc.step();
 

@@ -87,7 +87,6 @@ impl<'a, D, T> Context<'a, D, T> {
     }
 
     /// Create a new Lua thread (AKA coroutine).
-    #[inline(always)]
     pub fn create_thread(&self) -> Ref<'a, Thread<D>> {
         self.th.hdr.global().gc.step();
 

@@ -18,11 +18,10 @@ use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use core::alloc::Layout;
 use core::error::Error;
-use core::future::poll_fn;
-use core::ops::Deref;
+use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::ptr::{addr_eq, null, null_mut};
-use core::task::{Poll, RawWakerVTable};
+use core::task::Poll;
 
 type c_int = i32;
 
@@ -431,7 +430,6 @@ pub unsafe fn luaD_poscall<D>(
     Ok(())
 }
 
-#[inline(always)]
 unsafe fn prepCallInfo<D>(
     L: *const Thread<D>,
     func: *mut StackValue<D>,
@@ -452,11 +450,11 @@ unsafe fn prepCallInfo<D>(
     return ci;
 }
 
-async unsafe fn precallC<D>(
-    L: *const Thread<D>,
-    func: *mut StackValue<D>,
+async unsafe fn precallC<A>(
+    L: *const Thread<A>,
+    func: *mut StackValue<A>,
     nresults: c_int,
-    f: Func<D>,
+    f: Func<A>,
 ) -> Result<c_int, Box<dyn Error>> {
     // Set current CI.
     let ci = prepCallInfo(L, func, nresults, 1 << 1, (*L).top.get());
@@ -473,15 +471,21 @@ async unsafe fn precallC<D>(
     // Invoke Rust function.
     let cx = Context::new(&*L, Args::new(narg));
     let cx = match f {
-        Func::NonYieldableFp(f) => f(cx)?,
-        Func::AsyncFp(f) => {
-            let yieldable = |vt: &RawWakerVTable| match addr_eq(vt, &NON_YIELDABLE_WAKER) {
-                true => Err("attempt to call async function fron non-async context".into()),
-                false => Result::<(), Box<dyn Error>>::Ok(()),
-            };
+        Func::NonYieldableFp(f) => {
+            let active = ActiveCall::new((*L).hdr.global());
 
-            poll_fn(move |cx| Poll::Ready(yieldable(cx.waker().vtable()))).await?;
-            f(cx).await?
+            if active.get() >= 100 {
+                return Err("too many nested call into Rust functions".into());
+            }
+
+            f(cx)?
+        }
+        Func::AsyncFp(f) => {
+            AsyncInvoker {
+                g: (*L).hdr.global(),
+                f: f(cx),
+            }
+            .await?
         }
     };
 
@@ -643,7 +647,7 @@ pub async unsafe fn luaD_call<D>(
             true => Ok(()),
             false => {
                 (*ci).callstatus = 1 << 2;
-                luaV_execute(L, ci).await
+                luaV_execute(&*L, ci).await
             }
         },
         Err(e) => Err(e),
@@ -755,6 +759,7 @@ pub unsafe fn luaD_protectedparser<D>(
     status
 }
 
+/// Encapsulates a function pointer.
 enum Func<D> {
     NonYieldableFp(for<'a> fn(Context<'a, D, Args>) -> Result<Context<'a, D, Ret>, Box<dyn Error>>),
     AsyncFp(
@@ -762,4 +767,62 @@ enum Func<D> {
             Context<D, Args>,
         ) -> Pin<Box<dyn Future<Output = Result<Context<D, Ret>, Box<dyn Error>>> + '_>>,
     ),
+}
+
+/// Implementation of [Future] to poll [Func::AsyncFp].
+struct AsyncInvoker<'a, A> {
+    g: &'a Lua<A>,
+    f: Pin<Box<dyn Future<Output = Result<Context<'a, A, Ret>, Box<dyn Error>>> + 'a>>,
+}
+
+impl<'a, A> Future for AsyncInvoker<'a, A> {
+    type Output = Result<Context<'a, A, Ret>, Box<dyn Error>>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
+        // Check if calling from async context.
+        if addr_eq(cx.waker().vtable(), &NON_YIELDABLE_WAKER) {
+            return Poll::Ready(Err(
+                "attempt to call async function fron non-async context".into()
+            ));
+        }
+
+        // Check recursive limit.
+        let i = self.deref_mut();
+        let active = ActiveCall::new(i.g);
+
+        if active.get() >= 100 {
+            return Poll::Ready(Err("too many nested call into Rust functions".into()));
+        }
+
+        i.f.as_mut().poll(cx)
+    }
+}
+
+/// RAII struct to increase/decrease [Lua::active_rust_call].
+struct ActiveCall<'a, A> {
+    g: &'a Lua<A>,
+    active: usize,
+}
+
+impl<'a, A> ActiveCall<'a, A> {
+    #[inline(always)]
+    fn new(g: &'a Lua<A>) -> Self {
+        let active = g.active_rust_call.get() + 1;
+
+        g.active_rust_call.set(active);
+
+        Self { g, active }
+    }
+
+    #[inline(always)]
+    fn get(&self) -> usize {
+        self.active
+    }
+}
+
+impl<'a, A> Drop for ActiveCall<'a, A> {
+    #[inline(always)]
+    fn drop(&mut self) {
+        self.g.active_rust_call.update(|v| v - 1);
+    }
 }
