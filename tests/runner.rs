@@ -119,7 +119,7 @@ fn run(file: &str, setup: impl FnOnce(&Lua<()>)) -> Result<(), Box<dyn std::erro
 
     // Setup Lua.
     let content = std::fs::read(&path).unwrap();
-    let lua = Builder::new().build(());
+    let lua = Builder::new(()).build().unwrap();
 
     lua.setup_base();
     lua.setup_string();

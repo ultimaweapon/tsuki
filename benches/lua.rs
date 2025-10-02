@@ -11,7 +11,7 @@ fn fannkuch_redux(c: &mut Criterion) {
     let src = read_source();
 
     {
-        let lua = tsuki::Builder::new().build(());
+        let lua = tsuki::Builder::new(()).build().unwrap();
         let chunk = lua
             .load(tsuki::ChunkInfo::new("fannkuch-redux.lua"), &src)
             .unwrap();
@@ -41,7 +41,7 @@ fn async_call(c: &mut Criterion) {
     let yields = [0, 1, 2, 4, 8];
 
     {
-        let lua = tsuki::Builder::new().build(());
+        let lua = tsuki::Builder::new(()).build().unwrap();
         let th = lua.create_thread();
         let chunk = lua
             .load(

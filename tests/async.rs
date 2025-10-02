@@ -10,7 +10,7 @@ fn async_call() {
         .build()
         .unwrap();
     let exec = LocalSet::new();
-    let lua = Builder::new().build(());
+    let lua = Builder::new(()).build().unwrap();
 
     lua.setup_base();
     lua.setup_string();

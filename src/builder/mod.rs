@@ -6,26 +6,35 @@ use crate::ltm::{
     TM_SHR, TM_SUB, TM_UNM,
 };
 use crate::value::{UnsafeValue, UntaggedValue};
-use crate::{Lua, Nil, Node, NodeKey, Str, StringTable, Table, Thread, luaH_resize};
+use crate::{Lua, Module, Nil, Node, NodeKey, Str, StringTable, Table, Thread, luaH_resize};
+use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
 use alloc::rc::Rc;
+use alloc::string::String;
 use core::cell::{Cell, UnsafeCell};
 use core::marker::PhantomPinned;
 use core::ops::Deref;
 use core::pin::Pin;
 use core::ptr::null;
+use thiserror::Error;
 
 /// Struct to build instance of [`Lua`].
-pub struct Builder {
+pub struct Builder<'a, A> {
     seed: u32,
+    associated_data: A,
+    modules: BTreeMap<String, RegisteredModule<'a, A>>,
 }
 
-impl Builder {
+impl<'a, A> Builder<'a, A> {
     /// Create a new [Builder] with a random seed to hash Lua string.
+    ///
+    /// You can retrieve `associated_data` later with [Lua::associated_data()] or
+    /// [Context::associated_data()](crate::Context::associated_data()).
     ///
     /// Note that all built-in functions (e.g. `print`) are not enabled by default.
     #[cfg(feature = "rand")]
-    pub fn new() -> Self {
-        Self::with_seed(rand::random())
+    pub fn new(associated_data: A) -> Self {
+        Self::with_seed(associated_data, rand::random())
     }
 
     /// Create a new [Builder] with a seed to hash Lua string.
@@ -35,16 +44,43 @@ impl Builder {
     /// [HashDoS](https://en.wikipedia.org/wiki/Collision_attack#Hash_flooding) attack is not
     /// possible for your application.
     ///
+    /// You can retrieve `associated_data` later with [Lua::associated_data()] or
+    /// [Context::associated_data()](crate::Context::associated_data()).
+    ///
     /// Note that all built-in functions (e.g. `print`) are not enabled by default.
-    pub fn with_seed(seed: u32) -> Self {
-        Self { seed }
+    pub fn with_seed(associated_data: A, seed: u32) -> Self {
+        Self {
+            seed,
+            associated_data,
+            modules: BTreeMap::new(),
+        }
+    }
+
+    /// Register a module to be used.
+    ///
+    /// # Panics
+    /// If module with the same name already registered.
+    pub fn use_module(
+        mut self,
+        name: impl Into<String>,
+        global: bool,
+        module: impl Module<A> + 'a,
+    ) -> Self {
+        use alloc::collections::btree_map::Entry;
+
+        match self.modules.entry(name.into()) {
+            Entry::Vacant(e) => e.insert(RegisteredModule {
+                module: Box::new(module),
+                global,
+            }),
+            Entry::Occupied(e) => panic!("module '{}' already registered", e.key()),
+        };
+
+        self
     }
 
     /// Create the value of [Lua] from this [Builder].
-    ///
-    /// You can retrieve `associated_data` later with [Lua::associated_data()] or
-    /// [Context::associated_data()](crate::Context::associated_data()).
-    pub fn build<A>(self, associated_data: A) -> Pin<Rc<Lua<A>>> {
+    pub fn build(self) -> Result<Pin<Rc<Lua<A>>>, BuildError> {
         let g = Rc::pin(Lua {
             gc: unsafe { Gc::new() }, // SAFETY: gc in the first field on Lua.
             strt: StringTable::new(),
@@ -61,7 +97,7 @@ impl Builder {
             },
             seed: self.seed,
             active_rust_call: Cell::new(0),
-            associated_data,
+            associated_data: self.associated_data,
             _phantom: PhantomPinned,
         });
 
@@ -91,7 +127,7 @@ impl Builder {
 
         // Create table for event names.
         let events = unsafe { Table::new(g.deref()) };
-        let entries = [
+        let entries = &[
             (TM_INDEX, "__index"),
             (TM_NEWINDEX, "__newindex"),
             (TM_GC, "__gc"),
@@ -121,7 +157,7 @@ impl Builder {
 
         unsafe { luaH_resize(events, entries.len().try_into().unwrap(), 0) };
 
-        for (k, v) in entries {
+        for &(k, v) in entries {
             let v = unsafe { Str::from_str(g.deref(), v) };
             let v = unsafe { UnsafeValue::from_obj(v.cast()) };
 
@@ -145,6 +181,37 @@ impl Builder {
 
         unsafe { reg.add(4).write(UnsafeValue::from_obj(tokens.cast())) };
 
-        g
+        // Open modules.
+        for (n, m) in self.modules {
+            // Open module.
+            let v = match m.module.open(&g) {
+                Ok(v) => v,
+                Err(e) => return Err(BuildError::OpenModule(n, e)),
+            };
+
+            if v.is_nil() {
+                continue;
+            }
+
+            // Add to global.
+            if m.global {
+                g.global().set_str_key(n, v);
+            }
+        }
+
+        Ok(g)
     }
+}
+
+/// Contains data for a module registered by [Builder::use_module()].
+struct RegisteredModule<'a, A> {
+    module: Box<dyn Module<A> + 'a>,
+    global: bool,
+}
+
+/// Represents an error when [Builder::build()] fails.
+#[derive(Debug, Error)]
+pub enum BuildError {
+    #[error("couldn't open module '{0}'")]
+    OpenModule(String, #[source] Box<dyn core::error::Error>),
 }

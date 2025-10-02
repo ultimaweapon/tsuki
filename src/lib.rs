@@ -7,7 +7,7 @@
 //!
 //! fn main() {
 //!     // Set up.
-//!     let lua = tsuki::Builder::new().build(());
+//!     let lua = tsuki::Builder::new(()).build().unwrap();
 //!
 //!     lua.setup_base();
 //!     lua.setup_string();
@@ -68,6 +68,7 @@ pub use self::builder::*;
 pub use self::context::*;
 pub use self::function::*;
 pub use self::gc::Ref;
+pub use self::module::*;
 pub use self::parser::*;
 pub use self::string::*;
 pub use self::table::*;
@@ -120,6 +121,7 @@ mod lstate;
 mod lstring;
 mod ltm;
 mod lzio;
+mod module;
 mod parser;
 mod string;
 mod table;

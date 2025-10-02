@@ -5,7 +5,7 @@ use tsuki::{Builder, ChunkInfo};
 fn load() {
     let path = PathBuf::from_iter(["lua", "testes", "api.lua"]);
     let chunk = std::fs::read(path).unwrap();
-    let lua = Builder::new().build(());
+    let lua = Builder::new(()).build().unwrap();
     let info = ChunkInfo::new("api.lua");
 
     lua.load(info, chunk).unwrap();
