@@ -40,6 +40,7 @@ use core::fmt::Display;
 use core::ptr::{null, null_mut};
 
 type c_short = i16;
+type c_ushort = u16;
 type c_int = i32;
 type c_uint = u32;
 
@@ -254,7 +255,7 @@ impl<D> Copy for C2RustUnnamed_11<D> {}
 #[repr(C)]
 pub struct C2RustUnnamed_12 {
     pub ridx: u8,
-    pub vidx: libc::c_ushort,
+    pub vidx: c_ushort,
 }
 
 #[derive(Copy, Clone)]
@@ -535,7 +536,7 @@ unsafe fn init_var<D>(
     (*e).t = -(1 as c_int);
     (*e).f = (*e).t;
     (*e).k = VLOCAL;
-    (*e).u.var.vidx = vidx as libc::c_ushort;
+    (*e).u.var.vidx = vidx as c_ushort;
     (*e).u.var.ridx = (*getlocalvardesc(ls, fs, vidx)).vd.ridx;
 }
 

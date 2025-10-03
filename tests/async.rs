@@ -1,7 +1,7 @@
 use core::error::Error;
 use core::time::Duration;
 use tokio::task::{JoinSet, LocalSet};
-use tsuki::{Args, Builder, ChunkInfo, Context, Ret, fp};
+use tsuki::{Args, ChunkInfo, Context, Lua, Ret, fp};
 
 #[test]
 fn async_call() {
@@ -10,7 +10,7 @@ fn async_call() {
         .build()
         .unwrap();
     let exec = LocalSet::new();
-    let lua = Builder::new(()).build().unwrap();
+    let lua = Lua::new(());
 
     lua.setup_base();
     lua.setup_string();

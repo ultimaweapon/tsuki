@@ -246,10 +246,21 @@ impl<D> Table<D> {
     where
         K: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
+        // Check if value come from the same Lua.
+        let v = v.into();
+
+        if unsafe { (v.tt_ & 1 << 6 != 0) && (*v.value_.gc).global != self.hdr.global } {
+            panic!("attempt to set the table with value from a different Lua");
+        }
+
+        // Set.
         let k = unsafe { Str::from_str(self.hdr.global, k) };
         let k = unsafe { UnsafeValue::from_obj(k.cast()) };
 
-        unsafe { self.set(k, v).unwrap_unchecked() };
+        // SAFETY: Key was created from the same Lua on the above.
+        // SAFETY: We have checked the value on the above.
+        // SAFETY: Key is a string so error is not possible.
+        unsafe { self.set_unchecked(k, v).unwrap_unchecked() };
     }
 
     /// Inserts a value with string key into this table without checking if `v` created from the
