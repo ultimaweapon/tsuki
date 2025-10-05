@@ -45,6 +45,7 @@ type c_ushort = u16;
 type c_int = i32;
 type c_uint = u32;
 type c_long = i64;
+type c_ulong = u64;
 
 #[repr(C)]
 pub struct Dyndata<D> {
@@ -424,7 +425,7 @@ unsafe fn registerlocalvar<D>(
         (*f).locvars as *mut c_void,
         (*fs).ndebugvars as c_int,
         &mut (*f).sizelocvars,
-        ::core::mem::size_of::<LocVar<D>>() as libc::c_ulong as c_int,
+        ::core::mem::size_of::<LocVar<D>>() as c_ulong as c_int,
         (if 32767 as c_int as usize
             <= (!(0 as c_int as usize)).wrapping_div(::core::mem::size_of::<LocVar<D>>())
         {
@@ -475,7 +476,7 @@ unsafe fn new_localvar<D>(ls: *mut LexState<D>, name: *const Str<D>) -> Result<c
         (*dyd).actvar.arr as *mut c_void,
         (*dyd).actvar.n + 1 as c_int,
         &raw mut (*dyd).actvar.size,
-        size_of::<Vardesc<D>>() as libc::c_ulong as c_int,
+        size_of::<Vardesc<D>>() as c_ulong as c_int,
         i16::MAX.into(),
         "local variables",
         (*ls).linenumber,
@@ -643,7 +644,7 @@ unsafe fn allocupvalue<D>(
         (*f).upvalues as *mut c_void,
         (*fs).nups as c_int,
         &mut (*f).sizeupvalues,
-        ::core::mem::size_of::<Upvaldesc<D>>() as libc::c_ulong as c_int,
+        ::core::mem::size_of::<Upvaldesc<D>>() as c_ulong as c_int,
         (if 255 as c_int as usize
             <= (!(0 as c_int as usize)).wrapping_div(::core::mem::size_of::<Upvaldesc<D>>())
         {
@@ -894,7 +895,7 @@ unsafe fn newlabelentry<D>(
         (*l).arr as *mut c_void,
         n,
         &mut (*l).size,
-        ::core::mem::size_of::<Labeldesc<D>>() as libc::c_ulong as c_int,
+        ::core::mem::size_of::<Labeldesc<D>>() as c_ulong as c_int,
         (if 32767 as c_int as usize
             <= (!(0 as c_int as usize)).wrapping_div(::core::mem::size_of::<Labeldesc<D>>())
         {
@@ -1051,7 +1052,7 @@ unsafe fn addprototype<D>(ls: *mut LexState<D>) -> Result<*mut Proto<D>, ParseEr
             (*f).p as *mut c_void,
             (*fs).np,
             &mut (*f).sizep,
-            ::core::mem::size_of::<*mut Proto<D>>() as libc::c_ulong as c_int,
+            ::core::mem::size_of::<*mut Proto<D>>() as c_ulong as c_int,
             (if (((1 as c_int) << 8 as c_int + 8 as c_int + 1 as c_int) - 1 as c_int) as usize
                 <= (!(0 as c_int as usize)).wrapping_div(::core::mem::size_of::<*mut Proto<D>>())
             {
@@ -1141,49 +1142,49 @@ unsafe fn close_func<D>(ls: *mut LexState<D>) -> Result<(), ParseError> {
         (*f).code as *mut c_void,
         &mut (*f).sizecode,
         (*fs).pc,
-        ::core::mem::size_of::<u32>() as libc::c_ulong as c_int,
+        ::core::mem::size_of::<u32>() as c_ulong as c_int,
     ) as *mut u32;
     (*f).lineinfo = luaM_shrinkvector_(
         (*ls).g,
         (*f).lineinfo as *mut c_void,
         &mut (*f).sizelineinfo,
         (*fs).pc,
-        ::core::mem::size_of::<i8>() as libc::c_ulong as c_int,
+        ::core::mem::size_of::<i8>() as c_ulong as c_int,
     ) as *mut i8;
     (*f).abslineinfo = luaM_shrinkvector_(
         (*ls).g,
         (*f).abslineinfo as *mut c_void,
         &mut (*f).sizeabslineinfo,
         (*fs).nabslineinfo,
-        ::core::mem::size_of::<AbsLineInfo>() as libc::c_ulong as c_int,
+        ::core::mem::size_of::<AbsLineInfo>() as c_ulong as c_int,
     ) as *mut AbsLineInfo;
     (*f).k = luaM_shrinkvector_(
         (*ls).g,
         (*f).k as *mut c_void,
         &mut (*f).sizek,
         (*fs).nk,
-        ::core::mem::size_of::<UnsafeValue<D>>() as libc::c_ulong as c_int,
+        ::core::mem::size_of::<UnsafeValue<D>>() as c_ulong as c_int,
     ) as *mut UnsafeValue<D>;
     (*f).p = luaM_shrinkvector_(
         (*ls).g,
         (*f).p as *mut c_void,
         &mut (*f).sizep,
         (*fs).np,
-        ::core::mem::size_of::<*mut Proto<D>>() as libc::c_ulong as c_int,
+        ::core::mem::size_of::<*mut Proto<D>>() as c_ulong as c_int,
     ) as *mut *mut Proto<D>;
     (*f).locvars = luaM_shrinkvector_(
         (*ls).g,
         (*f).locvars as *mut c_void,
         &mut (*f).sizelocvars,
         (*fs).ndebugvars as c_int,
-        ::core::mem::size_of::<LocVar<D>>() as libc::c_ulong as c_int,
+        ::core::mem::size_of::<LocVar<D>>() as c_ulong as c_int,
     ) as *mut LocVar<D>;
     (*f).upvalues = luaM_shrinkvector_(
         (*ls).g,
         (*f).upvalues as *mut c_void,
         &mut (*f).sizeupvalues,
         (*fs).nups as c_int,
-        ::core::mem::size_of::<Upvaldesc<D>>() as libc::c_ulong as c_int,
+        ::core::mem::size_of::<Upvaldesc<D>>() as c_ulong as c_int,
     ) as *mut Upvaldesc<D>;
 
     (*ls).fs = (*fs).prev;

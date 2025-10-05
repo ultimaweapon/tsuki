@@ -184,7 +184,7 @@ pub struct Lua<T> {
     active_rust_call: Cell<usize>,
     modules_locked: Cell<bool>,
     associated_data: T,
-    _phantom: PhantomPinned,
+    phantom: PhantomPinned,
 }
 
 impl<T> Lua<T> {
@@ -229,7 +229,7 @@ impl<T> Lua<T> {
             active_rust_call: Cell::new(0),
             modules_locked: Cell::new(false),
             associated_data,
-            _phantom: PhantomPinned,
+            phantom: PhantomPinned,
         });
 
         // Setup registry.
@@ -453,6 +453,24 @@ impl<T> Lua<T> {
         let g = unsafe { UnsafeValue::from_obj(g.cast()) };
 
         unsafe { self.global().set_str_key_unchecked("coroutine", g) };
+    }
+
+    /// Set metatable for Lua string.
+    ///
+    /// # Panics
+    /// - If `mt` was created from different [Lua](crate::Lua) instance.
+    /// - If `mt` contains `__gc`.
+    pub fn set_str_metatable(&self, mt: &Table<T>) {
+        if mt.hdr.global != self {
+            panic!("attempt to set string metatable created from a different Lua");
+        }
+
+        // Prevent __gc metamethod.
+        if unsafe { mt.flags.get() & 1 << TM_GC == 0 && !luaT_gettm(mt, TM_GC).is_null() } {
+            panic!("__gc metamethod is not supported");
+        }
+
+        unsafe { self.metatables().set_unchecked(4, mt).unwrap_unchecked() };
     }
 
     /// Register a metatable for userdata `V`. If the metatable for `V` already exists it will be
