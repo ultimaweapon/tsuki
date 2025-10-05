@@ -45,9 +45,9 @@ impl<A> Module<A> for BaseLib {
 /// [Module] implementation for [string library](https://www.lua.org/manual/5.4/manual.html#6.4).
 ///
 /// Note that [Self::open()] will **overwrite** string metatable.
-pub struct StringModule;
+pub struct StringLib;
 
-impl<A> Module<A> for StringModule {
+impl<A> Module<A> for StringLib {
     const NAME: &str = "string";
 
     type Instance<'a>

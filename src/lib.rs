@@ -3,7 +3,7 @@
 //! # Quickstart
 //!
 //! ```
-//! use tsuki::builtin::{BaseLib, StringModule};
+//! use tsuki::builtin::{BaseLib, StringLib};
 //! use tsuki::{Args, Context, Lua, Ret, Value, fp};
 //!
 //! fn main() {
@@ -11,7 +11,7 @@
 //!     let lua = Lua::new(());
 //!
 //!     lua.use_module(None, true, BaseLib).unwrap();
-//!     lua.use_module(None, true, StringModule).unwrap();
+//!     lua.use_module(None, true, StringLib).unwrap();
 //!     lua.setup_table();
 //!     lua.setup_math();
 //!     lua.setup_coroutine();

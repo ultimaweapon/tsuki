@@ -1,7 +1,7 @@
 use core::error::Error;
 use core::time::Duration;
 use tokio::task::{JoinSet, LocalSet};
-use tsuki::builtin::{BaseLib, StringModule};
+use tsuki::builtin::{BaseLib, StringLib};
 use tsuki::{Args, ChunkInfo, Context, Lua, Ret, fp};
 
 #[test]
@@ -14,7 +14,7 @@ fn async_call() {
     let lua = Lua::new(());
 
     lua.use_module(None, true, BaseLib).unwrap();
-    lua.use_module(None, true, StringModule).unwrap();
+    lua.use_module(None, true, StringLib).unwrap();
     lua.setup_table();
     lua.setup_math();
     lua.setup_coroutine();
