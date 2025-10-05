@@ -3,13 +3,14 @@
 //! # Quickstart
 //!
 //! ```
+//! use tsuki::builtin::BaseModule;
 //! use tsuki::{Args, Context, Lua, Ret, Value, fp};
 //!
 //! fn main() {
 //!     // Set up.
 //!     let lua = Lua::new(());
 //!
-//!     lua.setup_base();
+//!     lua.use_module(None, true, BaseModule).unwrap();
 //!     lua.setup_string();
 //!     lua.setup_table();
 //!     lua.setup_math();
@@ -327,8 +328,10 @@ impl<T> Lua<T> {
 
     /// Load a Lua module that implemented in Rust.
     ///
-    /// If `global` is `true` this will **overwrite** the global variable with the same name as
-    /// `name`.
+    /// Supply `name` if you want to use different name than [Module::NAME].
+    ///
+    /// If `global` is `true` this will **overwrite** the global variable with the same name as the
+    /// module.
     ///
     /// The error can be either [ModuleExists], [RecursiveCall] or the one that returned from
     /// [Module::open()].
@@ -337,7 +340,7 @@ impl<T> Lua<T> {
     /// If [Module::open()] returns a value created from different Lua instance.
     pub fn use_module<'a, M>(
         &'a self,
-        name: &str,
+        name: Option<&str>,
         global: bool,
         module: M,
     ) -> Result<(), Box<dyn Error>>
@@ -352,6 +355,7 @@ impl<T> Lua<T> {
         };
 
         // Check if exists.
+        let name = name.unwrap_or(M::NAME);
         let n = unsafe { UnsafeValue::from_obj(Str::from_str(self, name).cast()) };
         let t = self.modules();
         let s = unsafe { t.get_raw_unchecked(n) };
@@ -380,31 +384,6 @@ impl<T> Lua<T> {
         drop(lock);
 
         Ok(())
-    }
-
-    /// Setup [basic library](https://www.lua.org/manual/5.4/manual.html#6.1).
-    ///
-    /// Note that `print` only available with `std` feature.
-    pub fn setup_base(&self) {
-        let g = self.global();
-
-        unsafe { g.set_str_key_unchecked("assert", Fp(crate::builtin::base::assert)) };
-        unsafe { g.set_str_key_unchecked("error", Fp(crate::builtin::base::error)) };
-        unsafe { g.set_str_key_unchecked("getmetatable", Fp(crate::builtin::base::getmetatable)) };
-        unsafe { g.set_str_key_unchecked("load", Fp(crate::builtin::base::load)) };
-        unsafe { g.set_str_key_unchecked("next", Fp(crate::builtin::base::next)) };
-        unsafe { g.set_str_key_unchecked("pcall", Fp(crate::builtin::base::pcall)) };
-        #[cfg(feature = "std")]
-        unsafe {
-            g.set_str_key_unchecked("print", Fp(crate::builtin::base::print))
-        };
-        unsafe { g.set_str_key_unchecked("rawget", Fp(crate::builtin::base::rawget)) };
-        unsafe { g.set_str_key_unchecked("rawset", Fp(crate::builtin::base::rawset)) };
-        unsafe { g.set_str_key_unchecked("select", Fp(crate::builtin::base::select)) };
-        unsafe { g.set_str_key_unchecked("setmetatable", Fp(crate::builtin::base::setmetatable)) };
-        unsafe { g.set_str_key_unchecked("tostring", Fp(crate::builtin::base::tostring)) };
-        unsafe { g.set_str_key_unchecked("type", Fp(crate::builtin::base::r#type)) };
-        unsafe { g.set_str_key_unchecked("_G", g) };
     }
 
     /// Setup [string library](https://www.lua.org/manual/5.4/manual.html#6.4).

@@ -36,6 +36,7 @@ use crate::{ChunkInfo, Lua, LuaFn, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;
 use alloc::string::String;
+use core::ffi::c_void;
 use core::fmt::Display;
 use core::ptr::{null, null_mut};
 
@@ -420,7 +421,7 @@ unsafe fn registerlocalvar<D>(
     let mut oldsize: c_int = (*f).sizelocvars;
     (*f).locvars = luaM_growaux_(
         &(*ls).g,
-        (*f).locvars as *mut libc::c_void,
+        (*f).locvars as *mut c_void,
         (*fs).ndebugvars as c_int,
         &mut (*f).sizelocvars,
         ::core::mem::size_of::<LocVar<D>>() as libc::c_ulong as c_int,
@@ -471,7 +472,7 @@ unsafe fn new_localvar<D>(ls: *mut LexState<D>, name: *const Str<D>) -> Result<c
 
     (*dyd).actvar.arr = luaM_growaux_(
         &(*ls).g,
-        (*dyd).actvar.arr as *mut libc::c_void,
+        (*dyd).actvar.arr as *mut c_void,
         (*dyd).actvar.n + 1 as c_int,
         &raw mut (*dyd).actvar.size,
         size_of::<Vardesc<D>>() as libc::c_ulong as c_int,
@@ -639,7 +640,7 @@ unsafe fn allocupvalue<D>(
 
     (*f).upvalues = luaM_growaux_(
         &(*ls).g,
-        (*f).upvalues as *mut libc::c_void,
+        (*f).upvalues as *mut c_void,
         (*fs).nups as c_int,
         &mut (*f).sizeupvalues,
         ::core::mem::size_of::<Upvaldesc<D>>() as libc::c_ulong as c_int,
@@ -890,7 +891,7 @@ unsafe fn newlabelentry<D>(
     let n: c_int = (*l).n;
     (*l).arr = luaM_growaux_(
         &(*ls).g,
-        (*l).arr as *mut libc::c_void,
+        (*l).arr as *mut c_void,
         n,
         &mut (*l).size,
         ::core::mem::size_of::<Labeldesc<D>>() as libc::c_ulong as c_int,
@@ -1047,7 +1048,7 @@ unsafe fn addprototype<D>(ls: *mut LexState<D>) -> Result<*mut Proto<D>, ParseEr
         let mut oldsize: c_int = (*f).sizep;
         (*f).p = luaM_growaux_(
             g,
-            (*f).p as *mut libc::c_void,
+            (*f).p as *mut c_void,
             (*fs).np,
             &mut (*f).sizep,
             ::core::mem::size_of::<*mut Proto<D>>() as libc::c_ulong as c_int,
@@ -1137,49 +1138,49 @@ unsafe fn close_func<D>(ls: *mut LexState<D>) -> Result<(), ParseError> {
     luaK_finish(ls, fs)?;
     (*f).code = luaM_shrinkvector_(
         (*ls).g,
-        (*f).code as *mut libc::c_void,
+        (*f).code as *mut c_void,
         &mut (*f).sizecode,
         (*fs).pc,
         ::core::mem::size_of::<u32>() as libc::c_ulong as c_int,
     ) as *mut u32;
     (*f).lineinfo = luaM_shrinkvector_(
         (*ls).g,
-        (*f).lineinfo as *mut libc::c_void,
+        (*f).lineinfo as *mut c_void,
         &mut (*f).sizelineinfo,
         (*fs).pc,
         ::core::mem::size_of::<i8>() as libc::c_ulong as c_int,
     ) as *mut i8;
     (*f).abslineinfo = luaM_shrinkvector_(
         (*ls).g,
-        (*f).abslineinfo as *mut libc::c_void,
+        (*f).abslineinfo as *mut c_void,
         &mut (*f).sizeabslineinfo,
         (*fs).nabslineinfo,
         ::core::mem::size_of::<AbsLineInfo>() as libc::c_ulong as c_int,
     ) as *mut AbsLineInfo;
     (*f).k = luaM_shrinkvector_(
         (*ls).g,
-        (*f).k as *mut libc::c_void,
+        (*f).k as *mut c_void,
         &mut (*f).sizek,
         (*fs).nk,
         ::core::mem::size_of::<UnsafeValue<D>>() as libc::c_ulong as c_int,
     ) as *mut UnsafeValue<D>;
     (*f).p = luaM_shrinkvector_(
         (*ls).g,
-        (*f).p as *mut libc::c_void,
+        (*f).p as *mut c_void,
         &mut (*f).sizep,
         (*fs).np,
         ::core::mem::size_of::<*mut Proto<D>>() as libc::c_ulong as c_int,
     ) as *mut *mut Proto<D>;
     (*f).locvars = luaM_shrinkvector_(
         (*ls).g,
-        (*f).locvars as *mut libc::c_void,
+        (*f).locvars as *mut c_void,
         &mut (*f).sizelocvars,
         (*fs).ndebugvars as c_int,
         ::core::mem::size_of::<LocVar<D>>() as libc::c_ulong as c_int,
     ) as *mut LocVar<D>;
     (*f).upvalues = luaM_shrinkvector_(
         (*ls).g,
-        (*f).upvalues as *mut libc::c_void,
+        (*f).upvalues as *mut c_void,
         &mut (*f).sizeupvalues,
         (*fs).nups as c_int,
         ::core::mem::size_of::<Upvaldesc<D>>() as libc::c_ulong as c_int,
