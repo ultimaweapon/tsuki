@@ -181,6 +181,7 @@ pub struct Lua<T> {
     dummy_node: Node<T>,
     seed: u32,
     active_rust_call: Cell<usize>,
+    modules_locked: Cell<bool>,
     associated_data: T,
     _phantom: PhantomPinned,
 }
@@ -225,6 +226,7 @@ impl<T> Lua<T> {
             },
             seed,
             active_rust_call: Cell::new(0),
+            modules_locked: Cell::new(false),
             associated_data,
             _phantom: PhantomPinned,
         });
@@ -234,7 +236,7 @@ impl<T> Lua<T> {
 
         unsafe { g.gc.set_root(reg.cast()) };
         unsafe { g.l_registry.get().write(UnsafeValue::from_obj(reg.cast())) };
-        unsafe { luaH_resize(reg, 5, 0) };
+        unsafe { luaH_resize(reg, 6, 0) };
 
         // Create main thread.
         let reg = unsafe { (*reg).array.get() };
@@ -309,13 +311,75 @@ impl<T> Lua<T> {
 
         unsafe { reg.add(4).write(UnsafeValue::from_obj(tokens.cast())) };
 
+        // Create table for modules.
+        let mods = unsafe { Table::new(g.deref()) };
+
+        unsafe { reg.add(5).write(UnsafeValue::from_obj(mods.cast())) };
+
         g
     }
 
-    /// Returns associated data that passed to [`Self::new()`] or [`Self::with_seed()`].
+    /// Returns associated data that passed to [Self::new()] or [Self::with_seed()].
     #[inline(always)]
     pub fn associated_data(&self) -> &T {
         &self.associated_data
+    }
+
+    /// Load a Lua module that implemented in Rust.
+    ///
+    /// If `global` is `true` this will **overwrite** the global variable with the same name as
+    /// `name`.
+    ///
+    /// The error can be either [ModuleExists], [RecursiveCall] or the one that returned from
+    /// [Module::open()].
+    ///
+    /// # Panics
+    /// If [Module::open()] returns a value created from different Lua instance.
+    pub fn use_module<'a, M>(
+        &'a self,
+        name: &str,
+        global: bool,
+        module: M,
+    ) -> Result<(), Box<dyn Error>>
+    where
+        M: Module<T>,
+        M::Instance<'a>: Into<UnsafeValue<T>>,
+    {
+        // Prevent recursive call.
+        let lock = match ModulesLock::new(&self.modules_locked) {
+            Some(v) => v,
+            None => return Err(Box::new(RecursiveCall::new(Self::use_module::<M>))),
+        };
+
+        // Check if exists.
+        let n = unsafe { UnsafeValue::from_obj(Str::from_str(self, name).cast()) };
+        let t = self.modules();
+        let s = unsafe { t.get_raw_unchecked(n) };
+
+        if unsafe { ((*s).tt_ & 0xf) != 0 } {
+            return Err(Box::new(ModuleExists));
+        }
+
+        // Open the module. We need a strong reference to name here since the module can trigger GC.
+        let n = unsafe { Ref::new(n.value_.gc.cast::<Str<T>>()) };
+        let m = module.open(self)?.into();
+
+        if (m.tt_ & 0xf) == 0 {
+            return Ok(());
+        } else if unsafe { (m.tt_ & 1 << 6) != 0 && (*m.value_.gc).global != self } {
+            panic!("the module instance was created from different Lua instance");
+        }
+
+        // SAFETY: n is not nil or NaN.
+        unsafe { t.set_slot_unchecked(s, n.deref(), m).unwrap_unchecked() };
+
+        if global {
+            unsafe { self.global().set_unchecked(n, m).unwrap_unchecked() };
+        }
+
+        drop(lock);
+
+        Ok(())
     }
 
     /// Setup [basic library](https://www.lua.org/manual/5.4/manual.html#6.1).
@@ -583,6 +647,38 @@ impl<T> Lua<T> {
         let tab = unsafe { (*tab).value_.gc.cast::<Table<T>>() };
 
         unsafe { &*tab }
+    }
+
+    #[inline(always)]
+    fn modules(&self) -> &Table<T> {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
+        let tab = unsafe { (*reg).array.get().add(5) };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table<T>>() };
+
+        unsafe { &*tab }
+    }
+}
+
+/// RAII struct to toggle [Lua::modules_locked].
+struct ModulesLock<'a>(&'a Cell<bool>);
+
+impl<'a> ModulesLock<'a> {
+    #[inline(always)]
+    fn new(locked: &'a Cell<bool>) -> Option<Self> {
+        if locked.get() {
+            return None;
+        }
+
+        locked.set(true);
+
+        Some(Self(locked))
+    }
+}
+
+impl<'a> Drop for ModulesLock<'a> {
+    #[inline(always)]
+    fn drop(&mut self) {
+        self.0.set(false);
     }
 }
 
@@ -864,6 +960,23 @@ pub enum ArithError {
 #[derive(Debug, Error)]
 #[error("stack overflow")]
 pub struct StackOverflow;
+
+/// Represents an error when [Lua::use_module()] fails due to the module already exists.
+#[derive(Debug, Error)]
+#[error("module with the same name already exists")]
+pub struct ModuleExists;
+
+/// Represents an error when a function that cannot be recursive call itself either directly or
+/// indirectly.
+#[derive(Debug, Error)]
+#[error("a call to '{0}' cannot be recursive")]
+pub struct RecursiveCall(&'static str);
+
+impl RecursiveCall {
+    fn new<F>(_: F) -> Self {
+        Self(core::any::type_name::<F>())
+    }
+}
 
 static NON_YIELDABLE_WAKER: RawWakerVTable = RawWakerVTable::new(
     |_| unimplemented!(),

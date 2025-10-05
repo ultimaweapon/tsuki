@@ -579,6 +579,7 @@ unsafe fn getfreepos<D>(t: *const Table<D>) -> *mut Node<D> {
     return null_mut();
 }
 
+#[inline(never)]
 unsafe fn luaH_newkey<D>(
     t: *const Table<D>,
     mut key: *const UnsafeValue<D>,
@@ -782,6 +783,7 @@ pub unsafe fn luaH_get<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *co
     getgeneric(t, key, 0 as c_int)
 }
 
+#[inline(always)]
 pub unsafe fn luaH_finishset<D>(
     t: *const Table<D>,
     key: *const UnsafeValue<D>,

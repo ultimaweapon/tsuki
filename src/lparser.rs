@@ -43,6 +43,7 @@ type c_short = i16;
 type c_ushort = u16;
 type c_int = i32;
 type c_uint = u32;
+type c_long = i64;
 
 #[repr(C)]
 pub struct Dyndata<D> {
@@ -366,7 +367,7 @@ unsafe fn check_match<D>(
     who: c_int,
     where_0: c_int,
 ) -> Result<(), ParseError> {
-    if ((testnext(ls, what)? == 0) as c_int != 0 as c_int) as c_int as libc::c_long != 0 {
+    if ((testnext(ls, what)? == 0) as c_int != 0 as c_int) as c_int as c_long != 0 {
         if where_0 == (*ls).linenumber {
             return Err(error_expected(ls, what));
         } else {
@@ -847,7 +848,7 @@ unsafe fn solvegoto<D>(
     let gl = &raw mut (*(*ls).dyd).gt;
     let gt = ((*gl).arr).offset(g as isize) as *mut Labeldesc<D>;
     if ((((*gt).nactvar as c_int) < (*label).nactvar as c_int) as c_int != 0 as c_int) as c_int
-        as libc::c_long
+        as c_long
         != 0
     {
         return Err(jumpscopeerror(ls, gt));
@@ -2204,7 +2205,7 @@ unsafe fn fixforjump<D>(
         offset = -offset;
     }
     if ((offset > ((1 as c_int) << 8 as c_int + 8 as c_int + 1 as c_int) - 1 as c_int) as c_int
-        != 0 as c_int) as c_int as libc::c_long
+        != 0 as c_int) as c_int as c_long
         != 0
     {
         return Err(luaX_syntaxerror(ls, "control structure too long"));

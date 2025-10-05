@@ -169,8 +169,11 @@ impl<D> Table<D> {
     }
 
     #[inline(always)]
-    pub(crate) unsafe fn get_raw_unchecked(&self, k: impl Into<UnsafeValue<D>>) -> &UnsafeValue<D> {
-        unsafe { &*luaH_get(self, &k.into()) }
+    pub(crate) unsafe fn get_raw_unchecked(
+        &self,
+        k: impl Into<UnsafeValue<D>>,
+    ) -> *const UnsafeValue<D> {
+        unsafe { luaH_get(self, &k.into()) }
     }
 
     #[inline(always)]
@@ -276,6 +279,29 @@ impl<D> Table<D> {
         let k = unsafe { UnsafeValue::from_obj(k.cast()) };
 
         unsafe { self.set_unchecked(k, v).unwrap_unchecked() };
+    }
+
+    pub(crate) unsafe fn set_slot_unchecked(
+        &self,
+        s: *const UnsafeValue<D>,
+        k: impl Into<UnsafeValue<D>>,
+        v: impl Into<UnsafeValue<D>>,
+    ) -> Result<(), TableError> {
+        let k = k.into();
+        let v = v.into();
+
+        unsafe { luaH_finishset(self, &k, s, &v)? };
+
+        self.flags
+            .set((self.flags.get() as u32 & !!(!0 << TM_EQ + 1)) as u8);
+
+        if v.tt_ & 1 << 6 != 0 && self.hdr.marked.get() & 1 << 5 != 0 {
+            if unsafe { (*v.value_.gc).marked.is_white() } {
+                unsafe { self.hdr.global().gc.barrier_back(&self.hdr) };
+            }
+        }
+
+        Ok(())
     }
 
     pub(crate) unsafe fn next_raw(

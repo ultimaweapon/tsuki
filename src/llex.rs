@@ -1115,8 +1115,8 @@ unsafe fn llex<D>(
                         .tokens()
                         .get_raw_unchecked(UnsafeValue::from_obj(ts.cast()));
 
-                    if (v.tt_ & 0x3F) == (3 | 0 << 4) {
-                        return Ok(v.value_.i as libc::c_int - 1 + (255 + 1 as libc::c_int));
+                    if ((*v).tt_ & 0x3F) == (3 | 0 << 4) {
+                        return Ok((*v).value_.i as libc::c_int - 1 + (255 + 1));
                     } else {
                         return Ok(TK_NAME as libc::c_int);
                     }
