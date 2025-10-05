@@ -75,11 +75,6 @@ unsafe fn correctstack<D>(L: *const Thread<D>) {
     while !ci.is_null() {
         (*ci).top = ((*L).stack.get()).byte_add((*ci).top as usize);
         (*ci).func = ((*L).stack.get()).byte_add((*ci).func as usize);
-
-        if (*ci).callstatus & 1 << 1 == 0 {
-            (*ci).u.trap = 1;
-        }
-
         ci = (*ci).previous;
     }
 }

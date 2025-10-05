@@ -254,6 +254,14 @@ impl<T> Lua<T> {
         let mts = unsafe { Table::new(g.deref()) };
 
         unsafe { luaH_resize(mts, 9, 0) };
+
+        for i in 0..9 {
+            let e = unsafe { (*mts).array.get().add(i) };
+
+            unsafe { (*e).tt_ = 1 | 0 << 4 };
+            unsafe { (*e).value_.gc = null() };
+        }
+
         unsafe { reg.add(2).write(UnsafeValue::from_obj(mts.cast())) };
 
         // Create table for event names.
