@@ -16,8 +16,11 @@ use crate::vm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointeg
 use crate::{Args, ArithError, ChunkInfo, Context, Lua, Number, Ops, Ret, Str, Thread};
 use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
-use libc::{c_char, c_int, strpbrk, strspn, strtod};
+use core::ffi::{c_char, c_void};
+use libc::{strpbrk, strspn, strtod};
 use libm::{floor, pow};
+
+type c_int = i32;
 
 #[repr(C)]
 pub struct UpVal<D> {
@@ -121,43 +124,43 @@ impl<D> Drop for Proto<D> {
     fn drop(&mut self) {
         unsafe {
             luaM_free_(
-                self.code as *mut libc::c_void,
+                self.code as *mut c_void,
                 (self.sizecode as usize).wrapping_mul(::core::mem::size_of::<u32>()),
             )
         };
         unsafe {
             luaM_free_(
-                self.p as *mut libc::c_void,
+                self.p as *mut c_void,
                 (self.sizep as usize).wrapping_mul(::core::mem::size_of::<*mut Self>()),
             )
         };
         unsafe {
             luaM_free_(
-                self.k as *mut libc::c_void,
+                self.k as *mut c_void,
                 (self.sizek as usize).wrapping_mul(::core::mem::size_of::<UnsafeValue<D>>()),
             )
         };
         unsafe {
             luaM_free_(
-                self.lineinfo as *mut libc::c_void,
+                self.lineinfo as *mut c_void,
                 (self.sizelineinfo as usize).wrapping_mul(::core::mem::size_of::<i8>()),
             )
         };
         unsafe {
             luaM_free_(
-                self.abslineinfo as *mut libc::c_void,
+                self.abslineinfo as *mut c_void,
                 (self.sizeabslineinfo as usize).wrapping_mul(::core::mem::size_of::<AbsLineInfo>()),
             )
         };
         unsafe {
             luaM_free_(
-                self.locvars as *mut libc::c_void,
+                self.locvars as *mut c_void,
                 (self.sizelocvars as usize).wrapping_mul(::core::mem::size_of::<LocVar<D>>()),
             )
         };
         unsafe {
             luaM_free_(
-                self.upvalues as *mut libc::c_void,
+                self.upvalues as *mut c_void,
                 (self.sizeupvalues as usize).wrapping_mul(::core::mem::size_of::<Upvaldesc<D>>()),
             )
         };

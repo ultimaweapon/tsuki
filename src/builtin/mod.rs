@@ -10,9 +10,9 @@ pub mod table;
 /// [Module] implementation for [basic library](https://www.lua.org/manual/5.4/manual.html#6.1).
 ///
 /// Note that `print` only available with `std` feature.
-pub struct BaseModule;
+pub struct BaseLib;
 
-impl<A> Module<A> for BaseModule {
+impl<A> Module<A> for BaseLib {
     const NAME: &str = "_G";
 
     type Instance<'a>
