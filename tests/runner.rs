@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::LazyLock;
-use tsuki::builtin::BaseModule;
+use tsuki::builtin::{BaseModule, StringModule};
 use tsuki::{Args, CallError, ChunkInfo, Context, Lua, Ret, fp};
 
 #[test]
@@ -123,7 +123,7 @@ fn run(file: &str, setup: impl FnOnce(&Lua<()>)) -> Result<(), Box<dyn std::erro
     let lua = Lua::new(());
 
     lua.use_module(None, true, BaseModule).unwrap();
-    lua.setup_string();
+    lua.use_module(None, true, StringModule).unwrap();
     lua.setup_table();
     lua.setup_math();
     lua.setup_coroutine();

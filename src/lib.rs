@@ -3,7 +3,7 @@
 //! # Quickstart
 //!
 //! ```
-//! use tsuki::builtin::BaseModule;
+//! use tsuki::builtin::{BaseModule, StringModule};
 //! use tsuki::{Args, Context, Lua, Ret, Value, fp};
 //!
 //! fn main() {
@@ -11,7 +11,7 @@
 //!     let lua = Lua::new(());
 //!
 //!     lua.use_module(None, true, BaseModule).unwrap();
-//!     lua.setup_string();
+//!     lua.use_module(None, true, StringModule).unwrap();
 //!     lua.setup_table();
 //!     lua.setup_math();
 //!     lua.setup_coroutine();
@@ -384,32 +384,6 @@ impl<T> Lua<T> {
         drop(lock);
 
         Ok(())
-    }
-
-    /// Setup [string library](https://www.lua.org/manual/5.4/manual.html#6.4).
-    pub fn setup_string(&self) {
-        // Setup string table.
-        let g = unsafe { Table::new(self) };
-
-        unsafe { (*g).set_str_key_unchecked("format", Fp(crate::builtin::string::format)) };
-        unsafe { (*g).set_str_key_unchecked("sub", Fp(crate::builtin::string::sub)) };
-
-        // Set global.
-        let g = unsafe { UnsafeValue::from_obj(g.cast()) };
-
-        unsafe { self.global().set_str_key_unchecked("string", g) };
-
-        // Setup metatable.
-        let mt = unsafe { Table::new(self) };
-
-        unsafe { (*mt).set_str_key_unchecked("__add", fp!(crate::builtin::string::add)) };
-        unsafe { (*mt).set_str_key_unchecked("__index", g) };
-        unsafe { (*mt).set_str_key_unchecked("__sub", fp!(crate::builtin::string::subtract)) };
-
-        // Set metatable.
-        let mt = unsafe { UnsafeValue::from_obj(mt.cast()) };
-
-        unsafe { self.metatables().set_unchecked(4, mt).unwrap_unchecked() };
     }
 
     /// Setup [table library](https://www.lua.org/manual/5.4/manual.html#6.6).

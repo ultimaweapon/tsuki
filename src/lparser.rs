@@ -36,7 +36,7 @@ use crate::{ChunkInfo, Lua, LuaFn, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;
 use alloc::string::String;
-use core::ffi::c_void;
+use core::ffi::{c_char, c_void};
 use core::fmt::Display;
 use core::ptr::{null, null_mut};
 
@@ -1465,9 +1465,9 @@ unsafe fn body<D>(
             ls,
             luaX_newstring(
                 ls,
-                b"self\0" as *const u8 as *const libc::c_char,
-                ::core::mem::size_of::<[libc::c_char; 5]>()
-                    .wrapping_div(::core::mem::size_of::<libc::c_char>())
+                b"self\0" as *const u8 as *const c_char,
+                ::core::mem::size_of::<[c_char; 5]>()
+                    .wrapping_div(::core::mem::size_of::<c_char>())
                     .wrapping_sub(1),
             ),
         )?;
@@ -2270,9 +2270,9 @@ unsafe fn fornum<D>(
         ls,
         luaX_newstring(
             ls,
-            b"(for state)\0" as *const u8 as *const libc::c_char,
-            ::core::mem::size_of::<[libc::c_char; 12]>()
-                .wrapping_div(::core::mem::size_of::<libc::c_char>())
+            b"(for state)\0" as *const u8 as *const c_char,
+            ::core::mem::size_of::<[c_char; 12]>()
+                .wrapping_div(::core::mem::size_of::<c_char>())
                 .wrapping_sub(1),
         ),
     )?;
@@ -2280,9 +2280,9 @@ unsafe fn fornum<D>(
         ls,
         luaX_newstring(
             ls,
-            b"(for state)\0" as *const u8 as *const libc::c_char,
-            ::core::mem::size_of::<[libc::c_char; 12]>()
-                .wrapping_div(::core::mem::size_of::<libc::c_char>())
+            b"(for state)\0" as *const u8 as *const c_char,
+            ::core::mem::size_of::<[c_char; 12]>()
+                .wrapping_div(::core::mem::size_of::<c_char>())
                 .wrapping_sub(1),
         ),
     )?;
@@ -2290,9 +2290,9 @@ unsafe fn fornum<D>(
         ls,
         luaX_newstring(
             ls,
-            b"(for state)\0" as *const u8 as *const libc::c_char,
-            ::core::mem::size_of::<[libc::c_char; 12]>()
-                .wrapping_div(::core::mem::size_of::<libc::c_char>())
+            b"(for state)\0" as *const u8 as *const c_char,
+            ::core::mem::size_of::<[c_char; 12]>()
+                .wrapping_div(::core::mem::size_of::<c_char>())
                 .wrapping_sub(1),
         ),
     )?;
@@ -2328,9 +2328,9 @@ unsafe fn forlist<D>(ls: *mut LexState<D>, indexname: *const Str<D>) -> Result<(
         ls,
         luaX_newstring(
             ls,
-            b"(for state)\0" as *const u8 as *const libc::c_char,
-            ::core::mem::size_of::<[libc::c_char; 12]>()
-                .wrapping_div(::core::mem::size_of::<libc::c_char>())
+            b"(for state)\0" as *const u8 as *const c_char,
+            ::core::mem::size_of::<[c_char; 12]>()
+                .wrapping_div(::core::mem::size_of::<c_char>())
                 .wrapping_sub(1),
         ),
     )?;
@@ -2338,9 +2338,9 @@ unsafe fn forlist<D>(ls: *mut LexState<D>, indexname: *const Str<D>) -> Result<(
         ls,
         luaX_newstring(
             ls,
-            b"(for state)\0" as *const u8 as *const libc::c_char,
-            ::core::mem::size_of::<[libc::c_char; 12]>()
-                .wrapping_div(::core::mem::size_of::<libc::c_char>())
+            b"(for state)\0" as *const u8 as *const c_char,
+            ::core::mem::size_of::<[c_char; 12]>()
+                .wrapping_div(::core::mem::size_of::<c_char>())
                 .wrapping_sub(1),
         ),
     )?;
@@ -2348,9 +2348,9 @@ unsafe fn forlist<D>(ls: *mut LexState<D>, indexname: *const Str<D>) -> Result<(
         ls,
         luaX_newstring(
             ls,
-            b"(for state)\0" as *const u8 as *const libc::c_char,
-            ::core::mem::size_of::<[libc::c_char; 12]>()
-                .wrapping_div(::core::mem::size_of::<libc::c_char>())
+            b"(for state)\0" as *const u8 as *const c_char,
+            ::core::mem::size_of::<[c_char; 12]>()
+                .wrapping_div(::core::mem::size_of::<c_char>())
                 .wrapping_sub(1),
         ),
     )?;
@@ -2358,9 +2358,9 @@ unsafe fn forlist<D>(ls: *mut LexState<D>, indexname: *const Str<D>) -> Result<(
         ls,
         luaX_newstring(
             ls,
-            b"(for state)\0" as *const u8 as *const libc::c_char,
-            ::core::mem::size_of::<[libc::c_char; 12]>()
-                .wrapping_div(::core::mem::size_of::<libc::c_char>())
+            b"(for state)\0" as *const u8 as *const c_char,
+            ::core::mem::size_of::<[c_char; 12]>()
+                .wrapping_div(::core::mem::size_of::<c_char>())
                 .wrapping_sub(1),
         ),
     )?;
