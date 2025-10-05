@@ -3,7 +3,7 @@
 //! # Quickstart
 //!
 //! ```
-//! use tsuki::builtin::{BaseLib, StringLib};
+//! use tsuki::builtin::{BaseLib, StringLib, TableLib};
 //! use tsuki::{Args, Context, Lua, Ret, Value, fp};
 //!
 //! fn main() {
@@ -12,7 +12,7 @@
 //!
 //!     lua.use_module(None, true, BaseLib).unwrap();
 //!     lua.use_module(None, true, StringLib).unwrap();
-//!     lua.setup_table();
+//!     lua.use_module(None, true, TableLib).unwrap();
 //!     lua.setup_math();
 //!     lua.setup_coroutine();
 //!
@@ -392,19 +392,6 @@ impl<T> Lua<T> {
         drop(lock);
 
         Ok(())
-    }
-
-    /// Setup [table library](https://www.lua.org/manual/5.4/manual.html#6.6).
-    pub fn setup_table(&self) {
-        // Setup table table.
-        let g = unsafe { Table::new(self) };
-
-        unsafe { (*g).set_str_key_unchecked("unpack", Fp(crate::builtin::table::unpack)) };
-
-        // Set global.
-        let g = unsafe { UnsafeValue::from_obj(g.cast()) };
-
-        unsafe { self.global().set_str_key_unchecked("table", g) };
     }
 
     /// Setup [mathematical library](https://www.lua.org/manual/5.4/manual.html#6.7).

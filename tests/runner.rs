@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::LazyLock;
-use tsuki::builtin::{BaseLib, StringLib};
+use tsuki::builtin::{BaseLib, StringLib, TableLib};
 use tsuki::{Args, CallError, ChunkInfo, Context, Lua, Ret, fp};
 
 #[test]
@@ -124,7 +124,7 @@ fn run(file: &str, setup: impl FnOnce(&Lua<()>)) -> Result<(), Box<dyn std::erro
 
     lua.use_module(None, true, BaseLib).unwrap();
     lua.use_module(None, true, StringLib).unwrap();
-    lua.setup_table();
+    lua.use_module(None, true, TableLib).unwrap();
     lua.setup_math();
     lua.setup_coroutine();
 

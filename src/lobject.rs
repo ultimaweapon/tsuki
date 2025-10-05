@@ -21,6 +21,7 @@ use libc::{strpbrk, strspn, strtod};
 use libm::{floor, pow};
 
 type c_int = i32;
+type c_uint = u32;
 
 #[repr(C)]
 pub struct UpVal<D> {
@@ -177,7 +178,7 @@ pub struct CClosure<D> {
     pub upvalue: [UnsafeValue<D>; 1],
 }
 
-pub unsafe fn luaO_ceillog2(mut x: libc::c_uint) -> c_int {
+pub unsafe fn luaO_ceillog2(mut x: c_uint) -> c_int {
     static mut log_2: [u8; 256] = [
         0 as c_int as u8,
         1 as c_int as u8,
@@ -439,7 +440,7 @@ pub unsafe fn luaO_ceillog2(mut x: libc::c_uint) -> c_int {
     let mut l: c_int = 0 as c_int;
     x = x.wrapping_sub(1);
 
-    while x >= 256 as c_int as libc::c_uint {
+    while x >= 256 as c_int as c_uint {
         l += 8 as c_int;
         x >>= 8 as c_int;
     }
@@ -728,7 +729,7 @@ pub unsafe fn luaO_utf8esc(buff: *mut c_char, mut x: libc::c_ulong) -> c_int {
     if x < 0x80 as c_int as libc::c_ulong {
         *buff.offset((8 as c_int - 1 as c_int) as isize) = x as c_char;
     } else {
-        let mut mfb: libc::c_uint = 0x3f as c_int as libc::c_uint;
+        let mut mfb: c_uint = 0x3f as c_int as c_uint;
         loop {
             let fresh1 = n;
             n = n + 1;

@@ -74,3 +74,23 @@ impl<A> Module<A> for StringLib {
         Ok(g)
     }
 }
+
+/// [Module] implementation for [table library](https://www.lua.org/manual/5.4/manual.html#6.6).
+pub struct TableLib;
+
+impl<A> Module<A> for TableLib {
+    const NAME: &str = "table";
+
+    type Instance<'a>
+        = Ref<'a, Table<A>>
+    where
+        A: 'a;
+
+    fn open(self, lua: &Lua<A>) -> Result<Self::Instance<'_>, Box<dyn core::error::Error>> {
+        let g = lua.create_table();
+
+        g.set_str_key("unpack", fp!(self::table::unpack));
+
+        Ok(g)
+    }
+}
