@@ -3,7 +3,7 @@
 //! # Quickstart
 //!
 //! ```
-//! use tsuki::builtin::{BaseLib, StringLib, TableLib};
+//! use tsuki::builtin::{BaseLib, MathLib, StringLib, TableLib};
 //! use tsuki::{Args, Context, Lua, Ret, Value, fp};
 //!
 //! fn main() {
@@ -11,9 +11,9 @@
 //!     let lua = Lua::new(());
 //!
 //!     lua.use_module(None, true, BaseLib).unwrap();
+//!     lua.use_module(None, true, MathLib).unwrap();
 //!     lua.use_module(None, true, StringLib).unwrap();
 //!     lua.use_module(None, true, TableLib).unwrap();
-//!     lua.setup_math();
 //!     lua.setup_coroutine();
 //!
 //!     lua.global().set_str_key("myfunc", fp!(myfunc));
@@ -392,25 +392,6 @@ impl<T> Lua<T> {
         drop(lock);
 
         Ok(())
-    }
-
-    /// Setup [mathematical library](https://www.lua.org/manual/5.4/manual.html#6.7).
-    pub fn setup_math(&self) {
-        // Setup math table.
-        let g = unsafe { Table::new(self) };
-
-        unsafe { (*g).set_str_key_unchecked("floor", Fp(crate::builtin::math::floor)) };
-        unsafe { (*g).set_str_key_unchecked("log", Fp(crate::builtin::math::log)) };
-        unsafe { (*g).set_str_key_unchecked("max", Fp(crate::builtin::math::max)) };
-        unsafe { (*g).set_str_key_unchecked("maxinteger", i64::MAX) };
-        unsafe { (*g).set_str_key_unchecked("mininteger", i64::MIN) };
-        unsafe { (*g).set_str_key_unchecked("sin", Fp(crate::builtin::math::sin)) };
-        unsafe { (*g).set_str_key_unchecked("type", Fp(crate::builtin::math::r#type)) };
-
-        // Set global.
-        let g = unsafe { UnsafeValue::from_obj(g.cast()) };
-
-        unsafe { self.global().set_str_key_unchecked("math", g) };
     }
 
     /// Setup [coroutine library](https://www.lua.org/manual/5.4/manual.html#6.2).

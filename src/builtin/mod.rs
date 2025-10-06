@@ -42,6 +42,34 @@ impl<A> Module<A> for BaseLib {
     }
 }
 
+/// [Module] implementation for
+/// [mathematical library](https://www.lua.org/manual/5.4/manual.html#6.7).
+pub struct MathLib;
+
+impl<A> Module<A> for MathLib {
+    const NAME: &str = "math";
+
+    type Instance<'a>
+        = Ref<'a, Table<A>>
+    where
+        A: 'a;
+
+    fn open(self, lua: &Lua<A>) -> Result<Self::Instance<'_>, Box<dyn core::error::Error>> {
+        // Setup math table.
+        let g = lua.create_table();
+
+        g.set_str_key("floor", fp!(self::math::floor));
+        g.set_str_key("log", fp!(self::math::log));
+        g.set_str_key("max", fp!(self::math::max));
+        g.set_str_key("maxinteger", i64::MAX);
+        g.set_str_key("mininteger", i64::MIN);
+        g.set_str_key("sin", fp!(self::math::sin));
+        g.set_str_key("type", fp!(self::math::r#type));
+
+        Ok(g)
+    }
+}
+
 /// [Module] implementation for [string library](https://www.lua.org/manual/5.4/manual.html#6.4).
 ///
 /// Note that [Self::open()] will **overwrite** string metatable.

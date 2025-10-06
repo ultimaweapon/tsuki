@@ -20,6 +20,7 @@ use core::ffi::{c_char, c_void};
 use libc::{strpbrk, strspn, strtod};
 use libm::{floor, pow};
 
+type c_uchar = u8;
 type c_int = i32;
 type c_uint = u32;
 
@@ -621,7 +622,7 @@ unsafe fn l_str2dloc(s: *const c_char) -> Option<f64> {
     if endptr == s as *mut c_char {
         return None;
     }
-    while luai_ctype_[(*endptr as libc::c_uchar as c_int + 1 as c_int) as usize] as c_int
+    while luai_ctype_[(*endptr as c_uchar as c_int + 1 as c_int) as usize] as c_int
         & (1 as c_int) << 3 as c_int
         != 0
     {
@@ -637,7 +638,7 @@ unsafe fn l_str2dloc(s: *const c_char) -> Option<f64> {
 unsafe fn l_str2d(s: *const c_char) -> Option<f64> {
     let pmode: *const c_char = strpbrk(s, b".xXnN\0" as *const u8 as *const c_char);
     let mode: c_int = if !pmode.is_null() {
-        *pmode as libc::c_uchar as c_int | 'A' as i32 ^ 'a' as i32
+        *pmode as c_uchar as c_int | 'A' as i32 ^ 'a' as i32
     } else {
         0 as c_int
     };
@@ -655,7 +656,7 @@ unsafe fn l_str2int(mut s: *const c_char) -> Option<i64> {
     let mut neg: c_int = 0;
 
     // Skip leading whitespace.
-    while luai_ctype_[(*s as libc::c_uchar as c_int + 1 as c_int) as usize] as c_int & 1 << 3 != 0 {
+    while luai_ctype_[(*s as c_uchar as c_int + 1 as c_int) as usize] as c_int & 1 << 3 != 0 {
         s = s.offset(1);
     }
 
@@ -666,7 +667,7 @@ unsafe fn l_str2int(mut s: *const c_char) -> Option<i64> {
             || *s.offset(1 as c_int as isize) as c_int == 'X' as i32)
     {
         s = s.offset(2 as c_int as isize);
-        while luai_ctype_[(*s as libc::c_uchar as c_int + 1 as c_int) as usize] as c_int
+        while luai_ctype_[(*s as c_uchar as c_int + 1 as c_int) as usize] as c_int
             & (1 as c_int) << 4 as c_int
             != 0
         {
@@ -677,7 +678,7 @@ unsafe fn l_str2int(mut s: *const c_char) -> Option<i64> {
             s = s.offset(1);
         }
     } else {
-        while luai_ctype_[(*s as libc::c_uchar as c_int + 1 as c_int) as usize] as c_int
+        while luai_ctype_[(*s as c_uchar as c_int + 1 as c_int) as usize] as c_int
             & (1 as c_int) << 1 as c_int
             != 0
         {
@@ -698,7 +699,7 @@ unsafe fn l_str2int(mut s: *const c_char) -> Option<i64> {
             s = s.offset(1);
         }
     }
-    while luai_ctype_[(*s as libc::c_uchar as c_int + 1 as c_int) as usize] as c_int
+    while luai_ctype_[(*s as c_uchar as c_int + 1 as c_int) as usize] as c_int
         & (1 as c_int) << 3 as c_int
         != 0
     {
