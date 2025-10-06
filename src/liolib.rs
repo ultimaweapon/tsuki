@@ -8,12 +8,6 @@
     unused_mut
 )]
 
-pub type __uint32_t = libc::c_uint;
-pub type __int64_t = libc::c_longlong;
-pub type __darwin_ct_rune_t = libc::c_int;
-pub type __darwin_wchar_t = libc::c_int;
-pub type __darwin_rune_t = __darwin_wchar_t;
-pub type __darwin_off_t = __int64_t;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct _RuneEntry {
@@ -1259,13 +1253,6 @@ unsafe extern "C" fn createstdfile(
 }
 #[no_mangle]
 pub unsafe extern "C" fn luaopen_io(mut L: *mut lua_State) -> libc::c_int {
-    luaL_checkversion_(
-        L,
-        504 as libc::c_int as f64,
-        (::core::mem::size_of::<i64>() as libc::c_ulong)
-            .wrapping_mul(16 as libc::c_int as libc::c_ulong)
-            .wrapping_add(::core::mem::size_of::<f64>() as libc::c_ulong),
-    );
     lua_createtable(
         L,
         0 as libc::c_int,
