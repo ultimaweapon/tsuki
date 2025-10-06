@@ -42,6 +42,24 @@ impl<A> Module<A> for BaseLib {
     }
 }
 
+/// [Module] implementation for [coroutine library](https://www.lua.org/manual/5.4/manual.html#6.2).
+pub struct CoroLib;
+
+impl<A> Module<A> for CoroLib {
+    const NAME: &str = "coroutine";
+
+    type Instance<'a>
+        = Ref<'a, Table<A>>
+    where
+        A: 'a;
+
+    fn open(self, lua: &Lua<A>) -> Result<Self::Instance<'_>, Box<dyn core::error::Error>> {
+        let g = lua.create_table();
+
+        Ok(g)
+    }
+}
+
 /// [Module] implementation for
 /// [mathematical library](https://www.lua.org/manual/5.4/manual.html#6.7).
 pub struct MathLib;

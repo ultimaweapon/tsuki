@@ -3,7 +3,7 @@
 //! # Quickstart
 //!
 //! ```
-//! use tsuki::builtin::{BaseLib, MathLib, StringLib, TableLib};
+//! use tsuki::builtin::{BaseLib, CoroLib, MathLib, StringLib, TableLib};
 //! use tsuki::{Args, Context, Lua, Ret, Value, fp};
 //!
 //! fn main() {
@@ -11,10 +11,10 @@
 //!     let lua = Lua::new(());
 //!
 //!     lua.use_module(None, true, BaseLib).unwrap();
+//!     lua.use_module(None, true, CoroLib).unwrap();
 //!     lua.use_module(None, true, MathLib).unwrap();
 //!     lua.use_module(None, true, StringLib).unwrap();
 //!     lua.use_module(None, true, TableLib).unwrap();
-//!     lua.setup_coroutine();
 //!
 //!     lua.global().set_str_key("myfunc", fp!(myfunc));
 //!
@@ -392,17 +392,6 @@ impl<T> Lua<T> {
         drop(lock);
 
         Ok(())
-    }
-
-    /// Setup [coroutine library](https://www.lua.org/manual/5.4/manual.html#6.2).
-    pub fn setup_coroutine(&self) {
-        // Setup coroutine table.
-        let g = unsafe { Table::new(self) };
-
-        // Set global.
-        let g = unsafe { UnsafeValue::from_obj(g.cast()) };
-
-        unsafe { self.global().set_str_key_unchecked("coroutine", g) };
     }
 
     /// Set metatable for Lua string.

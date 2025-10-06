@@ -23,6 +23,7 @@ use libm::{floor, pow};
 type c_uchar = u8;
 type c_int = i32;
 type c_uint = u32;
+type c_longlong = i64;
 
 #[repr(C)]
 pub struct UpVal<D> {
@@ -683,13 +684,9 @@ unsafe fn l_str2int(mut s: *const c_char) -> Option<i64> {
             != 0
         {
             let d: c_int = *s as c_int - '0' as i32;
-            if a >= (0x7fffffffffffffff as libc::c_longlong / 10 as c_int as libc::c_longlong)
-                as u64
-                && (a
-                    > (0x7fffffffffffffff as libc::c_longlong / 10 as c_int as libc::c_longlong)
-                        as u64
-                    || d > (0x7fffffffffffffff as libc::c_longlong
-                        % 10 as c_int as libc::c_longlong) as c_int
+            if a >= (0x7fffffffffffffff as c_longlong / 10 as c_int as c_longlong) as u64
+                && (a > (0x7fffffffffffffff as c_longlong / 10 as c_int as c_longlong) as u64
+                    || d > (0x7fffffffffffffff as c_longlong % 10 as c_int as c_longlong) as c_int
                         + neg)
             {
                 return None;
