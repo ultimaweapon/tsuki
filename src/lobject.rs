@@ -23,6 +23,7 @@ use libm::{floor, pow};
 type c_uchar = u8;
 type c_int = i32;
 type c_uint = u32;
+type c_ulong = u64;
 type c_longlong = i64;
 
 #[repr(C)]
@@ -722,9 +723,9 @@ pub unsafe fn luaO_str2num(s: *const c_char) -> Option<Number> {
     }
 }
 
-pub unsafe fn luaO_utf8esc(buff: *mut c_char, mut x: libc::c_ulong) -> c_int {
+pub unsafe fn luaO_utf8esc(buff: *mut c_char, mut x: c_ulong) -> c_int {
     let mut n: c_int = 1 as c_int;
-    if x < 0x80 as c_int as libc::c_ulong {
+    if x < 0x80 as c_int as c_ulong {
         *buff.offset((8 as c_int - 1 as c_int) as isize) = x as c_char;
     } else {
         let mut mfb: c_uint = 0x3f as c_int as c_uint;
@@ -732,15 +733,14 @@ pub unsafe fn luaO_utf8esc(buff: *mut c_char, mut x: libc::c_ulong) -> c_int {
             let fresh1 = n;
             n = n + 1;
             *buff.offset((8 as c_int - fresh1) as isize) =
-                (0x80 as c_int as libc::c_ulong | x & 0x3f as c_int as libc::c_ulong) as c_char;
+                (0x80 as c_int as c_ulong | x & 0x3f as c_int as c_ulong) as c_char;
             x >>= 6 as c_int;
             mfb >>= 1 as c_int;
-            if !(x > mfb as libc::c_ulong) {
+            if !(x > mfb as c_ulong) {
                 break;
             }
         }
-        *buff.offset((8 as c_int - n) as isize) =
-            ((!mfb << 1 as c_int) as libc::c_ulong | x) as c_char;
+        *buff.offset((8 as c_int - n) as isize) = ((!mfb << 1 as c_int) as c_ulong | x) as c_char;
     }
     return n;
 }

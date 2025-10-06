@@ -17,15 +17,12 @@ mod table;
 /// Use [Lua::create_str()] or [Context::create_str()](crate::Context::create_str()) to create the
 /// value of this type.
 ///
-/// There are 2 variants of this, UTF-8 string and binary string. The variant cannot be changed
-/// after the string is created. The binary string can contains any data, including a UTF-8 string.
-///
 /// Although the string is currently null-terminated but there is a plan to remove this so
 /// **do not** rely on this.
 #[repr(C)]
 pub struct Str<D> {
     pub(crate) hdr: Object<D>,
-    utf8: bool,
+    ty: Cell<Option<ContentType>>,
     pub(crate) len: usize,
     pub(crate) extra: Cell<u8>,
     pub(crate) hash: Cell<u32>,
@@ -39,7 +36,7 @@ impl<D> Str<D> {
     where
         T: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
-        unsafe { Self::new(g, str, true) }
+        unsafe { Self::new(g, str, Some(ContentType::Utf8)) }
     }
 
     #[inline(always)]
@@ -47,11 +44,11 @@ impl<D> Str<D> {
     where
         T: AsRef<[u8]> + Into<Vec<u8>>,
     {
-        unsafe { Self::new(g, str, false) }
+        unsafe { Self::new(g, str, None) }
     }
 
     #[inline(never)]
-    unsafe fn new<T>(g: *const Lua<D>, str: T, utf8: bool) -> *const Self
+    unsafe fn new<T>(g: *const Lua<D>, str: T, ty: Option<ContentType>) -> *const Self
     where
         T: AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -62,7 +59,7 @@ impl<D> Str<D> {
             let str = str.into();
             let s = unsafe { Self::alloc(g, str.len(), 4 | 1 << 4, (*g).seed) };
 
-            unsafe { addr_of_mut!((*s).utf8).write(utf8) };
+            unsafe { addr_of_mut!((*s).ty).write(Cell::new(ty)) };
             unsafe { addr_of_mut!((*s).hnext).write(Cell::new(null())) };
             unsafe {
                 (*s).contents
@@ -85,7 +82,7 @@ impl<D> Str<D> {
                 let str = str.into();
                 let v = Self::alloc(g, str.len(), 4 | 0 << 4, h);
 
-                addr_of_mut!((*v).utf8).write(utf8);
+                addr_of_mut!((*v).ty).write(Cell::new(ty));
                 addr_of_mut!((*v).hnext).write(Cell::new(*e));
                 (*v).contents
                     .as_mut_ptr()
@@ -99,9 +96,21 @@ impl<D> Str<D> {
 
     /// Returns `true` if this string is UTF-8.
     ///
-    /// Use [`Self::as_str()`] instead if you want [`str`] from this string.
-    pub const fn is_utf8(&self) -> bool {
-        self.utf8
+    /// Use [Self::as_str()] instead if you want [str] from this string.
+    pub fn is_utf8(&self) -> bool {
+        match self.ty.get() {
+            Some(v) => v == ContentType::Utf8,
+            None => {
+                let utf8 = core::str::from_utf8(self.as_bytes()).is_ok();
+
+                self.ty.set(Some(match utf8 {
+                    true => ContentType::Utf8,
+                    false => ContentType::Binary,
+                }));
+
+                utf8
+            }
+        }
     }
 
     /// Returns the length of this string, in bytes.
@@ -109,9 +118,9 @@ impl<D> Str<D> {
         self.len
     }
 
-    /// Returns [`str`] if this string is UTF-8.
-    pub const fn as_str(&self) -> Option<&str> {
-        match self.utf8 {
+    /// Returns [str] if this string is UTF-8.
+    pub fn as_str(&self) -> Option<&str> {
+        match self.is_utf8() {
             true => Some(unsafe { core::str::from_utf8_unchecked(self.as_bytes()) }),
             false => None,
         }
@@ -163,4 +172,11 @@ impl<D> PartialEq<str> for Str<D> {
     fn eq(&self, other: &str) -> bool {
         self.as_bytes() == other.as_bytes()
     }
+}
+
+/// Type of [Str::contents].
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ContentType {
+    Binary,
+    Utf8,
 }

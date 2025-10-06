@@ -94,6 +94,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - `Arg::lt` is removed in favor of `Context::is_value_lt`.
 - `Value::Num` is renamed to `Value::Float`.
 - `ChunkInfo` no longer implement `Default`.
+- `Str::is_utf8` and `Str::as_str` now lazy evaluate the content to see if data is UTF-8.
 
 ## License
 
