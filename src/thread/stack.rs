@@ -66,13 +66,10 @@ impl<D> StackPtr<D> {
 
     #[inline(always)]
     pub unsafe fn write(&self, val: UnsafeValue<D>) {
-        let val = StackValue {
-            tt_: val.tt_,
-            tbcdelta: 0,
-            value_: val.value_,
-        };
+        let ptr = self.0.get();
 
-        unsafe { self.0.get().write(val) };
+        unsafe { (*ptr).tt_ = val.tt_ };
+        unsafe { (*ptr).value_ = val.value_ };
     }
 
     #[inline(always)]

@@ -502,6 +502,35 @@ impl<'a, D, T> Context<'a, D, T> {
         Ok(Type::from_tt(r.tt_))
     }
 
+    /// Push the result of negation on `v`, returns the type of pushed value.
+    ///
+    /// This method honor `__unm` metavalue.
+    ///
+    /// # Panics
+    /// If `v` was created from different [Lua](crate::Lua) instance.
+    pub fn push_neg(
+        &self,
+        v: impl Into<UnsafeValue<D>>,
+    ) -> Result<Type, Box<dyn core::error::Error>> {
+        // Check operands.
+        let v = v.into();
+
+        if unsafe { (v.tt_ & 1 << 6 != 0) && (*v.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to perform negation on a value created from different Lua");
+        }
+
+        // Perform subtraction.
+        let r = unsafe { luaO_arith(self.th, Ops::Neg, &v, &v)? };
+
+        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { self.th.top.write(r) };
+        unsafe { self.th.top.add(1) };
+
+        self.ret.update(|v| v + 1);
+
+        Ok(Type::from_tt(r.tt_))
+    }
+
     /// Reserves capacity for at least `additional` more elements to be pushed.
     ///
     /// Usually you don't need this method unless you try to push a large amount of results.

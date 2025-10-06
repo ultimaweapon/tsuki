@@ -282,6 +282,11 @@ pub fn format<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
     Ok(cx.into())
 }
 
+/// Implementation of `__unm` metamethod for string.
+pub fn negate<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    arith(cx, "__unm", |cx, v, _| cx.push_neg(v).map(|_| ()))
+}
+
 /// Implementation of [string.sub](https://www.lua.org/manual/5.4/manual.html#pdf-string.sub).
 pub fn sub<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let s = cx.arg(1).to_str()?;

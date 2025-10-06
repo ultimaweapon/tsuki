@@ -9,7 +9,7 @@
 use crate::lapi::{
     lua_checkstack, lua_concat, lua_copy, lua_getfield, lua_getmetatable, lua_gettop, lua_next,
     lua_pushlstring, lua_pushnil, lua_pushstring, lua_rawequal, lua_rawget, lua_rotate, lua_settop,
-    lua_tolstring, lua_tonumberx, lua_type, lua_typename,
+    lua_tolstring, lua_type, lua_typename,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::lua_Debug;
@@ -328,18 +328,6 @@ pub unsafe fn luaL_checktype<D>(
         return Err(tag_error(L, arg, t));
     }
     Ok(())
-}
-
-pub unsafe fn luaL_checknumber<D>(
-    L: *const Thread<D>,
-    arg: libc::c_int,
-) -> Result<f64, Box<dyn core::error::Error>> {
-    let mut isnum: libc::c_int = 0;
-    let d: f64 = lua_tonumberx(L, arg, &mut isnum);
-    if ((isnum == 0) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long != 0 {
-        return Err(tag_error(L, arg, 3 as libc::c_int));
-    }
-    return Ok(d);
 }
 
 pub unsafe fn luaL_getmetafield<D>(
