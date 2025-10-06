@@ -1,3 +1,4 @@
+//! Implementation of [string library](https://www.lua.org/manual/5.4/manual.html#6.4).
 use crate::libc::snprintf;
 use crate::{Arg, Args, Context, Number, Ret, TryCall, Type, Value};
 use alloc::boxed::Box;

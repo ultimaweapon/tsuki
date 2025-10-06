@@ -1,3 +1,4 @@
+//! Implementation of [table library](https://www.lua.org/manual/5.4/manual.html#6.6).
 use crate::{Args, Context, Ret};
 use alloc::boxed::Box;
 

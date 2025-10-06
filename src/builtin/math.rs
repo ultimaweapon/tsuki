@@ -1,3 +1,4 @@
+//! Implementation of [mathematical library](https://www.lua.org/manual/5.4/manual.html#6.7).
 use crate::{ArgNotFound, Args, Context, Nil, Ret, Type, Value};
 use alloc::boxed::Box;
 

@@ -64,6 +64,7 @@
 //! The value will be converted to corresponding Lua value. Tsuki does not expose [`UnsafeValue`] by
 //! design so you cannot construct its value. Tsuki also never handout the value of [`UnsafeValue`].
 #![no_std]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub use self::context::*;
 pub use self::function::*;
@@ -193,6 +194,7 @@ impl<T> Lua<T> {
     ///
     /// Note that all built-in functions (e.g. `print`) are not enabled by default.
     #[cfg(feature = "rand")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
     pub fn new(associated_data: T) -> Pin<Rc<Self>> {
         Self::with_seed(associated_data, rand::random())
     }
