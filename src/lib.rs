@@ -171,8 +171,6 @@ macro_rules! fp {
 }
 
 /// Global states shared with all Lua threads.
-///
-/// Use [Builder] to create the value of this type.
 #[repr(C)] // Force gc field to be the first field.
 pub struct Lua<T> {
     gc: Gc<T>,
