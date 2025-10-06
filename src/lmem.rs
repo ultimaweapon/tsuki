@@ -6,29 +6,31 @@ use core::ffi::c_void;
 use core::ptr::null_mut;
 use libc::{free, realloc};
 
+type c_int = i32;
+
 pub unsafe fn luaM_growaux_<D>(
     g: &Lua<D>,
     block: *mut c_void,
-    nelems: libc::c_int,
-    psize: *mut libc::c_int,
-    size_elems: libc::c_int,
-    limit: libc::c_int,
+    nelems: c_int,
+    psize: *mut c_int,
+    size_elems: c_int,
+    limit: c_int,
     name: &'static str,
-    line: libc::c_int,
+    line: c_int,
 ) -> Result<*mut c_void, ParseError> {
-    let mut size: libc::c_int = *psize;
-    if nelems + 1 as libc::c_int <= size {
+    let mut size: c_int = *psize;
+    if nelems + 1 as c_int <= size {
         return Ok(block);
     }
-    if size >= limit / 2 as libc::c_int {
+    if size >= limit / 2 as c_int {
         if size >= limit {
             return Err(ParseError::ItemLimit { name, limit, line });
         }
         size = limit;
     } else {
-        size *= 2 as libc::c_int;
-        if size < 4 as libc::c_int {
-            size = 4 as libc::c_int;
+        size *= 2 as c_int;
+        if size < 4 as c_int {
+            size = 4 as c_int;
         }
     }
 
@@ -45,9 +47,9 @@ pub unsafe fn luaM_growaux_<D>(
 pub unsafe fn luaM_shrinkvector_<D>(
     g: *const Lua<D>,
     block: *mut c_void,
-    size: *mut libc::c_int,
-    final_n: libc::c_int,
-    size_elem: libc::c_int,
+    size: *mut c_int,
+    final_n: c_int,
+    size_elem: c_int,
 ) -> *mut c_void {
     let oldsize: usize = (*size * size_elem) as usize;
     let newsize: usize = (final_n * size_elem) as usize;

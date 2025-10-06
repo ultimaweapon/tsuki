@@ -3,6 +3,8 @@ use alloc::boxed::Box;
 use core::ops::Deref;
 
 pub mod base;
+#[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 pub mod io;
 pub mod math;
 pub mod string;
@@ -63,8 +65,12 @@ impl<A> Module<A> for CoroLib {
 }
 
 /// [Module] implementation for [I/O library](https://www.lua.org/manual/5.4/manual.html#6.8).
+#[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 pub struct IoLib;
 
+#[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 impl<A> Module<A> for IoLib {
     const NAME: &str = "io";
 
