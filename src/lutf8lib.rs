@@ -402,13 +402,6 @@ static mut funcs: [luaL_Reg; 7] = unsafe {
 };
 #[no_mangle]
 pub unsafe extern "C" fn luaopen_utf8(mut L: *mut lua_State) -> libc::c_int {
-    luaL_checkversion_(
-        L,
-        504 as libc::c_int as f64,
-        (::core::mem::size_of::<i64>() as libc::c_ulong)
-            .wrapping_mul(16 as libc::c_int as libc::c_ulong)
-            .wrapping_add(::core::mem::size_of::<f64>() as libc::c_ulong),
-    );
     lua_createtable(
         L,
         0 as libc::c_int,

@@ -7,6 +7,7 @@ pub mod io;
 pub mod math;
 pub mod string;
 pub mod table;
+pub mod utf8;
 
 /// [Module] implementation for [basic library](https://www.lua.org/manual/5.4/manual.html#6.1).
 ///
@@ -154,6 +155,24 @@ impl<A> Module<A> for TableLib {
         let m = lua.create_table();
 
         m.set_str_key("unpack", fp!(self::table::unpack));
+
+        Ok(m)
+    }
+}
+
+/// [Module] implementation for [UTF-8 library](https://www.lua.org/manual/5.4/manual.html#6.5).
+pub struct Utf8Lib;
+
+impl<A> Module<A> for Utf8Lib {
+    const NAME: &str = "utf8";
+
+    type Instance<'a>
+        = Ref<'a, Table<A>>
+    where
+        A: 'a;
+
+    fn open(self, lua: &Lua<A>) -> Result<Self::Instance<'_>, Box<dyn core::error::Error>> {
+        let m = lua.create_table();
 
         Ok(m)
     }

@@ -1,7 +1,7 @@
 use core::error::Error;
 use core::time::Duration;
 use tokio::task::{JoinSet, LocalSet};
-use tsuki::builtin::{BaseLib, CoroLib, MathLib, StringLib, TableLib};
+use tsuki::builtin::{BaseLib, CoroLib, IoLib, MathLib, StringLib, TableLib, Utf8Lib};
 use tsuki::{Args, ChunkInfo, Context, Lua, Ret, fp};
 
 #[test]
@@ -14,10 +14,12 @@ fn async_call() {
     let lua = Lua::new(());
 
     lua.use_module(None, true, BaseLib).unwrap();
+    lua.use_module(None, true, CoroLib).unwrap();
+    lua.use_module(None, true, IoLib).unwrap();
+    lua.use_module(None, true, MathLib).unwrap();
     lua.use_module(None, true, StringLib).unwrap();
     lua.use_module(None, true, TableLib).unwrap();
-    lua.use_module(None, true, MathLib).unwrap();
-    lua.use_module(None, true, CoroLib).unwrap();
+    lua.use_module(None, true, Utf8Lib).unwrap();
 
     lua.global().set_str_key("sleep", fp!(sleep as async));
 

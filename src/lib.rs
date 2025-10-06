@@ -3,7 +3,7 @@
 //! # Quickstart
 //!
 //! ```
-//! use tsuki::builtin::{BaseLib, CoroLib, MathLib, StringLib, TableLib};
+//! use tsuki::builtin::{BaseLib, CoroLib, MathLib, StringLib, TableLib, Utf8Lib};
 //! use tsuki::{Args, Context, Lua, Ret, Value, fp};
 //!
 //! fn main() {
@@ -15,6 +15,7 @@
 //!     lua.use_module(None, true, MathLib).unwrap();
 //!     lua.use_module(None, true, StringLib).unwrap();
 //!     lua.use_module(None, true, TableLib).unwrap();
+//!     lua.use_module(None, true, Utf8Lib).unwrap();
 //!
 //!     lua.global().set_str_key("myfunc", fp!(myfunc));
 //!

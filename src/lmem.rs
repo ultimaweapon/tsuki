@@ -8,7 +8,7 @@ use libc::{free, realloc};
 
 pub unsafe fn luaM_growaux_<D>(
     g: &Lua<D>,
-    block: *mut libc::c_void,
+    block: *mut c_void,
     nelems: libc::c_int,
     psize: *mut libc::c_int,
     size_elems: libc::c_int,
@@ -44,11 +44,11 @@ pub unsafe fn luaM_growaux_<D>(
 
 pub unsafe fn luaM_shrinkvector_<D>(
     g: *const Lua<D>,
-    block: *mut libc::c_void,
+    block: *mut c_void,
     size: *mut libc::c_int,
     final_n: libc::c_int,
     size_elem: libc::c_int,
-) -> *mut libc::c_void {
+) -> *mut c_void {
     let oldsize: usize = (*size * size_elem) as usize;
     let newsize: usize = (final_n * size_elem) as usize;
     let newblock = luaM_saferealloc_(g, block, oldsize, newsize);
@@ -56,25 +56,25 @@ pub unsafe fn luaM_shrinkvector_<D>(
     return newblock;
 }
 
-pub unsafe fn luaM_free_(block: *mut libc::c_void, osize: usize) {
+pub unsafe fn luaM_free_(block: *mut c_void, osize: usize) {
     free(block);
 }
 
 pub unsafe fn luaM_realloc_<D>(
     g: *const Lua<D>,
-    block: *mut libc::c_void,
+    block: *mut c_void,
     osize: usize,
     nsize: usize,
-) -> *mut libc::c_void {
+) -> *mut c_void {
     let newblock = if nsize == 0 {
         free(block);
-        0 as *mut libc::c_void
+        0 as *mut c_void
     } else {
         realloc(block, nsize)
     };
 
     if newblock.is_null() && nsize > 0 {
-        return 0 as *mut libc::c_void;
+        return 0 as *mut c_void;
     }
 
     return newblock;
@@ -82,11 +82,11 @@ pub unsafe fn luaM_realloc_<D>(
 
 pub unsafe fn luaM_saferealloc_<D>(
     g: *const Lua<D>,
-    block: *mut libc::c_void,
+    block: *mut c_void,
     osize: usize,
     nsize: usize,
-) -> *mut libc::c_void {
-    let newblock: *mut libc::c_void = luaM_realloc_(g, block, osize, nsize);
+) -> *mut c_void {
+    let newblock: *mut c_void = luaM_realloc_(g, block, osize, nsize);
 
     if newblock.is_null() && nsize > 0 {
         todo!("invoke handle_alloc_error");
@@ -99,9 +99,9 @@ pub unsafe fn luaM_malloc_<D>(g: *const Lua<D>, size: usize) -> *mut c_void {
     if size == 0 {
         null_mut()
     } else {
-        let newblock: *mut libc::c_void = realloc(0 as *mut libc::c_void, size);
+        let newblock: *mut c_void = realloc(0 as *mut c_void, size);
 
-        if newblock == 0 as *mut libc::c_void {
+        if newblock == 0 as *mut c_void {
             todo!("invoke handle_alloc_error");
         }
 
