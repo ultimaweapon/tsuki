@@ -694,7 +694,7 @@ impl<'a, D> Context<'a, D, Ret> {
         let src = unsafe { (*ci).func.add(i.get()) };
         let dst = unsafe { (*ci).func.add(i.get() + 1) };
 
-        for i in 0..(top - i.get()) {
+        for i in (0..(top - i.get())).rev() {
             let src = unsafe { src.add(i) };
             let dst = unsafe { dst.add(i) };
 
