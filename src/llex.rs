@@ -61,6 +61,8 @@ pub const TK_DO: RESERVED = 258;
 pub const TK_BREAK: RESERVED = 257;
 pub const TK_AND: RESERVED = 256;
 
+type c_ulong = u64;
+
 #[repr(C)]
 pub union SemInfo<D> {
     pub r: f64,
@@ -581,8 +583,8 @@ unsafe fn readhexaesc<D>(ls: *mut LexState<D>) -> Result<libc::c_int, ParseError
     return Ok(r);
 }
 
-unsafe fn readutf8esc<D>(ls: *mut LexState<D>) -> Result<libc::c_ulong, ParseError> {
-    let mut r: libc::c_ulong = 0;
+unsafe fn readutf8esc<D>(ls: *mut LexState<D>) -> Result<c_ulong, ParseError> {
+    let mut r: c_ulong = 0;
     let mut i: libc::c_int = 4 as libc::c_int;
     save(ls, (*ls).current);
     let fresh32 = (*(*ls).z).n;
@@ -599,7 +601,7 @@ unsafe fn readutf8esc<D>(ls: *mut LexState<D>) -> Result<libc::c_ulong, ParseErr
         ((*ls).current == '{' as i32) as libc::c_int,
         "missing '{'",
     )?;
-    r = gethexa(ls)? as libc::c_ulong;
+    r = gethexa(ls)? as c_ulong;
     loop {
         save(ls, (*ls).current);
         let fresh34 = (*(*ls).z).n;
@@ -620,10 +622,10 @@ unsafe fn readutf8esc<D>(ls: *mut LexState<D>) -> Result<libc::c_ulong, ParseErr
         i += 1;
         esccheck(
             ls,
-            (r <= (0x7fffffff as libc::c_uint >> 4 as libc::c_int) as libc::c_ulong) as libc::c_int,
+            (r <= (0x7fffffff as libc::c_uint >> 4 as libc::c_int) as c_ulong) as libc::c_int,
             "UTF-8 value too large",
         )?;
-        r = (r << 4 as libc::c_int).wrapping_add(luaO_hexavalue((*ls).current) as libc::c_ulong);
+        r = (r << 4 as libc::c_int).wrapping_add(luaO_hexavalue((*ls).current) as c_ulong);
     }
     esccheck(
         ls,
