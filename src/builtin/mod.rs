@@ -7,6 +7,9 @@ pub mod base;
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 pub mod io;
 pub mod math;
+#[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+pub mod os;
 pub mod string;
 pub mod table;
 pub mod utf8;
@@ -108,6 +111,29 @@ impl<A> Module<A> for MathLib {
         m.set_str_key("mininteger", i64::MIN);
         m.set_str_key("sin", fp!(self::math::sin));
         m.set_str_key("type", fp!(self::math::r#type));
+
+        Ok(m)
+    }
+}
+
+/// [Module] implementation for
+/// [operating system library](https://www.lua.org/manual/5.4/manual.html#6.9).
+#[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+pub struct OsLib;
+
+#[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+impl<A> Module<A> for OsLib {
+    const NAME: &str = "os";
+
+    type Instance<'a>
+        = Ref<'a, Table<A>>
+    where
+        A: 'a;
+
+    fn open(self, lua: &Lua<A>) -> Result<Self::Instance<'_>, Box<dyn core::error::Error>> {
+        let m = lua.create_table();
 
         Ok(m)
     }

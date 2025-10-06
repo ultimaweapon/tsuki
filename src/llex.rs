@@ -22,7 +22,7 @@ use core::fmt::Display;
 use core::ops::Deref;
 use core::ptr::null_mut;
 
-pub type RESERVED = libc::c_uint;
+pub type RESERVED = c_uint;
 pub const TK_STRING: RESERVED = 292;
 pub const TK_NAME: RESERVED = 291;
 pub const TK_INT: RESERVED = 290;
@@ -61,6 +61,7 @@ pub const TK_DO: RESERVED = 258;
 pub const TK_BREAK: RESERVED = 257;
 pub const TK_AND: RESERVED = 256;
 
+type c_uint = u32;
 type c_ulong = u64;
 
 #[repr(C)]
@@ -622,7 +623,7 @@ unsafe fn readutf8esc<D>(ls: *mut LexState<D>) -> Result<c_ulong, ParseError> {
         i += 1;
         esccheck(
             ls,
-            (r <= (0x7fffffff as libc::c_uint >> 4 as libc::c_int) as c_ulong) as libc::c_int,
+            (r <= (0x7fffffff as c_uint >> 4 as libc::c_int) as c_ulong) as libc::c_int,
             "UTF-8 value too large",
         )?;
         r = (r << 4 as libc::c_int).wrapping_add(luaO_hexavalue((*ls).current) as c_ulong);

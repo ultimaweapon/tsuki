@@ -8,9 +8,6 @@
     unused_mut
 )]
 
-pub type __darwin_clock_t = libc::c_ulong;
-pub type clock_t = __darwin_clock_t;
-
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct tm {
@@ -584,22 +581,3 @@ static mut syslib: [luaL_Reg; 12] = unsafe {
         },
     ]
 };
-#[no_mangle]
-pub unsafe extern "C" fn luaopen_os(mut L: *mut lua_State) -> libc::c_int {
-    luaL_checkversion_(
-        L,
-        504 as libc::c_int as f64,
-        (::core::mem::size_of::<i64>() as libc::c_ulong)
-            .wrapping_mul(16 as libc::c_int as libc::c_ulong)
-            .wrapping_add(::core::mem::size_of::<f64>() as libc::c_ulong),
-    );
-    lua_createtable(
-        L,
-        0 as libc::c_int,
-        (::core::mem::size_of::<[luaL_Reg; 12]>() as libc::c_ulong)
-            .wrapping_div(::core::mem::size_of::<luaL_Reg>() as libc::c_ulong)
-            .wrapping_sub(1 as libc::c_int as libc::c_ulong) as libc::c_int,
-    );
-    luaL_setfuncs(L, syslib.as_ptr(), 0 as libc::c_int);
-    return 1 as libc::c_int;
-}
