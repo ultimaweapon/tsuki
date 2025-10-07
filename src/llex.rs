@@ -17,7 +17,7 @@ use crate::{ChunkInfo, Lua, Node, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;
 use alloc::string::ToString;
-use core::ffi::{CStr, c_void};
+use core::ffi::{CStr, c_char, c_void};
 use core::fmt::Display;
 use core::ops::Deref;
 use core::ptr::null_mut;
@@ -159,15 +159,15 @@ unsafe fn save<D>(ls: *mut LexState<D>, c: c_int) {
         (*b).buffer = luaM_saferealloc_(
             (*ls).g,
             (*b).buffer as *mut c_void,
-            ((*b).buffsize).wrapping_mul(::core::mem::size_of::<libc::c_char>()),
-            newsize.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
-        ) as *mut libc::c_char;
+            ((*b).buffsize).wrapping_mul(::core::mem::size_of::<c_char>()),
+            newsize.wrapping_mul(::core::mem::size_of::<c_char>()),
+        ) as *mut c_char;
 
         (*b).buffsize = newsize;
     }
     let fresh0 = (*b).n;
     (*b).n = ((*b).n).wrapping_add(1);
-    *((*b).buffer).offset(fresh0 as isize) = c as libc::c_char;
+    *((*b).buffer).offset(fresh0 as isize) = c as c_char;
 }
 
 pub unsafe fn luaX_token2str(token: c_int) -> Cow<'static, str> {
@@ -222,7 +222,7 @@ pub unsafe fn luaX_syntaxerror<D>(ls: *mut LexState<D>, msg: impl Display) -> Pa
 
 pub unsafe fn luaX_newstring<D>(
     ls: *mut LexState<D>,
-    str: *const libc::c_char,
+    str: *const c_char,
     l: usize,
 ) -> *const Str<D> {
     (*ls).g.gc.step();
@@ -283,9 +283,9 @@ pub unsafe fn luaX_setinput<D>(ls: &mut LexState<D>, z: *mut ZIO, firstchar: c_i
     (*(*ls).buff).buffer = luaM_saferealloc_(
         (*ls).g,
         (*(*ls).buff).buffer as *mut c_void,
-        ((*(*ls).buff).buffsize).wrapping_mul(::core::mem::size_of::<libc::c_char>()),
-        32usize.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
-    ) as *mut libc::c_char;
+        ((*(*ls).buff).buffsize).wrapping_mul(::core::mem::size_of::<c_char>()),
+        32usize.wrapping_mul(::core::mem::size_of::<c_char>()),
+    ) as *mut c_char;
     (*(*ls).buff).buffsize = 32 as c_int as usize;
 }
 
@@ -306,7 +306,7 @@ unsafe fn check_next1<D>(ls: *mut LexState<D>, c: c_int) -> c_int {
     };
 }
 
-unsafe fn check_next2<D>(ls: *mut LexState<D>, set: *const libc::c_char) -> c_int {
+unsafe fn check_next2<D>(ls: *mut LexState<D>, set: *const c_char) -> c_int {
     if (*ls).current == *set.offset(0 as c_int as isize) as c_int
         || (*ls).current == *set.offset(1 as c_int as isize) as c_int
     {
@@ -331,7 +331,7 @@ unsafe fn read_numeral<D>(
     seminfo: *mut SemInfo<D>,
 ) -> Result<c_int, ParseError> {
     let mut obj = UnsafeValue::<D>::default();
-    let mut expo: *const libc::c_char = b"Ee\0" as *const u8 as *const libc::c_char;
+    let mut expo: *const c_char = b"Ee\0" as *const u8 as *const c_char;
     let first: c_int = (*ls).current;
     save(ls, (*ls).current);
     let fresh10 = (*(*ls).z).n;
@@ -343,12 +343,12 @@ unsafe fn read_numeral<D>(
     } else {
         -1
     };
-    if first == '0' as i32 && check_next2(ls, b"xX\0" as *const u8 as *const libc::c_char) != 0 {
-        expo = b"Pp\0" as *const u8 as *const libc::c_char;
+    if first == '0' as i32 && check_next2(ls, b"xX\0" as *const u8 as *const c_char) != 0 {
+        expo = b"Pp\0" as *const u8 as *const c_char;
     }
     loop {
         if check_next2(ls, expo) != 0 {
-            check_next2(ls, b"-+\0" as *const u8 as *const libc::c_char);
+            check_next2(ls, b"-+\0" as *const u8 as *const c_char);
         } else {
             if !(luai_ctype_[((*ls).current + 1 as c_int) as usize] as c_int
                 & (1 as c_int) << 4 as c_int
@@ -630,7 +630,7 @@ unsafe fn readutf8esc<D>(ls: *mut LexState<D>) -> Result<c_ulong, ParseError> {
 }
 
 unsafe fn utf8esc<D>(ls: *mut LexState<D>) -> Result<(), ParseError> {
-    let mut buff: [libc::c_char; 8] = [0; 8];
+    let mut buff: [c_char; 8] = [0; 8];
     let mut n: c_int = luaO_utf8esc(buff.as_mut_ptr(), readutf8esc(ls)?);
     while n > 0 as c_int {
         save(ls, buff[(8 as c_int - n) as usize] as c_int);

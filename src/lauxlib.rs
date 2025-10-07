@@ -1,9 +1,4 @@
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    unused_assignments
-)]
+#![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::lapi::{
@@ -314,19 +309,6 @@ pub unsafe fn luaL_checkstack<D>(
         }
     }
 
-    Ok(())
-}
-
-pub unsafe fn luaL_checktype<D>(
-    L: *const Thread<D>,
-    arg: libc::c_int,
-    t: libc::c_int,
-) -> Result<(), Box<dyn core::error::Error>> {
-    if ((lua_type(L, arg) != t) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long
-        != 0
-    {
-        return Err(tag_error(L, arg, t));
-    }
     Ok(())
 }
 

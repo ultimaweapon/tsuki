@@ -165,6 +165,7 @@ impl<A> Module<A> for StringLib {
         mt.set_str_key("__add", fp!(self::string::add));
         mt.set_str_key("__index", m.deref());
         mt.set_str_key("__mod", fp!(self::string::modulo));
+        mt.set_str_key("__pow", fp!(self::string::pow));
         mt.set_str_key("__sub", fp!(self::string::subtract));
         mt.set_str_key("__unm", fp!(self::string::negate));
 
