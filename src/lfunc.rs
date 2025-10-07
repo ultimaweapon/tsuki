@@ -12,7 +12,7 @@ use alloc::format;
 use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::cell::Cell;
-use core::ffi::CStr;
+use core::ffi::{CStr, c_char};
 use core::mem::offset_of;
 use core::pin::pin;
 use core::ptr::{addr_of_mut, null, null_mut};
@@ -150,9 +150,9 @@ unsafe fn checkclosemth<D>(
 
     if (*tm).tt_ as c_int & 0xf as c_int == 0 as c_int {
         let idx: c_int = level.offset_from((*(*L).ci.get()).func) as c_long as c_int;
-        let mut vname: *const libc::c_char = luaG_findlocal(L, (*L).ci.get(), idx, null_mut());
+        let mut vname: *const c_char = luaG_findlocal(L, (*L).ci.get(), idx, null_mut());
         if vname.is_null() {
-            vname = b"?\0" as *const u8 as *const libc::c_char;
+            vname = b"?\0" as *const u8 as *const c_char;
         }
 
         return Err(luaG_runerror(
@@ -274,7 +274,7 @@ pub unsafe fn luaF_close<D>(
     L: *const Thread<D>,
     mut level: *mut StackValue<D>,
 ) -> Result<*mut StackValue<D>, Box<CallError>> {
-    let levelrel = (level as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
+    let levelrel = (level as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
 
     luaF_closeupval(L, level);
 
@@ -282,8 +282,7 @@ pub unsafe fn luaF_close<D>(
         let tbc = (*L).tbclist.get();
         poptbclist(L);
         prepcallclosemth(L, tbc)?;
-        level =
-            ((*L).stack.get() as *mut libc::c_char).offset(levelrel as isize) as *mut StackValue<D>;
+        level = ((*L).stack.get() as *mut c_char).offset(levelrel as isize) as *mut StackValue<D>;
     }
 
     return Ok(level);
@@ -321,7 +320,7 @@ pub unsafe fn luaF_getlocalname<D>(
     f: *const Proto<D>,
     mut local_number: c_int,
     pc: c_int,
-) -> *const libc::c_char {
+) -> *const c_char {
     let mut i: c_int = 0;
     i = 0 as c_int;
     while i < (*f).sizelocvars && (*((*f).locvars).offset(i as isize)).startpc <= pc {
@@ -333,5 +332,5 @@ pub unsafe fn luaF_getlocalname<D>(
         }
         i += 1;
     }
-    return 0 as *const libc::c_char;
+    return 0 as *const c_char;
 }

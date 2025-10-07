@@ -1,10 +1,4 @@
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    unused_assignments
-)]
+#![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::ldo::{luaD_hook, luaD_hookcall};
@@ -942,15 +936,9 @@ pub unsafe fn luaG_ordererror<D>(
     let t2 = luaT_objtypename((*L).hdr.global, p2);
 
     if t1 == t2 {
-        Err(luaG_runerror(
-            L,
-            format_args!("attempt to compare two {t1} values"),
-        ))
+        Err(format!("attempt to compare two {t1} values").into())
     } else {
-        Err(luaG_runerror(
-            L,
-            format_args!("attempt to compare {t1} with {t2}"),
-        ))
+        Err(format!("attempt to compare {t1} with {t2}").into())
     }
 }
 
