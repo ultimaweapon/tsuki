@@ -115,24 +115,6 @@ unsafe fn luaB_rawequal(mut L: *const Thread) -> Result<c_int, Box<dyn std::erro
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn luaB_pairs(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    luaL_checkany(L, 1 as libc::c_int)?;
-    if luaL_getmetafield(
-        L,
-        1 as libc::c_int,
-        b"__pairs\0" as *const u8 as *const libc::c_char,
-    )? == 0 as libc::c_int
-    {
-        lua_pushcclosure(L, luaB_next, 0);
-        lua_pushvalue(L, 1 as libc::c_int);
-        lua_pushnil(L);
-    } else {
-        lua_pushvalue(L, 1 as libc::c_int);
-        lua_call(L, 1, 3)?;
-    }
-    return Ok(3 as libc::c_int);
-}
-
 unsafe fn ipairsaux(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut i: i64 = luaL_checkinteger(L, 2 as libc::c_int)?;
     i = (i as u64).wrapping_add(1 as libc::c_int as u64) as i64;
@@ -191,13 +173,6 @@ static mut base_funcs: [luaL_Reg; 21] = [
         let mut init = luaL_Reg {
             name: b"ipairs\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_ipairs),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"pairs\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_pairs),
         };
         init
     },

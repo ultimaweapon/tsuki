@@ -35,6 +35,7 @@ impl<A> Module<A> for BaseLib {
         m.set_str_key("getmetatable", fp!(self::base::getmetatable));
         m.set_str_key("load", fp!(self::base::load));
         m.set_str_key("next", fp!(self::base::next));
+        m.set_str_key("pairs", fp!(self::base::pairs));
         m.set_str_key("pcall", fp!(self::base::pcall));
         #[cfg(feature = "std")]
         m.set_str_key("print", fp!(self::base::print));

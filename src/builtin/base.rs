@@ -1,5 +1,5 @@
 //! Implementation of [basic library](https://www.lua.org/manual/5.4/manual.html#6.1).
-use crate::{ArgNotFound, Args, Context, Nil, Ret, TryCall, Type};
+use crate::{ArgNotFound, Args, Context, Nil, Ret, TryCall, Type, fp};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -119,7 +119,7 @@ pub fn load<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::er
 }
 
 /// Implementation of [next](https://www.lua.org/manual/5.4/manual.html#pdf-next).
-pub fn next<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn next<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let t = cx.arg(1).get_table()?;
     let k = cx.arg(2);
 
@@ -130,8 +130,33 @@ pub fn next<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::er
     Ok(cx.into())
 }
 
+/// Implementation of [pairs](https://www.lua.org/manual/5.4/manual.html#pdf-pairs).
+pub fn pairs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let t = cx.arg(1);
+    let m = t.get_metatable().ok_or_else(|| t.error(ArgNotFound))?;
+
+    match m
+        .as_ref()
+        .map(|m| m.get_str_key("__pairs"))
+        .filter(|v| !v.is_nil())
+    {
+        Some(f) => {
+            cx.push(f)?;
+            cx.push(t)?;
+            cx.forward(-2)
+        }
+        None => {
+            cx.push(fp!(next))?;
+            cx.push(t)?;
+            cx.push(Nil)?;
+
+            Ok(cx.into())
+        }
+    }
+}
+
 /// Implementation of [pcall](https://www.lua.org/manual/5.4/manual.html#pdf-pcall).
-pub fn pcall<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn pcall<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let r = match cx.try_forward(1)? {
         TryCall::Ok(r) => {
             r.insert(1, true)?;

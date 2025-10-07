@@ -1,6 +1,6 @@
 //! Implementation of [string library](https://www.lua.org/manual/5.4/manual.html#6.4).
 use crate::libc::snprintf;
-use crate::{Arg, Args, Context, Number, Ret, TryCall, Type, Value};
+use crate::{Arg, Args, Context, Number, Ret, Type, Value};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
@@ -397,16 +397,12 @@ fn trymt<'a, D>(
     };
 
     // Prepare to call metamethod.
-    let mut cx = cx.into_results(1);
-
-    cx.truncate(2);
-    cx.insert(1, mt)?;
+    cx.push(mt)?;
+    cx.push(lhs)?;
+    cx.push(rhs)?;
 
     // Call metamethod.
-    let mut cx = match cx.try_forward(1)? {
-        TryCall::Ok(v) => v,
-        TryCall::Err(_, e) => return Err(e),
-    };
+    let mut cx = cx.forward(-3)?;
 
     cx.truncate(1);
 

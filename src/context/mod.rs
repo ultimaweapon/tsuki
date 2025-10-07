@@ -612,6 +612,69 @@ impl<'a, D, T> Context<'a, D, T> {
 
     /// Call `f` with values above it as arguments.
     ///
+    /// Use negative `f` to refer from the top of stack (e.g. `-1` mean one value from the top of
+    /// stack).
+    ///
+    /// # Panics
+    /// If `f` is not a valid stack index.
+    pub fn forward(
+        self,
+        f: impl TryInto<NonZero<isize>>,
+    ) -> Result<Context<'a, D, Ret>, Box<dyn core::error::Error>> {
+        // Get function index.
+        let f = match f.try_into() {
+            Ok(v) => v,
+            Err(_) => panic!("zero is not a valid stack index"),
+        };
+
+        // Convert negative index.
+        let ci = self.th.ci.get();
+        let top = unsafe { self.th.top.get().offset_from_unsigned((*ci).func) };
+        let f = match usize::try_from(f.get()) {
+            Ok(v) => {
+                if v >= top {
+                    panic!("{f} is not a valid stack index");
+                }
+
+                v
+            }
+            Err(_) => match top.saturating_sub(f.get().unsigned_abs()) {
+                0 => panic!("{f} is not a valid stack index"),
+                v => v,
+            },
+        };
+
+        // Invoke.
+        let rem = f - 1;
+        let f = unsafe { (*ci).func.add(f) };
+        let cx = Context {
+            th: self.th,
+            ret: Cell::new(0),
+            payload: Ret(rem),
+        };
+
+        {
+            let f = unsafe { pin!(luaD_call(self.th, f, -1)) };
+            let w = unsafe { Waker::new(null(), &NON_YIELDABLE_WAKER) };
+
+            match f.poll(&mut core::task::Context::from_waker(&w)) {
+                Poll::Ready(Ok(_)) => (),
+                Poll::Ready(Err(e)) => return Err(e),
+                Poll::Pending => unreachable!(),
+            }
+        }
+
+        // Get number of results.
+        let ret = unsafe { (*ci).func.add(rem + 1) };
+        let ret = unsafe { cx.th.top.get().offset_from_unsigned(ret) };
+
+        cx.ret.set(ret);
+
+        Ok(cx)
+    }
+
+    /// Call `f` with values above it as arguments.
+    ///
     /// # Panics
     /// If `f` is not a valid stack index.
     pub fn try_forward(

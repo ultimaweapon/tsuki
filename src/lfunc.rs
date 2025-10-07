@@ -21,6 +21,7 @@ use core::task::{Context, Poll, Waker};
 type c_int = i32;
 type c_uint = u32;
 type c_long = i64;
+type c_ulong = u64;
 
 pub unsafe fn luaF_newCclosure<D>(g: *const Lua<D>, nupvals: c_int) -> *mut CClosure<D> {
     let nupvals = u8::try_from(nupvals).unwrap();
@@ -186,19 +187,19 @@ pub unsafe fn luaF_newtbcupval<D>(
         return Ok(());
     }
     checkclosemth(L, level)?;
-    while level.offset_from((*L).tbclist.get()) as c_long as c_uint as libc::c_ulong
-        > ((256 as libc::c_ulong)
-            << (::core::mem::size_of::<libc::c_ushort>() as libc::c_ulong)
-                .wrapping_sub(1 as c_int as libc::c_ulong)
-                .wrapping_mul(8 as c_int as libc::c_ulong))
+    while level.offset_from((*L).tbclist.get()) as c_long as c_uint as c_ulong
+        > ((256 as c_ulong)
+            << (::core::mem::size_of::<libc::c_ushort>() as c_ulong)
+                .wrapping_sub(1 as c_int as c_ulong)
+                .wrapping_mul(8 as c_int as c_ulong))
         .wrapping_sub(1)
     {
         (*L).tbclist.set(
             ((*L).tbclist.get()).offset(
-                ((256 as libc::c_ulong)
-                    << (::core::mem::size_of::<libc::c_ushort>() as libc::c_ulong)
-                        .wrapping_sub(1 as c_int as libc::c_ulong)
-                        .wrapping_mul(8 as c_int as libc::c_ulong))
+                ((256 as c_ulong)
+                    << (::core::mem::size_of::<libc::c_ushort>() as c_ulong)
+                        .wrapping_sub(1 as c_int as c_ulong)
+                        .wrapping_mul(8 as c_int as c_ulong))
                 .wrapping_sub(1) as isize,
             ),
         );
@@ -261,11 +262,11 @@ unsafe fn poptbclist<D>(L: *const Thread<D>) {
     tbc = tbc.offset(-((*tbc).tbcdelta as c_int as isize));
     while tbc > (*L).stack.get() && (*tbc).tbcdelta as c_int == 0 as c_int {
         tbc = tbc.offset(
-            -(((256 as libc::c_ulong)
-                << (::core::mem::size_of::<libc::c_ushort>() as libc::c_ulong)
-                    .wrapping_sub(1 as c_int as libc::c_ulong)
-                    .wrapping_mul(8 as c_int as libc::c_ulong))
-            .wrapping_sub(1 as c_int as libc::c_ulong) as isize),
+            -(((256 as c_ulong)
+                << (::core::mem::size_of::<libc::c_ushort>() as c_ulong)
+                    .wrapping_sub(1 as c_int as c_ulong)
+                    .wrapping_mul(8 as c_int as c_ulong))
+            .wrapping_sub(1 as c_int as c_ulong) as isize),
         );
     }
     (*L).tbclist.set(tbc);
