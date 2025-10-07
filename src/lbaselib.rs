@@ -115,16 +115,6 @@ unsafe fn luaB_rawequal(mut L: *const Thread) -> Result<c_int, Box<dyn std::erro
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn luaB_rawlen(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut t: libc::c_int = lua_type(L, 1 as libc::c_int);
-    (((t == 5 as libc::c_int || t == 4 as libc::c_int) as libc::c_int != 0 as libc::c_int)
-        as libc::c_int as libc::c_long
-        != 0
-        || luaL_typeerror(L, 1 as libc::c_int, "table or string")? != 0) as libc::c_int;
-    lua_pushinteger(L, lua_rawlen(L, 1 as libc::c_int) as i64);
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn luaB_pairs(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     luaL_checkany(L, 1 as libc::c_int)?;
     if luaL_getmetafield(
@@ -215,13 +205,6 @@ static mut base_funcs: [luaL_Reg; 21] = [
         let mut init = luaL_Reg {
             name: b"rawequal\0" as *const u8 as *const libc::c_char,
             func: Some(luaB_rawequal),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"rawlen\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_rawlen),
         };
         init
     },

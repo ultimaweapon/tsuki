@@ -262,14 +262,6 @@ pub unsafe fn luaL_typeerror<D>(
     );
 }
 
-unsafe fn tag_error<D>(
-    L: *const Thread<D>,
-    arg: libc::c_int,
-    tag: libc::c_int,
-) -> Box<dyn core::error::Error> {
-    luaL_typeerror(L, arg, lua_typename(tag))
-}
-
 pub unsafe fn luaL_where<D>(L: *const Thread<D>, level: libc::c_int) -> Cow<'static, str> {
     let mut ar = lua_Debug::default();
 

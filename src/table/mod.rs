@@ -101,6 +101,13 @@ impl<D> Table<D> {
         self.metatable.set(null());
     }
 
+    /// Returns the length of this table.
+    ///
+    /// This is equivalent to `lua_rawlen` with a table.
+    pub fn len(&self) -> i64 {
+        unsafe { luaH_getn(self) as i64 }
+    }
+
     /// Returns `true` if the table contains a value for the specified key.
     ///
     /// # Panics

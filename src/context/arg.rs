@@ -147,6 +147,22 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         }
     }
 
+    /// Checks if this argument is a table and return it.
+    ///
+    /// This method will return [None] if this argument does not exists or not a table.
+    #[inline(always)]
+    pub fn as_table(&self) -> Option<&'a Table<D>> {
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            None
+        } else if unsafe { (*v).tt_ & 0xf == 5 } {
+            Some(unsafe { &*(*v).value_.gc.cast() })
+        } else {
+            None
+        }
+    }
+
     /// Get address of argument value (if any).
     ///
     /// This has the same semantic as `lua_topointer`.
@@ -223,7 +239,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
         if v.is_null() {
             match required {
-                true => return Err(self.invalid_type(expect, lua_typename(-1))),
+                true => return Err(unsafe { self.type_error(expect, v) }),
                 false => return Ok(None),
             }
         }
@@ -265,7 +281,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
         if v.is_null() {
             match required {
-                true => return Err(self.invalid_type(expect, lua_typename(-1))),
+                true => return Err(unsafe { self.type_error(expect, v) }),
                 false => return Ok(None),
             }
         }
@@ -312,7 +328,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
         if v.is_null() {
             match required {
-                true => return Err(self.invalid_type(expect, lua_typename(-1))),
+                true => return Err(unsafe { self.type_error(expect, v) }),
                 false => return Ok(None),
             }
         }
@@ -398,7 +414,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
         if raw.is_null() {
             match required {
-                true => return Err(self.invalid_type(expect, lua_typename(-1))),
+                true => return Err(unsafe { self.type_error(expect, raw) }),
                 false => return Ok(None),
             }
         } else if unsafe { (*raw).tt_ & 0xf == 0 } {
@@ -461,7 +477,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
         if raw.is_null() {
             match required {
-                true => return Err(self.invalid_type(expect, lua_typename(-1))),
+                true => return Err(unsafe { self.type_error(expect, raw) }),
                 false => return Ok(None),
             }
         } else if unsafe { (*raw).tt_ & 0xf == 0 } {
@@ -524,7 +540,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
         if v.is_null() {
             match required {
-                true => return Err(self.invalid_type(expect, lua_typename(-1))),
+                true => return Err(unsafe { self.type_error(expect, v) }),
                 false => return Ok(None),
             }
         }
@@ -702,6 +718,14 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         Ok(unsafe { Ref::new(v) })
     }
 
+    /// Create invalid type error for this argument.
+    #[inline(always)]
+    pub fn invalid_type(&self, expect: impl Display) -> Box<dyn core::error::Error> {
+        let v = self.get_raw_or_null();
+
+        unsafe { self.type_error(expect, v) }
+    }
+
     /// Create an error for this argument.
     ///
     /// `reason` will become the value of [`core::error::Error::source()`] on the returned error.
@@ -725,7 +749,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         let ci = th.ci.get();
 
         if self.index.get() > self.cx.payload.0 {
-            Err(self.invalid_type(expect, lua_typename(-1)))
+            Err(unsafe { self.type_error(expect, null()) })
         } else {
             Ok(unsafe { (*ci).func.add(self.index.get()).cast() })
         }
@@ -749,6 +773,12 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         expect: impl Display,
         actual: *const UnsafeValue<D>,
     ) -> Box<dyn core::error::Error> {
+        // Check if no value.
+        if actual.is_null() {
+            return self.error(format!("{} expected, got {}", expect, lua_typename(-1)));
+        }
+
+        // Get type name.
         let g = self.cx.th.hdr.global();
         let mt = unsafe { g.metatable(actual) };
         let actual = (!mt.is_null())
@@ -761,15 +791,6 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
             .unwrap_or_else(move || unsafe { lua_typename(((*actual).tt_ & 0xf).into()).into() });
 
         self.error(format!("{} expected, got {}", expect, actual))
-    }
-
-    #[inline(never)]
-    fn invalid_type(
-        &self,
-        expect: impl Display,
-        actual: impl Display,
-    ) -> Box<dyn core::error::Error> {
-        self.error(format!("{expect} expected, got {actual}"))
     }
 }
 

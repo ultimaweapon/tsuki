@@ -169,6 +169,7 @@ pub fn pcall<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::e
 
 /// Implementation of [print](https://www.lua.org/manual/5.4/manual.html#pdf-print).
 #[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 pub fn print<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     use std::io::Write;
 
@@ -197,7 +198,7 @@ pub fn print<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::e
 }
 
 /// Implementation of [rawget](https://www.lua.org/manual/5.4/manual.html#pdf-rawget).
-pub fn rawget<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn rawget<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let t = cx.arg(1).get_table()?;
     let k = cx.arg(2).exists()?;
 
@@ -206,8 +207,24 @@ pub fn rawget<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
     Ok(cx.into())
 }
 
+/// Implementation of [rawlen](https://www.lua.org/manual/5.4/manual.html#pdf-rawlen).
+pub fn rawlen<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let v = cx.arg(1);
+    let l = if let Some(v) = v.as_str() {
+        v.len() as i64
+    } else if let Some(v) = v.as_table() {
+        v.len()
+    } else {
+        return Err(v.invalid_type("table or string"));
+    };
+
+    cx.push(l)?;
+
+    Ok(cx.into())
+}
+
 /// Implementation of [rawset](https://www.lua.org/manual/5.4/manual.html#pdf-rawset).
-pub fn rawset<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn rawset<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let t = cx.arg(1).get_table()?;
     let k = cx.arg(2).exists()?;
     let v = cx.arg(3).exists()?;

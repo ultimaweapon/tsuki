@@ -828,20 +828,21 @@ pub unsafe fn luaH_setint<D>(t: *const Table<D>, key: i64, value: *const UnsafeV
     }
 }
 
-unsafe fn hash_search<D>(t: *mut Table<D>, mut j: u64) -> u64 {
+unsafe fn hash_search<D>(t: *const Table<D>, j: u32) -> u64 {
+    let mut j = u64::from(j);
     let mut i: u64 = 0;
     if j == 0 as c_int as u64 {
         j = j.wrapping_add(1);
     }
     loop {
         i = j;
-        if j <= 0x7fffffffffffffff as c_longlong as u64 / 2 as c_int as u64 {
+        if j <= i64::MAX as u64 / 2 {
             j = j * 2 as c_int as u64;
             if (*luaH_getint(t, j as i64)).tt_ as c_int & 0xf as c_int == 0 as c_int {
                 break;
             }
         } else {
-            j = 0x7fffffffffffffff as c_longlong as u64;
+            j = i64::MAX as u64;
             if (*luaH_getint(t, j as i64)).tt_ as c_int & 0xf as c_int == 0 as c_int {
                 break;
             }
@@ -874,14 +875,10 @@ unsafe fn binsearch<D>(array: *const UnsafeValue<D>, mut i: c_uint, mut j: c_uin
     return i;
 }
 
-pub unsafe fn luaH_getn<D>(t: *mut Table<D>) -> u64 {
-    let mut limit: c_uint = (*t).alimit.get();
-    if limit > 0 as c_int as c_uint
-        && (*((*t).array.get()).offset(limit.wrapping_sub(1 as c_int as c_uint) as isize)).tt_
-            as c_int
-            & 0xf as c_int
-            == 0 as c_int
-    {
+pub unsafe fn luaH_getn<D>(t: *const Table<D>) -> u64 {
+    let mut limit = (*t).alimit.get();
+
+    if limit > 0 && (*((*t).array.get()).offset((limit - 1) as isize)).tt_ & 0xf == 0 {
         if limit >= 2 as c_int as c_uint
             && !((*((*t).array.get()).offset(limit.wrapping_sub(2 as c_int as c_uint) as isize)).tt_
                 as c_int
@@ -912,9 +909,9 @@ pub unsafe fn luaH_getn<D>(t: *mut Table<D>) -> u64 {
             return boundary as u64;
         }
     }
-    if !((*t).flags.get() as c_int & (1 as c_int) << 7 as c_int == 0
-        || (*t).alimit.get() & (*t).alimit.get().wrapping_sub(1 as c_int as c_uint)
-            == 0 as c_int as c_uint)
+
+    if !((*t).flags.get() & 1 << 7 == 0
+        || (*t).alimit.get() & (*t).alimit.get().wrapping_sub(1) == 0)
     {
         if (*((*t).array.get()).offset(limit as isize)).tt_ as c_int & 0xf as c_int == 0 as c_int {
             return limit as u64;
@@ -930,13 +927,12 @@ pub unsafe fn luaH_getn<D>(t: *mut Table<D>) -> u64 {
             return boundary_0 as u64;
         }
     }
+
     if ((*t).lastfree.get()).is_null()
-        || (*luaH_getint(t, limit.wrapping_add(1 as c_int as c_uint) as i64)).tt_ as c_int
-            & 0xf as c_int
-            == 0 as c_int
+        || (*luaH_getint(t, limit.wrapping_add(1) as i64)).tt_ & 0xf == 0
     {
         return limit as u64;
     } else {
-        return hash_search(t, limit as u64);
+        return hash_search(t, limit);
     };
 }
