@@ -106,6 +106,7 @@ impl<A> Module<A> for MathLib {
         let m = lua.create_table();
 
         m.set_str_key("floor", fp!(self::math::floor));
+        m.set_str_key("huge", f64::INFINITY);
         m.set_str_key("log", fp!(self::math::log));
         m.set_str_key("max", fp!(self::math::max));
         m.set_str_key("maxinteger", i64::MAX);

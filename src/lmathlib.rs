@@ -468,13 +468,6 @@ static mut mathlib: [luaL_Reg; 28] = [
         };
         init
     },
-    {
-        let mut init = luaL_Reg {
-            name: b"huge\0" as *const u8 as *const libc::c_char,
-            func: None,
-        };
-        init
-    },
 ];
 
 pub unsafe fn luaopen_math(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
@@ -491,12 +484,6 @@ pub unsafe fn luaopen_math(mut L: *const Thread) -> Result<c_int, Box<dyn std::e
         L,
         -(2 as libc::c_int),
         b"pi\0" as *const u8 as *const libc::c_char,
-    )?;
-    lua_pushnumber(L, ::core::f64::INFINITY);
-    lua_setfield(
-        L,
-        -(2 as libc::c_int),
-        b"huge\0" as *const u8 as *const libc::c_char,
     )?;
     setrandfunc(L)?;
     return Ok(1 as libc::c_int);

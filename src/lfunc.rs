@@ -19,6 +19,7 @@ use core::ptr::{addr_of_mut, null, null_mut};
 use core::task::{Context, Poll, Waker};
 
 type c_int = i32;
+type c_uint = u32;
 type c_long = i64;
 
 pub unsafe fn luaF_newCclosure<D>(g: *const Lua<D>, nupvals: c_int) -> *mut CClosure<D> {
@@ -185,7 +186,7 @@ pub unsafe fn luaF_newtbcupval<D>(
         return Ok(());
     }
     checkclosemth(L, level)?;
-    while level.offset_from((*L).tbclist.get()) as c_long as libc::c_uint as libc::c_ulong
+    while level.offset_from((*L).tbclist.get()) as c_long as c_uint as libc::c_ulong
         > ((256 as libc::c_ulong)
             << (::core::mem::size_of::<libc::c_ushort>() as libc::c_ulong)
                 .wrapping_sub(1 as c_int as libc::c_ulong)
