@@ -508,7 +508,7 @@ impl<'a, D, T> Context<'a, D, T> {
     ///
     /// # Panics
     /// If either `lhs` or `rhs` was created from different [Lua](crate::Lua) instance.
-    pub fn push_mod(
+    pub fn push_rem(
         &self,
         lhs: impl Into<UnsafeValue<D>>,
         rhs: impl Into<UnsafeValue<D>>,

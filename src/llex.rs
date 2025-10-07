@@ -61,6 +61,7 @@ pub const TK_DO: RESERVED = 258;
 pub const TK_BREAK: RESERVED = 257;
 pub const TK_AND: RESERVED = 256;
 
+type c_uchar = u8;
 type c_int = i32;
 type c_uint = u32;
 type c_ulong = u64;
@@ -253,7 +254,7 @@ unsafe fn inclinenumber<D>(ls: *mut LexState<D>) {
     (*ls).current = if fresh2 > 0 as c_int as usize {
         let fresh3 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-        *fresh3 as libc::c_uchar as c_int
+        *fresh3 as c_uchar as c_int
     } else {
         -1
     };
@@ -263,7 +264,7 @@ unsafe fn inclinenumber<D>(ls: *mut LexState<D>) {
         (*ls).current = if fresh4 > 0 as c_int as usize {
             let fresh5 = (*(*ls).z).p;
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-            *fresh5 as libc::c_uchar as c_int
+            *fresh5 as c_uchar as c_int
         } else {
             -1
         };
@@ -296,7 +297,7 @@ unsafe fn check_next1<D>(ls: *mut LexState<D>, c: c_int) -> c_int {
         (*ls).current = if fresh6 > 0 as c_int as usize {
             let fresh7 = (*(*ls).z).p;
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-            *fresh7 as libc::c_uchar as c_int
+            *fresh7 as c_uchar as c_int
         } else {
             -1
         };
@@ -316,7 +317,7 @@ unsafe fn check_next2<D>(ls: *mut LexState<D>, set: *const c_char) -> c_int {
         (*ls).current = if fresh8 > 0 as c_int as usize {
             let fresh9 = (*(*ls).z).p;
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-            *fresh9 as libc::c_uchar as c_int
+            *fresh9 as c_uchar as c_int
         } else {
             -1
         };
@@ -339,7 +340,7 @@ unsafe fn read_numeral<D>(
     (*ls).current = if fresh10 > 0 as c_int as usize {
         let fresh11 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-        *fresh11 as libc::c_uchar as c_int
+        *fresh11 as c_uchar as c_int
     } else {
         -1
     };
@@ -363,7 +364,7 @@ unsafe fn read_numeral<D>(
             (*ls).current = if fresh12 > 0 as c_int as usize {
                 let fresh13 = (*(*ls).z).p;
                 (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                *fresh13 as libc::c_uchar as c_int
+                *fresh13 as c_uchar as c_int
             } else {
                 -1
             };
@@ -377,7 +378,7 @@ unsafe fn read_numeral<D>(
         (*ls).current = if fresh14 > 0 as c_int as usize {
             let fresh15 = (*(*ls).z).p;
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-            *fresh15 as libc::c_uchar as c_int
+            *fresh15 as c_uchar as c_int
         } else {
             -1
         };
@@ -407,7 +408,7 @@ unsafe fn skip_sep<D>(ls: *mut LexState<D>) -> usize {
     (*ls).current = if fresh16 > 0 as c_int as usize {
         let fresh17 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-        *fresh17 as libc::c_uchar as c_int
+        *fresh17 as c_uchar as c_int
     } else {
         -1
     };
@@ -418,7 +419,7 @@ unsafe fn skip_sep<D>(ls: *mut LexState<D>) -> usize {
         (*ls).current = if fresh18 > 0 as c_int as usize {
             let fresh19 = (*(*ls).z).p;
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-            *fresh19 as libc::c_uchar as c_int
+            *fresh19 as c_uchar as c_int
         } else {
             -1
         };
@@ -447,7 +448,7 @@ unsafe fn read_long_string<D>(
     (*ls).current = if fresh20 > 0 as c_int as usize {
         let fresh21 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-        *fresh21 as libc::c_uchar as c_int
+        *fresh21 as c_uchar as c_int
     } else {
         -1
     };
@@ -479,7 +480,7 @@ unsafe fn read_long_string<D>(
                 (*ls).current = if fresh22 > 0 as c_int as usize {
                     let fresh23 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                    *fresh23 as libc::c_uchar as c_int
+                    *fresh23 as c_uchar as c_int
                 } else {
                     -1
                 };
@@ -500,7 +501,7 @@ unsafe fn read_long_string<D>(
                     (*ls).current = if fresh24 > 0 as c_int as usize {
                         let fresh25 = (*(*ls).z).p;
                         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                        *fresh25 as libc::c_uchar as c_int
+                        *fresh25 as c_uchar as c_int
                     } else {
                         -1
                     };
@@ -510,7 +511,7 @@ unsafe fn read_long_string<D>(
                     (*ls).current = if fresh26 > 0 as c_int as usize {
                         let fresh27 = (*(*ls).z).p;
                         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                        *fresh27 as libc::c_uchar as c_int
+                        *fresh27 as c_uchar as c_int
                     } else {
                         -1
                     };
@@ -538,7 +539,7 @@ unsafe fn esccheck<D>(ls: *mut LexState<D>, c: c_int, msg: impl Display) -> Resu
             (*ls).current = if fresh28 > 0 as c_int as usize {
                 let fresh29 = (*(*ls).z).p;
                 (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                *fresh29 as libc::c_uchar as c_int
+                *fresh29 as c_uchar as c_int
             } else {
                 -1
             };
@@ -556,7 +557,7 @@ unsafe fn gethexa<D>(ls: *mut LexState<D>) -> Result<c_int, ParseError> {
     (*ls).current = if fresh30 > 0 as c_int as usize {
         let fresh31 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-        *fresh31 as libc::c_uchar as c_int
+        *fresh31 as c_uchar as c_int
     } else {
         -1
     };
@@ -584,7 +585,7 @@ unsafe fn readutf8esc<D>(ls: *mut LexState<D>) -> Result<c_ulong, ParseError> {
     (*ls).current = if fresh32 > 0 as c_int as usize {
         let fresh33 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-        *fresh33 as libc::c_uchar as c_int
+        *fresh33 as c_uchar as c_int
     } else {
         -1
     };
@@ -597,7 +598,7 @@ unsafe fn readutf8esc<D>(ls: *mut LexState<D>) -> Result<c_ulong, ParseError> {
         (*ls).current = if fresh34 > 0 as c_int as usize {
             let fresh35 = (*(*ls).z).p;
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-            *fresh35 as libc::c_uchar as c_int
+            *fresh35 as c_uchar as c_int
         } else {
             -1
         };
@@ -621,7 +622,7 @@ unsafe fn readutf8esc<D>(ls: *mut LexState<D>) -> Result<c_ulong, ParseError> {
     (*ls).current = if fresh36 > 0 as c_int as usize {
         let fresh37 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-        *fresh37 as libc::c_uchar as c_int
+        *fresh37 as c_uchar as c_int
     } else {
         -1
     };
@@ -654,7 +655,7 @@ unsafe fn readdecesc<D>(ls: *mut LexState<D>) -> Result<c_int, ParseError> {
         (*ls).current = if fresh38 > 0 as c_int as usize {
             let fresh39 = (*(*ls).z).p;
             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-            *fresh39 as libc::c_uchar as c_int
+            *fresh39 as c_uchar as c_int
         } else {
             -1
         };
@@ -677,7 +678,7 @@ unsafe fn read_string<D>(
     (*ls).current = if fresh40 > 0 as c_int as usize {
         let fresh41 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-        *fresh41 as libc::c_uchar as c_int
+        *fresh41 as c_uchar as c_int
     } else {
         -1
     };
@@ -693,7 +694,7 @@ unsafe fn read_string<D>(
                 (*ls).current = if fresh42 > 0 as c_int as usize {
                     let fresh43 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                    *fresh43 as libc::c_uchar as c_int
+                    *fresh43 as c_uchar as c_int
                 } else {
                     -1
                 };
@@ -753,7 +754,7 @@ unsafe fn read_string<D>(
                         (*ls).current = if fresh44 > 0 as c_int as usize {
                             let fresh45 = (*(*ls).z).p;
                             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                            *fresh45 as libc::c_uchar as c_int
+                            *fresh45 as c_uchar as c_int
                         } else {
                             -1
                         };
@@ -769,7 +770,7 @@ unsafe fn read_string<D>(
                                 (*ls).current = if fresh46 > 0 as c_int as usize {
                                     let fresh47 = (*(*ls).z).p;
                                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                                    *fresh47 as libc::c_uchar as c_int
+                                    *fresh47 as c_uchar as c_int
                                 } else {
                                     -1
                                 };
@@ -795,7 +796,7 @@ unsafe fn read_string<D>(
                         (*ls).current = if fresh48 > 0 as c_int as usize {
                             let fresh49 = (*(*ls).z).p;
                             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                            *fresh49 as libc::c_uchar as c_int
+                            *fresh49 as c_uchar as c_int
                         } else {
                             -1
                         };
@@ -812,7 +813,7 @@ unsafe fn read_string<D>(
                 (*ls).current = if fresh50 > 0 as c_int as usize {
                     let fresh51 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                    *fresh51 as libc::c_uchar as c_int
+                    *fresh51 as c_uchar as c_int
                 } else {
                     -1
                 };
@@ -825,7 +826,7 @@ unsafe fn read_string<D>(
     (*ls).current = if fresh52 > 0 as c_int as usize {
         let fresh53 = (*(*ls).z).p;
         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-        *fresh53 as libc::c_uchar as c_int
+        *fresh53 as c_uchar as c_int
     } else {
         -1
     };
@@ -849,7 +850,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                 (*ls).current = if fresh54 > 0 as c_int as usize {
                     let fresh55 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                    *fresh55 as libc::c_uchar as c_int
+                    *fresh55 as c_uchar as c_int
                 } else {
                     -1
                 };
@@ -860,7 +861,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                 (*ls).current = if fresh56 > 0 as c_int as usize {
                     let fresh57 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                    *fresh57 as libc::c_uchar as c_int
+                    *fresh57 as c_uchar as c_int
                 } else {
                     -1
                 };
@@ -872,7 +873,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                 (*ls).current = if fresh58 > 0 as c_int as usize {
                     let fresh59 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                    *fresh59 as libc::c_uchar as c_int
+                    *fresh59 as c_uchar as c_int
                 } else {
                     -1
                 };
@@ -900,7 +901,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                             (*ls).current = if fresh60 > 0 as c_int as usize {
                                 let fresh61 = (*(*ls).z).p;
                                 (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                                *fresh61 as libc::c_uchar as c_int
+                                *fresh61 as c_uchar as c_int
                             } else {
                                 -1
                             };
@@ -928,7 +929,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                 (*ls).current = if fresh62 > 0 as c_int as usize {
                     let fresh63 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                    *fresh63 as libc::c_uchar as c_int
+                    *fresh63 as c_uchar as c_int
                 } else {
                     -1
                 };
@@ -944,7 +945,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                 (*ls).current = if fresh64 > 0 as c_int as usize {
                     let fresh65 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                    *fresh65 as libc::c_uchar as c_int
+                    *fresh65 as c_uchar as c_int
                 } else {
                     -1
                 };
@@ -962,7 +963,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                 (*ls).current = if fresh66 > 0 as c_int as usize {
                     let fresh67 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                    *fresh67 as libc::c_uchar as c_int
+                    *fresh67 as c_uchar as c_int
                 } else {
                     -1
                 };
@@ -980,7 +981,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                 (*ls).current = if fresh68 > 0 as c_int as usize {
                     let fresh69 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                    *fresh69 as libc::c_uchar as c_int
+                    *fresh69 as c_uchar as c_int
                 } else {
                     -1
                 };
@@ -996,7 +997,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                 (*ls).current = if fresh70 > 0 as c_int as usize {
                     let fresh71 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                    *fresh71 as libc::c_uchar as c_int
+                    *fresh71 as c_uchar as c_int
                 } else {
                     -1
                 };
@@ -1012,7 +1013,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                 (*ls).current = if fresh72 > 0 as c_int as usize {
                     let fresh73 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                    *fresh73 as libc::c_uchar as c_int
+                    *fresh73 as c_uchar as c_int
                 } else {
                     -1
                 };
@@ -1033,7 +1034,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                 (*ls).current = if fresh74 > 0 as c_int as usize {
                     let fresh75 = (*(*ls).z).p;
                     (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                    *fresh75 as libc::c_uchar as c_int
+                    *fresh75 as c_uchar as c_int
                 } else {
                     -1
                 };
@@ -1068,7 +1069,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                         (*ls).current = if fresh76 > 0 as c_int as usize {
                             let fresh77 = (*(*ls).z).p;
                             (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                            *fresh77 as libc::c_uchar as c_int
+                            *fresh77 as c_uchar as c_int
                         } else {
                             -1
                         };
@@ -1102,7 +1103,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                     (*ls).current = if fresh78 > 0 as c_int as usize {
                         let fresh79 = (*(*ls).z).p;
                         (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                        *fresh79 as libc::c_uchar as c_int
+                        *fresh79 as c_uchar as c_int
                     } else {
                         -1
                     };

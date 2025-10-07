@@ -282,13 +282,6 @@ pub fn format<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
     Ok(cx.into())
 }
 
-/// Implementation of `__mod` metamethod for string.
-pub fn modulo<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
-    arith(cx, "__mod", |cx, lhs, rhs| {
-        cx.push_mod(lhs, rhs).map(|_| ())
-    })
-}
-
 /// Implementation of `__unm` metamethod for string.
 pub fn negate<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     arith(cx, "__unm", |cx, v, _| cx.push_neg(v).map(|_| ()))
@@ -298,6 +291,13 @@ pub fn negate<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::
 pub fn pow<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     arith(cx, "__pow", |cx, lhs, rhs| {
         cx.push_pow(lhs, rhs).map(|_| ())
+    })
+}
+
+/// Implementation of `__mod` metamethod for string.
+pub fn rem<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    arith(cx, "__mod", |cx, lhs, rhs| {
+        cx.push_rem(lhs, rhs).map(|_| ())
     })
 }
 
