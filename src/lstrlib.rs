@@ -263,14 +263,6 @@ unsafe fn arith_mul(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
     );
 }
 
-unsafe fn arith_mod(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    return arith(
-        L,
-        3 as libc::c_int,
-        b"__mod\0" as *const u8 as *const libc::c_char,
-    );
-}
-
 unsafe fn arith_pow(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return arith(
         L,
@@ -300,13 +292,6 @@ static mut stringmetamethods: [luaL_Reg; 10] = [
         let mut init = luaL_Reg {
             name: b"__mul\0" as *const u8 as *const libc::c_char,
             func: Some(arith_mul),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"__mod\0" as *const u8 as *const libc::c_char,
-            func: Some(arith_mod),
         };
         init
     },

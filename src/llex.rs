@@ -17,7 +17,7 @@ use crate::{ChunkInfo, Lua, Node, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;
 use alloc::string::ToString;
-use core::ffi::CStr;
+use core::ffi::{CStr, c_void};
 use core::fmt::Display;
 use core::ops::Deref;
 use core::ptr::null_mut;
@@ -158,7 +158,7 @@ unsafe fn save<D>(ls: *mut LexState<D>, c: c_int) {
 
         (*b).buffer = luaM_saferealloc_(
             (*ls).g,
-            (*b).buffer as *mut libc::c_void,
+            (*b).buffer as *mut c_void,
             ((*b).buffsize).wrapping_mul(::core::mem::size_of::<libc::c_char>()),
             newsize.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
         ) as *mut libc::c_char;
@@ -282,7 +282,7 @@ pub unsafe fn luaX_setinput<D>(ls: &mut LexState<D>, z: *mut ZIO, firstchar: c_i
     (*ls).envn = Str::from_str((*ls).g, "_ENV");
     (*(*ls).buff).buffer = luaM_saferealloc_(
         (*ls).g,
-        (*(*ls).buff).buffer as *mut libc::c_void,
+        (*(*ls).buff).buffer as *mut c_void,
         ((*(*ls).buff).buffsize).wrapping_mul(::core::mem::size_of::<libc::c_char>()),
         32usize.wrapping_mul(::core::mem::size_of::<libc::c_char>()),
     ) as *mut libc::c_char;
