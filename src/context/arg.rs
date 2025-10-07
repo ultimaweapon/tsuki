@@ -113,9 +113,25 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         Some(mt)
     }
 
+    /// Checks if this argument is an integer and return it.
+    ///
+    /// This method will return [None] if this argument does not exists or not an integer.
+    #[inline(always)]
+    pub fn as_int(&self) -> Option<i64> {
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            None
+        } else if unsafe { (*v).tt_ == 3 | 0 << 4 } {
+            Some(unsafe { (*v).value_.i })
+        } else {
+            None
+        }
+    }
+
     /// Checks if this argument is a number and return it.
     ///
-    /// This method will return [`None`] if this argument does not exists or not a number.
+    /// This method will return [None] if this argument does not exists or not a number.
     #[inline(always)]
     pub fn as_num(&self) -> Option<Number> {
         let v = self.get_raw_or_null();

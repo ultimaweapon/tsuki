@@ -19,6 +19,7 @@ use core::ptr::{addr_of_mut, null, null_mut};
 use core::task::{Context, Poll, Waker};
 
 type c_int = i32;
+type c_long = i64;
 
 pub unsafe fn luaF_newCclosure<D>(g: *const Lua<D>, nupvals: c_int) -> *mut CClosure<D> {
     let nupvals = u8::try_from(nupvals).unwrap();
@@ -148,7 +149,7 @@ unsafe fn checkclosemth<D>(
     let tm = luaT_gettmbyobj(L, level.cast(), TM_CLOSE);
 
     if (*tm).tt_ as c_int & 0xf as c_int == 0 as c_int {
-        let idx: c_int = level.offset_from((*(*L).ci.get()).func) as libc::c_long as c_int;
+        let idx: c_int = level.offset_from((*(*L).ci.get()).func) as c_long as c_int;
         let mut vname: *const libc::c_char = luaG_findlocal(L, (*L).ci.get(), idx, null_mut());
         if vname.is_null() {
             vname = b"?\0" as *const u8 as *const libc::c_char;
@@ -184,7 +185,7 @@ pub unsafe fn luaF_newtbcupval<D>(
         return Ok(());
     }
     checkclosemth(L, level)?;
-    while level.offset_from((*L).tbclist.get()) as libc::c_long as libc::c_uint as libc::c_ulong
+    while level.offset_from((*L).tbclist.get()) as c_long as libc::c_uint as libc::c_ulong
         > ((256 as libc::c_ulong)
             << (::core::mem::size_of::<libc::c_ushort>() as libc::c_ulong)
                 .wrapping_sub(1 as c_int as libc::c_ulong)

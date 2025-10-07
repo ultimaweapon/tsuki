@@ -122,23 +122,6 @@ unsafe fn math_fmod(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn math_modf(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    if lua_isinteger(L, 1 as libc::c_int) != 0 {
-        lua_settop(L, 1 as libc::c_int)?;
-        lua_pushnumber(L, 0 as libc::c_int as f64);
-    } else {
-        let mut n: f64 = luaL_checknumber(L, 1 as libc::c_int)?;
-        let mut ip: f64 = if n < 0 as libc::c_int as f64 {
-            ceil(n)
-        } else {
-            floor(n)
-        };
-        pushnumint(L, ip);
-        lua_pushnumber(L, if n == ip { 0.0f64 } else { n - ip });
-    }
-    return Ok(2 as libc::c_int);
-}
-
 unsafe fn math_sqrt(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     lua_pushnumber(L, sqrt(luaL_checknumber(L, 1 as libc::c_int)?));
     return Ok(1 as libc::c_int);
@@ -440,13 +423,6 @@ static mut mathlib: [luaL_Reg; 28] = [
         let mut init = luaL_Reg {
             name: b"min\0" as *const u8 as *const libc::c_char,
             func: Some(math_min),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"modf\0" as *const u8 as *const libc::c_char,
-            func: Some(math_modf),
         };
         init
     },

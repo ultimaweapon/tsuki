@@ -1,5 +1,5 @@
 //! Implementation of [mathematical library](https://www.lua.org/manual/5.4/manual.html#6.7).
-use crate::{ArgNotFound, Args, Context, Nil, Ret, Type, Value};
+use crate::{ArgNotFound, Args, Context, Nil, Number, Ret, Type};
 use alloc::boxed::Box;
 
 /// Implementation of [math.floor](https://www.lua.org/manual/5.4/manual.html#pdf-math.floor).
@@ -49,6 +49,24 @@ pub fn max<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::err
     Ok(cx.into())
 }
 
+/// Implementation of [math.modf](https://www.lua.org/manual/5.4/manual.html#pdf-math.modf).
+pub fn modf<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let v = cx.arg(1);
+
+    if let Some(v) = v.as_int() {
+        cx.push(v)?;
+        cx.push(0.0)?;
+    } else {
+        let n = v.to_float()?;
+        let ip = if n < 0.0 { n.ceil() } else { n.floor() };
+
+        cx.push(pushnumint(ip))?;
+        cx.push(if n == ip { 0.0 } else { n - ip })?;
+    }
+
+    Ok(cx.into())
+}
+
 /// Implementation of [math.sin](https://www.lua.org/manual/5.4/manual.html#pdf-math.sin).
 pub fn sin<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1).to_float()?;
@@ -76,12 +94,12 @@ pub fn r#type<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
 }
 
 #[inline(always)]
-fn pushnumint<'a, D>(d: f64) -> Value<'a, D> {
+fn pushnumint(d: f64) -> Number {
     // TODO: This does not seems right even on Lua implementation. Lua said MININTEGER always has an
     // exact representation as a float but it does not.
     if d >= i64::MIN as f64 && d <= i64::MAX as f64 {
-        Value::Int(d as i64)
+        Number::Int(d as i64)
     } else {
-        Value::Float(d)
+        Number::Float(d)
     }
 }
