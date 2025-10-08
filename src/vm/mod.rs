@@ -1100,19 +1100,12 @@ pub async unsafe fn luaV_execute<A>(
 
                 match i & 0x7F {
                     OP_MOVE => {
-                        let ra = base.offset(
-                            (i >> 0 as c_int + 7 as c_int
-                                & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                as c_int as isize,
-                        );
-                        let io1 = ra;
-                        let io2 = base.offset(
-                            (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
-                                & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                as c_int as isize,
-                        );
-                        (*io1).tt_ = (*io2).tt_;
-                        (*io1).value_ = (*io2).value_;
+                        let ra = base.add((i >> 7 & 0xFF) as usize);
+                        let rb = base.add((i >> 7 + 8 + 1 & 0xFF) as usize);
+
+                        (*ra).tt_ = (*rb).tt_;
+                        (*ra).value_ = (*rb).value_;
+
                         vmbreak!();
                     }
                     1 => {
