@@ -1,9 +1,4 @@
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    unused_assignments
-)]
+#![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::gc::Object;
@@ -14,6 +9,7 @@ use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
 use crate::{Args, ArithError, ChunkInfo, Context, Lua, Number, Ops, Ret, Str, Thread};
+use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
 use core::ffi::{c_char, c_void};
@@ -655,14 +651,13 @@ unsafe fn l_str2d(s: *const c_char) -> Option<f64> {
 unsafe fn l_str2int(mut s: *const c_char) -> Option<i64> {
     let mut a: u64 = 0 as c_int as u64;
     let mut empty: c_int = 1 as c_int;
-    let mut neg: c_int = 0;
 
     // Skip leading whitespace.
     while luai_ctype_[(*s as c_uchar as c_int + 1 as c_int) as usize] as c_int & 1 << 3 != 0 {
         s = s.offset(1);
     }
 
-    neg = isneg(&mut s);
+    let neg = isneg(&mut s);
 
     if *s.offset(0 as c_int as isize) as c_int == '0' as i32
         && (*s.offset(1 as c_int as isize) as c_int == 'x' as i32
@@ -745,8 +740,12 @@ pub unsafe fn luaO_utf8esc(buff: *mut c_char, mut x: c_ulong) -> c_int {
     return n;
 }
 
-unsafe fn tostringbuff<D>(obj: *const UnsafeValue<D>, buff: *mut c_char) -> c_int {
-    if (*obj).tt_ == 3 | 0 << 4 {
+#[inline(never)]
+pub unsafe fn luaO_tostring<D>(g: *const Lua<D>, obj: *mut UnsafeValue<D>) {
+    // TODO: Remove snprintf.
+    let mut buff = [0; 44];
+    let buff = buff.as_mut_ptr();
+    let len = if (*obj).tt_ == 3 | 0 << 4 {
         snprintf(
             buff,
             44,
@@ -771,17 +770,15 @@ unsafe fn tostringbuff<D>(obj: *const UnsafeValue<D>, buff: *mut c_char) -> c_in
         }
 
         len
-    }
-}
+    };
 
-#[inline(never)]
-pub unsafe fn luaO_tostring<D>(g: *const Lua<D>, obj: *mut UnsafeValue<D>) {
-    let mut buff: [c_char; 44] = [0; 44];
-    let len: c_int = tostringbuff(obj, buff.as_mut_ptr());
-    let s = core::slice::from_raw_parts(buff.as_ptr().cast(), len as usize);
-    let io = obj;
-    let x_ = Str::from_str(g, core::str::from_utf8(s).unwrap()); // sprintf may effect by locale.
+    // Get Rust string.
+    let s = core::slice::from_raw_parts(buff.cast(), len as usize);
+    let s = core::str::from_utf8(s).unwrap().to_owned(); // snprintf may effect by C locale.
 
-    (*io).value_.gc = x_.cast();
-    (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
+    // Update value.
+    let s = Str::from_str(g, s);
+
+    (*obj).tt_ = (*s).hdr.tt | 1 << 6;
+    (*obj).value_.gc = s.cast();
 }

@@ -18,6 +18,7 @@ use core::pin::pin;
 use core::ptr::{addr_of_mut, null, null_mut};
 use core::task::{Context, Poll, Waker};
 
+type c_ushort = u16;
 type c_int = i32;
 type c_uint = u32;
 type c_long = i64;
@@ -189,7 +190,7 @@ pub unsafe fn luaF_newtbcupval<D>(
     checkclosemth(L, level)?;
     while level.offset_from((*L).tbclist.get()) as c_long as c_uint as c_ulong
         > ((256 as c_ulong)
-            << (::core::mem::size_of::<libc::c_ushort>() as c_ulong)
+            << (::core::mem::size_of::<c_ushort>() as c_ulong)
                 .wrapping_sub(1 as c_int as c_ulong)
                 .wrapping_mul(8 as c_int as c_ulong))
         .wrapping_sub(1)
@@ -197,13 +198,13 @@ pub unsafe fn luaF_newtbcupval<D>(
         (*L).tbclist.set(
             ((*L).tbclist.get()).offset(
                 ((256 as c_ulong)
-                    << (::core::mem::size_of::<libc::c_ushort>() as c_ulong)
+                    << (::core::mem::size_of::<c_ushort>() as c_ulong)
                         .wrapping_sub(1 as c_int as c_ulong)
                         .wrapping_mul(8 as c_int as c_ulong))
                 .wrapping_sub(1) as isize,
             ),
         );
-        (*(*L).tbclist.get()).tbcdelta = 0 as c_int as libc::c_ushort;
+        (*(*L).tbclist.get()).tbcdelta = 0 as c_int as c_ushort;
     }
 
     (*level).tbcdelta = level.offset_from((*L).tbclist.get()).try_into().unwrap();
@@ -263,7 +264,7 @@ unsafe fn poptbclist<D>(L: *const Thread<D>) {
     while tbc > (*L).stack.get() && (*tbc).tbcdelta as c_int == 0 as c_int {
         tbc = tbc.offset(
             -(((256 as c_ulong)
-                << (::core::mem::size_of::<libc::c_ushort>() as c_ulong)
+                << (::core::mem::size_of::<c_ushort>() as c_ulong)
                     .wrapping_sub(1 as c_int as c_ulong)
                     .wrapping_mul(8 as c_int as c_ulong))
             .wrapping_sub(1 as c_int as c_ulong) as isize),
