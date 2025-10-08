@@ -27,20 +27,21 @@ type c_int = i32;
 type c_uint = u32;
 
 /// Garbage Collector for Lua objects.
-pub(crate) struct Gc<D> {
+pub(crate) struct Gc<A> {
     state: Cell<u8>,
     currentwhite: Cell<u8>,
-    all: Cell<*const Object<D>>,
-    gray: Cell<*const Object<D>>,
-    grayagain: Cell<*const Object<D>>,
-    weak: Cell<*const Object<D>>,
-    ephemeron: Cell<*const Object<D>>,
-    allweak: Cell<*const Object<D>>,
-    twups: Cell<*const Thread<D>>,
-    sweep: Cell<*mut *const Object<D>>,
-    sweep_mark: Cell<*const Object<D>>,
-    refs: Cell<*const Object<D>>,
-    root: Cell<*const Object<D>>,
+    all: Cell<*const Object<A>>,
+    gray: Cell<*const Object<A>>,
+    grayagain: Cell<*const Object<A>>,
+    weak: Cell<*const Object<A>>,
+    ephemeron: Cell<*const Object<A>>,
+    allweak: Cell<*const Object<A>>,
+    twups: Cell<*const Thread<A>>,
+    sweep: Cell<*mut *const Object<A>>,
+    sweep_mark: Cell<*const Object<A>>,
+    refs: Cell<*const Object<A>>,
+    marked_refs: Cell<*const Object<A>>,
+    root: Cell<*const Object<A>>,
     debt: Cell<isize>,
     paused: Cell<bool>,
 }
@@ -63,6 +64,7 @@ impl<D> Gc<D> {
             sweep: Cell::new(null_mut()),
             sweep_mark: Cell::new(null()),
             refs: Cell::new(null()),
+            marked_refs: Cell::new(null()),
             root: Cell::new(null()),
             debt: Cell::new(0),
             paused: Cell::new(false),
@@ -129,7 +131,7 @@ impl<D> Gc<D> {
             tt,
             marked: Mark::new(self.currentwhite.get() & (1 << 3 | 1 << 4)),
             refs: Cell::new(0),
-            refn: Cell::new(null()),
+            refn: Cell::new(null_mut()),
             refp: Cell::new(null()),
             gclist: Cell::new(null()),
         });
@@ -161,6 +163,25 @@ impl<D> Gc<D> {
 
                     if !o.is_null() && (*o).marked.is_white() {
                         self.mark(o);
+                    }
+
+                    // Mark strong references.
+                    let mut o = self.refs.replace(null());
+
+                    if !o.is_null() {
+                        self.marked_refs.set(o);
+
+                        (*o).refn.set(self.marked_refs.as_ptr());
+
+                        while !o.is_null() {
+                            if (*o).marked.is_white() {
+                                self.mark(o);
+                            } else {
+                                self.debt.update(|v| v.saturating_sub_unsigned(1));
+                            }
+
+                            o = (*o).refp.get();
+                        }
                     }
 
                     self.state.set(0);
@@ -196,6 +217,7 @@ impl<D> Gc<D> {
 
                     if p.is_null() {
                         self.state.set(8);
+                        break;
                     } else {
                         self.sweep.set(self.sweep(p));
                     }
@@ -665,22 +687,40 @@ impl<D> Gc<D> {
 
     #[inline(never)]
     unsafe fn finish_marking(&self) {
-        let grayagain = self.grayagain.get();
+        let grayagain = self.grayagain.replace(null());
 
-        self.grayagain.set(null_mut());
         self.state.set(2);
 
         // Mark object with strong references.
         let mut o = self.refs.get();
+        let m = self.marked_refs.replace(null());
 
-        while !o.is_null() {
-            if unsafe { ((*o).marked.get() & (1 << 3 | 1 << 4)) != 0 } {
-                self.mark(o);
-            } else {
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
-            }
+        match o.is_null() {
+            true => self.refs.set(m),
+            false => loop {
+                // Mark.
+                if unsafe { (*o).marked.is_white() } {
+                    self.mark(o);
+                } else {
+                    self.debt.update(|v| v.saturating_sub_unsigned(1));
+                }
 
-            o = unsafe { (*o).refp.get() };
+                // Move to previous object.
+                let p = unsafe { (*o).refp.get() };
+
+                if p.is_null() {
+                    // Link refs list.
+                    (*o).refp.set(m);
+
+                    if !m.is_null() {
+                        (*m).refn.set((*o).refp.as_ptr());
+                    }
+
+                    break;
+                }
+
+                o = p;
+            },
         }
 
         self.mark_all_gray();

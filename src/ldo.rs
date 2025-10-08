@@ -18,6 +18,7 @@ use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use core::alloc::Layout;
 use core::error::Error;
+use core::ffi::c_char;
 use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::ptr::{addr_eq, null, null_mut};
@@ -188,10 +189,9 @@ pub unsafe fn luaD_hook<D>(
     if hook.is_some() && (*L).allowhook.get() != 0 {
         let mut mask: c_int = (1 as c_int) << 3 as c_int;
         let ci = (*L).ci.get();
-        let top: isize = ((*L).top.get() as *mut libc::c_char)
-            .offset_from((*L).stack.get() as *mut libc::c_char);
-        let ci_top: isize =
-            ((*ci).top as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
+        let top: isize =
+            ((*L).top.get() as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
+        let ci_top: isize = ((*ci).top as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
         let mut ar = lua_Debug::default();
         ar.event = event;
         ar.currentline = line;
@@ -223,9 +223,9 @@ pub unsafe fn luaD_hook<D>(
             L, &mut ar,
         );
         (*L).allowhook.set(1);
-        (*ci).top = ((*L).stack.get() as *mut libc::c_char).offset(ci_top as isize) as _;
+        (*ci).top = ((*L).stack.get() as *mut c_char).offset(ci_top as isize) as _;
         (*L).top
-            .set(((*L).stack.get() as *mut libc::c_char).offset(top as isize) as _);
+            .set(((*L).stack.get() as *mut c_char).offset(top as isize) as _);
         (*ci).callstatus = ((*ci).callstatus as c_int & !mask) as libc::c_ushort;
     }
     Ok(())
@@ -303,11 +303,10 @@ unsafe fn tryfuncTM<D>(
     let mut p = null_mut();
 
     if ((*L).stack_last.get()).offset_from((*L).top.get()) <= 1 {
-        let t__: isize =
-            (func as *mut libc::c_char).offset_from((*L).stack.get() as *mut libc::c_char);
+        let t__: isize = (func as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
 
         luaD_growstack(L, 1)?;
-        func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as _;
+        func = ((*L).stack.get() as *mut c_char).offset(t__ as isize) as _;
     }
     tm = luaT_gettmbyobj(L, func.cast(), TM_CALL);
 
@@ -375,10 +374,10 @@ unsafe fn moveresults<D>(
                     & !((1 as c_int) << 9 as c_int))
                     as libc::c_ushort;
                 if (*L).hookmask.get() != 0 {
-                    let savedres: isize = (res as *mut libc::c_char)
-                        .offset_from((*L).stack.get() as *mut libc::c_char);
+                    let savedres: isize =
+                        (res as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
                     rethook(L, (*L).ci.get(), nres)?;
-                    res = ((*L).stack.get() as *mut libc::c_char).offset(savedres as isize) as _;
+                    res = ((*L).stack.get() as *mut c_char).offset(savedres as isize) as _;
                 }
                 wanted = -wanted - 3 as c_int;
                 if wanted == -(1 as c_int) {
@@ -524,11 +523,11 @@ pub async unsafe fn luaD_pretailcall<D>(
                 if ((*L).stack_last.get()).offset_from((*L).top.get()) as libc::c_long
                     <= (fsize - delta) as libc::c_long
                 {
-                    let t__: isize = (func as *mut libc::c_char)
-                        .offset_from((*L).stack.get() as *mut libc::c_char);
+                    let t__: isize =
+                        (func as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
 
                     luaD_growstack(L, (fsize - delta).try_into().unwrap())?;
-                    func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as _;
+                    func = ((*L).stack.get() as *mut c_char).offset(t__ as isize) as _;
                 }
 
                 (*ci).func = ((*ci).func).offset(-(delta as isize));
@@ -597,11 +596,11 @@ pub async unsafe fn luaD_precall<D>(
                 let fsize = usize::from((*p).maxstacksize);
 
                 if ((*L).stack_last.get()).offset_from_unsigned((*L).top.get()) <= fsize {
-                    let t__: isize = (func as *mut libc::c_char)
-                        .offset_from((*L).stack.get() as *mut libc::c_char);
+                    let t__: isize =
+                        (func as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
 
                     luaD_growstack(L, fsize)?;
-                    func = ((*L).stack.get() as *mut libc::c_char).offset(t__ as isize) as _;
+                    func = ((*L).stack.get() as *mut c_char).offset(t__ as isize) as _;
                 }
 
                 ci = prepCallInfo(
@@ -697,7 +696,7 @@ pub unsafe fn luaD_protectedparser<D>(
     info: ChunkInfo,
 ) -> Result<Ref<'_, LuaFn<D>>, ParseError> {
     let mut buff = Mbuffer {
-        buffer: 0 as *mut libc::c_char,
+        buffer: 0 as *mut c_char,
         n: 0,
         buffsize: 0,
     };

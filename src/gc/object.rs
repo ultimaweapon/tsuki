@@ -1,7 +1,7 @@
 use super::Mark;
 use crate::Lua;
 use core::cell::Cell;
-use core::ptr::null;
+use core::ptr::{null, null_mut};
 
 /// Header of all object managed by Garbage Collector.
 ///
@@ -12,7 +12,7 @@ pub struct Object<D> {
     pub(crate) tt: u8,
     pub(crate) marked: Mark,
     pub(super) refs: Cell<usize>,
-    pub(super) refn: Cell<*const Self>,
+    pub(super) refn: Cell<*mut *const Self>,
     pub(super) refp: Cell<*const Self>,
     pub(super) gclist: Cell<*const Self>,
 }
@@ -33,7 +33,7 @@ impl<D> Default for Object<D> {
             tt: 0,
             marked: Mark::default(),
             refs: Cell::new(0),
-            refn: Cell::new(null()),
+            refn: Cell::new(null_mut()),
             refp: Cell::new(null()),
             gclist: Cell::new(null()),
         }

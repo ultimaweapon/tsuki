@@ -1,7 +1,7 @@
 use super::Object;
 use core::marker::PhantomData;
 use core::ops::Deref;
-use core::ptr::null;
+use core::ptr::{null, null_mut};
 
 /// Strong reference to Lua object.
 ///
@@ -22,10 +22,11 @@ impl<'a, T> Ref<'a, T> {
             let p = g.gc.refs.get();
 
             (*h).refs.set(1);
+            (*h).refn.set(g.gc.refs.as_ptr());
             (*h).refp.set(p);
 
             if !p.is_null() {
-                (*p).refn.set(h);
+                (*p).refn.set((*h).refp.as_ptr());
             }
 
             g.gc.refs.set(h);
@@ -61,20 +62,13 @@ impl<'a, T> Drop for Ref<'a, T> {
         }
 
         // Remove from list.
-        let g = unsafe { (*h).global() };
-        let n = unsafe { (*h).refn.replace(null()) };
+        let n = unsafe { (*h).refn.replace(null_mut()) };
         let p = unsafe { (*h).refp.replace(null()) };
 
-        if !n.is_null() {
-            unsafe { (*n).refp.set(p) };
-        }
+        unsafe { *n = p };
 
         if !p.is_null() {
             unsafe { (*p).refn.set(n) };
-        }
-
-        if g.gc.refs.get() == h {
-            g.gc.refs.set(p);
         }
     }
 }
