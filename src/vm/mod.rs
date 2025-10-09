@@ -1085,7 +1085,7 @@ pub async unsafe fn luaV_execute<A>(
             loop {
                 // We need to do this at the end of each instruction instead of begining of the loop
                 // otherwise it will slow down almost 2x.
-                macro_rules! vmbreak {
+                macro_rules! next {
                     () => {
                         if trap != 0 {
                             trap = luaG_traceexec(th, pc)?;
@@ -1106,7 +1106,7 @@ pub async unsafe fn luaV_execute<A>(
                         (*ra).tt_ = (*rb).tt_;
                         (*ra).value_ = (*rb).value_;
 
-                        vmbreak!();
+                        next!();
                     }
                     1 => {
                         let ra_0 = base.offset(
@@ -1123,7 +1123,7 @@ pub async unsafe fn luaV_execute<A>(
 
                         (*io).value_.i = b;
                         (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
-                        vmbreak!();
+                        next!();
                     }
                     2 => {
                         let ra_1 = base.offset(
@@ -1140,7 +1140,7 @@ pub async unsafe fn luaV_execute<A>(
 
                         (*io_0).value_.n = b_0 as f64;
                         (*io_0).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
-                        vmbreak!();
+                        next!();
                     }
                     3 => {
                         let ra_2 = base.offset(
@@ -1158,7 +1158,7 @@ pub async unsafe fn luaV_execute<A>(
 
                         (*io1_0).value_ = (*io2_0).value_;
                         (*io1_0).tt_ = (*io2_0).tt_;
-                        vmbreak!();
+                        next!();
                     }
                     4 => {
                         let ra_3 = base.offset(
@@ -1178,7 +1178,7 @@ pub async unsafe fn luaV_execute<A>(
 
                         (*io1_1).value_ = (*io2_1).value_;
                         (*io1_1).tt_ = (*io2_1).tt_;
-                        vmbreak!();
+                        next!();
                     }
                     5 => {
                         let ra_4 = base.offset(
@@ -1187,7 +1187,7 @@ pub async unsafe fn luaV_execute<A>(
                                 as c_int as isize,
                         );
                         (*ra_4).tt_ = (1 as c_int | (0 as c_int) << 4 as c_int) as u8;
-                        vmbreak!();
+                        next!();
                     }
                     6 => {
                         let ra_5 = base.offset(
@@ -1197,7 +1197,7 @@ pub async unsafe fn luaV_execute<A>(
                         );
                         (*ra_5).tt_ = (1 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         pc = pc.offset(1);
-                        vmbreak!();
+                        next!();
                     }
                     7 => {
                         let ra_6 = base.offset(
@@ -1206,7 +1206,7 @@ pub async unsafe fn luaV_execute<A>(
                                 as c_int as isize,
                         );
                         (*ra_6).tt_ = (1 as c_int | (1 as c_int) << 4 as c_int) as u8;
-                        vmbreak!();
+                        next!();
                     }
                     8 => {
                         let mut ra_7 = base.offset(
@@ -1228,7 +1228,7 @@ pub async unsafe fn luaV_execute<A>(
                                 break;
                             }
                         }
-                        vmbreak!();
+                        next!();
                     }
                     9 => {
                         let ra_8 = base.offset(
@@ -1244,7 +1244,7 @@ pub async unsafe fn luaV_execute<A>(
 
                         (*io1_2).value_ = (*io2_2).value_;
                         (*io1_2).tt_ = (*io2_2).tt_;
-                        vmbreak!();
+                        next!();
                     }
                     10 => {
                         let ra_9 = base.offset(
@@ -1271,7 +1271,7 @@ pub async unsafe fn luaV_execute<A>(
                                 (*th).hdr.global().gc.barrier(uv.cast(), (*ra_9).value_.gc);
                             }
                         }
-                        vmbreak!();
+                        next!();
                     }
                     11 => {
                         let ra_10 = base.offset(
@@ -1308,7 +1308,7 @@ pub async unsafe fn luaV_execute<A>(
 
                             (*io1_4).value_ = (*io2_4).value_;
                             (*io1_4).tt_ = (*io2_4).tt_;
-                            vmbreak!();
+                            next!();
                         } else {
                             current_block = 0;
                         }
@@ -1355,7 +1355,7 @@ pub async unsafe fn luaV_execute<A>(
                             (*io1_5).tt_ = (*slot).tt_;
                             (*io1_5).value_ = (*slot).value_;
 
-                            vmbreak!();
+                            next!();
                         }
 
                         current_block = 0;
@@ -1423,7 +1423,7 @@ pub async unsafe fn luaV_execute<A>(
 
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     14 => {
                         let ra_13 = base.offset(
@@ -1460,7 +1460,7 @@ pub async unsafe fn luaV_execute<A>(
 
                             (*io1_7).value_ = (*io2_7).value_;
                             (*io1_7).tt_ = (*io2_7).tt_;
-                            vmbreak!();
+                            next!();
                         } else {
                             current_block = 0;
                         }
@@ -1540,7 +1540,7 @@ pub async unsafe fn luaV_execute<A>(
                             base = (*ci).func.add(1);
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     OP_SETTABLE => {
                         let tab = base.offset(
@@ -1614,7 +1614,7 @@ pub async unsafe fn luaV_execute<A>(
                             base = (*ci).func.add(1);
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     17 => {
                         let ra_15 = base.offset(
@@ -1699,7 +1699,7 @@ pub async unsafe fn luaV_execute<A>(
                             base = (*ci).func.add(1);
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     18 => {
                         let ra_16 = base.offset(
@@ -1774,7 +1774,7 @@ pub async unsafe fn luaV_execute<A>(
                             base = (*ci).func.add(1);
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     OP_NEWTABLE => {
                         let ra_17 = base.offset(
@@ -1823,7 +1823,7 @@ pub async unsafe fn luaV_execute<A>(
                         base = (*ci).func.add(1);
                         trap = (*ci).u.trap;
 
-                        vmbreak!();
+                        next!();
                     }
                     20 => {
                         let ra_18 = base.offset(
@@ -1884,7 +1884,7 @@ pub async unsafe fn luaV_execute<A>(
 
                             (*io1_13).value_ = (*io2_13).value_;
                             (*io1_13).tt_ = (*io2_13).tt_;
-                            vmbreak!();
+                            next!();
                         } else {
                             current_block = 0;
                         }
@@ -1908,7 +1908,7 @@ pub async unsafe fn luaV_execute<A>(
                         let tt = (*v1).tt_;
 
                         if tt & 0xf != 3 {
-                            vmbreak!();
+                            next!();
                         }
 
                         (*ra_19).tt_ = tt;
@@ -1929,7 +1929,7 @@ pub async unsafe fn luaV_execute<A>(
                         }
 
                         pc = pc.offset(1);
-                        vmbreak!();
+                        next!();
                     }
                     22 => {
                         let v1_0 = base.offset(
@@ -1992,7 +1992,7 @@ pub async unsafe fn luaV_execute<A>(
                                 (*io_7).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                             }
                         }
-                        vmbreak!();
+                        next!();
                     }
                     23 => {
                         let v1_1 = base.offset(
@@ -2057,7 +2057,7 @@ pub async unsafe fn luaV_execute<A>(
                                 (*io_9).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                             }
                         }
-                        vmbreak!();
+                        next!();
                     }
                     24 => {
                         let v1_2 = base.offset(
@@ -2122,7 +2122,7 @@ pub async unsafe fn luaV_execute<A>(
                                 (*io_11).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                             }
                         }
-                        vmbreak!();
+                        next!();
                     }
                     25 => {
                         (*ci).u.savedpc = pc;
@@ -2193,7 +2193,7 @@ pub async unsafe fn luaV_execute<A>(
                                 (*io_13).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                             }
                         }
-                        vmbreak!();
+                        next!();
                     }
                     26 => {
                         let ra_24 = base.offset(
@@ -2245,7 +2245,7 @@ pub async unsafe fn luaV_execute<A>(
                             };
                             (*io_14).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     27 => {
                         let ra_25 = base.offset(
@@ -2294,7 +2294,7 @@ pub async unsafe fn luaV_execute<A>(
                             (*io_15).value_.n = n1_4 / n2_4;
                             (*io_15).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     28 => {
                         (*ci).u.savedpc = pc;
@@ -2363,7 +2363,7 @@ pub async unsafe fn luaV_execute<A>(
                                 (*io_17).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                             }
                         }
-                        vmbreak!();
+                        next!();
                     }
                     29 => {
                         let ra_27 = base.offset(
@@ -2399,7 +2399,7 @@ pub async unsafe fn luaV_execute<A>(
                             (*io_18).value_.i = (i1_4 as u64 & i2_4 as u64) as i64;
                             (*io_18).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     30 => {
                         let ra_28 = base.offset(
@@ -2436,7 +2436,7 @@ pub async unsafe fn luaV_execute<A>(
                             (*io_19).value_.i = (i1_5 as u64 | i2_5 as u64) as i64;
                             (*io_19).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     31 => {
                         let ra_29 = base.offset(
@@ -2472,7 +2472,7 @@ pub async unsafe fn luaV_execute<A>(
                             (*io_20).value_.i = (i1_6 as u64 ^ i2_6 as u64) as i64;
                             (*io_20).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     32 => {
                         let ra_30 = base.offset(
@@ -2508,7 +2508,7 @@ pub async unsafe fn luaV_execute<A>(
                             (*io_21).value_.i = luaV_shiftl(ib, -ic as i64);
                             (*io_21).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     33 => {
                         let ra_31 = base.offset(
@@ -2543,7 +2543,7 @@ pub async unsafe fn luaV_execute<A>(
                             (*io_22).value_.i = luaV_shiftl(ic_0 as i64, ib_0);
                             (*io_22).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     34 => {
                         let v1_10 = base.offset(
@@ -2608,7 +2608,7 @@ pub async unsafe fn luaV_execute<A>(
                                 (*io_24).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                             }
                         }
-                        vmbreak!();
+                        next!();
                     }
                     35 => {
                         let v1_11 = base.offset(
@@ -2673,7 +2673,7 @@ pub async unsafe fn luaV_execute<A>(
                                 (*io_26).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                             }
                         }
-                        vmbreak!();
+                        next!();
                     }
                     36 => {
                         let v1_12 = base.offset(
@@ -2738,7 +2738,7 @@ pub async unsafe fn luaV_execute<A>(
                                 (*io_28).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                             }
                         }
-                        vmbreak!();
+                        next!();
                     }
                     37 => {
                         (*ci).u.savedpc = pc;
@@ -2808,7 +2808,7 @@ pub async unsafe fn luaV_execute<A>(
                                 (*io_30).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                             }
                         }
-                        vmbreak!();
+                        next!();
                     }
                     38 => {
                         let ra_36 = base.offset(
@@ -2862,7 +2862,7 @@ pub async unsafe fn luaV_execute<A>(
                             };
                             (*io_31).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     39 => {
                         let ra_37 = base.offset(
@@ -2912,7 +2912,7 @@ pub async unsafe fn luaV_execute<A>(
                             (*io_32).value_.n = n1_11 / n2_11;
                             (*io_32).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     40 => {
                         (*ci).u.savedpc = pc;
@@ -2982,7 +2982,7 @@ pub async unsafe fn luaV_execute<A>(
                                 (*io_34).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                             }
                         }
-                        vmbreak!();
+                        next!();
                     }
                     41 => {
                         let ra_39 = base.offset(
@@ -3029,7 +3029,7 @@ pub async unsafe fn luaV_execute<A>(
                             (*io_35).value_.i = (i1_12 as u64 & i2_12 as u64) as i64;
                             (*io_35).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     42 => {
                         let ra_40 = base.offset(
@@ -3076,7 +3076,7 @@ pub async unsafe fn luaV_execute<A>(
                             (*io_36).value_.i = (i1_13 as u64 | i2_13 as u64) as i64;
                             (*io_36).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     43 => {
                         let ra_41 = base.offset(
@@ -3123,7 +3123,7 @@ pub async unsafe fn luaV_execute<A>(
                             (*io_37).value_.i = (i1_14 as u64 ^ i2_14 as u64) as i64;
                             (*io_37).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     45 => {
                         let ra_42 = base.offset(
@@ -3173,7 +3173,7 @@ pub async unsafe fn luaV_execute<A>(
                             );
                             (*io_38).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     44 => {
                         let ra_43 = base.offset(
@@ -3220,7 +3220,7 @@ pub async unsafe fn luaV_execute<A>(
                             (*io_39).value_.i = luaV_shiftl(i1_16, i2_16);
                             (*io_39).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     46 => {
                         let ra_44 = base.offset(
@@ -3256,7 +3256,7 @@ pub async unsafe fn luaV_execute<A>(
                         (*result).value_ = val.value_;
 
                         trap = (*ci).u.trap;
-                        vmbreak!();
+                        next!();
                     }
                     47 => {
                         let ra_45 = base.offset(
@@ -3294,7 +3294,7 @@ pub async unsafe fn luaV_execute<A>(
                         (*result).value_ = val.value_;
 
                         trap = (*ci).u.trap;
-                        vmbreak!();
+                        next!();
                     }
                     48 => {
                         let ra_46 = base.offset(
@@ -3333,7 +3333,7 @@ pub async unsafe fn luaV_execute<A>(
                         (*result).value_ = val.value_;
 
                         trap = (*ci).u.trap;
-                        vmbreak!();
+                        next!();
                     }
                     49 => {
                         let mut ra_47 = base.offset(
@@ -3386,7 +3386,7 @@ pub async unsafe fn luaV_execute<A>(
 
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     50 => {
                         let mut ra_48 = base.offset(
@@ -3432,7 +3432,7 @@ pub async unsafe fn luaV_execute<A>(
 
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     51 => {
                         let ra_49 = base.offset(
@@ -3452,7 +3452,7 @@ pub async unsafe fn luaV_execute<A>(
                         } else {
                             (*ra_49).tt_ = (1 as c_int | (0 as c_int) << 4 as c_int) as u8;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     OP_LEN => {
                         (*ci).u.savedpc = pc;
@@ -3480,7 +3480,7 @@ pub async unsafe fn luaV_execute<A>(
                         (*ra).value_ = val.value_;
 
                         trap = (*ci).u.trap;
-                        vmbreak!();
+                        next!();
                     }
                     OP_CONCAT => {
                         let ra_51 = base.offset(
@@ -3502,7 +3502,7 @@ pub async unsafe fn luaV_execute<A>(
                         base = (*ci).func.add(1);
                         trap = (*ci).u.trap;
 
-                        vmbreak!();
+                        next!();
                     }
                     54 => {
                         let ra_52 = base.offset(
@@ -3519,7 +3519,7 @@ pub async unsafe fn luaV_execute<A>(
 
                         base = (*ci).func.add(1);
                         trap = (*ci).u.trap;
-                        vmbreak!();
+                        next!();
                     }
                     55 => {
                         let ra_53 = base.offset(
@@ -3530,7 +3530,7 @@ pub async unsafe fn luaV_execute<A>(
                         (*ci).u.savedpc = pc;
                         (*th).top.set((*ci).top);
                         luaF_newtbcupval(th, ra_53)?;
-                        vmbreak!();
+                        next!();
                     }
                     56 => {
                         pc = pc.offset(
@@ -3545,7 +3545,7 @@ pub async unsafe fn luaV_execute<A>(
                                 + 0 as c_int) as isize,
                         );
                         trap = (*ci).u.trap;
-                        vmbreak!();
+                        next!();
                     }
                     57 => {
                         let ra_54 = base.offset(
@@ -3585,7 +3585,7 @@ pub async unsafe fn luaV_execute<A>(
                             );
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     58 => {
                         let ra_55 = base.offset(
@@ -3637,7 +3637,7 @@ pub async unsafe fn luaV_execute<A>(
                             );
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     59 => {
                         let ra_56 = base.offset(
@@ -3689,7 +3689,7 @@ pub async unsafe fn luaV_execute<A>(
                             );
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     60 => {
                         let ra_57 = base.offset(
@@ -3727,7 +3727,7 @@ pub async unsafe fn luaV_execute<A>(
                             );
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     61 => {
                         let ra_58 = base.offset(
@@ -3768,7 +3768,7 @@ pub async unsafe fn luaV_execute<A>(
                             );
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     62 => {
                         let ra_59 = base.offset(
@@ -3819,7 +3819,7 @@ pub async unsafe fn luaV_execute<A>(
                             );
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     63 => {
                         let ra_60 = base.offset(
@@ -3870,7 +3870,7 @@ pub async unsafe fn luaV_execute<A>(
                             );
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     64 => {
                         let ra_61 = base.offset(
@@ -3921,7 +3921,7 @@ pub async unsafe fn luaV_execute<A>(
                             );
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     65 => {
                         let ra_62 = base.offset(
@@ -3972,7 +3972,7 @@ pub async unsafe fn luaV_execute<A>(
                             );
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     66 => {
                         let ra_63 = base.offset(
@@ -4005,7 +4005,7 @@ pub async unsafe fn luaV_execute<A>(
                             );
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     67 => {
                         let ra_64 = base.offset(
@@ -4046,7 +4046,7 @@ pub async unsafe fn luaV_execute<A>(
                             );
                             trap = (*ci).u.trap;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     OP_CALL => {
                         ra_65 = base.offset(
@@ -4076,7 +4076,7 @@ pub async unsafe fn luaV_execute<A>(
                         base = (*ci).func.add(1);
                         trap = (*ci).u.trap;
 
-                        vmbreak!();
+                        next!();
                     }
                     OP_TAILCALL => {
                         let ra_66 = base.offset(
@@ -4273,7 +4273,7 @@ pub async unsafe fn luaV_execute<A>(
                             );
                         }
                         trap = (*ci).u.trap;
-                        vmbreak!();
+                        next!();
                     }
                     74 => {
                         let ra_72 = base.offset(
@@ -4292,7 +4292,7 @@ pub async unsafe fn luaV_execute<A>(
                                     + 1 as c_int) as isize,
                             );
                         }
-                        vmbreak!();
+                        next!();
                     }
                     75 => {
                         let ra_73 = base.offset(
@@ -4378,7 +4378,7 @@ pub async unsafe fn luaV_execute<A>(
                             }
                             n_4 -= 1;
                         }
-                        vmbreak!();
+                        next!();
                     }
                     OP_CLOSURE => {
                         let ra_77 = base.offset(
@@ -4402,7 +4402,7 @@ pub async unsafe fn luaV_execute<A>(
                         base = (*ci).func.add(1);
                         trap = (*ci).u.trap;
 
-                        vmbreak!();
+                        next!();
                     }
                     80 => {
                         let ra_78 = base.offset(
@@ -4420,7 +4420,7 @@ pub async unsafe fn luaV_execute<A>(
                         luaT_getvarargs(th, ci, ra_78, n_5)?;
                         base = (*ci).func.add(1);
                         trap = (*ci).u.trap;
-                        vmbreak!();
+                        next!();
                     }
                     81 => {
                         (*ci).u.savedpc = pc;
@@ -4438,10 +4438,10 @@ pub async unsafe fn luaV_execute<A>(
                             (*th).oldpc.set(1);
                         }
                         base = ((*ci).func).offset(1 as c_int as isize);
-                        vmbreak!();
+                        next!();
                     }
                     82 => {
-                        vmbreak!();
+                        next!();
                     }
                     _ => unreachable_unchecked(), // TODO: Remove this once we converted to enum.
                 }
@@ -4464,7 +4464,7 @@ pub async unsafe fn luaV_execute<A>(
                         (*ra).value_ = val.value_;
 
                         trap = (*ci).u.trap;
-                        vmbreak!();
+                        next!();
                     }
                     13973394567113199817 => {
                         let ra_74 = base.offset(
@@ -4533,7 +4533,7 @@ pub async unsafe fn luaV_execute<A>(
                                 << 0 as c_int) as c_int as isize),
                     );
                 }
-                vmbreak!();
+                next!();
             }
             if (*ci).callstatus as c_int & (1 as c_int) << 2 as c_int != 0 {
                 break '_startfunc Ok(());

@@ -126,6 +126,19 @@ unsafe fn mainpositionTV<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *
                     (((1 as c_int) << (*t).lsizenode.get()) - 1 as c_int | 1 as c_int) as c_uint,
                 ) as isize)
         }
+        14 => {
+            // Get hash.
+            let o = (*key).value_.gc.cast::<RustId<D>>();
+            let mut h = LuaHasher::new((*t).hdr.global);
+
+            (*o).value().hash(&mut h);
+
+            // Lookup.
+            let m = (1 << (*t).lsizenode.get()) - 1;
+            let h = h.finish() & m;
+
+            (*t).node.get().add(h as usize)
+        }
         _ => {
             let o = (*key).value_.gc;
             return ((*t).node.get()).offset(

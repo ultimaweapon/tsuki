@@ -24,4 +24,10 @@ impl Hasher for LuaHasher {
                 .wrapping_add(b.into());
         }
     }
+
+    #[inline(always)]
+    fn write_u64(&mut self, i: u64) {
+        self.0 = self.0.wrapping_add(i as u32);
+        self.0 = self.0.wrapping_add((i >> 32) as u32);
+    }
 }

@@ -72,6 +72,7 @@ pub use self::function::*;
 pub use self::gc::Ref;
 pub use self::module::*;
 pub use self::parser::*;
+pub use self::registry::*;
 pub use self::string::*;
 pub use self::table::*;
 pub use self::thread::*;
@@ -132,6 +133,7 @@ mod ltm;
 mod lzio;
 mod module;
 mod parser;
+mod registry;
 mod string;
 mod table;
 mod thread;
@@ -436,6 +438,46 @@ impl<T> Lua<T> {
         let k = unsafe { UnsafeValue::from_obj(k.cast()) };
 
         unsafe { self.metatables().set_unchecked(k, mt).unwrap_unchecked() };
+    }
+
+    /// Sets a value to registry.
+    ///
+    /// # Panics
+    /// If `v` was created from different [Lua](crate::Lua) instance.
+    pub fn set_registry<'a, K>(&self, v: K::Value<'a>)
+    where
+        K: RegKey,
+        K::Value<'a>: RegValue<'a, T>,
+    {
+        let v = v.into_unsafe();
+
+        if unsafe { (v.tt_ & 1 << 6) != 0 && (*v.value_.gc).global != self } {
+            panic!("attempt to set registry value created from different Lua instance");
+        }
+
+        // Set.
+        let r = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
+        let k = unsafe { RustId::new(self, TypeId::of::<K>()) };
+        let k = unsafe { UnsafeValue::from_obj(k.cast()) };
+
+        // SAFETY: k is not nil or NaN.
+        unsafe { (*r).set_unchecked(k, v).unwrap_unchecked() };
+    }
+
+    /// Returns value on registry that was set with [Self::set_registry()].
+    pub fn registry<'a, K>(&'a self) -> Option<<K::Value<'a> as RegValue<'a, T>>::FromUnsafe>
+    where
+        K: RegKey,
+        K::Value<'a>: RegValue<'a, T>,
+    {
+        let id = TypeId::of::<K>();
+        let reg = unsafe { &*(*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
+        let s = unsafe { luaH_getid(reg, &id) };
+
+        match unsafe { (*s).tt_ & 0xf } {
+            0 => None,
+            _ => Some(unsafe { K::Value::from_unsafe(s) }),
+        }
     }
 
     /// Returns a global table.

@@ -696,7 +696,13 @@ impl<D> Gc<D> {
         let m = self.marked_refs.replace(null());
 
         match o.is_null() {
-            true => self.refs.set(m),
+            true => {
+                self.refs.set(m);
+
+                if !m.is_null() {
+                    (*m).refn.set(self.refs.as_ptr());
+                }
+            }
             false => loop {
                 // Mark.
                 if unsafe { (*o).marked.is_white() } {

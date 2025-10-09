@@ -2,7 +2,7 @@ use core::error::Error;
 use core::time::Duration;
 use tokio::task::{JoinSet, LocalSet};
 use tsuki::builtin::{BaseLib, CoroLib, IoLib, MathLib, StringLib, TableLib, Utf8Lib};
-use tsuki::{Args, ChunkInfo, Context, Lua, Ret, fp};
+use tsuki::{Args, ChunkInfo, Context, Lua, LuaFn, Ref, RegKey, Ret, fp};
 
 #[test]
 fn async_call() {
@@ -12,6 +12,7 @@ fn async_call() {
         .unwrap();
     let exec = LocalSet::new();
     let lua = Lua::new(());
+    let chunk = lua.load(ChunkInfo::new("async.lua"), "sleep()").unwrap();
 
     lua.use_module(None, true, BaseLib).unwrap();
     lua.use_module(None, true, CoroLib).unwrap();
@@ -20,6 +21,8 @@ fn async_call() {
     lua.use_module(None, true, StringLib).unwrap();
     lua.use_module(None, true, TableLib).unwrap();
     lua.use_module(None, true, Utf8Lib).unwrap();
+
+    lua.set_registry::<Chunk>(chunk);
 
     lua.global().set_str_key("sleep", fp!(sleep as async));
 
@@ -30,8 +33,8 @@ fn async_call() {
             let lua = lua.clone();
 
             tasks.spawn_local(async move {
-                let chunk = lua.load(ChunkInfo::new("async.lua"), "sleep()").unwrap();
                 let th = lua.create_thread();
+                let chunk = lua.registry::<Chunk>().unwrap();
 
                 th.async_call::<()>(chunk, ()).await.unwrap();
             });
@@ -44,4 +47,10 @@ fn async_call() {
 async fn sleep(cx: Context<'_, (), Args>) -> Result<Context<'_, (), Ret>, Box<dyn Error>> {
     tokio::time::sleep(Duration::from_secs(5)).await;
     Ok(cx.into())
+}
+
+struct Chunk;
+
+impl RegKey for Chunk {
+    type Value<'a> = Ref<'a, LuaFn<()>>;
 }
