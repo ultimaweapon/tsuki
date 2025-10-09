@@ -137,7 +137,7 @@ impl<D> Gc<D> {
         });
 
         self.all.set(o);
-        self.debt.update(|v| v.saturating_add(10));
+        self.debt.update(|v| v.saturating_add(3));
 
         o
     }
