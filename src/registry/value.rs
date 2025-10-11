@@ -3,7 +3,11 @@ use crate::{LuaFn, Ref, Str, Table, Thread, UserData};
 use core::any::Any;
 
 /// This type **MUST** never exposed to outside.
-pub trait RegValue<A> {
+///
+/// # Safety
+/// - [RegValue::into_unsafe()] must produce a valid value.
+/// - [RegValue::from_unsafe()] must returns [Ref] for object.
+pub unsafe trait RegValue<A> {
     type In<'a>
     where
         A: 'a;
@@ -19,7 +23,7 @@ pub trait RegValue<A> {
         A: 'a;
 }
 
-impl<A> RegValue<A> for bool {
+unsafe impl<A> RegValue<A> for bool {
     type In<'a>
         = bool
     where
@@ -46,7 +50,7 @@ impl<A> RegValue<A> for bool {
     }
 }
 
-impl<A> RegValue<A> for i8 {
+unsafe impl<A> RegValue<A> for i8 {
     type In<'a>
         = i8
     where
@@ -73,7 +77,7 @@ impl<A> RegValue<A> for i8 {
     }
 }
 
-impl<A> RegValue<A> for i16 {
+unsafe impl<A> RegValue<A> for i16 {
     type In<'a>
         = i16
     where
@@ -99,7 +103,7 @@ impl<A> RegValue<A> for i16 {
     }
 }
 
-impl<A> RegValue<A> for i32 {
+unsafe impl<A> RegValue<A> for i32 {
     type In<'a>
         = i32
     where
@@ -126,7 +130,7 @@ impl<A> RegValue<A> for i32 {
     }
 }
 
-impl<A> RegValue<A> for i64 {
+unsafe impl<A> RegValue<A> for i64 {
     type In<'a>
         = i64
     where
@@ -153,7 +157,7 @@ impl<A> RegValue<A> for i64 {
     }
 }
 
-impl<A> RegValue<A> for u8 {
+unsafe impl<A> RegValue<A> for u8 {
     type In<'a>
         = u8
     where
@@ -180,7 +184,7 @@ impl<A> RegValue<A> for u8 {
     }
 }
 
-impl<A> RegValue<A> for u16 {
+unsafe impl<A> RegValue<A> for u16 {
     type In<'a>
         = u16
     where
@@ -207,7 +211,7 @@ impl<A> RegValue<A> for u16 {
     }
 }
 
-impl<A> RegValue<A> for u32 {
+unsafe impl<A> RegValue<A> for u32 {
     type In<'a>
         = u32
     where
@@ -234,7 +238,7 @@ impl<A> RegValue<A> for u32 {
     }
 }
 
-impl<A> RegValue<A> for f32 {
+unsafe impl<A> RegValue<A> for f32 {
     type In<'a>
         = f32
     where
@@ -261,7 +265,7 @@ impl<A> RegValue<A> for f32 {
     }
 }
 
-impl<A> RegValue<A> for f64 {
+unsafe impl<A> RegValue<A> for f64 {
     type In<'a>
         = f64
     where
@@ -288,7 +292,7 @@ impl<A> RegValue<A> for f64 {
     }
 }
 
-impl<A> RegValue<A> for Str<A> {
+unsafe impl<A> RegValue<A> for Str<A> {
     type In<'a>
         = &'a Str<A>
     where
@@ -315,7 +319,7 @@ impl<A> RegValue<A> for Str<A> {
     }
 }
 
-impl<A> RegValue<A> for Table<A> {
+unsafe impl<A> RegValue<A> for Table<A> {
     type In<'a>
         = &'a Table<A>
     where
@@ -342,7 +346,7 @@ impl<A> RegValue<A> for Table<A> {
     }
 }
 
-impl<A> RegValue<A> for LuaFn<A> {
+unsafe impl<A> RegValue<A> for LuaFn<A> {
     type In<'a>
         = &'a LuaFn<A>
     where
@@ -369,7 +373,7 @@ impl<A> RegValue<A> for LuaFn<A> {
     }
 }
 
-impl<A, T: Any> RegValue<A> for UserData<A, T> {
+unsafe impl<A, T: Any> RegValue<A> for UserData<A, T> {
     type In<'a>
         = &'a UserData<A, T>
     where
@@ -396,7 +400,7 @@ impl<A, T: Any> RegValue<A> for UserData<A, T> {
     }
 }
 
-impl<A> RegValue<A> for Thread<A> {
+unsafe impl<A> RegValue<A> for Thread<A> {
     type In<'a>
         = &'a Thread<A>
     where

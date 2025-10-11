@@ -24,6 +24,7 @@ use core::pin::Pin;
 use core::ptr::{addr_eq, null, null_mut};
 use core::task::Poll;
 
+type c_ushort = u16;
 type c_int = i32;
 
 unsafe fn relstack<D>(L: *const Thread<D>) {
@@ -199,7 +200,7 @@ pub unsafe fn luaD_hook<D>(
 
         if ntransfer != 0 {
             mask |= (1 as c_int) << 8 as c_int;
-            (*ci).u2.transferinfo.ftransfer = ftransfer as libc::c_ushort;
+            (*ci).u2.transferinfo.ftransfer = ftransfer as c_ushort;
             (*ci).u2.transferinfo.ntransfer = ntransfer;
         }
 
@@ -218,7 +219,7 @@ pub unsafe fn luaD_hook<D>(
             (*ci).top = ((*L).top.get()).offset(20 as c_int as isize);
         }
         (*L).allowhook.set(0);
-        (*ci).callstatus = ((*ci).callstatus as c_int | mask) as libc::c_ushort;
+        (*ci).callstatus = ((*ci).callstatus as c_int | mask) as c_ushort;
         (Some(hook.expect("non-null function pointer"))).expect("non-null function pointer")(
             L, &mut ar,
         );
@@ -226,7 +227,7 @@ pub unsafe fn luaD_hook<D>(
         (*ci).top = ((*L).stack.get() as *mut c_char).offset(ci_top as isize) as _;
         (*L).top
             .set(((*L).stack.get() as *mut c_char).offset(top as isize) as _);
-        (*ci).callstatus = ((*ci).callstatus as c_int & !mask) as libc::c_ushort;
+        (*ci).callstatus = ((*ci).callstatus as c_int & !mask) as c_ushort;
     }
     Ok(())
 }
@@ -269,7 +270,7 @@ unsafe fn rethook<D>(
             }
         }
         (*ci).func = ((*ci).func).offset(delta as isize);
-        ftransfer = firstres.offset_from((*ci).func) as libc::c_long as libc::c_ushort as c_int;
+        ftransfer = firstres.offset_from((*ci).func) as libc::c_long as c_ushort as c_int;
 
         luaD_hook(
             L,
@@ -362,9 +363,8 @@ unsafe fn moveresults<D>(
         }
         _ => {
             if wanted < -(1 as c_int) {
-                (*(*L).ci.get()).callstatus = ((*(*L).ci.get()).callstatus as c_int
-                    | (1 as c_int) << 9 as c_int)
-                    as libc::c_ushort;
+                (*(*L).ci.get()).callstatus =
+                    ((*(*L).ci.get()).callstatus as c_int | (1 as c_int) << 9 as c_int) as c_ushort;
                 (*(*L).ci.get()).u2.nres = nres;
                 res = match luaF_close(L, res) {
                     Ok(v) => v,
@@ -372,7 +372,7 @@ unsafe fn moveresults<D>(
                 };
                 (*(*L).ci.get()).callstatus = ((*(*L).ci.get()).callstatus as c_int
                     & !((1 as c_int) << 9 as c_int))
-                    as libc::c_ushort;
+                    as c_ushort;
                 if (*L).hookmask.get() != 0 {
                     let savedres: isize =
                         (res as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
@@ -439,7 +439,7 @@ unsafe fn prepCallInfo<D>(
     let ci = (*L).ci.get();
     (*ci).func = func;
     (*ci).nresults = nret as libc::c_short;
-    (*ci).callstatus = mask as libc::c_ushort;
+    (*ci).callstatus = mask as c_ushort;
     (*ci).top = top;
     return ci;
 }
@@ -548,7 +548,7 @@ pub async unsafe fn luaD_pretailcall<D>(
                 (*ci).top = func.offset(1 as c_int as isize).offset(fsize as isize);
                 (*ci).u.savedpc = (*p).code;
                 (*ci).callstatus =
-                    ((*ci).callstatus as c_int | (1 as c_int) << 5 as c_int) as libc::c_ushort;
+                    ((*ci).callstatus as c_int | (1 as c_int) << 5 as c_int) as c_ushort;
                 (*L).top.set(func.offset(narg1 as isize));
                 return Ok(-(1 as c_int));
             }
