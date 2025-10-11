@@ -122,7 +122,6 @@ use core::cell::{Cell, UnsafeCell};
 use core::error::Error;
 use core::ffi::c_int;
 use core::fmt::{Display, Formatter};
-use core::hint::unreachable_unchecked;
 use core::marker::PhantomPinned;
 use core::ops::Deref;
 use core::pin::Pin;
@@ -737,33 +736,27 @@ impl<'a, A> Value<'a, A> {
 
     #[inline(never)]
     unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self {
-        match unsafe { (*v).tt_ & 0xf } {
-            0 => Self::Nil,
-            1 => Self::Bool(unsafe { ((*v).tt_ & 0x30) != 0 }),
-            2 => match unsafe { ((*v).tt_ >> 4) & 3 } {
-                0 => Self::Fp(unsafe { (*v).value_.f }),
-                1 => todo!(),
-                2 => Self::AsyncFp(unsafe { (*v).value_.a }),
-                3 => todo!(),
-                _ => unsafe { unreachable_unchecked() },
-            },
-            3 => match unsafe { ((*v).tt_ >> 4) & 3 } {
-                0 => Self::Int(unsafe { (*v).value_.i }),
-                1 => Self::Float(unsafe { (*v).value_.n }),
+        match unsafe { (*v).tt_ & 0x3f } {
+            0x01 => Self::Bool(false),
+            0x11 => Self::Bool(true),
+            0x02 => Self::Fp(unsafe { (*v).value_.f }),
+            0x12 => todo!(),
+            0x22 => Self::AsyncFp(unsafe { (*v).value_.a }),
+            0x32 => todo!(),
+            0x03 => Self::Int(unsafe { (*v).value_.i }),
+            0x13 => Self::Float(unsafe { (*v).value_.n }),
+            0x04 | 0x14 => Self::Str(unsafe { Ref::new((*v).value_.gc.cast()) }),
+            0x05 => Self::Table(unsafe { Ref::new((*v).value_.gc.cast()) }),
+            0x06 => Self::LuaFn(unsafe { Ref::new((*v).value_.gc.cast()) }),
+            0x16 => todo!(),
+            0x26 => todo!(),
+            0x36 => todo!(),
+            0x07 => Self::UserData(unsafe { Ref::new((*v).value_.gc.cast()) }),
+            0x08 => Self::Thread(unsafe { Ref::new((*v).value_.gc.cast()) }),
+            v => match v & 0xf {
+                0 => Self::Nil,
                 _ => unreachable!(),
             },
-            4 => Self::Str(unsafe { Ref::new((*v).value_.gc.cast()) }),
-            5 => Self::Table(unsafe { Ref::new((*v).value_.gc.cast()) }),
-            6 => match unsafe { ((*v).tt_ >> 4) & 3 } {
-                0 => Self::LuaFn(unsafe { Ref::new((*v).value_.gc.cast()) }),
-                1 => todo!(),
-                2 => todo!(),
-                3 => todo!(),
-                _ => unsafe { unreachable_unchecked() },
-            },
-            7 => Self::UserData(unsafe { Ref::new((*v).value_.gc.cast()) }),
-            8 => Self::Thread(unsafe { Ref::new((*v).value_.gc.cast()) }),
-            _ => unreachable!(),
         }
     }
 }

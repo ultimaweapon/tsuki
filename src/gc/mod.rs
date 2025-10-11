@@ -289,7 +289,7 @@ impl<D> Gc<D> {
         self.linkgclist_(o, Self::getgclist(o), self.gray.as_ptr());
     }
 
-    #[inline(never)]
+    #[inline(always)]
     unsafe fn mark_one_gray(&self) {
         let o = self.gray.get();
 
@@ -308,6 +308,7 @@ impl<D> Gc<D> {
         }
     }
 
+    #[inline(never)]
     unsafe fn mark_table(&self, h: *const Table<D>) {
         // Get table mode.
         let mt = (*h).metatable.get();
@@ -522,6 +523,7 @@ impl<D> Gc<D> {
         marked
     }
 
+    #[inline(never)]
     unsafe fn mark_lf(&self, cl: *const LuaFn<D>) {
         let p = (*cl).p.get();
 
@@ -543,6 +545,7 @@ impl<D> Gc<D> {
         }
     }
 
+    #[inline(never)]
     unsafe fn mark_rf(&self, cl: *const CClosure<D>) {
         let mut i: c_int = 0;
 
@@ -565,6 +568,7 @@ impl<D> Gc<D> {
         }
     }
 
+    #[inline(never)]
     unsafe fn mark_proto(&self, f: *const Proto<D>) {
         let mut i = 0 as c_int;
 
@@ -625,6 +629,7 @@ impl<D> Gc<D> {
         }
     }
 
+    #[inline(never)]
     unsafe fn mark_thread(&self, th: *const Thread<D>) {
         let mut uv = null_mut();
         let mut o = (*th).stack.get();

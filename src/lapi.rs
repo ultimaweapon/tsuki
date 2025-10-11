@@ -242,6 +242,7 @@ pub unsafe fn lua_type<D>(L: *const Thread<D>, idx: c_int) -> c_int {
     };
 }
 
+#[inline(always)]
 pub const fn lua_typename(t: c_int) -> &'static str {
     luaT_typenames_[(t + 1) as usize]
 }
@@ -270,13 +271,6 @@ pub unsafe fn lua_isstring<D>(L: *const Thread<D>, idx: c_int) -> c_int {
     let o = index2value(L, idx);
     return ((*o).tt_ as c_int & 0xf as c_int == 4 as c_int
         || (*o).tt_ as c_int & 0xf as c_int == 3 as c_int) as c_int;
-}
-
-pub unsafe fn lua_isuserdata<D>(L: *mut Thread<D>, idx: c_int) -> c_int {
-    let o = index2value(L, idx);
-    return ((*o).tt_ as c_int
-        == 7 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
-        as c_int;
 }
 
 pub unsafe fn lua_rawequal<D>(

@@ -12,7 +12,6 @@ pub struct Ref<'a, T> {
 }
 
 impl<'a, T> Ref<'a, T> {
-    #[inline(never)]
     pub(crate) unsafe fn new(o: *const T) -> Self {
         let h = o.cast::<Object<()>>();
         let g = (*h).global();
@@ -50,7 +49,7 @@ impl<'a, T> Ref<'a, T> {
 }
 
 impl<'a, T> Drop for Ref<'a, T> {
-    #[inline(never)]
+    #[inline(always)]
     fn drop(&mut self) {
         // Decrease references.
         let h = self.obj.cast::<Object<()>>();
