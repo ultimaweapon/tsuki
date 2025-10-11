@@ -1,3 +1,4 @@
+//! Implementation of Lua standard libraries.
 use crate::{Lua, Module, Ref, Table, fp};
 use alloc::boxed::Box;
 use core::ops::Deref;

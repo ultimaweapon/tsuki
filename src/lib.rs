@@ -35,35 +35,56 @@
 //! }
 //! ```
 //!
-//! # Types that can be converted to UnsafeValue.
+//! # Types that can be converted to UnsafeValue
 //!
 //! You can pass the value of the following types for `impl Into<UnsafeValue>`:
 //!
-//! - [`Nil`]
-//! - [`bool`]
-//! - [`Fp`]
-//! - [`AsyncFp`]
-//! - [`i8`]
-//! - [`i16`]
-//! - [`i32`]
-//! - [`i64`]
-//! - [`u8`]
-//! - [`u16`]
-//! - [`u32`]
-//! - [`f32`]
-//! - [`f64`]
-//! - [`Number`]
-//! - Reference to [`Str`]
-//! - Reference to [`Table`]
-//! - Reference to [`LuaFn`]
-//! - Reference to [`UserData`]
-//! - Reference to [`Thread`]
-//! - [`Ref`]
-//! - [`Value`]
-//! - [`Arg`] or reference to it
+//! - [Nil]
+//! - [bool]
+//! - [Fp]
+//! - [AsyncFp]
+//! - [i8]
+//! - [i16]
+//! - [i32]
+//! - [i64]
+//! - [u8]
+//! - [u16]
+//! - [u32]
+//! - [f32]
+//! - [f64]
+//! - [Number]
+//! - Reference to [Str]
+//! - Reference to [Table]
+//! - Reference to [LuaFn]
+//! - Reference to [UserData]
+//! - Reference to [Thread]
+//! - [Ref]
+//! - [Value]
+//! - [Arg] or a reference to it
 //!
-//! The value will be converted to corresponding Lua value. Tsuki does not expose [`UnsafeValue`] by
-//! design so you cannot construct its value. Tsuki also never handout the value of [`UnsafeValue`].
+//! The value will be converted to corresponding Lua value. Tsuki does not expose [UnsafeValue] by
+//! design so you cannot construct its value. Tsuki also never handout the value of [UnsafeValue].
+//!
+//! # Store value in registry
+//!
+//! You need to create a type per key in registry:
+//!
+//! ```
+//! use tsuki::{RegKey, Table};
+//!
+//! struct MyKey;
+//!
+//! impl<A> RegKey<A> for MyKey {
+//!     type Value<'a>
+//!         = Table<A>
+//!     where
+//!         A: 'a;
+//! }
+//! ```
+//!
+//! Type type itself is a key, not its value. Then you can use [Lua::set_registry()] or
+//! [Context::set_registry()] to set the value and [Lua::registry()] or [Context::registry()] to
+//! retrieve the value:
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
@@ -464,7 +485,8 @@ impl<T> Lua<T> {
         unsafe { (*r).set_unchecked(k, v).unwrap_unchecked() };
     }
 
-    /// Returns value on registry that was set with [Self::set_registry()].
+    /// Returns value on registry that was set with [Self::set_registry()] or
+    /// [Context::set_registry()].
     pub fn registry<'a, K>(&'a self) -> Option<<K::Value<'a> as RegValue<T>>::Out<'a>>
     where
         K: RegKey<T>,

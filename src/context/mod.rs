@@ -6,8 +6,8 @@ use crate::lobject::luaO_arith;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_finishget, luaV_lessthan, luaV_objlen, luaV_tointeger};
 use crate::{
-    CallError, ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, Ops, ParseError, Ref, StackOverflow, Str,
-    Table, Thread, Type, UserData, luaH_get, luaH_getint,
+    CallError, ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, Ops, ParseError, Ref, RegKey, RegValue,
+    StackOverflow, Str, Table, Thread, Type, UserData, luaH_get, luaH_getint,
 };
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -52,6 +52,28 @@ impl<'a, D, T> Context<'a, D, T> {
     #[inline(always)]
     pub fn associated_data(&self) -> &D {
         &self.th.hdr.global().associated_data
+    }
+
+    /// Sets a value to registry.
+    ///
+    /// # Panics
+    /// If `v` was created from different [Lua](crate::Lua) instance.
+    pub fn set_registry<'b, K>(&self, v: <K::Value<'b> as RegValue<D>>::In<'b>)
+    where
+        K: RegKey<D>,
+        K::Value<'b>: RegValue<D>,
+    {
+        self.th.hdr.global().set_registry::<K>(v);
+    }
+
+    /// Returns value on registry that was set with
+    /// [Lua::set_registry()](crate::Lua::set_registry()) or [Self::set_registry()].
+    pub fn registry<K>(&self) -> Option<<K::Value<'a> as RegValue<D>>::Out<'a>>
+    where
+        K: RegKey<D>,
+        K::Value<'a>: RegValue<D>,
+    {
+        self.th.hdr.global().registry::<K>()
     }
 
     /// Create a Lua string.
