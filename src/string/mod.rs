@@ -22,7 +22,7 @@ mod table;
 #[repr(C)]
 pub struct Str<D> {
     pub(crate) hdr: Object<D>,
-    ty: Cell<Option<ContentType>>,
+    pub(crate) ty: Cell<Option<ContentType>>,
     pub(crate) len: usize,
     pub(crate) extra: Cell<u8>,
     pub(crate) hash: Cell<u32>,
@@ -176,7 +176,7 @@ impl<D> PartialEq<str> for Str<D> {
 
 /// Type of [Str::contents].
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum ContentType {
+pub(crate) enum ContentType {
     Binary,
     Utf8,
 }

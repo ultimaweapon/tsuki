@@ -24,6 +24,7 @@ use core::pin::Pin;
 use core::ptr::{addr_eq, null, null_mut};
 use core::task::Poll;
 
+type c_short = i16;
 type c_ushort = u16;
 type c_int = i32;
 type c_long = i64;
@@ -439,7 +440,7 @@ unsafe fn prepCallInfo<D>(
     });
     let ci = (*L).ci.get();
     (*ci).func = func;
-    (*ci).nresults = nret as libc::c_short;
+    (*ci).nresults = nret as c_short;
     (*ci).callstatus = mask as c_ushort;
     (*ci).top = top;
     return ci;

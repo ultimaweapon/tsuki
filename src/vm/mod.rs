@@ -27,7 +27,8 @@ use crate::table::{
 };
 use crate::value::UnsafeValue;
 use crate::{
-    ArithError, LuaFn, NON_YIELDABLE_WAKER, Nil, StackValue, Str, Table, Thread, UserData,
+    ArithError, ContentType, LuaFn, NON_YIELDABLE_WAKER, Nil, StackValue, Str, Table, Thread,
+    UserData,
 };
 use alloc::boxed::Box;
 use alloc::string::String;
@@ -753,24 +754,28 @@ pub unsafe fn luaV_equalobj<D>(
     };
 }
 
-unsafe fn copy2buff<D>(
-    th: *const Thread<D>,
-    top: *mut StackValue<D>,
+unsafe fn copy2buff<A>(
+    th: *const Thread<A>,
+    top: *mut StackValue<A>,
     mut n: c_int,
     len: usize,
-) -> *const Str<D> {
+) -> *const Str<A> {
     let mut buf = Vec::with_capacity(len);
     let mut bytes = false;
 
     loop {
-        let st = (*top.offset(-(n as isize))).value_.gc.cast::<Str<D>>();
+        let st = (*top.offset(-(n as isize))).value_.gc.cast::<Str<A>>();
 
         buf.extend_from_slice((*st).as_bytes());
-        bytes |= (*st).is_utf8() == false;
+        bytes |= match (*st).ty.get() {
+            Some(ContentType::Binary) => true,
+            Some(ContentType::Utf8) => false,
+            None => true,
+        };
 
         n -= 1;
 
-        if !(n > 0 as c_int) {
+        if !(n > 0) {
             break;
         }
     }
