@@ -51,6 +51,9 @@ async fn sleep(cx: Context<'_, (), Args>) -> Result<Context<'_, (), Ret>, Box<dy
 
 struct Chunk;
 
-impl RegKey for Chunk {
-    type Value<'a> = Ref<'a, LuaFn<()>>;
+impl<A> RegKey<A> for Chunk {
+    type Value<'a>
+        = Ref<'a, LuaFn<A>>
+    where
+        A: 'a;
 }

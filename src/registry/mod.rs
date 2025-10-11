@@ -5,7 +5,7 @@ mod value;
 /// Key to store value on Lua registry.
 ///
 /// The type itself is a key, not value.
-pub trait RegKey: 'static {
+pub trait RegKey<A>: 'static {
     /// Type of the value.
     ///
     /// This can be one of the following type:
@@ -23,5 +23,7 @@ pub trait RegKey: 'static {
     /// - [f64].
     /// - [Ref](crate::Ref) of [Str](crate::Str), [Table](crate::Table), [LuaFn](crate::LuaFn),
     ///   [UserData](crate::UserData) or [Thread](crate::Thread).
-    type Value<'a>;
+    type Value<'a>
+    where
+        A: 'a;
 }

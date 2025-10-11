@@ -446,7 +446,7 @@ impl<T> Lua<T> {
     /// If `v` was created from different [Lua](crate::Lua) instance.
     pub fn set_registry<'a, K>(&self, v: K::Value<'a>)
     where
-        K: RegKey,
+        K: RegKey<T>,
         K::Value<'a>: RegValue<'a, T>,
     {
         let v = v.into_unsafe();
@@ -467,7 +467,7 @@ impl<T> Lua<T> {
     /// Returns value on registry that was set with [Self::set_registry()].
     pub fn registry<'a, K>(&'a self) -> Option<<K::Value<'a> as RegValue<'a, T>>::FromUnsafe>
     where
-        K: RegKey,
+        K: RegKey<T>,
         K::Value<'a>: RegValue<'a, T>,
     {
         let id = TypeId::of::<K>();

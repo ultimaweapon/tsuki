@@ -8,7 +8,7 @@ Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all
 
 ## Status
 
-The VM to run Lua code is fully working almost exactly as vanilla Lua (see the list of differences below). Some functions on Lua standard library are still missing.
+The VM to run Lua code is fully working almost exactly as vanilla Lua (see some of differences below). Some functions on Lua standard library are still missing.
 
 ## Safety
 
