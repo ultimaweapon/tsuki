@@ -24,6 +24,7 @@ use core::pin::Pin;
 use core::ptr::{addr_eq, null, null_mut};
 use core::task::Poll;
 
+type c_uchar = u8;
 type c_short = i16;
 type c_ushort = u16;
 type c_int = i32;
@@ -726,7 +727,7 @@ pub unsafe fn luaD_protectedparser<D>(
     let c: c_int = if fresh3 > 0 {
         let fresh4 = z.p;
         z.p = z.p.offset(1);
-        *fresh4 as libc::c_uchar as c_int
+        *fresh4 as c_uchar as c_int
     } else {
         -1
     };

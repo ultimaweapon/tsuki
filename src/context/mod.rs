@@ -1,14 +1,15 @@
 pub use self::arg::*;
 
-use crate::lapi::lua_checkstack;
+use crate::lapi::{lua_checkstack, lua_typename};
 use crate::ldo::luaD_call;
 use crate::lobject::luaO_arith;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_finishget, luaV_lessthan, luaV_objlen, luaV_tointeger};
 use crate::{
     CallError, ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, Ops, ParseError, Ref, RegKey, RegValue,
-    StackOverflow, Str, Table, Thread, Type, UserData, luaH_get, luaH_getint,
+    StackOverflow, Str, Table, Thread, Type, UserData, luaH_get, luaH_getint, luaH_getshortstr,
 };
+use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::any::Any;
@@ -23,16 +24,17 @@ mod arg;
 
 /// Context to invoke [Fp](crate::Fp) and [AsyncFp](crate::AsyncFp).
 ///
-/// This provides [`Self::arg()`] to get arguments passed from Lua and [`Self::push()`] to returns
-/// the values back to Lua. It also contains other methods like [`Self::create_table()`].
+/// This provides [Self::arg()] to get arguments passed from Lua and [Self::push()] to returns
+/// the values back to Lua. It also provides methods to interact with Lua VM like
+/// [Self::create_table()].
 ///
-/// This type has two variants, which is indicated by `T` (either [`Args`] or [`Ret`]). The method
-/// to get arguments will only available on [`Args`] variant. [`Ret`] variant is used to return the
-/// values back to Lua. [`Args`] variant can be converted to [`Ret`] variant using standard Rust
-/// [`From`] and [`Into`] or [`Self::into_results()`] (the former will returns all pushed values).
-/// There is no way to get [`Args`] variant back once you converted it.
-pub struct Context<'a, D, T> {
-    th: &'a Thread<D>,
+/// This type has two variants, which is indicated by `T` (either [Args] or [Ret]). The method
+/// to get arguments will only available on [Args] variant. [Ret] variant is used to return the
+/// values back to Lua. [Args] variant can be converted to [Ret] variant using standard Rust
+/// [From] and [Into] or [Self::into_results()] (the former will returns all pushed values).
+/// There is no way to get [Args] variant back once you converted it.
+pub struct Context<'a, A, T> {
+    th: &'a Thread<A>,
     ret: Cell<usize>,
     payload: T,
 }
@@ -162,7 +164,7 @@ impl<'a, D, T> Context<'a, D, T> {
     /// Check if `lhs` less than `rhs` according to Lua operator `<`.
     ///
     /// # Panics
-    /// If either `lhs` or `rhs` come from different [Lua](crate::Lua) instance.
+    /// If either `lhs` or `rhs` was created from different [Lua](crate::Lua) instance.
     #[inline(always)]
     pub fn is_value_lt(
         &self,
@@ -186,10 +188,41 @@ impl<'a, D, T> Context<'a, D, T> {
         Ok(unsafe { luaV_lessthan(self.th, &lhs, &rhs)? != 0 })
     }
 
+    /// Resolve type name for `v`.
+    ///
+    /// This method honor `__name` metavalue. Note that this method will fallback to basic type name
+    /// if `__name` is not a UTF-8 string.
+    ///
+    /// The result will be [Cow::Owned] if type name come from `__name` metavalue.
+    ///
+    /// # Panics
+    /// If `v` was created from different [Lua](crate::Lua) instance.
+    pub fn type_name(&self, v: impl Into<UnsafeValue<D>>) -> Cow<'static, str> {
+        let v = v.into();
+
+        if unsafe { (v.tt_ & 1 << 6 != 0) && (*v.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to resolve type name for a value created from a different Lua");
+        }
+
+        // Resolve.
+        let g = self.th.hdr.global();
+        let mt = unsafe { g.metatable(&v) };
+
+        (!mt.is_null())
+            .then(move || unsafe { luaH_getshortstr(mt, Str::from_str(g, "__name")) })
+            .and_then(|v| match unsafe { (*v).tt_ & 0xf } {
+                4 => Some(unsafe { (*v).value_.gc.cast::<Str<D>>() }),
+                _ => None,
+            })
+            .and_then(|v| unsafe { (*v).as_str() })
+            .map(|v| Cow::Owned(v.into()))
+            .unwrap_or_else(move || Cow::Borrowed(lua_typename((v.tt_ & 0xf).into())))
+    }
+
     /// Push value to the result of this call.
     ///
     /// # Panics
-    /// If `v` come from different [Lua](crate::Lua) instance.
+    /// If `v` was created from different [Lua](crate::Lua) instance.
     pub fn push(&self, v: impl Into<UnsafeValue<D>>) -> Result<(), StackOverflow> {
         // Check if value come from the same Lua.
         let v = v.into();

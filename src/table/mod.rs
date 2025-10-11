@@ -22,21 +22,21 @@ mod rust;
 /// Use [Lua::create_table()] or [Context::create_table()](crate::Context::create_table()) to create
 /// the value of this type.
 #[repr(C)]
-pub struct Table<D> {
-    pub(crate) hdr: Object<D>,
+pub struct Table<A> {
+    pub(crate) hdr: Object<A>,
     pub(crate) flags: Cell<u8>,
     pub(crate) lsizenode: Cell<u8>,
     pub(crate) alimit: Cell<u32>,
-    pub(crate) array: Cell<*mut UnsafeValue<D>>,
-    pub(crate) node: Cell<*mut Node<D>>,
-    pub(crate) lastfree: Cell<*mut Node<D>>,
+    pub(crate) array: Cell<*mut UnsafeValue<A>>,
+    pub(crate) node: Cell<*mut Node<A>>,
+    pub(crate) lastfree: Cell<*mut Node<A>>,
     pub(crate) metatable: Cell<*const Self>,
-    absent_key: UnsafeValue<D>,
+    absent_key: UnsafeValue<A>,
 }
 
-impl<D> Table<D> {
+impl<A> Table<A> {
     #[inline(never)]
-    pub(crate) unsafe fn new(g: *const Lua<D>) -> *const Self {
+    pub(crate) unsafe fn new(g: *const Lua<A>) -> *const Self {
         let layout = Layout::new::<Self>();
         let o = unsafe { (*g).gc.alloc(5 | 0 << 4, layout).cast::<Self>() };
         let absent_key = UnsafeValue {
@@ -116,7 +116,7 @@ impl<D> Table<D> {
     ///
     /// # Panics
     /// If `k` come from different [Lua](crate::Lua) instance.
-    pub fn contains_key(&self, k: impl Into<UnsafeValue<D>>) -> bool {
+    pub fn contains_key(&self, k: impl Into<UnsafeValue<A>>) -> bool {
         // Check if key come from the same Lua.
         let k = k.into();
 
@@ -130,7 +130,12 @@ impl<D> Table<D> {
         unsafe { (*v).tt_ & 0xf != 0 }
     }
 
-    /// Returns `true` if the table contains a value for the specified key.
+    /// Returns `true` if the table contains a value for `k`.
+    ///
+    /// Note that this method can allocate a string without trigger GC. That mean it is possible to
+    /// be out of memory if you keep calling this method without calling other function that trigger
+    /// GC. Usually you don't need to worry about this **unless** you are calling this method within
+    /// a loop.
     pub fn contains_str_key<K>(&self, k: K) -> bool
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,
@@ -146,7 +151,7 @@ impl<D> Table<D> {
     ///
     /// # Panics
     /// If `k` come from different [Lua](crate::Lua) instance.
-    pub fn get(&self, k: impl Into<UnsafeValue<D>>) -> Value<'_, D> {
+    pub fn get(&self, k: impl Into<UnsafeValue<A>>) -> Value<'_, A> {
         let k = k.into();
 
         if unsafe { (k.tt_ & 1 << 6 != 0) && (*k.value_.gc).global != self.hdr.global } {
@@ -156,8 +161,13 @@ impl<D> Table<D> {
         unsafe { Value::from_unsafe(luaH_get(self, &k)) }
     }
 
-    /// Returns a value corresponding to the key.
-    pub fn get_str_key<K>(&self, k: K) -> Value<'_, D>
+    /// Returns a value corresponding to `k`.
+    ///
+    /// Note that this method can allocate a string without trigger GC. That mean it is possible to
+    /// be out of memory if you keep calling this method without calling other function that trigger
+    /// GC. Usually you don't need to worry about this **unless** you are calling this method within
+    /// a loop.
+    pub fn get_str_key<K>(&self, k: K) -> Value<'_, A>
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -169,7 +179,7 @@ impl<D> Table<D> {
 
     /// # Panics
     /// If `k` come from different [Lua](crate::Lua) instance.
-    pub(crate) fn get_raw(&self, k: impl Into<UnsafeValue<D>>) -> *const UnsafeValue<D> {
+    pub(crate) fn get_raw(&self, k: impl Into<UnsafeValue<A>>) -> *const UnsafeValue<A> {
         let k = k.into();
 
         if unsafe { (k.tt_ & 1 << 6 != 0) && (*k.value_.gc).global != self.hdr.global } {
@@ -182,18 +192,18 @@ impl<D> Table<D> {
     #[inline(always)]
     pub(crate) unsafe fn get_raw_unchecked(
         &self,
-        k: impl Into<UnsafeValue<D>>,
-    ) -> *const UnsafeValue<D> {
+        k: impl Into<UnsafeValue<A>>,
+    ) -> *const UnsafeValue<A> {
         unsafe { luaH_get(self, &k.into()) }
     }
 
     #[inline(always)]
-    pub(crate) fn get_raw_int_key(&self, k: i64) -> &UnsafeValue<D> {
+    pub(crate) fn get_raw_int_key(&self, k: i64) -> &UnsafeValue<A> {
         unsafe { &*luaH_getint(self, k) }
     }
 
     #[inline(always)]
-    pub(crate) fn get_raw_str_key<K>(&self, k: K) -> *const UnsafeValue<D>
+    pub(crate) fn get_raw_str_key<K>(&self, k: K) -> *const UnsafeValue<A>
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -208,8 +218,8 @@ impl<D> Table<D> {
     /// If `k` or `v` come from different [Lua](crate::Lua) instance.
     pub fn set(
         &self,
-        k: impl Into<UnsafeValue<D>>,
-        v: impl Into<UnsafeValue<D>>,
+        k: impl Into<UnsafeValue<A>>,
+        v: impl Into<UnsafeValue<A>>,
     ) -> Result<(), TableError> {
         // Check if key come from the same Lua.
         let k = k.into();
@@ -232,8 +242,8 @@ impl<D> Table<D> {
     /// `k` and `v` must come from the same [Lua](crate::Lua) instance.
     pub unsafe fn set_unchecked(
         &self,
-        k: impl Into<UnsafeValue<D>>,
-        v: impl Into<UnsafeValue<D>>,
+        k: impl Into<UnsafeValue<A>>,
+        v: impl Into<UnsafeValue<A>>,
     ) -> Result<(), TableError> {
         let k = k.into();
         let v = v.into();
@@ -254,9 +264,14 @@ impl<D> Table<D> {
 
     /// Inserts a value with string key into this table.
     ///
+    /// Note that this method can allocate a string without trigger GC. That mean it is possible to
+    /// be out of memory if you keep calling this method without calling other function that trigger
+    /// GC. Usually you don't need to worry about this **unless** you are calling this method within
+    /// a loop.
+    ///
     /// # Panics
-    /// If `v` come from different [Lua](crate::Lua) instance.
-    pub fn set_str_key<K>(&self, k: K, v: impl Into<UnsafeValue<D>>)
+    /// If `v` was created from different [Lua](crate::Lua) instance.
+    pub fn set_str_key<K>(&self, k: K, v: impl Into<UnsafeValue<A>>)
     where
         K: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -278,11 +293,16 @@ impl<D> Table<D> {
     }
 
     /// Inserts a value with string key into this table without checking if `v` created from the
-    /// same [`Lua`] instance.
+    /// same [Lua] instance.
+    ///
+    /// Note that this method can allocate a string without trigger GC. That mean it is possible to
+    /// be out of memory if you keep calling this method without calling other function that trigger
+    /// GC. Usually you don't need to worry about this **unless** you are calling this method within
+    /// a loop.
     ///
     /// # Safety
-    /// `v` must created from the same [`Lua`] instance.
-    pub unsafe fn set_str_key_unchecked<K>(&self, k: K, v: impl Into<UnsafeValue<D>>)
+    /// `v` must created from the same [Lua] instance.
+    pub unsafe fn set_str_key_unchecked<K>(&self, k: K, v: impl Into<UnsafeValue<A>>)
     where
         K: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -294,9 +314,9 @@ impl<D> Table<D> {
 
     pub(crate) unsafe fn set_slot_unchecked(
         &self,
-        s: *const UnsafeValue<D>,
-        k: impl Into<UnsafeValue<D>>,
-        v: impl Into<UnsafeValue<D>>,
+        s: *const UnsafeValue<A>,
+        k: impl Into<UnsafeValue<A>>,
+        v: impl Into<UnsafeValue<A>>,
     ) -> Result<(), TableError> {
         let k = k.into();
         let v = v.into();
@@ -317,8 +337,8 @@ impl<D> Table<D> {
 
     pub(crate) unsafe fn next_raw(
         &self,
-        key: &UnsafeValue<D>,
-    ) -> Result<Option<[UnsafeValue<D>; 2]>, Box<dyn core::error::Error>> {
+        key: &UnsafeValue<A>,
+    ) -> Result<Option<[UnsafeValue<A>; 2]>, Box<dyn core::error::Error>> {
         // Get from array table.
         let asize = unsafe { luaH_realasize(self) };
         let mut i = unsafe { findindex(self, key, asize)? };
@@ -373,9 +393,11 @@ impl<D> Drop for Table<D> {
 /// Represents an error when the operation on a table fails.
 #[derive(Debug, Error)]
 pub enum TableError {
+    /// Key is `nil`.
     #[error("key is nil")]
     NilKey,
 
+    /// Key is NaN.
     #[error("key is NaN")]
     NanKey,
 }
@@ -383,6 +405,7 @@ pub enum TableError {
 /// Error when attempt to set an invalid metatable.
 #[derive(Debug, Error)]
 pub enum MetatableError {
+    /// The metatable as `__gc`.
     #[error("the metatable contains __gc metamethod, which Tsuki does not support")]
     HasGc,
 }

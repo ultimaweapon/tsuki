@@ -197,16 +197,16 @@ macro_rules! fp {
 
 /// Global states shared with all Lua threads.
 #[repr(C)] // Force gc field to be the first field.
-pub struct Lua<T> {
-    gc: Gc<T>,
-    strt: StringTable<T>,
-    l_registry: UnsafeCell<UnsafeValue<T>>,
-    nilvalue: UnsafeCell<UnsafeValue<T>>,
-    dummy_node: Node<T>,
+pub struct Lua<A> {
+    gc: Gc<A>,
+    strt: StringTable<A>,
+    l_registry: UnsafeCell<UnsafeValue<A>>,
+    nilvalue: UnsafeCell<UnsafeValue<A>>,
+    dummy_node: Node<A>,
     seed: u32,
     active_rust_call: Cell<usize>,
     modules_locked: Cell<bool>,
-    associated_data: T,
+    associated_data: A,
     phantom: PhantomPinned,
 }
 
@@ -728,11 +728,9 @@ impl<'a, A> Value<'a, A> {
     }
 
     /// Returns `true` if this value is [Value::Nil].
+    #[inline(always)]
     pub const fn is_nil(&self) -> bool {
-        match self {
-            Self::Nil => true,
-            _ => false,
-        }
+        matches!(self, Self::Nil)
     }
 
     #[inline(never)]

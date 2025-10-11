@@ -5,9 +5,7 @@ use crate::ldo::luaD_call;
 use crate::lobject::luaO_tostring;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_tointeger, luaV_tonumber_};
-use crate::{
-    NON_YIELDABLE_WAKER, Number, Ref, Str, Table, Type, UserData, Value, luaH_getshortstr,
-};
+use crate::{NON_YIELDABLE_WAKER, Number, Ref, Str, Table, Type, UserData, Value};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -799,16 +797,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         }
 
         // Get type name.
-        let g = self.cx.th.hdr.global();
-        let mt = unsafe { g.metatable(actual) };
-        let actual = (!mt.is_null())
-            .then(move || unsafe { luaH_getshortstr(mt, Str::from_str(g, "__name")) })
-            .and_then(|v| match unsafe { (*v).tt_ & 0xf } {
-                4 => Some(unsafe { (*v).value_.gc.cast::<Str<D>>() }),
-                _ => None,
-            })
-            .and_then(|v| unsafe { (*v).as_str() })
-            .unwrap_or_else(move || unsafe { lua_typename(((*actual).tt_ & 0xf).into()).into() });
+        let actual = self.cx.type_name(unsafe { actual.read() });
 
         self.error(format!("{} expected, got {}", expect, actual))
     }
