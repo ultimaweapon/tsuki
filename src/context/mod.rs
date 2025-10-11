@@ -792,7 +792,7 @@ impl<'a, D> Context<'a, D, Args> {
     }
 
     /// Note that this method does not verify if argument `n` actually exists. The verification will
-    /// be done by the returned [`Arg`].
+    /// be done by the returned [Arg].
     ///
     /// # Panics
     /// If `n` is zero.

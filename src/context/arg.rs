@@ -21,6 +21,8 @@ use core::task::{Poll, Waker};
 use thiserror::Error;
 
 /// Argument passed from Lua to Rust function.
+///
+/// Use [Context::arg()] to get the value of this type.
 pub struct Arg<'a, 'b, D> {
     cx: &'a Context<'b, D, Args>,
     index: NonZero<usize>,

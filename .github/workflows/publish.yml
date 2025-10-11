@@ -13,4 +13,4 @@ jobs:
     - name: Check out repository
       uses: actions/checkout@v5
     - name: Publish
-      run: cargo publish
+      run: cargo publish --workspace

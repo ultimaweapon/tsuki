@@ -99,6 +99,7 @@ pub use self::table::*;
 pub use self::thread::*;
 pub use self::ty::*;
 pub use self::userdata::*;
+pub use tsuki_macros::*;
 
 use self::gc::{Gc, Object};
 use self::lapi::lua_settop;
