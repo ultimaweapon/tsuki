@@ -103,6 +103,10 @@ impl<D> Table<D> {
 
     /// Returns the length of this table.
     ///
+    /// This has the same behavior as `#` operator on a table, which may have unexpected behavior if
+    /// you don't know how it works. See Lua
+    /// [docs](https://www.lua.org/manual/5.4/manual.html#3.4.7) for more details.
+    ///
     /// This is equivalent to `lua_rawlen` with a table.
     pub fn len(&self) -> i64 {
         unsafe { luaH_getn(self) as i64 }

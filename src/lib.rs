@@ -82,7 +82,7 @@
 //! }
 //! ```
 //!
-//! Type type itself is a key, not its value. Then you can use [Lua::set_registry()] or
+//! Type itself is a key, not its value. Then you can use [Lua::set_registry()] or
 //! [Context::set_registry()] to set the value and [Lua::registry()] or [Context::registry()] to
 //! retrieve the value:
 #![no_std]
@@ -683,31 +683,42 @@ impl<'a> Drop for ModulesLock<'a> {
     }
 }
 
-/// Lua value.
-pub enum Value<'a, D> {
+/// Encapsulates a Lua value.
+pub enum Value<'a, A> {
+    /// The value is `nil`.
     Nil,
+    /// The value is `boolean`.
     Bool(bool),
-    Fp(fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>),
+    /// The value is `function` implemented in Rust.
+    Fp(fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>),
+    /// The value is `function` implemented in Rust as async function.
     AsyncFp(
         fn(
-            Context<D, Args>,
-        ) -> Pin<Box<dyn Future<Output = Result<Context<D, Ret>, Box<dyn Error>>> + '_>>,
+            Context<A, Args>,
+        ) -> Pin<Box<dyn Future<Output = Result<Context<A, Ret>, Box<dyn Error>>> + '_>>,
     ),
+    /// The value is `integer`.
     Int(i64),
+    /// The value is `float`.
     Float(f64),
-    Str(Ref<'a, Str<D>>),
-    Table(Ref<'a, Table<D>>),
-    LuaFn(Ref<'a, LuaFn<D>>),
-    UserData(Ref<'a, UserData<D, dyn Any>>),
-    Thread(Ref<'a, Thread<D>>),
+    /// The value is `string`.
+    Str(Ref<'a, Str<A>>),
+    /// The value is `table`.
+    Table(Ref<'a, Table<A>>),
+    /// The value is `function` implemented in Lua.
+    LuaFn(Ref<'a, LuaFn<A>>),
+    /// The value is `full userdata`.
+    UserData(Ref<'a, UserData<A, dyn Any>>),
+    /// The value is `thread`.
+    Thread(Ref<'a, Thread<A>>),
 }
 
-impl<'a, D> Value<'a, D> {
-    /// Constructs [`Value`] from [`Arg`].
+impl<'a, A> Value<'a, A> {
+    /// Constructs [Value] from [Arg].
     ///
-    /// Returns [`None`] if argument `v` does not exists.
+    /// Returns [None] if argument `v` does not exists.
     #[inline(always)]
-    pub fn from_arg(v: &Arg<'_, 'a, D>) -> Option<Self> {
+    pub fn from_arg(v: &Arg<'_, 'a, A>) -> Option<Self> {
         let v = v.get_raw_or_null();
 
         match v.is_null() {
@@ -716,7 +727,7 @@ impl<'a, D> Value<'a, D> {
         }
     }
 
-    /// Returns `true` if this value is [`Value::Nil`].
+    /// Returns `true` if this value is [Value::Nil].
     pub const fn is_nil(&self) -> bool {
         match self {
             Self::Nil => true,
@@ -725,7 +736,7 @@ impl<'a, D> Value<'a, D> {
     }
 
     #[inline(never)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<D>) -> Self {
+    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self {
         match unsafe { (*v).tt_ & 0xf } {
             0 => Self::Nil,
             1 => Self::Bool(unsafe { ((*v).tt_ & 0x30) != 0 }),
