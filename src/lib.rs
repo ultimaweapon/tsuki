@@ -465,7 +465,7 @@ impl<T> Lua<T> {
     }
 
     /// Returns value on registry that was set with [Self::set_registry()].
-    pub fn registry<'a, K>(&'a self) -> Option<<K::Value<'a> as RegValue<'a, T>>::FromUnsafe>
+    pub fn registry<'a, K>(&'a self) -> Option<<K::Value<'a> as RegValue<'a, T>>::Out>
     where
         K: RegKey<T>,
         K::Value<'a>: RegValue<'a, T>,
