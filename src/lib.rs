@@ -444,12 +444,12 @@ impl<T> Lua<T> {
     ///
     /// # Panics
     /// If `v` was created from different [Lua](crate::Lua) instance.
-    pub fn set_registry<'a, K>(&self, v: K::Value<'a>)
+    pub fn set_registry<'a, K>(&self, v: <K::Value<'a> as RegValue<T>>::In<'a>)
     where
         K: RegKey<T>,
-        K::Value<'a>: RegValue<'a, T>,
+        K::Value<'a>: RegValue<T>,
     {
-        let v = v.into_unsafe();
+        let v = K::Value::into_unsafe(v);
 
         if unsafe { (v.tt_ & 1 << 6) != 0 && (*v.value_.gc).global != self } {
             panic!("attempt to set registry value created from different Lua instance");
@@ -465,10 +465,10 @@ impl<T> Lua<T> {
     }
 
     /// Returns value on registry that was set with [Self::set_registry()].
-    pub fn registry<'a, K>(&'a self) -> Option<<K::Value<'a> as RegValue<'a, T>>::Out>
+    pub fn registry<'a, K>(&'a self) -> Option<<K::Value<'a> as RegValue<T>>::Out<'a>>
     where
         K: RegKey<T>,
-        K::Value<'a>: RegValue<'a, T>,
+        K::Value<'a>: RegValue<T>,
     {
         let id = TypeId::of::<K>();
         let reg = unsafe { &*(*self.l_registry.get()).value_.gc.cast::<Table<T>>() };

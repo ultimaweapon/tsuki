@@ -18,11 +18,13 @@ pub trait RegKey<A>: 'static {
     /// - [u8].
     /// - [u16].
     /// - [u32].
-    /// - [u64].
     /// - [f32].
     /// - [f64].
-    /// - [Ref](crate::Ref) of [Str](crate::Str), [Table](crate::Table), [LuaFn](crate::LuaFn),
-    ///   [UserData](crate::UserData) or [Thread](crate::Thread).
+    /// - [Str](crate::Str).
+    /// - [Table](crate::Table).
+    /// - [LuaFn](crate::LuaFn).
+    /// - [UserData](crate::UserData).
+    /// - [Thread](crate::Thread).
     type Value<'a>
     where
         A: 'a;

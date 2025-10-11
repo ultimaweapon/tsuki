@@ -1,236 +1,424 @@
-use crate::value::{UnsafeValue, UntaggedValue};
+use crate::value::UnsafeValue;
 use crate::{LuaFn, Ref, Str, Table, Thread, UserData};
+use core::any::Any;
 
 /// This type **MUST** never exposed to outside.
-pub trait RegValue<'a, A> {
-    type Out;
+pub trait RegValue<A> {
+    type In<'a>
+    where
+        A: 'a;
+    type Out<'a>
+    where
+        A: 'a;
 
-    fn into_unsafe(self) -> UnsafeValue<A>;
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out;
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a;
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a;
 }
 
-impl<'a, A> RegValue<'a, A> for bool {
-    type Out = bool;
+impl<A> RegValue<A> for bool {
+    type In<'a>
+        = bool
+    where
+        A: 'a;
+    type Out<'a>
+        = bool
+    where
+        A: 'a;
 
     #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        self.into()
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        v.into()
     }
 
     #[inline(always)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
         unsafe { (*v).tt_ & 0x3f == 1 | 1 << 4 }
     }
 }
 
-impl<'a, A> RegValue<'a, A> for i8 {
-    type Out = i8;
+impl<A> RegValue<A> for i8 {
+    type In<'a>
+        = i8
+    where
+        A: 'a;
+    type Out<'a>
+        = i8
+    where
+        A: 'a;
 
     #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        self.into()
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        v.into()
     }
 
     #[inline(always)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
         unsafe { (*v).value_.i as i8 }
     }
 }
 
-impl<'a, A> RegValue<'a, A> for i16 {
-    type Out = i16;
+impl<A> RegValue<A> for i16 {
+    type In<'a>
+        = i16
+    where
+        A: 'a;
+    type Out<'a>
+        = i16
+    where
+        A: 'a;
 
     #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        self.into()
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        v.into()
     }
 
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
         unsafe { (*v).value_.i as i16 }
     }
 }
 
-impl<'a, A> RegValue<'a, A> for i32 {
-    type Out = i32;
+impl<A> RegValue<A> for i32 {
+    type In<'a>
+        = i32
+    where
+        A: 'a;
+    type Out<'a>
+        = i32
+    where
+        A: 'a;
 
     #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        self.into()
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        v.into()
     }
 
     #[inline(always)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
         unsafe { (*v).value_.i as i32 }
     }
 }
 
-impl<'a, A> RegValue<'a, A> for i64 {
-    type Out = i64;
+impl<A> RegValue<A> for i64 {
+    type In<'a>
+        = i64
+    where
+        A: 'a;
+    type Out<'a>
+        = i64
+    where
+        A: 'a;
 
     #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        self.into()
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        v.into()
     }
 
     #[inline(always)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
         unsafe { (*v).value_.i }
     }
 }
 
-impl<'a, A> RegValue<'a, A> for u8 {
-    type Out = u8;
+impl<A> RegValue<A> for u8 {
+    type In<'a>
+        = u8
+    where
+        A: 'a;
+    type Out<'a>
+        = u8
+    where
+        A: 'a;
 
     #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        self.into()
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        v.into()
     }
 
     #[inline(always)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
         unsafe { (*v).value_.i as u8 }
     }
 }
 
-impl<'a, A> RegValue<'a, A> for u16 {
-    type Out = u16;
+impl<A> RegValue<A> for u16 {
+    type In<'a>
+        = u16
+    where
+        A: 'a;
+    type Out<'a>
+        = u16
+    where
+        A: 'a;
 
     #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        self.into()
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        v.into()
     }
 
     #[inline(always)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
         unsafe { (*v).value_.i as u16 }
     }
 }
 
-impl<'a, A> RegValue<'a, A> for u32 {
-    type Out = u32;
+impl<A> RegValue<A> for u32 {
+    type In<'a>
+        = u32
+    where
+        A: 'a;
+    type Out<'a>
+        = u32
+    where
+        A: 'a;
 
     #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        self.into()
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        v.into()
     }
 
     #[inline(always)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
         unsafe { (*v).value_.i as u32 }
     }
 }
 
-impl<'a, A> RegValue<'a, A> for u64 {
-    type Out = u64;
+impl<A> RegValue<A> for f32 {
+    type In<'a>
+        = f32
+    where
+        A: 'a;
+    type Out<'a>
+        = f32
+    where
+        A: 'a;
 
     #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        UnsafeValue {
-            tt_: 3 | 0 << 4,
-            value_: UntaggedValue { i: self as i64 },
-        }
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        v.into()
     }
 
     #[inline(always)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
-        unsafe { (*v).value_.i as u64 }
-    }
-}
-
-impl<'a, A> RegValue<'a, A> for f32 {
-    type Out = f32;
-
-    #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        self.into()
-    }
-
-    #[inline(always)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
         unsafe { (*v).value_.n as f32 }
     }
 }
 
-impl<'a, A> RegValue<'a, A> for f64 {
-    type Out = f64;
+impl<A> RegValue<A> for f64 {
+    type In<'a>
+        = f64
+    where
+        A: 'a;
+    type Out<'a>
+        = f64
+    where
+        A: 'a;
 
     #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        self.into()
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        v.into()
     }
 
     #[inline(always)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
         unsafe { (*v).value_.n }
     }
 }
 
-impl<'a, A> RegValue<'a, A> for Ref<'a, Str<A>> {
-    type Out = Ref<'a, Str<A>>;
+impl<A> RegValue<A> for Str<A> {
+    type In<'a>
+        = &'a Str<A>
+    where
+        A: 'a;
+    type Out<'a>
+        = Ref<'a, Str<A>>
+    where
+        A: 'a;
 
     #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        self.into()
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        v.into()
     }
 
     #[inline(always)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
         unsafe { Ref::new((*v).value_.gc.cast()) }
     }
 }
 
-impl<'a, A> RegValue<'a, A> for Ref<'a, Table<A>> {
-    type Out = Ref<'a, Table<A>>;
+impl<A> RegValue<A> for Table<A> {
+    type In<'a>
+        = &'a Table<A>
+    where
+        A: 'a;
+    type Out<'a>
+        = Ref<'a, Table<A>>
+    where
+        A: 'a;
 
     #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        self.into()
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        v.into()
     }
 
     #[inline(always)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
         unsafe { Ref::new((*v).value_.gc.cast()) }
     }
 }
 
-impl<'a, A> RegValue<'a, A> for Ref<'a, LuaFn<A>> {
-    type Out = Ref<'a, LuaFn<A>>;
+impl<A> RegValue<A> for LuaFn<A> {
+    type In<'a>
+        = &'a LuaFn<A>
+    where
+        A: 'a;
+    type Out<'a>
+        = Ref<'a, LuaFn<A>>
+    where
+        A: 'a;
 
     #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        self.into()
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        v.into()
     }
 
     #[inline(always)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
         unsafe { Ref::new((*v).value_.gc.cast()) }
     }
 }
 
-impl<'a, A, T> RegValue<'a, A> for Ref<'a, UserData<A, T>> {
-    type Out = Ref<'a, UserData<A, T>>;
+impl<A, T: Any> RegValue<A> for UserData<A, T> {
+    type In<'a>
+        = &'a UserData<A, T>
+    where
+        A: 'a;
+    type Out<'a>
+        = Ref<'a, UserData<A, T>>
+    where
+        A: 'a;
 
     #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        self.into()
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        v.into()
     }
 
     #[inline(always)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
         unsafe { Ref::new((*v).value_.gc.cast()) }
     }
 }
 
-impl<'a, A> RegValue<'a, A> for Ref<'a, Thread<A>> {
-    type Out = Ref<'a, Thread<A>>;
+impl<A> RegValue<A> for Thread<A> {
+    type In<'a>
+        = &'a Thread<A>
+    where
+        A: 'a;
+    type Out<'a>
+        = Ref<'a, Thread<A>>
+    where
+        A: 'a;
 
     #[inline(always)]
-    fn into_unsafe(self) -> UnsafeValue<A> {
-        self.into()
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        v.into()
     }
 
     #[inline(always)]
-    unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self::Out {
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
         unsafe { Ref::new((*v).value_.gc.cast()) }
     }
 }

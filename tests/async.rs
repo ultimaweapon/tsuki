@@ -2,7 +2,7 @@ use core::error::Error;
 use core::time::Duration;
 use tokio::task::{JoinSet, LocalSet};
 use tsuki::builtin::{BaseLib, CoroLib, IoLib, MathLib, StringLib, TableLib, Utf8Lib};
-use tsuki::{Args, ChunkInfo, Context, Lua, LuaFn, Ref, RegKey, Ret, fp};
+use tsuki::{Args, ChunkInfo, Context, Lua, LuaFn, RegKey, Ret, fp};
 
 #[test]
 fn async_call() {
@@ -22,9 +22,11 @@ fn async_call() {
     lua.use_module(None, true, TableLib).unwrap();
     lua.use_module(None, true, Utf8Lib).unwrap();
 
-    lua.set_registry::<Chunk>(chunk);
+    lua.set_registry::<Chunk>(&chunk);
 
     lua.global().set_str_key("sleep", fp!(sleep as async));
+
+    drop(chunk);
 
     exec.block_on(&rt, async move {
         let mut tasks = JoinSet::new();
@@ -53,7 +55,7 @@ struct Chunk;
 
 impl<A> RegKey<A> for Chunk {
     type Value<'a>
-        = Ref<'a, LuaFn<A>>
+        = LuaFn<A>
     where
         A: 'a;
 }
