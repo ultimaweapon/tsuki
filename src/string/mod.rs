@@ -103,28 +103,22 @@ impl<A> Str<A> {
     /// Returns `true` if this string is UTF-8.
     ///
     /// Use [Self::as_str()] instead if you want [str] from this string.
+    #[inline(always)]
     pub fn is_utf8(&self) -> bool {
         match self.ty.get() {
             Some(v) => v == ContentType::Utf8,
-            None => {
-                let utf8 = core::str::from_utf8(self.as_bytes()).is_ok();
-
-                self.ty.set(Some(match utf8 {
-                    true => ContentType::Utf8,
-                    false => ContentType::Binary,
-                }));
-
-                utf8
-            }
+            None => self.load_type(),
         }
     }
 
     /// Returns the length of this string, in bytes.
+    #[inline(always)]
     pub const fn len(&self) -> usize {
         self.len
     }
 
     /// Returns [str] if this string is UTF-8.
+    #[inline(always)]
     pub fn as_str(&self) -> Option<&str> {
         match self.is_utf8() {
             true => Some(unsafe { core::str::from_utf8_unchecked(self.as_bytes()) }),
@@ -133,6 +127,7 @@ impl<A> Str<A> {
     }
 
     /// Returns byte slice of this string.
+    #[inline(always)]
     pub const fn as_bytes(&self) -> &[u8] {
         unsafe { core::slice::from_raw_parts(self.contents.as_ptr().cast(), self.len()) }
     }
@@ -161,6 +156,18 @@ impl<A> Str<A> {
         unsafe { (*o).contents.as_mut_ptr().add(l).write(0) };
 
         o
+    }
+
+    #[inline(never)]
+    fn load_type(&self) -> bool {
+        let utf8 = core::str::from_utf8(self.as_bytes()).is_ok();
+
+        self.ty.set(Some(match utf8 {
+            true => ContentType::Utf8,
+            false => ContentType::Binary,
+        }));
+
+        utf8
     }
 }
 

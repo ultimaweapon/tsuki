@@ -291,6 +291,7 @@ impl<'a, D, T> Context<'a, D, T> {
     /// Push a byte slice as Lua string to the result of this call.
     ///
     /// This method will trigger GC if new string is allocated.
+    #[inline(never)]
     pub fn push_bytes<V>(&self, v: V) -> Result<(), StackOverflow>
     where
         V: AsRef<[u8]> + Into<Vec<u8>>,
