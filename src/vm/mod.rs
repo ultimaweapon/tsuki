@@ -804,8 +804,14 @@ pub unsafe fn luaV_concat<D>(
             || !((*top.offset(-(1 as c_int as isize))).tt_ as c_int & 0xf as c_int == 4 as c_int
                 || (*top.offset(-(1 as c_int as isize))).tt_ as c_int & 0xf as c_int == 3 as c_int
                     && {
-                        luaO_tostring((*L).hdr.global, top.offset(-1).cast());
-                        1 as c_int != 0
+                        let v = top.offset(-1);
+                        let s = luaO_tostring::<D>(v.cast());
+                        let s = Str::from_str((*L).hdr.global, s).unwrap_or_else(identity);
+
+                        (*v).tt_ = (*s).hdr.tt | 1 << 6;
+                        (*v).value_.gc = s.cast();
+
+                        true
                     })
         {
             luaT_tryconcatTM(L)?;
@@ -817,8 +823,14 @@ pub unsafe fn luaV_concat<D>(
             ((*top.offset(-(2 as c_int as isize))).tt_ as c_int & 0xf as c_int == 4 as c_int
                 || (*top.offset(-(2 as c_int as isize))).tt_ as c_int & 0xf as c_int == 3 as c_int
                     && {
-                        luaO_tostring((*L).hdr.global, top.offset(-2).cast());
-                        1 as c_int != 0
+                        let v = top.offset(-2);
+                        let s = luaO_tostring::<D>(v.cast());
+                        let s = Str::from_str((*L).hdr.global, s).unwrap_or_else(identity);
+
+                        (*v).tt_ = (*s).hdr.tt | 1 << 6;
+                        (*v).value_.gc = s.cast();
+
+                        true
                     }) as c_int;
         } else if (*top.offset(-(2 as c_int as isize))).tt_ as c_int
             == 4 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int
@@ -842,11 +854,14 @@ pub unsafe fn luaV_concat<D>(
                         & 0xf as c_int
                         == 3 as c_int
                         && {
-                            luaO_tostring(
-                                (*L).hdr.global,
-                                top.offset(-(n as isize)).offset(-1).cast(),
-                            );
-                            1 as c_int != 0
+                            let v = top.offset(-(n as isize)).offset(-1);
+                            let s = luaO_tostring::<D>(v.cast());
+                            let s = Str::from_str((*L).hdr.global, s).unwrap_or_else(identity);
+
+                            (*v).tt_ = (*s).hdr.tt | 1 << 6;
+                            (*v).value_.gc = s.cast();
+
+                            true
                         })
             {
                 let l = (*((*top.offset(-(n as isize)).offset(-(1 as c_int as isize)))

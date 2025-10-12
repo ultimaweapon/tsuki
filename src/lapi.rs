@@ -349,12 +349,6 @@ pub unsafe fn lua_tointegerx<D>(L: *const Thread<D>, idx: c_int, pisnum: *mut c_
     return res;
 }
 
-pub unsafe fn lua_toboolean<D>(L: *const Thread<D>, idx: c_int) -> c_int {
-    let o = index2value(L, idx);
-
-    return !((*o).tt_ == 1 | 0 << 4 || (*o).tt_ & 0xf == 0) as c_int;
-}
-
 #[inline(never)]
 pub unsafe fn lua_tolstring<D>(L: *const Thread<D>, idx: c_int, convert: bool) -> *const Str<D> {
     let mut o = index2value(L, idx);
@@ -364,8 +358,17 @@ pub unsafe fn lua_tolstring<D>(L: *const Thread<D>, idx: c_int, convert: bool) -
             return null();
         }
 
-        (*L).hdr.global().gc.step();
-        luaO_tostring((*L).hdr.global, o);
+        let s = luaO_tostring(o);
+        let s = Str::from_str((*L).hdr.global, s);
+        let v = s.unwrap_or_else(identity);
+
+        (*o).tt_ = (*v).hdr.tt | 1 << 6;
+        (*o).value_.gc = v.cast();
+
+        if s.is_ok() {
+            (*L).hdr.global().gc.step();
+        }
+
         o = index2value(L, idx);
     }
 

@@ -8,11 +8,10 @@ use crate::lmem::luaM_free_;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
-use crate::{Args, ArithError, ChunkInfo, Context, Lua, Number, Ops, Ret, Str, Thread};
-use alloc::borrow::ToOwned;
+use crate::{Args, ArithError, ChunkInfo, Context, Number, Ops, Ret, Str, Thread};
 use alloc::boxed::Box;
+use alloc::string::String;
 use core::cell::{Cell, UnsafeCell};
-use core::convert::identity;
 use core::ffi::{c_char, c_void};
 use libc::{strpbrk, strspn, strtod};
 use libm::{floor, pow};
@@ -742,7 +741,7 @@ pub unsafe fn luaO_utf8esc(buff: *mut c_char, mut x: c_ulong) -> c_int {
 }
 
 #[inline(never)]
-pub unsafe fn luaO_tostring<D>(g: *const Lua<D>, obj: *mut UnsafeValue<D>) {
+pub unsafe fn luaO_tostring<A>(obj: *const UnsafeValue<A>) -> String {
     // TODO: Remove snprintf.
     let mut buff = [0; 44];
     let buff = buff.as_mut_ptr();
@@ -775,11 +774,6 @@ pub unsafe fn luaO_tostring<D>(g: *const Lua<D>, obj: *mut UnsafeValue<D>) {
 
     // Get Rust string.
     let s = core::slice::from_raw_parts(buff.cast(), len as usize);
-    let s = core::str::from_utf8(s).unwrap().to_owned(); // snprintf may effect by C locale.
 
-    // Update value.
-    let s = Str::from_str(g, s).unwrap_or_else(identity);
-
-    (*obj).tt_ = (*s).hdr.tt | 1 << 6;
-    (*obj).value_.gc = s.cast();
+    core::str::from_utf8(s).unwrap().into() // snprintf may effect by C locale.
 }

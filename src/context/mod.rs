@@ -265,6 +265,7 @@ impl<'a, D, T> Context<'a, D, T> {
     /// via [Self::push()].
     ///
     /// This method will trigger GC if new string is allocated.
+    #[inline(never)]
     pub fn push_str<V>(&self, v: V) -> Result<(), StackOverflow>
     where
         V: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,

@@ -22,8 +22,8 @@ use thiserror::Error;
 /// Argument passed from Lua to Rust function.
 ///
 /// Use [Context::arg()] to get the value of this type.
-pub struct Arg<'a, 'b, D> {
-    cx: &'a Context<'b, D, Args>,
+pub struct Arg<'a, 'b, A> {
+    cx: &'a Context<'b, A, Args>,
     index: NonZero<usize>,
 }
 
@@ -395,15 +395,20 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     /// This has the same semantic as `luaL_checkinteger`.
     #[inline(always)]
     pub fn to_int(&self) -> Result<i64, Box<dyn core::error::Error>> {
-        // Check if integer.
-        let expect = lua_typename(3);
-        let raw = self.get_raw(expect)?;
+        let raw = self.get_raw(lua_typename(3))?;
 
         if unsafe { (*raw).tt_ == 3 | 0 << 4 } {
-            return Ok(unsafe { (*raw).value_.i });
+            Ok(unsafe { (*raw).value_.i })
+        } else {
+            unsafe { self.convert_int(raw) }
         }
+    }
 
-        // Convert to integer.
+    #[inline(never)]
+    unsafe fn convert_int(
+        &self,
+        raw: *const UnsafeValue<D>,
+    ) -> Result<i64, Box<dyn core::error::Error>> {
         let mut val = MaybeUninit::uninit();
 
         if unsafe { luaV_tointeger(raw, val.as_mut_ptr(), F2Ieq) != 0 } {
@@ -411,7 +416,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         } else if unsafe { (*raw).tt_ == 3 | 1 << 4 } {
             Err(self.error("number has no integer representation"))
         } else {
-            Err(unsafe { self.type_error(expect, raw) })
+            Err(unsafe { self.type_error(lua_typename(3), raw) })
         }
     }
 
@@ -519,29 +524,23 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     ///
     /// This has the same semantic as `luaL_checklstring`, except it **does not** convert the
     /// argument in-place if it is a number.
+    ///
+    /// This method will trigger GC if new string is allocated.
     #[inline(always)]
     pub fn to_str(&self) -> Result<Ref<'b, Str<D>>, Box<dyn core::error::Error>> {
         let expect = lua_typename(4);
         let v = self.get_raw(expect)?;
-        let v = match unsafe { (*v).tt_ & 0xf } {
-            3 => unsafe {
-                let mut v = v.read();
 
-                self.cx.th.hdr.global().gc.step();
-                luaO_tostring(self.cx.th.hdr.global, &mut v);
-
-                v.value_.gc.cast()
-            },
-            4 => unsafe { (*v).value_.gc.cast() },
-            _ => return Err(unsafe { self.type_error(expect, v) }),
-        };
-
-        Ok(unsafe { Ref::new(v) })
+        match unsafe { (*v).tt_ & 0xf } {
+            3 => Ok(unsafe { self.convert_str(v) }),
+            4 => Ok(unsafe { Ref::new((*v).value_.gc.cast()) }),
+            _ => Err(unsafe { self.type_error(expect, v) }),
+        }
     }
 
     /// Checks if this argument is a string or number and return it as string.
     ///
-    /// This method returns [`None`] in the following cases:
+    /// This method returns [None] in the following cases:
     ///
     /// - This argument is `nil`.
     /// - This argument does not exists and `required` is `false`.
@@ -565,21 +564,26 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         }
 
         // Check type.
-        let v = match unsafe { (*v).tt_ & 0xf } {
-            0 => return Ok(None),
-            3 => unsafe {
-                let mut v = v.read();
+        match unsafe { (*v).tt_ & 0xf } {
+            0 => Ok(None),
+            3 => Ok(Some(unsafe { self.convert_str(v) })),
+            4 => Ok(Some(unsafe { Ref::new((*v).value_.gc.cast()) })),
+            _ => Err(unsafe { self.type_error(expect, v) }),
+        }
+    }
 
-                self.cx.th.hdr.global().gc.step();
-                luaO_tostring(self.cx.th.hdr.global, &mut v);
+    #[inline(never)]
+    unsafe fn convert_str(&self, v: *const UnsafeValue<D>) -> Ref<'b, Str<D>> {
+        let g = self.cx.th.hdr.global();
+        let s = unsafe { luaO_tostring(v) };
+        let s = unsafe { Str::from_str(g, s) };
+        let v = unsafe { Ref::new(s.unwrap_or_else(identity)) };
 
-                v.value_.gc.cast()
-            },
-            4 => unsafe { (*v).value_.gc.cast() },
-            _ => return Err(unsafe { self.type_error(expect, v) }),
-        };
+        if s.is_ok() {
+            g.gc.step();
+        }
 
-        Ok(Some(unsafe { Ref::new(v) }))
+        v
     }
 
     /// Gets the argument and convert it to Lua string suitable for display.
@@ -627,16 +631,17 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
                 unsafe { t.top.sub(1) };
 
                 // Get result.
-                let mut r = unsafe { t.top.read(0) };
+                let r = unsafe { t.top.read(0) };
 
                 match r.tt_ & 0xf {
                     3 => unsafe {
-                        luaO_tostring(g, &mut r);
+                        let s = luaO_tostring(&r);
+                        let s = Str::from_str(g, s);
+                        let r = Ref::new(s.unwrap_or_else(identity));
 
-                        // Create a strong reference before running GC.
-                        let r = Ref::new(r.value_.gc.cast());
-
-                        g.gc.step();
+                        if s.is_ok() {
+                            g.gc.step();
+                        }
 
                         return Ok(r);
                     },
