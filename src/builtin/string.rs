@@ -301,8 +301,68 @@ pub fn rem<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
     })
 }
 
+/// Implementation of [string.rep](https://www.lua.org/manual/5.4/manual.html#pdf-string.rep).
+pub fn rep<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    // Check n.
+    let n = cx.arg(2).to_int()?;
+
+    if n <= 0 {
+        cx.push_str("")?;
+
+        return Ok(cx.into());
+    }
+
+    // Check total length.
+    let s = cx.arg(1).to_str()?;
+    let sep = cx.arg(3).to_nilable_str(false)?;
+    let sep = sep.as_ref();
+    let len = s.len();
+    let lsep = sep.map(|v| v.len()).unwrap_or(0);
+    let len = match usize::try_from(n)
+        .ok()
+        .map(move |n| (len.checked_mul(n), lsep.checked_mul(n - 1)))
+        .and_then(|v| match v {
+            (Some(a), Some(b)) => a.checked_add(b),
+            _ => None,
+        }) {
+        Some(v) => v,
+        None => return Err("resulting string too large".into()),
+    };
+
+    match (s.as_str(), sep.map(|v| v.as_str()).unwrap_or(Some(""))) {
+        (Some(s), Some(sep)) => {
+            let mut b = String::with_capacity(len);
+
+            for _ in 0..(n - 1) {
+                b.push_str(s);
+                b.push_str(sep);
+            }
+
+            b.push_str(s);
+
+            cx.push_str(b)?;
+        }
+        _ => {
+            let s = s.as_bytes();
+            let sep = sep.map(|v| v.as_bytes()).unwrap_or(b"");
+            let mut b = Vec::with_capacity(len);
+
+            for _ in 0..(n - 1) {
+                b.extend_from_slice(s);
+                b.extend_from_slice(sep);
+            }
+
+            b.extend_from_slice(s);
+
+            cx.push_bytes(b)?;
+        }
+    }
+
+    Ok(cx.into())
+}
+
 /// Implementation of [string.sub](https://www.lua.org/manual/5.4/manual.html#pdf-string.sub).
-pub fn sub<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn sub<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let s = cx.arg(1).to_str()?;
     let s = s.as_bytes();
     let start = cx.arg(2).to_int()?;

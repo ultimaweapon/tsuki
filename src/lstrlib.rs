@@ -1,12 +1,3 @@
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    unused_assignments,
-    unused_mut
-)]
-#![allow(unsafe_op_in_unsafe_fn)]
-
 use crate::lapi::{
     lua_arith, lua_call, lua_createtable, lua_gettable, lua_gettop, lua_isinteger, lua_isstring,
     lua_newuserdatauv, lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil,
@@ -144,59 +135,6 @@ unsafe fn str_upper(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
 
     lua_pushlstring(L, s);
 
-    return Ok(1 as libc::c_int);
-}
-
-unsafe fn str_rep(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut l: usize = 0;
-    let mut lsep: usize = 0;
-    let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
-    let mut n: i64 = luaL_checkinteger(L, 2 as libc::c_int)?;
-    let mut sep: *const libc::c_char = luaL_optlstring(
-        L,
-        3 as libc::c_int,
-        b"\0" as *const u8 as *const libc::c_char,
-        &mut lsep,
-    )?;
-    if n <= 0 as libc::c_int as i64 {
-        lua_pushstring(L, b"\0" as *const u8 as *const libc::c_char);
-    } else if ((l.wrapping_add(lsep) < l
-        || l.wrapping_add(lsep) as libc::c_ulonglong
-            > ((if (::core::mem::size_of::<usize>() as libc::c_ulong)
-                < ::core::mem::size_of::<libc::c_int>() as libc::c_ulong
-            {
-                !(0 as libc::c_int as usize)
-            } else {
-                2147483647 as libc::c_int as usize
-            }) as libc::c_ulonglong)
-                .wrapping_div(n as libc::c_ulonglong)) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
-        != 0
-    {
-        return luaL_error(L, "resulting string too large");
-    } else {
-        let s = std::slice::from_raw_parts(s.cast(), l);
-        let sep = std::slice::from_raw_parts(sep.cast(), lsep);
-        let mut totallen: usize = (n as usize * l).wrapping_add((n - 1) as usize * lsep);
-        let mut b = Vec::with_capacity(totallen);
-
-        loop {
-            let fresh0 = n;
-            n = n - 1;
-            if !(fresh0 > 1 as libc::c_int as i64) {
-                break;
-            }
-
-            b.extend_from_slice(s);
-
-            if lsep > 0 as libc::c_int as usize {
-                b.extend_from_slice(sep);
-            }
-        }
-
-        b.extend_from_slice(s);
-        lua_pushlstring(L, b);
-    }
     return Ok(1 as libc::c_int);
 }
 
@@ -2128,13 +2066,6 @@ static mut strlib: [luaL_Reg; 17] = [
         let mut init = luaL_Reg {
             name: b"match\0" as *const u8 as *const libc::c_char,
             func: Some(str_match),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"rep\0" as *const u8 as *const libc::c_char,
-            func: Some(str_rep),
         };
         init
     },
