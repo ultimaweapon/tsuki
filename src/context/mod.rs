@@ -261,8 +261,10 @@ impl<'a, D, T> Context<'a, D, T> {
 
     /// Push a string to the result of this call.
     ///
-    /// This method is more efficient than create a string with [`Self::create_str()`] and push it
-    /// via [`Self::push()`].
+    /// This method is more efficient than create a string with [Self::create_str()] and push it
+    /// via [Self::push()].
+    ///
+    /// This method will trigger GC if new string is allocated.
     pub fn push_str<V>(&self, v: V) -> Result<(), StackOverflow>
     where
         V: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
@@ -270,16 +272,24 @@ impl<'a, D, T> Context<'a, D, T> {
         unsafe { lua_checkstack(self.th, 1)? };
 
         // Create string.
-        let s = unsafe { Str::from_str(self.th.hdr.global, v).unwrap_or_else(identity) };
+        let g = self.th.hdr.global();
+        let s = unsafe { Str::from_str(g, v) };
+        let v = unsafe { UnsafeValue::from_obj(s.unwrap_or_else(identity).cast()) };
 
-        unsafe { self.th.top.write(UnsafeValue::from_obj(s.cast())) };
+        unsafe { self.th.top.write(v) };
         unsafe { self.th.top.add(1) };
-        self.ret.set(self.ret.get() + 1);
+        self.ret.update(|v| v + 1);
+
+        if s.is_ok() {
+            g.gc.step();
+        }
 
         Ok(())
     }
 
     /// Push a byte slice as Lua string to the result of this call.
+    ///
+    /// This method will trigger GC if new string is allocated.
     pub fn push_bytes<V>(&self, v: V) -> Result<(), StackOverflow>
     where
         V: AsRef<[u8]> + Into<Vec<u8>>,
@@ -287,11 +297,17 @@ impl<'a, D, T> Context<'a, D, T> {
         unsafe { lua_checkstack(self.th, 1)? };
 
         // Create string.
-        let s = unsafe { Str::from_bytes(self.th.hdr.global, v).unwrap_or_else(identity) };
+        let g = self.th.hdr.global();
+        let s = unsafe { Str::from_bytes(g, v) };
+        let v = unsafe { UnsafeValue::from_obj(s.unwrap_or_else(identity).cast()) };
 
-        unsafe { self.th.top.write(UnsafeValue::from_obj(s.cast())) };
+        unsafe { self.th.top.write(v) };
         unsafe { self.th.top.add(1) };
-        self.ret.set(self.ret.get() + 1);
+        self.ret.update(|v| v + 1);
+
+        if s.is_ok() {
+            g.gc.step();
+        }
 
         Ok(())
     }
