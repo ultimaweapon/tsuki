@@ -69,10 +69,10 @@ impl<A> Table<A> {
 
     /// Set metatable for this table.
     ///
-    /// Use [`Self::remove_metatable()`] if you want to remove the metatable.
+    /// Use [Self::remove_metatable()] if you want to remove the metatable.
     ///
     /// # Panics
-    /// If `v` come from different [Lua](crate::Lua) instance.
+    /// If `v` was created from different [Lua](crate::Lua) instance.
     pub fn set_metatable(&self, v: &Self) -> Result<(), MetatableError> {
         // Check if metatable come from the same Lua.
         if v.hdr.global != self.hdr.global {
@@ -116,7 +116,7 @@ impl<A> Table<A> {
     /// Returns `true` if the table contains a value for the specified key.
     ///
     /// # Panics
-    /// If `k` come from different [Lua](crate::Lua) instance.
+    /// If `k` was created from different [Lua](crate::Lua) instance.
     pub fn contains_key(&self, k: impl Into<UnsafeValue<A>>) -> bool {
         // Check if key come from the same Lua.
         let k = k.into();
@@ -133,19 +133,21 @@ impl<A> Table<A> {
 
     /// Returns `true` if the table contains a value for `k`.
     ///
-    /// Note that this method can allocate a string without trigger GC. That mean it is possible to
-    /// be out of memory if you keep calling this method without calling other function that trigger
-    /// GC. Usually you don't need to worry about this **unless** you are calling this method within
-    /// a loop.
+    /// This method will trigger GC if new string is allocated.
     pub fn contains_str_key<K>(&self, k: K) -> bool
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,
     {
-        let k = unsafe { Str::from_bytes(self.hdr.global, k).unwrap_or_else(identity) };
-        let k = unsafe { UnsafeValue::from_obj(k.cast()) };
-        let v = unsafe { luaH_get(self, &k) };
+        let k = unsafe { Str::from_bytes(self.hdr.global, k) };
+        let v = unsafe { UnsafeValue::from_obj(k.unwrap_or_else(identity).cast()) };
+        let v = unsafe { luaH_get(self, &v) };
+        let v = unsafe { (*v).tt_ & 0xf != 0 };
 
-        unsafe { (*v).tt_ & 0xf != 0 }
+        if k.is_ok() {
+            self.hdr.global().gc.step();
+        }
+
+        v
     }
 
     /// Returns a value corresponding to the key.
@@ -164,17 +166,18 @@ impl<A> Table<A> {
 
     /// Returns a value corresponding to `k`.
     ///
-    /// Note that this method can allocate a string without trigger GC. That mean it is possible to
-    /// be out of memory if you keep calling this method without calling other function that trigger
-    /// GC. Usually you don't need to worry about this **unless** you are calling this method within
-    /// a loop.
+    /// This method will trigger GC if new string is allocated.
     pub fn get_str_key<K>(&self, k: K) -> Value<'_, A>
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,
     {
-        let k = unsafe { Str::from_bytes(self.hdr.global, k).unwrap_or_else(identity) };
-        let k = unsafe { UnsafeValue::from_obj(k.cast()) };
-        let v = unsafe { luaH_get(self, &k) };
+        let k = unsafe { Str::from_bytes(self.hdr.global, k) };
+        let v = unsafe { UnsafeValue::from_obj(k.unwrap_or_else(identity).cast()) };
+        let v = unsafe { luaH_get(self, &v) };
+
+        if k.is_ok() {
+            self.hdr.global().gc.step();
+        }
 
         unsafe { Value::from_unsafe(v) }
     }
@@ -218,7 +221,7 @@ impl<A> Table<A> {
     /// Inserts a key-value pair into this table.
     ///
     /// # Panics
-    /// If `k` or `v` come from different [Lua](crate::Lua) instance.
+    /// If `k` or `v` was created from different [Lua](crate::Lua) instance.
     pub fn set(
         &self,
         k: impl Into<UnsafeValue<A>>,
@@ -267,10 +270,7 @@ impl<A> Table<A> {
 
     /// Inserts a value with string key into this table.
     ///
-    /// Note that this method can allocate a string without trigger GC. That mean it is possible to
-    /// be out of memory if you keep calling this method without calling other function that trigger
-    /// GC. Usually you don't need to worry about this **unless** you are calling this method within
-    /// a loop.
+    /// This method will trigger GC if new string is allocated.
     ///
     /// # Panics
     /// If `v` was created from different [Lua](crate::Lua) instance.
@@ -286,22 +286,23 @@ impl<A> Table<A> {
         }
 
         // Set.
-        let k = unsafe { Str::from_str(self.hdr.global, k).unwrap_or_else(identity) };
-        let k = unsafe { UnsafeValue::from_obj(k.cast()) };
+        let s = unsafe { Str::from_str(self.hdr.global, k) };
+        let k = unsafe { UnsafeValue::from_obj(s.unwrap_or_else(identity).cast()) };
 
         // SAFETY: Key was created from the same Lua on the above.
         // SAFETY: We have checked the value on the above.
         // SAFETY: Key is a string so error is not possible.
         unsafe { self.set_unchecked(k, v).unwrap_unchecked() };
+
+        if s.is_ok() {
+            self.hdr.global().gc.step();
+        }
     }
 
     /// Inserts a value with string key into this table without checking if `v` created from the
     /// same [Lua] instance.
     ///
-    /// Note that this method can allocate a string without trigger GC. That mean it is possible to
-    /// be out of memory if you keep calling this method without calling other function that trigger
-    /// GC. Usually you don't need to worry about this **unless** you are calling this method within
-    /// a loop.
+    /// This method will trigger GC if new string is allocated.
     ///
     /// # Safety
     /// `v` must created from the same [Lua] instance.
@@ -309,10 +310,14 @@ impl<A> Table<A> {
     where
         K: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
-        let k = unsafe { Str::from_str(self.hdr.global, k).unwrap_or_else(identity) };
-        let k = unsafe { UnsafeValue::from_obj(k.cast()) };
+        let s = unsafe { Str::from_str(self.hdr.global, k) };
+        let k = unsafe { UnsafeValue::from_obj(s.unwrap_or_else(identity).cast()) };
 
         unsafe { self.set_unchecked(k, v).unwrap_unchecked() };
+
+        if s.is_ok() {
+            self.hdr.global().gc.step();
+        }
     }
 
     pub(crate) unsafe fn set_slot_unchecked(
