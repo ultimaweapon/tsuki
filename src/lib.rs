@@ -65,6 +65,25 @@
 //! The value will be converted to corresponding Lua value. Tsuki does not expose [UnsafeValue] by
 //! design so you cannot construct its value. Tsuki also never handout the value of [UnsafeValue].
 //!
+//! # Get function argument
+//!
+//! Use [Context::arg()] to get an argument passed to Rust function:
+//!
+//! ```
+//! # use tsuki::{Args, Context, Ret};
+//! fn myfunc(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
+//!     let arg = cx.arg(1); // One-based the same as Lua so this is first argument.
+//!     let val = arg.to_int()?;
+//!
+//!     if val < 0 {
+//!         return Err(arg.error("expect positive integer"));
+//!     }
+//!
+//!     // This will return nil since to any values pushed to cx.
+//!     Ok(cx.into())
+//! }
+//! ```
+//!
 //! # Store value in registry
 //!
 //! You need to create a type per key in registry:
@@ -85,6 +104,29 @@
 //! Type itself is a key, not its value. Then you can use [Lua::set_registry()] or
 //! [Context::set_registry()] to set the value and [Lua::registry()] or [Context::registry()] to
 //! retrieve the value:
+//!
+//! # Derive macros
+//!
+//! Tsuki provides some derive macros to help with repetitive tasks.
+//!
+//! ## FromStr
+//!
+//! This will generate [FromStr](::core::str::FromStr) implementation to parse Lua
+//! [option](https://www.lua.org/manual/5.4/manual.html#luaL_checkoption). Only enum with unit
+//! variants is supported. The name to map will be the same as Lua convention, which is lower-cased
+//! without separators:
+//!
+//! ```
+//! use tsuki::FromStr;
+//!
+//! #[derive(FromStr)]
+//! enum MyOption {
+//!     Foo,
+//!     FooBar,
+//! }
+//! ```
+//!
+//! Will map `foo` to `MyOption::Foo` and `foobar` to `MyOption::FooBar`.
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 

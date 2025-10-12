@@ -17,7 +17,7 @@ harness = false
 [features]
 default = ["rand", "std"]
 rand = ["dep:rand"]
-std = ["libm/arch"]
+std = ["libm/arch", "tsuki-macros/std"]
 
 [dependencies]
 libc = "0.2.172"

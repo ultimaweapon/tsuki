@@ -824,6 +824,8 @@ impl<'a, D> Context<'a, D, Args> {
         self.payload.0
     }
 
+    /// Returns argument `n` passed to the function.
+    ///
     /// Note that this method does not verify if argument `n` actually exists. The verification will
     /// be done by the returned [Arg].
     ///

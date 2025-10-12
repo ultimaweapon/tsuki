@@ -18,7 +18,7 @@ use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use core::alloc::Layout;
 use core::error::Error;
-use core::ffi::c_char;
+use core::ffi::{c_char, c_void};
 use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::ptr::{addr_eq, null, null_mut};
@@ -738,18 +738,18 @@ pub unsafe fn luaD_protectedparser<D>(
         luaF_initupvals(g, cl.deref());
     }
 
-    buff.buffer = luaM_saferealloc_(g, buff.buffer as *mut libc::c_void, buff.buffsize, 0).cast();
+    buff.buffer = luaM_saferealloc_(g, buff.buffer as *mut c_void, buff.buffsize, 0).cast();
 
     luaM_free_(
-        dyd.actvar.arr as *mut libc::c_void,
+        dyd.actvar.arr as *mut c_void,
         (dyd.actvar.size as usize).wrapping_mul(size_of::<Vardesc<D>>()),
     );
     luaM_free_(
-        dyd.gt.arr as *mut libc::c_void,
+        dyd.gt.arr as *mut c_void,
         (dyd.gt.size as usize).wrapping_mul(size_of::<Labeldesc<D>>()),
     );
     luaM_free_(
-        dyd.label.arr as *mut libc::c_void,
+        dyd.label.arr as *mut c_void,
         (dyd.label.size as usize).wrapping_mul(size_of::<Labeldesc<D>>()),
     );
 
