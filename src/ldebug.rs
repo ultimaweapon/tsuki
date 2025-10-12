@@ -22,6 +22,7 @@ use core::fmt::Display;
 use core::ptr::{null, null_mut};
 use libc::{strchr, strcmp};
 
+type c_uchar = u8;
 type c_int = i32;
 type c_uint = u32;
 type c_long = i64;
@@ -371,10 +372,10 @@ unsafe fn auxgetinfo<D>(
                     0 as c_int
                 } else {
                     (*(f as *mut CClosure<D>)).nupvalues as c_int
-                }) as libc::c_uchar;
+                }) as c_uchar;
                 if !(!f.is_null() && (*f).tt as c_int == 6 as c_int | (0 as c_int) << 4 as c_int) {
                     (*ar).isvararg = 1 as c_int as c_char;
-                    (*ar).nparams = 0 as c_int as libc::c_uchar;
+                    (*ar).nparams = 0 as c_int as c_uchar;
                 } else {
                     (*ar).isvararg = (*(*f.cast::<LuaFn<D>>()).p.get()).is_vararg as c_char;
                     (*ar).nparams = (*(*f.cast::<LuaFn<D>>()).p.get()).numparams;

@@ -148,82 +148,82 @@ impl<D> Gc<D> {
             return;
         }
 
-        while self.debt.get() > 0 {
-            match self.state.get() {
-                8 => unsafe {
-                    // Reset lists.
-                    self.gray.set(null());
-                    self.grayagain.set(null());
-                    self.weak.set(null());
-                    self.ephemeron.set(null());
-                    self.allweak.set(null());
+        match self.state.get() {
+            8 => unsafe {
+                // Reset lists.
+                self.gray.set(null());
+                self.grayagain.set(null());
+                self.weak.set(null());
+                self.ephemeron.set(null());
+                self.allweak.set(null());
 
-                    // Mark root.
-                    let o = self.root.get();
+                // Mark root.
+                let o = self.root.get();
 
-                    if !o.is_null() && (*o).marked.is_white() {
-                        self.mark(o);
-                    }
+                if !o.is_null() && (*o).marked.is_white() {
+                    self.mark(o);
+                }
 
-                    // Mark strong references.
-                    let mut o = self.refs.replace(null());
+                // Mark strong references.
+                let mut o = self.refs.replace(null());
 
-                    if !o.is_null() {
-                        self.marked_refs.set(o);
+                if !o.is_null() {
+                    self.marked_refs.set(o);
 
-                        (*o).refn.set(self.marked_refs.as_ptr());
+                    (*o).refn.set(self.marked_refs.as_ptr());
 
-                        while !o.is_null() {
-                            if (*o).marked.is_white() {
-                                self.mark(o);
-                            } else {
-                                self.debt.update(|v| v.saturating_sub_unsigned(1));
-                            }
-
-                            o = (*o).refp.get();
+                    while !o.is_null() {
+                        if (*o).marked.is_white() {
+                            self.mark(o);
+                        } else {
+                            self.debt.update(|v| v.saturating_sub_unsigned(1));
                         }
-                    }
 
-                    self.state.set(0);
-                },
-                0 => unsafe {
+                        o = (*o).refp.get();
+                    }
+                }
+
+                self.state.set(0);
+            },
+            0 => unsafe {
+                while self.debt.get() > 0 {
                     if self.gray.get().is_null() {
                         self.state.set(1);
+                        break;
                     } else {
                         self.mark_one_gray();
                     }
-                },
-                1 => unsafe {
-                    self.finish_marking();
+                }
+            },
+            1 => unsafe {
+                self.finish_marking();
 
-                    // Insert sweep mark to the head.
-                    let mut m = self.sweep_mark.replace(null());
+                // Insert sweep mark to the head.
+                let mut m = self.sweep_mark.replace(null());
 
-                    match m.is_null() {
-                        true => m = self.alloc(15 | 0 << 4, Layout::new::<Object<D>>()),
-                        false => {
-                            (*m).marked.set(self.currentwhite.get() & (1 << 3 | 1 << 4));
-                            (*m).next.set(self.all.get());
+                match m.is_null() {
+                    true => m = self.alloc(15 | 0 << 4, Layout::new::<Object<D>>()),
+                    false => {
+                        (*m).marked.set(self.currentwhite.get() & (1 << 3 | 1 << 4));
+                        (*m).next.set(self.all.get());
 
-                            self.all.set(m);
-                        }
+                        self.all.set(m);
                     }
+                }
 
-                    self.sweep.set((*m).next.as_ptr());
-                    self.state.set(3);
-                },
-                3 => unsafe {
-                    let p = self.sweep.get();
+                self.sweep.set((*m).next.as_ptr());
+                self.state.set(3);
+            },
+            3 => unsafe {
+                let p = self.sweep.get();
 
-                    if p.is_null() {
-                        self.state.set(8);
-                        break;
-                    } else {
-                        self.sweep.set(self.sweep(p));
-                    }
-                },
-                _ => unreachable!(),
-            }
+                if p.is_null() {
+                    self.state.set(8);
+                } else {
+                    self.sweep.set(self.sweep(p));
+                }
+            },
+            _ => unreachable!(),
         }
     }
 
