@@ -14,6 +14,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::any::Any;
 use core::cell::Cell;
+use core::convert::identity;
 use core::mem::MaybeUninit;
 use core::num::NonZero;
 use core::pin::pin;
@@ -86,7 +87,7 @@ impl<'a, D, T> Context<'a, D, T> {
     {
         self.th.hdr.global().gc.step();
 
-        unsafe { Ref::new(Str::from_str(self.th.hdr.global, v)) }
+        unsafe { Ref::new(Str::from_str(self.th.hdr.global, v).unwrap_or_else(identity)) }
     }
 
     /// Create a Lua table.
@@ -209,7 +210,9 @@ impl<'a, D, T> Context<'a, D, T> {
         let mt = unsafe { g.metatable(&v) };
 
         (!mt.is_null())
-            .then(move || unsafe { luaH_getshortstr(mt, Str::from_str(g, "__name")) })
+            .then(move || unsafe {
+                luaH_getshortstr(mt, Str::from_str(g, "__name").unwrap_or_else(identity))
+            })
             .and_then(|v| match unsafe { (*v).tt_ & 0xf } {
                 4 => Some(unsafe { (*v).value_.gc.cast::<Str<D>>() }),
                 _ => None,
@@ -267,7 +270,7 @@ impl<'a, D, T> Context<'a, D, T> {
         unsafe { lua_checkstack(self.th, 1)? };
 
         // Create string.
-        let s = unsafe { Str::from_str(self.th.hdr.global, v) };
+        let s = unsafe { Str::from_str(self.th.hdr.global, v).unwrap_or_else(identity) };
 
         unsafe { self.th.top.write(UnsafeValue::from_obj(s.cast())) };
         unsafe { self.th.top.add(1) };
@@ -284,7 +287,7 @@ impl<'a, D, T> Context<'a, D, T> {
         unsafe { lua_checkstack(self.th, 1)? };
 
         // Create string.
-        let s = unsafe { Str::from_bytes(self.th.hdr.global, v) };
+        let s = unsafe { Str::from_bytes(self.th.hdr.global, v).unwrap_or_else(identity) };
 
         unsafe { self.th.top.write(UnsafeValue::from_obj(s.cast())) };
         unsafe { self.th.top.add(1) };

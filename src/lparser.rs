@@ -36,6 +36,7 @@ use crate::{ChunkInfo, Lua, LuaFn, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;
 use alloc::string::String;
+use core::convert::identity;
 use core::ffi::{c_char, c_void};
 use core::fmt::Display;
 use core::ptr::{null, null_mut};
@@ -998,7 +999,7 @@ unsafe fn enterblock<D>(
 }
 
 unsafe fn undefgoto<D>(ls: *mut LexState<D>, gt: *mut Labeldesc<D>) -> ParseError {
-    if (*gt).name == Str::from_str((*ls).g, "break") {
+    if (*gt).name == Str::from_str((*ls).g, "break").unwrap_or_else(identity) {
         luaK_semerror(
             ls,
             format_args!("break outside loop at line {}", (*gt).line),
@@ -1021,7 +1022,12 @@ unsafe fn leaveblock<D>(ls: *mut LexState<D>, fs: *mut FuncState<D>) -> Result<(
     let stklevel: c_int = reglevel(ls, fs, (*bl).nactvar as c_int);
     removevars(ls, fs, (*bl).nactvar as c_int);
     if (*bl).isloop != 0 {
-        hasclose = createlabel(ls, Str::from_str((*ls).g, "break"), 0 as c_int, 0 as c_int)?;
+        hasclose = createlabel(
+            ls,
+            Str::from_str((*ls).g, "break").unwrap_or_else(identity),
+            0 as c_int,
+            0 as c_int,
+        )?;
     }
     if hasclose == 0 && !((*bl).previous).is_null() && (*bl).upval as c_int != 0 {
         luaK_codeABCk(ls, fs, OP_CLOSE, stklevel, 0 as c_int, 0 as c_int, 0)?;
@@ -2070,7 +2076,7 @@ unsafe fn breakstat<D>(ls: *mut LexState<D>) -> Result<(), ParseError> {
     luaX_next(ls)?;
     newgotoentry(
         ls,
-        Str::from_str((*ls).g, "break"),
+        Str::from_str((*ls).g, "break").unwrap_or_else(identity),
         line,
         luaK_jump(ls, (*ls).fs)?,
     )?;
@@ -2432,7 +2438,12 @@ unsafe fn test_then_block<D>(
         luaK_goiffalse(ls, (*ls).fs, &mut v)?;
         luaX_next(ls)?;
         enterblock(ls, fs, &mut bl, 0 as c_int as u8);
-        newgotoentry(ls, Str::from_str((*ls).g, "break"), line, v.t)?;
+        newgotoentry(
+            ls,
+            Str::from_str((*ls).g, "break").unwrap_or_else(identity),
+            line,
+            v.t,
+        )?;
         while testnext(ls, ';' as i32)? != 0 {}
         if block_follow(ls, 0 as c_int) != 0 {
             leaveblock(ls, fs)?;

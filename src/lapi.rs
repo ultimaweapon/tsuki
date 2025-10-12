@@ -16,6 +16,7 @@ use crate::{
     api_incr_top,
 };
 use alloc::boxed::Box;
+use core::convert::identity;
 use core::ffi::CStr;
 use core::ptr::{null, null_mut};
 
@@ -404,10 +405,7 @@ pub unsafe fn lua_pushnil<D>(L: *const Thread<D>) {
 
 pub unsafe fn lua_pushlstring<D>(L: *const Thread<D>, s: impl AsRef<[u8]>) -> *const libc::c_char {
     (*L).hdr.global().gc.step();
-    let ts = match core::str::from_utf8(s.as_ref()) {
-        Ok(v) => Str::from_str((*L).hdr.global, v),
-        Err(_) => Str::from_bytes((*L).hdr.global, s.as_ref()),
-    };
+    let ts = Str::from_bytes((*L).hdr.global, s.as_ref()).unwrap_or_else(identity);
     let io = (*L).top.get();
 
     (*io).value_.gc = ts.cast();
@@ -424,10 +422,7 @@ pub unsafe fn lua_pushstring<D>(L: *const Thread<D>, s: *const libc::c_char) {
     } else {
         let s = CStr::from_ptr(s).to_bytes();
         (*L).hdr.global().gc.step();
-        let ts = match core::str::from_utf8(s) {
-            Ok(v) => Str::from_str((*L).hdr.global, v),
-            Err(_) => Str::from_bytes((*L).hdr.global, s),
-        };
+        let ts = Str::from_bytes((*L).hdr.global, s).unwrap_or_else(identity);
         let io = (*L).top.get();
 
         (*io).value_.gc = ts.cast();
@@ -476,7 +471,7 @@ unsafe fn auxgetstr<D>(
     k: &[u8],
 ) -> Result<c_int, Box<dyn core::error::Error>> {
     let mut slot = null();
-    let str = Str::from_bytes((*L).hdr.global, k);
+    let str = Str::from_bytes((*L).hdr.global, k).unwrap_or_else(identity);
 
     if if !((*t).tt_ as c_int == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6) {
         slot = null();
@@ -588,7 +583,8 @@ unsafe fn auxsetstr<D>(
     k: *const libc::c_char,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let mut slot = null();
-    let str = Str::from_bytes((*L).hdr.global, CStr::from_ptr(k).to_bytes());
+    let str =
+        Str::from_bytes((*L).hdr.global, CStr::from_ptr(k).to_bytes()).unwrap_or_else(identity);
 
     if if !((*t).tt_ as c_int == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6) {
         slot = null();
@@ -635,17 +631,6 @@ unsafe fn auxsetstr<D>(
         (*L).top.sub(2);
     };
     Ok(())
-}
-
-pub unsafe fn lua_setglobal<D>(
-    L: *const Thread<D>,
-    name: *const libc::c_char,
-) -> Result<(), Box<dyn core::error::Error>> {
-    let G = (*((*(*(*L).hdr.global).l_registry.get()).value_.gc as *mut Table<D>))
-        .array
-        .get()
-        .offset((2 as c_int - 1 as c_int) as isize) as *mut UnsafeValue<D>;
-    auxsetstr(L, G, name)
 }
 
 pub unsafe fn lua_settable<D>(
@@ -842,7 +827,7 @@ pub unsafe fn lua_concat<D>(
         luaV_concat(L, n)?;
     } else {
         let io = (*L).top.get();
-        let x_ = Str::from_str((*L).hdr.global, "");
+        let x_ = Str::from_str((*L).hdr.global, "").unwrap_or_else(identity);
 
         (*io).value_.gc = x_.cast();
         (*io).tt_ = ((*x_).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;

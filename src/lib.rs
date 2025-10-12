@@ -162,6 +162,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::any::{Any, TypeId};
 use core::cell::{Cell, UnsafeCell};
+use core::convert::identity;
 use core::error::Error;
 use core::ffi::c_int;
 use core::fmt::{Display, Formatter};
@@ -363,7 +364,7 @@ impl<T> Lua<T> {
         unsafe { luaH_resize(events, entries.len().try_into().unwrap(), 0) };
 
         for &(k, v) in entries {
-            let v = unsafe { Str::from_str(g.deref(), v) };
+            let v = unsafe { Str::from_str(g.deref(), v).unwrap_or_else(identity) };
             let v = unsafe { UnsafeValue::from_obj(v.cast()) };
 
             unsafe { (*events).set_unchecked(k, v).unwrap_unchecked() };
@@ -378,7 +379,8 @@ impl<T> Lua<T> {
         unsafe { luaH_resize(tokens, 0, n.try_into().unwrap()) };
 
         for i in 0..n {
-            let k = unsafe { Str::from_str(g.deref(), luaX_tokens[i as usize]) };
+            let k = unsafe { Str::from_str(g.deref(), luaX_tokens[i as usize]) }
+                .unwrap_or_else(identity);
             let k = unsafe { UnsafeValue::from_obj(k.cast()) };
 
             unsafe { (*tokens).set_unchecked(k, i + 1).unwrap_unchecked() };
@@ -430,7 +432,8 @@ impl<T> Lua<T> {
 
         // Check if exists.
         let name = name.unwrap_or(M::NAME);
-        let n = unsafe { UnsafeValue::from_obj(Str::from_str(self, name).cast()) };
+        let n = unsafe { Str::from_str(self, name).unwrap_or_else(identity) };
+        let n = unsafe { UnsafeValue::from_obj(n.cast()) };
         let t = self.modules();
         let s = unsafe { t.get_raw_unchecked(n) };
 
@@ -562,7 +565,7 @@ impl<T> Lua<T> {
     {
         self.gc.step();
 
-        unsafe { Ref::new(Str::from_str(self, v)) }
+        unsafe { Ref::new(Str::from_str(self, v).unwrap_or_else(identity)) }
     }
 
     /// Create a Lua table.

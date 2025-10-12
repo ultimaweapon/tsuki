@@ -23,6 +23,7 @@ use core::ptr::{null, null_mut};
 use libc::{strchr, strcmp};
 
 type c_uchar = u8;
+type c_ushort = u16;
 type c_int = i32;
 type c_uint = u32;
 type c_long = i64;
@@ -1026,8 +1027,7 @@ pub unsafe fn luaG_traceexec<D>(
         return Ok(1 as c_int);
     }
     if (*ci).callstatus as c_int & (1 as c_int) << 6 as c_int != 0 {
-        (*ci).callstatus =
-            ((*ci).callstatus as c_int & !((1 as c_int) << 6 as c_int)) as libc::c_ushort;
+        (*ci).callstatus = ((*ci).callstatus as c_int & !((1 as c_int) << 6 as c_int)) as c_ushort;
         return Ok(1 as c_int);
     }
     if !(luaP_opmodes[(*((*ci).u.savedpc).offset(-(1 as c_int as isize)) >> 0 as c_int

@@ -10,6 +10,7 @@ use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
 use core::any::{Any, type_name};
+use core::convert::identity;
 use core::fmt::{Display, Write};
 use core::mem::MaybeUninit;
 use core::num::NonZero;
@@ -661,22 +662,24 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
         // Check type.
         let v = match ty {
-            Some(0) => unsafe { Str::from_str(g, "nil") },
+            Some(0) => unsafe { Str::from_str(g, "nil").unwrap_or_else(identity) },
             Some(1) => match unsafe { ((*arg).tt_ >> 4) & 3 } {
-                0 => unsafe { Str::from_str(g, "false") },
-                _ => unsafe { Str::from_str(g, "true") },
+                0 => unsafe { Str::from_str(g, "false").unwrap_or_else(identity) },
+                _ => unsafe { Str::from_str(g, "true").unwrap_or_else(identity) },
             },
             Some(3) => match unsafe { ((*arg).tt_ >> 4) & 3 } {
-                0 => unsafe { Str::from_str(g, (*arg).value_.i.to_string()) },
+                0 => unsafe {
+                    Str::from_str(g, (*arg).value_.i.to_string()).unwrap_or_else(identity)
+                },
                 1 => unsafe {
                     // Lua expect 0.0 as "0.0". The problem is there is no way to force Rust to
                     // output "0.0" so we need to do this manually.
                     let v = (*arg).value_.n;
 
                     if v.fract() == 0.0 {
-                        Str::from_str(g, format!("{v:.1}"))
+                        Str::from_str(g, format!("{v:.1}")).unwrap_or_else(identity)
                     } else {
-                        Str::from_str(g, v.to_string())
+                        Str::from_str(g, v.to_string()).unwrap_or_else(identity)
                     }
                 },
                 _ => unreachable!(),
@@ -726,10 +729,11 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
                     _ => unreachable!(),
                 }
 
-                Str::from_str(g, buf)
+                Str::from_str(g, buf).unwrap_or_else(identity)
             },
             None => unsafe {
                 Str::from_str(g, format!("{}: {:p}", lua_typename(-1), null::<()>()))
+                    .unwrap_or_else(identity)
             },
         };
 

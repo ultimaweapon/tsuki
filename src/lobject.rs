@@ -12,6 +12,7 @@ use crate::{Args, ArithError, ChunkInfo, Context, Lua, Number, Ops, Ret, Str, Th
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
+use core::convert::identity;
 use core::ffi::{c_char, c_void};
 use libc::{strpbrk, strspn, strtod};
 use libm::{floor, pow};
@@ -777,7 +778,7 @@ pub unsafe fn luaO_tostring<D>(g: *const Lua<D>, obj: *mut UnsafeValue<D>) {
     let s = core::str::from_utf8(s).unwrap().to_owned(); // snprintf may effect by C locale.
 
     // Update value.
-    let s = Str::from_str(g, s);
+    let s = Str::from_str(g, s).unwrap_or_else(identity);
 
     (*obj).tt_ = (*s).hdr.tt | 1 << 6;
     (*obj).value_.gc = s.cast();

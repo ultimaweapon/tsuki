@@ -20,8 +20,8 @@ mod table;
 /// Although the string is currently null-terminated but there is a plan to remove this so
 /// **do not** rely on this.
 #[repr(C)]
-pub struct Str<D> {
-    pub(crate) hdr: Object<D>,
+pub struct Str<A> {
+    pub(crate) hdr: Object<A>,
     pub(crate) ty: Cell<Option<ContentType>>,
     pub(crate) len: usize,
     pub(crate) extra: Cell<u8>,
@@ -30,17 +30,19 @@ pub struct Str<D> {
     pub(crate) contents: [c_char; 1],
 }
 
-impl<D> Str<D> {
+impl<A> Str<A> {
+    /// Returns [Ok] if new string was allocated or [Err] for interned string.
     #[inline(always)]
-    pub(crate) unsafe fn from_str<T>(g: *const Lua<D>, str: T) -> *const Self
+    pub(crate) unsafe fn from_str<T>(g: *const Lua<A>, str: T) -> Result<*const Self, *const Self>
     where
         T: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
         unsafe { Self::new(g, str, Some(ContentType::Utf8)) }
     }
 
+    /// Returns [Ok] if new string was allocated or [Err] for interned string.
     #[inline(always)]
-    pub(crate) unsafe fn from_bytes<T>(g: *const Lua<D>, str: T) -> *const Self
+    pub(crate) unsafe fn from_bytes<T>(g: *const Lua<A>, str: T) -> Result<*const Self, *const Self>
     where
         T: AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -48,7 +50,11 @@ impl<D> Str<D> {
     }
 
     #[inline(never)]
-    unsafe fn new<T>(g: *const Lua<D>, str: T, ty: Option<ContentType>) -> *const Self
+    unsafe fn new<T>(
+        g: *const Lua<A>,
+        str: T,
+        ty: Option<ContentType>,
+    ) -> Result<*const Self, *const Self>
     where
         T: AsRef<[u8]> + Into<Vec<u8>>,
     {
@@ -67,7 +73,7 @@ impl<D> Str<D> {
                     .copy_from_nonoverlapping(str.as_ptr().cast(), str.len())
             };
 
-            return s;
+            return Ok(s);
         }
 
         // Add to string table.
@@ -76,7 +82,7 @@ impl<D> Str<D> {
         match unsafe { (*g).strt.insert(h, s) } {
             Ok(v) => unsafe {
                 (*g).gc.resurrect(v.cast());
-                v
+                Err(v)
             },
             Err(e) => unsafe {
                 let str = str.into();
@@ -89,7 +95,7 @@ impl<D> Str<D> {
                     .copy_from_nonoverlapping(str.as_ptr().cast(), str.len());
 
                 *e = v;
-                v
+                Ok(v)
             },
         }
     }
@@ -143,7 +149,7 @@ impl<D> Str<D> {
         self.contents.as_ptr()
     }
 
-    unsafe fn alloc(g: *const Lua<D>, l: usize, tag: u8, h: u32) -> *mut Self {
+    unsafe fn alloc(g: *const Lua<A>, l: usize, tag: u8, h: u32) -> *mut Self {
         let size = offset_of!(Self, contents) + l + 1;
         let align = align_of::<Self>();
         let layout = Layout::from_size_align(size, align).unwrap().pad_to_align();

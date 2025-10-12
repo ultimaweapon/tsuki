@@ -1,20 +1,20 @@
 #![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use crate::Thread;
 use crate::lapi::{
     lua_checkstack, lua_concat, lua_copy, lua_getfield, lua_getmetatable, lua_gettop, lua_next,
     lua_pushlstring, lua_pushnil, lua_pushstring, lua_rawequal, lua_rawget, lua_rotate, lua_settop,
-    lua_tolstring, lua_type, lua_typename,
+    lua_tolstring, lua_type,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::lua_Debug;
-use crate::{Thread, lua_pop};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use core::ffi::{CStr, c_char};
-use core::fmt::{Display, Formatter, Write};
+use core::fmt::{Display, Formatter};
 use core::num::NonZero;
 use libc::strcmp;
 
@@ -76,36 +76,6 @@ unsafe fn pushglobalfuncname<D>(
     }
 }
 
-unsafe fn pushfuncname<D>(
-    L: *mut Thread<D>,
-    dst: &mut String,
-    ar: &mut lua_Debug<D>,
-) -> Result<(), Box<dyn core::error::Error>> {
-    if pushglobalfuncname(L, ar)? != 0 {
-        let n = lua_tolstring(L, -1, true);
-        let n = String::from_utf8_lossy((*n).as_bytes());
-
-        dst.push_str("function '");
-        dst.push_str(&n);
-        dst.push('\'');
-
-        lua_pop(L, 1)?;
-    } else if *(*ar).namewhat as libc::c_int != '\0' as i32 {
-        dst.push_str(&CStr::from_ptr((*ar).namewhat).to_string_lossy());
-        dst.push_str(" '");
-        dst.push_str(&CStr::from_ptr((*ar).name).to_string_lossy());
-        dst.push('\'');
-    } else if *(*ar).what as libc::c_int == 'm' as i32 {
-        dst.push_str("main chunk");
-    } else if let Some(v) = &ar.source {
-        write!(dst, "function <{}:{}>", v.name(), (*ar).linedefined).unwrap();
-    } else {
-        dst.push('?');
-    }
-
-    Ok(())
-}
-
 unsafe fn lastlevel<D>(L: *mut Thread<D>) -> libc::c_int {
     let mut ar = lua_Debug::default();
     let mut li: libc::c_int = 1 as libc::c_int;
@@ -123,74 +93,6 @@ unsafe fn lastlevel<D>(L: *mut Thread<D>) -> libc::c_int {
         }
     }
     return le - 1 as libc::c_int;
-}
-
-pub unsafe fn luaL_traceback<D>(
-    L: *mut Thread<D>,
-    L1: *mut Thread<D>,
-    msg: *const c_char,
-    mut level: libc::c_int,
-) -> Result<(), Box<dyn core::error::Error>> {
-    let mut b = String::new();
-    let mut ar = lua_Debug::default();
-    let last: libc::c_int = lastlevel(L1);
-    let mut limit2show: libc::c_int = if last - level > 10 as libc::c_int + 11 as libc::c_int {
-        10 as libc::c_int
-    } else {
-        -(1 as libc::c_int)
-    };
-
-    if !msg.is_null() {
-        b.push_str(&CStr::from_ptr(msg).to_string_lossy());
-        b.push('\n');
-    }
-
-    b.push_str("stack traceback:");
-
-    loop {
-        let fresh1 = level;
-        level = level + 1;
-        if !(lua_getstack(L1, fresh1, &mut ar) != 0) {
-            break;
-        }
-        let fresh2 = limit2show;
-        limit2show = limit2show - 1;
-        if fresh2 == 0 as libc::c_int {
-            let n: libc::c_int = last - level - 11 as libc::c_int + 1 as libc::c_int;
-
-            write!(b, "\n\t...\t(skipping {} levels)", n).unwrap();
-
-            level += n;
-        } else {
-            lua_getinfo(L1, b"Slnt\0" as *const u8 as *const c_char, &mut ar);
-
-            if ar.currentline <= 0 {
-                write!(
-                    b,
-                    "\n\t{}: in ",
-                    ar.source.as_ref().map(|v| v.name()).unwrap_or("")
-                )
-                .unwrap();
-            } else {
-                write!(
-                    b,
-                    "\n\t{}:{}: in ",
-                    ar.source.as_ref().map(|v| v.name()).unwrap_or(""),
-                    ar.currentline,
-                )
-                .unwrap();
-            }
-
-            pushfuncname(L, &mut b, &mut ar)?;
-
-            if ar.istailcall != 0 {
-                b.push_str("\n\t(...tail calls...)");
-            }
-        }
-    }
-
-    lua_pushlstring(L, b);
-    Ok(())
 }
 
 /// `arg` is used only for display.
@@ -241,25 +143,6 @@ pub unsafe fn luaL_argerror<D>(
         ),
         reason: reason.into(),
     })
-}
-
-#[inline(never)]
-pub unsafe fn luaL_typeerror<D>(
-    L: *const Thread<D>,
-    arg: libc::c_int,
-    expect: impl Display,
-) -> Box<dyn core::error::Error> {
-    let actual = match luaL_getmetafield(L, arg, c"__name".as_ptr()) {
-        Ok(4) => String::from_utf8_lossy((*lua_tolstring(L, -1, true)).as_bytes()),
-        Ok(_) => lua_typename(lua_type(L, arg)).into(),
-        Err(e) => return e,
-    };
-
-    return luaL_argerror(
-        L,
-        arg.try_into().and_then(|v: usize| v.try_into()).unwrap(),
-        format!("{expect} expected, got {actual}"),
-    );
 }
 
 pub unsafe fn luaL_where<D>(L: *const Thread<D>, level: libc::c_int) -> Cow<'static, str> {

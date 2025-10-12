@@ -17,6 +17,7 @@ use crate::{ChunkInfo, Lua, Node, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;
 use alloc::string::ToString;
+use core::convert::identity;
 use core::ffi::{CStr, c_char, c_void};
 use core::fmt::Display;
 use core::ops::Deref;
@@ -230,10 +231,7 @@ pub unsafe fn luaX_newstring<D>(
 
     // Create string.
     let str = core::slice::from_raw_parts(str.cast(), l);
-    let mut ts = match core::str::from_utf8(str) {
-        Ok(v) => Str::from_str((*ls).g, v),
-        Err(_) => Str::from_bytes((*ls).g, str),
-    };
+    let mut ts = Str::from_bytes((*ls).g, str).unwrap_or_else(identity);
     let o = luaH_getstr((*ls).h.deref(), ts);
 
     if !((*o).tt_ as c_int & 0xf as c_int == 0 as c_int) {
@@ -280,7 +278,7 @@ pub unsafe fn luaX_setinput<D>(ls: &mut LexState<D>, z: *mut ZIO, firstchar: c_i
     (*ls).fs = null_mut();
     (*ls).linenumber = 1 as c_int;
     (*ls).lastline = 1 as c_int;
-    (*ls).envn = Str::from_str((*ls).g, "_ENV");
+    (*ls).envn = Str::from_str((*ls).g, "_ENV").unwrap_or_else(identity);
     (*(*ls).buff).buffer = luaM_saferealloc_(
         (*ls).g,
         (*(*ls).buff).buffer as *mut c_void,

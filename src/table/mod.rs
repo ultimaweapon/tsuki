@@ -9,6 +9,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::cell::Cell;
+use core::convert::identity;
 use core::mem::zeroed;
 use core::ptr::{addr_of_mut, null, null_mut};
 use thiserror::Error;
@@ -140,7 +141,7 @@ impl<A> Table<A> {
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,
     {
-        let k = unsafe { Str::from_bytes(self.hdr.global, k) };
+        let k = unsafe { Str::from_bytes(self.hdr.global, k).unwrap_or_else(identity) };
         let k = unsafe { UnsafeValue::from_obj(k.cast()) };
         let v = unsafe { luaH_get(self, &k) };
 
@@ -171,7 +172,8 @@ impl<A> Table<A> {
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,
     {
-        let k = unsafe { UnsafeValue::from_obj(Str::from_bytes(self.hdr.global, k).cast()) };
+        let k = unsafe { Str::from_bytes(self.hdr.global, k).unwrap_or_else(identity) };
+        let k = unsafe { UnsafeValue::from_obj(k.cast()) };
         let v = unsafe { luaH_get(self, &k) };
 
         unsafe { Value::from_unsafe(v) }
@@ -207,7 +209,8 @@ impl<A> Table<A> {
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,
     {
-        let k = unsafe { UnsafeValue::from_obj(Str::from_bytes(self.hdr.global, k).cast()) };
+        let k = unsafe { Str::from_bytes(self.hdr.global, k).unwrap_or_else(identity) };
+        let k = unsafe { UnsafeValue::from_obj(k.cast()) };
 
         unsafe { luaH_get(self, &k) }
     }
@@ -283,7 +286,7 @@ impl<A> Table<A> {
         }
 
         // Set.
-        let k = unsafe { Str::from_str(self.hdr.global, k) };
+        let k = unsafe { Str::from_str(self.hdr.global, k).unwrap_or_else(identity) };
         let k = unsafe { UnsafeValue::from_obj(k.cast()) };
 
         // SAFETY: Key was created from the same Lua on the above.
@@ -306,7 +309,7 @@ impl<A> Table<A> {
     where
         K: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
-        let k = unsafe { Str::from_str(self.hdr.global, k) };
+        let k = unsafe { Str::from_str(self.hdr.global, k).unwrap_or_else(identity) };
         let k = unsafe { UnsafeValue::from_obj(k.cast()) };
 
         unsafe { self.set_unchecked(k, v).unwrap_unchecked() };

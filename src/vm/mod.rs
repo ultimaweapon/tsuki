@@ -35,6 +35,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::cell::Cell;
 use core::cmp::Ordering;
+use core::convert::identity;
 use core::ffi::c_void;
 use core::hint::unreachable_unchecked;
 use core::pin::pin;
@@ -784,6 +785,7 @@ unsafe fn copy2buff<A>(
         true => Str::from_bytes((*th).hdr.global, buf),
         false => Str::from_str((*th).hdr.global, String::from_utf8_unchecked(buf)),
     }
+    .unwrap_or_else(identity)
 }
 
 pub unsafe fn luaV_concat<D>(

@@ -16,6 +16,7 @@ use crate::{CallError, Lua, NON_YIELDABLE_WAKER, StackValue, Str, Table, Thread,
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::string::String;
+use core::convert::identity;
 use core::ffi::c_char;
 use core::pin::pin;
 use core::ptr::null;
@@ -112,7 +113,7 @@ pub unsafe fn luaT_objtypename<D>(g: *const Lua<D>, o: *const UnsafeValue<D>) ->
                 !mt.is_null()
             }
     {
-        let name = luaH_getshortstr(mt, Str::from_str(g, "__name"));
+        let name = luaH_getshortstr(mt, Str::from_str(g, "__name").unwrap_or_else(identity));
 
         if (*name).tt_ as c_int & 0xf as c_int == 4 as c_int {
             return String::from_utf8_lossy((*(*name).value_.gc.cast::<Str<D>>()).as_bytes())
