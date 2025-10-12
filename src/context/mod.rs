@@ -4,7 +4,7 @@ use crate::lapi::{lua_checkstack, lua_typename};
 use crate::ldo::luaD_call;
 use crate::lobject::luaO_arith;
 use crate::value::UnsafeValue;
-use crate::vm::{F2Ieq, luaV_finishget, luaV_lessthan, luaV_objlen, luaV_tointeger};
+use crate::vm::{F2Ieq, luaV_equalobj, luaV_finishget, luaV_lessthan, luaV_objlen, luaV_tointeger};
 use crate::{
     CallError, ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, Ops, ParseError, Ref, RegKey, RegValue,
     StackOverflow, Str, Table, Thread, Type, UserData, luaH_get, luaH_getint, luaH_getshortstr,
@@ -162,11 +162,48 @@ impl<'a, D, T> Context<'a, D, T> {
         Ok(unsafe { v.assume_init() })
     }
 
-    /// Check if `lhs` less than `rhs` according to Lua operator `<`.
+    /// Check if `lhs` equal `rhs`.
+    ///
+    /// Specify `true` for `mt` to honor `__eq` metamethod otherwise this method will have the same
+    /// semantic as `lua_rawequal` **if** both `lhs` and `rhs` refer to existent arguments.
     ///
     /// # Panics
     /// If either `lhs` or `rhs` was created from different [Lua](crate::Lua) instance.
-    #[inline(always)]
+    pub fn is_value_eq(
+        &self,
+        lhs: impl Into<UnsafeValue<D>>,
+        rhs: impl Into<UnsafeValue<D>>,
+        mt: bool,
+    ) -> Result<bool, Box<dyn core::error::Error>> {
+        // Check if the first operand created from the same Lua.
+        let lhs = lhs.into();
+
+        if unsafe { (lhs.tt_ & 1 << 6 != 0) && (*lhs.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to compare a value created from a different Lua");
+        }
+
+        // Check if the second operand created from the same Lua.
+        let rhs = rhs.into();
+
+        if unsafe { (rhs.tt_ & 1 << 6 != 0) && (*rhs.value_.gc).global != self.th.hdr.global } {
+            panic!("attempt to compare a value created from a different Lua");
+        }
+
+        // Compare.
+        let th = match mt {
+            true => self.th,
+            false => null(),
+        };
+
+        unsafe { luaV_equalobj(th, &lhs, &rhs) }
+    }
+
+    /// Check if `lhs` less than `rhs` according to Lua operator `<`.
+    ///
+    /// This method honor `__lt` metamethod.
+    ///
+    /// # Panics
+    /// If either `lhs` or `rhs` was created from different [Lua](crate::Lua) instance.
     pub fn is_value_lt(
         &self,
         lhs: impl Into<UnsafeValue<D>>,

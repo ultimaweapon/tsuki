@@ -176,7 +176,8 @@ unsafe fn equalkey<D>(k1: *const UnsafeValue<D>, n2: *const Node<D>, deadok: c_i
         84 => luaS_eqlngstr(
             (*k1).value_.gc as *mut Str<D>,
             (*n2).u.key_val.gc as *mut Str<D>,
-        ),
+        )
+        .into(),
         _ => ((*k1).value_.gc == (*n2).u.key_val.gc) as c_int,
     }
 }

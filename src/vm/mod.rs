@@ -634,81 +634,51 @@ pub unsafe fn luaV_lessequal<D>(
     };
 }
 
+#[inline(never)]
 pub unsafe fn luaV_equalobj<D>(
     L: *const Thread<D>,
     t1: *const UnsafeValue<D>,
     t2: *const UnsafeValue<D>,
-) -> Result<c_int, Box<dyn core::error::Error>> {
-    let mut tm = null();
-
-    if (*t1).tt_ as c_int & 0x3f as c_int != (*t2).tt_ as c_int & 0x3f as c_int {
-        if (*t1).tt_ as c_int & 0xf as c_int != (*t2).tt_ as c_int & 0xf as c_int
-            || (*t1).tt_ as c_int & 0xf as c_int != 3 as c_int
-        {
-            return Ok(0 as c_int);
+) -> Result<bool, Box<dyn core::error::Error>> {
+    // Check if same type.
+    if (*t1).tt_ & 0x3f != (*t2).tt_ & 0x3f {
+        if (*t1).tt_ & 0xf != (*t2).tt_ & 0xf || (*t1).tt_ & 0xf != 3 {
+            return Ok(false);
         } else {
             let mut i1: i64 = 0;
             let mut i2: i64 = 0;
-            return Ok((luaV_tointegerns(t1, &mut i1, F2Ieq) != 0
+
+            return Ok(luaV_tointegerns(t1, &mut i1, F2Ieq) != 0
                 && luaV_tointegerns(t2, &mut i2, F2Ieq) != 0
-                && i1 == i2) as c_int);
+                && i1 == i2);
         }
     }
-    match (*t1).tt_ as c_int & 0x3f as c_int {
-        0 | 1 | 17 => return Ok(1 as c_int),
-        3 => return Ok(((*t1).value_.i == (*t2).value_.i) as c_int),
-        19 => return Ok(((*t1).value_.n == (*t2).value_.n) as c_int),
-        2 | 18 | 50 => {
-            return Ok(core::ptr::fn_addr_eq((*t1).value_.f, (*t2).value_.f) as c_int);
-        }
-        34 => return Ok(core::ptr::fn_addr_eq((*t1).value_.a, (*t2).value_.a) as c_int),
-        4 => return Ok((((*t1).value_.gc) == ((*t2).value_.gc)) as c_int),
-        20 => {
+
+    // Compare.
+    let mut tm = null();
+
+    match (*t1).tt_ & 0x3f {
+        0x00 | 0x01 | 0x11 => return Ok(true),
+        0x02 => return Ok(core::ptr::fn_addr_eq((*t1).value_.f, (*t2).value_.f)),
+        0x12 => todo!(),
+        0x22 => return Ok(core::ptr::fn_addr_eq((*t1).value_.a, (*t2).value_.a)),
+        0x32 => todo!(),
+        0x03 => return Ok((*t1).value_.i == (*t2).value_.i),
+        0x13 => return Ok((*t1).value_.n == (*t2).value_.n),
+        0x04 => return Ok(((*t1).value_.gc) == ((*t2).value_.gc)),
+        0x14 => {
             return Ok(luaS_eqlngstr::<D>(
                 (*t1).value_.gc.cast(),
                 (*t2).value_.gc.cast(),
             ));
         }
-        7 => {
+        0x05 => {
             if ((*t1).value_.gc) == ((*t2).value_.gc) {
-                return Ok(1 as c_int);
+                return Ok(true);
             } else if L.is_null() {
-                return Ok(0 as c_int);
+                return Ok(false);
             }
 
-            tm = if (*(*t1).value_.gc.cast::<UserData<D, ()>>()).mt.is_null() {
-                null()
-            } else if (*(*(*t1).value_.gc.cast::<UserData<D, ()>>()).mt)
-                .flags
-                .get() as c_uint
-                & (1 as c_uint) << TM_EQ as c_int
-                != 0
-            {
-                null()
-            } else {
-                luaT_gettm((*(*t1).value_.gc.cast::<UserData<D, ()>>()).mt, TM_EQ)
-            };
-            if tm.is_null() {
-                tm = if (*(*t2).value_.gc.cast::<UserData<D, ()>>()).mt.is_null() {
-                    null()
-                } else if (*(*(*t2).value_.gc.cast::<UserData<D, ()>>()).mt)
-                    .flags
-                    .get() as c_uint
-                    & (1 as c_uint) << TM_EQ as c_int
-                    != 0
-                {
-                    null()
-                } else {
-                    luaT_gettm((*(*t2).value_.gc.cast::<UserData<D, ()>>()).mt, TM_EQ)
-                };
-            }
-        }
-        5 => {
-            if ((*t1).value_.gc) == ((*t2).value_.gc) {
-                return Ok(1 as c_int);
-            } else if L.is_null() {
-                return Ok(0 as c_int);
-            }
             tm = if ((*((*t1).value_.gc as *mut Table<D>)).metatable.get()).is_null() {
                 null()
             } else if (*(*((*t1).value_.gc as *mut Table<D>)).metatable.get())
@@ -721,6 +691,7 @@ pub unsafe fn luaV_equalobj<D>(
             } else {
                 luaT_gettm((*((*t1).value_.gc as *mut Table<D>)).metatable.get(), TM_EQ)
             };
+
             if tm.is_null() {
                 tm = if ((*((*t2).value_.gc as *mut Table<D>)).metatable.get()).is_null() {
                     null()
@@ -736,23 +707,58 @@ pub unsafe fn luaV_equalobj<D>(
                 };
             }
         }
-        _ => return Ok(((*t1).value_.gc == (*t2).value_.gc) as c_int),
-    }
-    if tm.is_null() {
-        return Ok(0 as c_int);
-    } else {
-        if let Err(e) = luaT_callTMres(L, tm, t1, t2) {
-            return Err(e); // Requires unsized coercion.
+        0x07 => {
+            if ((*t1).value_.gc) == ((*t2).value_.gc) {
+                return Ok(true);
+            } else if L.is_null() {
+                return Ok(false);
+            }
+
+            tm = if (*(*t1).value_.gc.cast::<UserData<D, ()>>()).mt.is_null() {
+                null()
+            } else if (*(*(*t1).value_.gc.cast::<UserData<D, ()>>()).mt)
+                .flags
+                .get() as c_uint
+                & (1 as c_uint) << TM_EQ as c_int
+                != 0
+            {
+                null()
+            } else {
+                luaT_gettm((*(*t1).value_.gc.cast::<UserData<D, ()>>()).mt, TM_EQ)
+            };
+
+            if tm.is_null() {
+                tm = if (*(*t2).value_.gc.cast::<UserData<D, ()>>()).mt.is_null() {
+                    null()
+                } else if (*(*(*t2).value_.gc.cast::<UserData<D, ()>>()).mt)
+                    .flags
+                    .get() as c_uint
+                    & (1 as c_uint) << TM_EQ as c_int
+                    != 0
+                {
+                    null()
+                } else {
+                    luaT_gettm((*(*t2).value_.gc.cast::<UserData<D, ()>>()).mt, TM_EQ)
+                };
+            }
         }
+        _ => return Ok((*t1).value_.gc == (*t2).value_.gc),
+    }
 
-        (*L).top.sub(1);
+    if tm.is_null() {
+        return Ok(false);
+    }
 
-        return Ok(
-            !((*(*L).top.get()).tt_ as c_int == 1 as c_int | (0 as c_int) << 4 as c_int
-                || (*(*L).top.get()).tt_ as c_int & 0xf as c_int == 0 as c_int)
-                as c_int,
-        );
+    // Invoke __eq.
+    let r = match luaT_callTMres(L, tm, t1, t2) {
+        Ok(_) => {
+            (*L).top.sub(1);
+            (*L).top.read(0)
+        }
+        Err(e) => return Err(e), // Requires unsized coercion.
     };
+
+    Ok(!(r.tt_ == 1 | 0 << 4 || r.tt_ & 0xf == 0))
 }
 
 unsafe fn copy2buff<A>(
@@ -3583,7 +3589,7 @@ pub async unsafe fn luaV_execute<A>(
                         );
                         (*ci).u.savedpc = pc;
                         (*th).top.set((*ci).top);
-                        cond = luaV_equalobj(th, ra_54.cast(), rb_14.cast())?;
+                        cond = luaV_equalobj(th, ra_54.cast(), rb_14.cast())?.into();
                         base = (*ci).func.add(1);
                         trap = (*ci).u.trap;
                         if cond
@@ -3724,7 +3730,7 @@ pub async unsafe fn luaV_execute<A>(
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                 as c_int as isize,
                         );
-                        let cond_2: c_int = luaV_equalobj(null(), ra_57.cast(), rb_17)?;
+                        let cond_2: c_int = luaV_equalobj(null(), ra_57.cast(), rb_17)?.into();
 
                         base = (*ci).func.add(1);
 

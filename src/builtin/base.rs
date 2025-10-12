@@ -195,7 +195,7 @@ pub fn pcall<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
 /// Implementation of [print](https://www.lua.org/manual/5.4/manual.html#pdf-print).
 #[cfg(feature = "std")]
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
-pub fn print<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn print<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     use std::io::Write;
 
     // We can't print while converting the arguments to string since it can call into arbitrary
@@ -218,6 +218,17 @@ pub fn print<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::e
     }
 
     writeln!(stdout)?;
+
+    Ok(cx.into())
+}
+
+/// Implementation of [rawequal](https://www.lua.org/manual/5.4/manual.html#pdf-rawequal).
+pub fn rawequal<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let a = cx.arg(1).exists()?;
+    let b = cx.arg(2).exists()?;
+    let r = cx.is_value_eq(a, b, false)?;
+
+    cx.push(r)?;
 
     Ok(cx.into())
 }

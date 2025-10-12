@@ -40,6 +40,7 @@ impl<A> Module<A> for BaseLib {
         m.set_str_key("pcall", fp!(self::base::pcall));
         #[cfg(feature = "std")]
         m.set_str_key("print", fp!(self::base::print));
+        m.set_str_key("rawequal", fp!(self::base::rawequal));
         m.set_str_key("rawget", fp!(self::base::rawget));
         m.set_str_key("rawlen", fp!(self::base::rawlen));
         m.set_str_key("rawset", fp!(self::base::rawset));

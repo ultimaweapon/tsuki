@@ -281,12 +281,11 @@ pub unsafe fn lua_rawequal<D>(
 ) -> Result<c_int, Box<dyn core::error::Error>> {
     let o1 = index2value(L, index1);
     let o2 = index2value(L, index2);
-    return if (!((*o1).tt_ as c_int & 0xf as c_int == 0 as c_int)
-        || o1 != (*(*L).hdr.global).nilvalue.get())
-        && (!((*o2).tt_ as c_int & 0xf as c_int == 0 as c_int)
-            || o2 != (*(*L).hdr.global).nilvalue.get())
+
+    return if (!((*o1).tt_ & 0xf == 0) || o1 != (*(*L).hdr.global).nilvalue.get())
+        && (!((*o2).tt_ & 0xf == 0) || o2 != (*(*L).hdr.global).nilvalue.get())
     {
-        luaV_equalobj(null(), o1, o2)
+        luaV_equalobj(null(), o1, o2).map(|v| v.into())
     } else {
         Ok(0 as c_int)
     };
@@ -306,7 +305,7 @@ pub unsafe fn lua_compare<D>(
         && (!((*o2).tt_ & 0xf == 0) || o2 != (*(*L).hdr.global).nilvalue.get())
     {
         match op {
-            0 => i = luaV_equalobj(L, o1, o2)?,
+            0 => i = luaV_equalobj(L, o1, o2)?.into(),
             1 => i = luaV_lessthan(L, o1, o2)?,
             2 => i = luaV_lessequal(L, o1, o2)?,
             _ => {}

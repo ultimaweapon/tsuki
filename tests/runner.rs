@@ -44,7 +44,6 @@ fn errors() {
 }
 
 #[test]
-#[ignore = "need Lua standard library"]
 fn events() {
     run("events.lua", |_| {}).unwrap();
 }

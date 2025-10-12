@@ -307,8 +307,8 @@ pub unsafe fn luaT_callorderTM<D>(
                 as c_int,
         );
     }
-    luaG_ordererror(L, p1, p2)?;
-    unreachable!("luaG_ordererror always return Err");
+
+    Err(luaG_ordererror(L, p1, p2))
 }
 
 pub unsafe fn luaT_callorderiTM<D>(

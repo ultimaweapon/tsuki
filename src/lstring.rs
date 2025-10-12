@@ -7,8 +7,9 @@ use core::ffi::c_char;
 type c_int = i32;
 type c_uint = u32;
 
-pub unsafe fn luaS_eqlngstr<D>(a: *const Str<D>, b: *const Str<D>) -> c_int {
-    (a == b || (*a).as_bytes() == (*b).as_bytes()).into()
+#[inline(always)]
+pub unsafe fn luaS_eqlngstr<A>(a: *const Str<A>, b: *const Str<A>) -> bool {
+    a == b || (*a).as_bytes() == (*b).as_bytes()
 }
 
 pub unsafe fn luaS_hash(str: *const c_char, mut l: usize, seed: c_uint) -> c_uint {

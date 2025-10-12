@@ -933,14 +933,14 @@ pub unsafe fn luaG_ordererror<D>(
     L: *const Thread<D>,
     p1: *const UnsafeValue<D>,
     p2: *const UnsafeValue<D>,
-) -> Result<(), Box<dyn core::error::Error>> {
+) -> Box<dyn core::error::Error> {
     let t1 = luaT_objtypename((*L).hdr.global, p1);
     let t2 = luaT_objtypename((*L).hdr.global, p2);
 
     if t1 == t2 {
-        Err(format!("attempt to compare two {t1} values").into())
+        format!("attempt to compare two {t1} values").into()
     } else {
-        Err(format!("attempt to compare {t1} with {t2}").into())
+        format!("attempt to compare {t1} with {t2}").into()
     }
 }
 
