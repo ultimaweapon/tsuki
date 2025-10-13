@@ -25,6 +25,7 @@ pub trait RegKey<A>: 'static {
     /// - [LuaFn](crate::LuaFn).
     /// - [UserData](crate::UserData).
     /// - [Thread](crate::Thread).
+    /// - [BTreeMap](crate::collections::BTreeMap).
     type Value<'a>
     where
         A: 'a;

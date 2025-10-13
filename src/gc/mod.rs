@@ -112,7 +112,7 @@ impl<D> Gc<D> {
     }
 
     pub unsafe fn barrier_back(&self, o: *const Object<D>) {
-        self.linkgclist_(o, Self::getgclist(o), self.grayagain.as_ptr());
+        self.linkgclist_(o, (*o).gclist.as_ptr(), self.grayagain.as_ptr());
     }
 
     /// # Safety
@@ -228,7 +228,7 @@ impl<D> Gc<D> {
     }
 
     #[inline(never)]
-    unsafe fn mark(&self, o: *const Object<D>) {
+    pub unsafe fn mark(&self, o: *const Object<D>) {
         match (*o).tt {
             4 | 20 | 14 => {
                 (*o).marked
@@ -282,11 +282,11 @@ impl<D> Gc<D> {
 
                 return;
             }
-            6 | 38 | 5 | 8 | 10 => {}
+            6 | 38 | 5 | 8 | 10 | 0x1E => {}
             _ => unreachable!(),
         }
 
-        self.linkgclist_(o, Self::getgclist(o), self.gray.as_ptr());
+        self.linkgclist_(o, (*o).gclist.as_ptr(), self.gray.as_ptr());
     }
 
     #[inline(always)]
@@ -296,7 +296,7 @@ impl<D> Gc<D> {
         (*o).marked.set((*o).marked.get() | 1 << 5);
 
         self.debt.update(|v| v.saturating_sub_unsigned(1));
-        self.gray.set(*Self::getgclist(o));
+        self.gray.set(*(*o).gclist.as_ptr());
 
         match (*o).tt {
             5 => self.mark_table(o.cast()),
@@ -304,6 +304,12 @@ impl<D> Gc<D> {
             38 => self.mark_rf(o.cast()),
             10 => self.mark_proto(o.cast()),
             8 => self.mark_thread(o.cast()),
+            0x1E => unsafe {
+                let o = o.cast::<crate::collections::Header<D>>();
+                let o = (*o).ptr;
+
+                (*o).mark_items();
+            },
             _ => unreachable!(),
         }
     }
@@ -389,10 +395,8 @@ impl<D> Gc<D> {
                     marked = true;
                 }
 
-                if (*n).i_val.tt_ as c_int & (1 as c_int) << 6 as c_int != 0
-                    && (*(*n).i_val.value_.gc).marked.get() as c_int
-                        & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                        != 0
+                if (*n).i_val.tt_ & 1 << 6 != 0
+                    && (*(*n).i_val.value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
                 {
                     self.mark((*n).i_val.value_.gc);
                     marked = true;
@@ -1018,11 +1022,19 @@ impl<D> Gc<D> {
                 core::ptr::drop_in_place(ts);
                 alloc::alloc::dealloc(ts.cast(), layout);
             },
-            14 => unsafe {
+            0x0E => unsafe {
                 core::ptr::drop_in_place(o.cast::<RustId<D>>());
                 alloc::alloc::dealloc(o.cast(), Layout::new::<RustId<D>>());
             },
-            15 => unsafe {
+            0x1E => unsafe {
+                let o = o.cast::<crate::collections::Header<D>>();
+                let v = (*o).ptr.cast_mut();
+                let layout = Layout::for_value(&*v);
+
+                core::ptr::drop_in_place(v);
+                alloc::alloc::dealloc(v.cast(), layout);
+            },
+            0x0F => unsafe {
                 let p = self.sweep_mark.replace(o).cast_mut();
 
                 if !p.is_null() {
@@ -1034,14 +1046,6 @@ impl<D> Gc<D> {
         }
 
         self.paused.set(false);
-    }
-
-    #[inline(always)]
-    unsafe fn getgclist(o: *const Object<D>) -> *mut *const Object<D> {
-        match (*o).tt {
-            5 | 6 | 7 | 8 | 10 | 38 => (*o).gclist.as_ptr(),
-            _ => null_mut(),
-        }
     }
 
     unsafe fn linkgclist_(

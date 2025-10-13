@@ -1,5 +1,6 @@
 pub use self::arg::*;
 
+use crate::collections::{BTreeMap, CollectionValue};
 use crate::lapi::{lua_checkstack, lua_typename};
 use crate::ldo::luaD_call;
 use crate::lobject::luaO_arith;
@@ -116,6 +117,20 @@ impl<'a, D, T> Context<'a, D, T> {
         self.th.hdr.global().gc.step();
 
         unsafe { Ref::new(Thread::new(self.th.hdr.global())) }
+    }
+
+    /// Create a new [BTreeMap] to map Rust value to Lua value.
+    ///
+    /// `K` can be any Rust type that implement [Ord]. See [collections](crate::collections) module
+    /// for a list of possible type for `V`.
+    pub fn create_btree_map<K, V>(&self) -> Ref<'a, BTreeMap<D, K, V>>
+    where
+        K: Ord + 'static,
+        V: CollectionValue<D> + 'static,
+    {
+        self.th.hdr.global().gc.step();
+
+        unsafe { Ref::new(BTreeMap::new(self.th.hdr.global())) }
     }
 
     /// Load a Lua chunk.

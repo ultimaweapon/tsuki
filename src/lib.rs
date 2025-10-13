@@ -103,7 +103,39 @@
 //!
 //! Type itself is a key, not its value. Then you can use [Lua::set_registry()] or
 //! [Context::set_registry()] to set the value and [Lua::registry()] or [Context::registry()] to
-//! retrieve the value:
+//! retrieve the value.
+//!
+//! # Store value in Rust collection
+//!
+//! Tsuki also provides Rust collection that can store Lua values. The following code demonstrate a
+//! registry value of [BTreeMap] to map Rust [String] to any Lua value:
+//!
+//! ```
+//! use tsuki::collections::BTreeMap;
+//! use tsuki::{Args, Context, Dynamic, RegKey, Ret};
+//!
+//! fn myfunc(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
+//!     let v = cx.arg(1);
+//!     let r = cx.registry::<MyKey>().unwrap();
+//!
+//!     r.insert(String::from("abc"), v);
+//!
+//!     Ok(cx.into())
+//! }
+//!
+//! struct MyKey;
+//!
+//! impl<A> RegKey<A> for MyKey {
+//!     type Value<'a>
+//!         = BTreeMap<A, String, Dynamic>
+//!     where
+//!         A: 'a;
+//! }
+//! ```
+//!
+//! List of methods to create Rust collection:
+//!
+//! - [BTreeMap]: [Lua::create_btree_map()] and [Context::create_btree_map()].
 //!
 //! # Derive macros
 //!
@@ -143,6 +175,7 @@ pub use self::ty::*;
 pub use self::userdata::*;
 pub use tsuki_macros::*;
 
+use self::collections::{BTreeMap, CollectionValue};
 use self::gc::{Gc, Object};
 use self::lapi::lua_settop;
 use self::ldebug::lua_getinfo;
@@ -174,6 +207,7 @@ use core::task::RawWakerVTable;
 use thiserror::Error;
 
 pub mod builtin;
+pub mod collections;
 
 mod context;
 mod function;
@@ -595,6 +629,20 @@ impl<T> Lua<T> {
         unsafe { Ref::new(Thread::new(self)) }
     }
 
+    /// Create a new [BTreeMap] to map Rust value to Lua value.
+    ///
+    /// `K` can be any Rust type that implement [Ord]. See [collections] module for a list of
+    /// possible type for `V`.
+    pub fn create_btree_map<K, V>(&self) -> Ref<'_, BTreeMap<T, K, V>>
+    where
+        K: Ord + 'static,
+        V: CollectionValue<T> + 'static,
+    {
+        self.gc.step();
+
+        unsafe { Ref::new(BTreeMap::new(self)) }
+    }
+
     /// Load a Lua chunk.
     pub fn load(
         &self,
@@ -892,6 +940,9 @@ impl From<f64> for Number {
         Self::Float(value)
     }
 }
+
+/// Unit struct to store any value in registry or collection.
+pub struct Dynamic;
 
 /// Type of operator.
 #[repr(u8)]

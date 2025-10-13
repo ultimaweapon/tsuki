@@ -1,4 +1,6 @@
-use crate::value::UnsafeValue;
+use crate::collections::{BTreeMap, CollectionValue};
+use crate::gc::Object;
+use crate::value::{UnsafeValue, UntaggedValue};
 use crate::{LuaFn, Ref, Str, Table, Thread, UserData};
 use core::any::Any;
 
@@ -416,6 +418,43 @@ unsafe impl<A> RegValue<A> for Thread<A> {
         A: 'a,
     {
         v.into()
+    }
+
+    #[inline(always)]
+    unsafe fn from_unsafe<'a>(v: *const UnsafeValue<A>) -> Self::Out<'a>
+    where
+        A: 'a,
+    {
+        unsafe { Ref::new((*v).value_.gc.cast()) }
+    }
+}
+
+unsafe impl<A, K, V> RegValue<A> for BTreeMap<A, K, V>
+where
+    K: 'static,
+    V: CollectionValue<A> + 'static,
+{
+    type In<'a>
+        = &'a Self
+    where
+        A: 'a;
+
+    type Out<'a>
+        = Ref<'a, Self>
+    where
+        A: 'a;
+
+    #[inline(always)]
+    fn into_unsafe<'a>(v: Self::In<'a>) -> UnsafeValue<A>
+    where
+        A: 'a,
+    {
+        UnsafeValue {
+            tt_: 14 | 1 << 4 | 1 << 6,
+            value_: UntaggedValue {
+                gc: v as *const Self as *const Object<A>,
+            },
+        }
     }
 
     #[inline(always)]

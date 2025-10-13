@@ -249,7 +249,7 @@ impl<'a, D> From<Ref<'a, LuaFn<D>>> for UnsafeValue<D> {
     }
 }
 
-impl<D, T> From<&UserData<D, T>> for UnsafeValue<D> {
+impl<D, T: ?Sized> From<&UserData<D, T>> for UnsafeValue<D> {
     #[inline(always)]
     fn from(value: &UserData<D, T>) -> Self {
         Self {

@@ -33,6 +33,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - Support both synchronous and asynchronous.
 - Safe, ergonomic and low overhead API.
 - Strongly typed registry.
+- Rust collections to store Lua values (e.g. [BTreeMap](https://doc.rust-lang.org/alloc/collections/btree_map/struct.BTreeMap.html)).
 - Any error propagated to the caller via Rust `Result` instead of a long jump.
 - `core::any::Any` as Lua userdata and can be created without the need to define its metatable.
 - Metatable for a userdata is lookup with `core::any::TypeId` instead of a string.
