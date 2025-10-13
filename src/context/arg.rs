@@ -46,10 +46,15 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     ///
     /// This has the same effect as:
     ///
-    /// ```ignore
+    /// ```
+    /// # use tsuki::{Args, Context, Ret, ArgNotFound};
+    /// # fn f(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
+    /// # let arg = cx.arg(1);
     /// if !arg.is_exists() {
     ///     return Err(arg.error(ArgNotFound));
     /// }
+    /// # Ok(cx.into())
+    /// # }
     /// ```
     ///
     /// Other methods like [`Self::get_str()`] already validate if the argument exists. This method

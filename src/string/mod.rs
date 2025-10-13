@@ -31,6 +31,8 @@ pub struct Str<A> {
 }
 
 impl<A> Str<A> {
+    const SHORT_LEN: usize = 40;
+
     /// Returns [Ok] if new string was allocated or [Err] for interned string.
     #[inline(always)]
     pub(crate) unsafe fn from_str<T>(g: *const Lua<A>, str: T) -> Result<*const Self, *const Self>
@@ -61,7 +63,7 @@ impl<A> Str<A> {
         // Check if long string.
         let s = str.as_ref();
 
-        if s.len() > 40 {
+        if s.len() > Self::SHORT_LEN {
             let str = str.into();
             let s = unsafe { Self::alloc(g, str.len(), 4 | 1 << 4, (*g).seed) };
 
@@ -140,6 +142,11 @@ impl<A> Str<A> {
     }
 
     #[inline(always)]
+    pub(crate) fn is_short(&self) -> bool {
+        self.len <= Self::SHORT_LEN
+    }
+
+    #[inline(always)]
     pub(crate) fn as_ptr(&self) -> *const c_char {
         self.contents.as_ptr()
     }
@@ -174,7 +181,7 @@ impl<A> Str<A> {
 impl<D> Drop for Str<D> {
     #[inline(always)]
     fn drop(&mut self) {
-        if self.len <= 40 {
+        if self.is_short() {
             unsafe { (*self.hdr.global).strt.remove(self) };
         }
     }

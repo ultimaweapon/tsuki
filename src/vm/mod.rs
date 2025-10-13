@@ -15,7 +15,6 @@ use crate::lfunc::{
 };
 use crate::lobject::{Proto, UpVal, luaO_str2num, luaO_tostring};
 use crate::lstate::CallInfo;
-use crate::lstring::luaS_eqlngstr;
 use crate::ltm::{
     TM_BNOT, TM_EQ, TM_INDEX, TM_LE, TM_LEN, TM_LT, TM_NEWINDEX, TM_UNM, TMS, luaT_adjustvarargs,
     luaT_callTM, luaT_callTMres, luaT_callorderTM, luaT_callorderiTM, luaT_gettm, luaT_gettmbyobj,
@@ -635,10 +634,10 @@ pub unsafe fn luaV_lessequal<D>(
 }
 
 #[inline(never)]
-pub unsafe fn luaV_equalobj<D>(
-    L: *const Thread<D>,
-    t1: *const UnsafeValue<D>,
-    t2: *const UnsafeValue<D>,
+pub unsafe fn luaV_equalobj<A>(
+    L: *const Thread<A>,
+    t1: *const UnsafeValue<A>,
+    t2: *const UnsafeValue<A>,
 ) -> Result<bool, Box<dyn core::error::Error>> {
     // Check if same type.
     if (*t1).tt_ & 0x3f != (*t2).tt_ & 0x3f {
@@ -665,12 +664,17 @@ pub unsafe fn luaV_equalobj<D>(
         0x32 => todo!(),
         0x03 => return Ok((*t1).value_.i == (*t2).value_.i),
         0x13 => return Ok((*t1).value_.n == (*t2).value_.n),
-        0x04 => return Ok(((*t1).value_.gc) == ((*t2).value_.gc)),
-        0x14 => {
-            return Ok(luaS_eqlngstr::<D>(
-                (*t1).value_.gc.cast(),
-                (*t2).value_.gc.cast(),
-            ));
+        0x04 | 0x14 => {
+            let t1 = (*t1).value_.gc.cast::<Str<A>>();
+            let t2 = (*t2).value_.gc.cast::<Str<A>>();
+
+            return if t1 == t2 {
+                Ok(true)
+            } else if (*t1).is_short() || (*t2).is_short() {
+                Ok(false)
+            } else {
+                Ok((*t1).as_bytes() == (*t2).as_bytes())
+            };
         }
         0x05 => {
             if ((*t1).value_.gc) == ((*t2).value_.gc) {
@@ -679,9 +683,9 @@ pub unsafe fn luaV_equalobj<D>(
                 return Ok(false);
             }
 
-            tm = if ((*((*t1).value_.gc as *mut Table<D>)).metatable.get()).is_null() {
+            tm = if ((*((*t1).value_.gc as *mut Table<A>)).metatable.get()).is_null() {
                 null()
-            } else if (*(*((*t1).value_.gc as *mut Table<D>)).metatable.get())
+            } else if (*(*((*t1).value_.gc as *mut Table<A>)).metatable.get())
                 .flags
                 .get() as c_uint
                 & (1 as c_uint) << TM_EQ as c_int
@@ -689,13 +693,13 @@ pub unsafe fn luaV_equalobj<D>(
             {
                 null()
             } else {
-                luaT_gettm((*((*t1).value_.gc as *mut Table<D>)).metatable.get(), TM_EQ)
+                luaT_gettm((*((*t1).value_.gc as *mut Table<A>)).metatable.get(), TM_EQ)
             };
 
             if tm.is_null() {
-                tm = if ((*((*t2).value_.gc as *mut Table<D>)).metatable.get()).is_null() {
+                tm = if ((*((*t2).value_.gc as *mut Table<A>)).metatable.get()).is_null() {
                     null()
-                } else if (*(*((*t2).value_.gc as *mut Table<D>)).metatable.get())
+                } else if (*(*((*t2).value_.gc as *mut Table<A>)).metatable.get())
                     .flags
                     .get() as c_uint
                     & (1 as c_uint) << TM_EQ as c_int
@@ -703,7 +707,7 @@ pub unsafe fn luaV_equalobj<D>(
                 {
                     null()
                 } else {
-                    luaT_gettm((*((*t2).value_.gc as *mut Table<D>)).metatable.get(), TM_EQ)
+                    luaT_gettm((*((*t2).value_.gc as *mut Table<A>)).metatable.get(), TM_EQ)
                 };
             }
         }
@@ -714,9 +718,9 @@ pub unsafe fn luaV_equalobj<D>(
                 return Ok(false);
             }
 
-            tm = if (*(*t1).value_.gc.cast::<UserData<D, ()>>()).mt.is_null() {
+            tm = if (*(*t1).value_.gc.cast::<UserData<A, ()>>()).mt.is_null() {
                 null()
-            } else if (*(*(*t1).value_.gc.cast::<UserData<D, ()>>()).mt)
+            } else if (*(*(*t1).value_.gc.cast::<UserData<A, ()>>()).mt)
                 .flags
                 .get() as c_uint
                 & (1 as c_uint) << TM_EQ as c_int
@@ -724,13 +728,13 @@ pub unsafe fn luaV_equalobj<D>(
             {
                 null()
             } else {
-                luaT_gettm((*(*t1).value_.gc.cast::<UserData<D, ()>>()).mt, TM_EQ)
+                luaT_gettm((*(*t1).value_.gc.cast::<UserData<A, ()>>()).mt, TM_EQ)
             };
 
             if tm.is_null() {
-                tm = if (*(*t2).value_.gc.cast::<UserData<D, ()>>()).mt.is_null() {
+                tm = if (*(*t2).value_.gc.cast::<UserData<A, ()>>()).mt.is_null() {
                     null()
-                } else if (*(*(*t2).value_.gc.cast::<UserData<D, ()>>()).mt)
+                } else if (*(*(*t2).value_.gc.cast::<UserData<A, ()>>()).mt)
                     .flags
                     .get() as c_uint
                     & (1 as c_uint) << TM_EQ as c_int
@@ -738,7 +742,7 @@ pub unsafe fn luaV_equalobj<D>(
                 {
                     null()
                 } else {
-                    luaT_gettm((*(*t2).value_.gc.cast::<UserData<D, ()>>()).mt, TM_EQ)
+                    luaT_gettm((*(*t2).value_.gc.cast::<UserData<A, ()>>()).mt, TM_EQ)
                 };
             }
         }
