@@ -109,7 +109,7 @@ impl<A> Str<A> {
     pub fn is_utf8(&self) -> bool {
         match self.ty.get() {
             Some(v) => v == ContentType::Utf8,
-            None => self.load_type(),
+            None => self.load_type() == ContentType::Utf8,
         }
     }
 
@@ -166,15 +166,15 @@ impl<A> Str<A> {
     }
 
     #[inline(never)]
-    fn load_type(&self) -> bool {
-        let utf8 = core::str::from_utf8(self.as_bytes()).is_ok();
+    fn load_type(&self) -> ContentType {
+        let ty = match core::str::from_utf8(self.as_bytes()) {
+            Ok(_) => ContentType::Utf8,
+            Err(_) => ContentType::Binary,
+        };
 
-        self.ty.set(Some(match utf8 {
-            true => ContentType::Utf8,
-            false => ContentType::Binary,
-        }));
+        self.ty.set(Some(ty));
 
-        utf8
+        ty
     }
 }
 

@@ -263,6 +263,7 @@ impl<'a, D, T> Context<'a, D, T> {
     ///
     /// # Panics
     /// If `v` was created from different [Lua](crate::Lua) instance.
+    #[inline(never)]
     pub fn push(&self, v: impl Into<UnsafeValue<D>>) -> Result<(), StackOverflow> {
         // Check if value come from the same Lua.
         let v = v.into();
