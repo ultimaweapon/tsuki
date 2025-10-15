@@ -68,6 +68,7 @@ pub const OPR_MINUS: UnOpr = 0;
 
 type c_int = i32;
 type c_uint = u32;
+type c_ulong = u64;
 
 pub unsafe fn luaK_semerror<D>(ls: *mut LexState<D>, msg: impl Display) -> ParseError {
     (*ls).t.token = 0 as c_int;
@@ -441,7 +442,7 @@ unsafe fn savelineinfo<D>(
             (*f).abslineinfo as *mut c_void,
             (*fs).nabslineinfo,
             &mut (*f).sizeabslineinfo,
-            ::core::mem::size_of::<AbsLineInfo>() as libc::c_ulong as c_int,
+            ::core::mem::size_of::<AbsLineInfo>() as c_ulong as c_int,
             (if 2147483647 as c_int as usize
                 <= (!(0 as c_int as usize)).wrapping_div(::core::mem::size_of::<AbsLineInfo>())
             {
@@ -466,7 +467,7 @@ unsafe fn savelineinfo<D>(
         (*f).lineinfo as *mut c_void,
         pc,
         &mut (*f).sizelineinfo,
-        ::core::mem::size_of::<i8>() as libc::c_ulong as c_int,
+        ::core::mem::size_of::<i8>() as c_ulong as c_int,
         (if 2147483647 as c_int as usize
             <= (!(0 as c_int as usize)).wrapping_div(::core::mem::size_of::<i8>())
         {
@@ -516,7 +517,7 @@ pub unsafe fn luaK_code<D>(
         (*f).code as *mut c_void,
         (*fs).pc,
         &mut (*f).sizecode,
-        ::core::mem::size_of::<u32>() as libc::c_ulong as c_int,
+        ::core::mem::size_of::<u32>() as c_ulong as c_int,
         (if 2147483647 as c_int as usize
             <= (!(0 as c_int as usize)).wrapping_div(::core::mem::size_of::<u32>())
         {
@@ -740,7 +741,7 @@ unsafe fn addk<D>(
         (*f).k as *mut c_void,
         k,
         &mut (*f).sizek,
-        ::core::mem::size_of::<UnsafeValue<D>>() as libc::c_ulong as c_int,
+        ::core::mem::size_of::<UnsafeValue<D>>() as c_ulong as c_int,
         (if (((1 as c_int) << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int) - 1 as c_int)
             as usize
             <= (!(0 as c_int as usize)).wrapping_div(::core::mem::size_of::<UnsafeValue<D>>())

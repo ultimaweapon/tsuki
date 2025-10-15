@@ -176,11 +176,6 @@ unsafe extern "C" fn luaB_yieldable(mut L: *mut lua_State) -> libc::c_int {
     lua_pushboolean(L, lua_isyieldable(co));
     return 1 as libc::c_int;
 }
-unsafe extern "C" fn luaB_corunning(mut L: *mut lua_State) -> libc::c_int {
-    let mut ismain: libc::c_int = lua_pushthread(L);
-    lua_pushboolean(L, ismain);
-    return 2 as libc::c_int;
-}
 unsafe extern "C" fn luaB_close(mut L: *mut lua_State) -> libc::c_int {
     let mut co: *mut lua_State = getco(L);
     let mut status: libc::c_int = auxstatus(L, co);
@@ -223,13 +218,6 @@ static mut co_funcs: [luaL_Reg; 9] = unsafe {
         },
         {
             let mut init = luaL_Reg {
-                name: b"running\0" as *const u8 as *const libc::c_char,
-                func: Some(luaB_corunning as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
-            };
-            init
-        },
-        {
-            let mut init = luaL_Reg {
                 name: b"status\0" as *const u8 as *const libc::c_char,
                 func: Some(luaB_costatus as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
             };
@@ -263,31 +251,5 @@ static mut co_funcs: [luaL_Reg; 9] = unsafe {
             };
             init
         },
-        {
-            let mut init = luaL_Reg {
-                name: 0 as *const libc::c_char,
-                func: None,
-            };
-            init
-        },
     ]
 };
-#[no_mangle]
-pub unsafe extern "C" fn luaopen_coroutine(mut L: *mut lua_State) -> libc::c_int {
-    luaL_checkversion_(
-        L,
-        504 as libc::c_int as f64,
-        (::core::mem::size_of::<i64>() as libc::c_ulong)
-            .wrapping_mul(16 as libc::c_int as libc::c_ulong)
-            .wrapping_add(::core::mem::size_of::<f64>() as libc::c_ulong),
-    );
-    lua_createtable(
-        L,
-        0 as libc::c_int,
-        (::core::mem::size_of::<[luaL_Reg; 9]>() as libc::c_ulong)
-            .wrapping_div(::core::mem::size_of::<luaL_Reg>() as libc::c_ulong)
-            .wrapping_sub(1 as libc::c_int as libc::c_ulong) as libc::c_int,
-    );
-    luaL_setfuncs(L, co_funcs.as_ptr(), 0 as libc::c_int);
-    return 1 as libc::c_int;
-}
