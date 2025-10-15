@@ -20,82 +20,6 @@ use std::ptr::{null, null_mut};
 use std::string::{String, ToString};
 use std::{format, print, println};
 
-unsafe extern "C" fn b_str2int(
-    mut s: *const c_char,
-    mut base: libc::c_int,
-    mut pn: *mut i64,
-) -> *const libc::c_char {
-    let mut n: u64 = 0 as libc::c_int as u64;
-    let mut neg: libc::c_int = 0 as libc::c_int;
-    s = s.offset(strspn(s, b" \x0C\n\r\t\x0B\0" as *const u8 as *const libc::c_char) as isize);
-    if *s as libc::c_int == '-' as i32 {
-        s = s.offset(1);
-        neg = 1 as libc::c_int;
-    } else if *s as libc::c_int == '+' as i32 {
-        s = s.offset(1);
-    }
-    if isalnum(*s as libc::c_uchar as libc::c_int) == 0 {
-        return 0 as *const libc::c_char;
-    }
-    loop {
-        let mut digit: libc::c_int = if isdigit(*s as libc::c_uchar as libc::c_int) != 0 {
-            *s as libc::c_int - '0' as i32
-        } else {
-            toupper(*s as libc::c_uchar as libc::c_int) - 'A' as i32 + 10 as libc::c_int
-        };
-        if digit >= base {
-            return 0 as *const libc::c_char;
-        }
-        n = (n * base as u64).wrapping_add(digit as u64);
-        s = s.offset(1);
-        if !(isalnum(*s as libc::c_uchar as libc::c_int) != 0) {
-            break;
-        }
-    }
-    s = s.offset(strspn(s, b" \x0C\n\r\t\x0B\0" as *const u8 as *const libc::c_char) as isize);
-    *pn = (if neg != 0 {
-        (0 as libc::c_uint as u64).wrapping_sub(n)
-    } else {
-        n
-    }) as i64;
-    return s;
-}
-
-unsafe fn luaB_tonumber(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    if lua_type(L, 2 as libc::c_int) <= 0 as libc::c_int {
-        if lua_type(L, 1 as libc::c_int) == 3 as libc::c_int {
-            lua_settop(L, 1 as libc::c_int)?;
-            return Ok(1 as libc::c_int);
-        } else {
-            let mut l: usize = 0;
-            let mut s: *const libc::c_char = lua_tolstring(L, 1 as libc::c_int, &mut l);
-            if !s.is_null() && lua_stringtonumber(L, s) == l.wrapping_add(1 as libc::c_int as usize)
-            {
-                return Ok(1 as libc::c_int);
-            }
-            luaL_checkany(L, 1 as libc::c_int)?;
-        }
-    } else {
-        let mut l_0: usize = 0;
-        let mut s_0: *const libc::c_char = 0 as *const libc::c_char;
-        let mut n: i64 = 0 as libc::c_int as i64;
-        let mut base: i64 = luaL_checkinteger(L, 2 as libc::c_int)?;
-        luaL_checktype(L, 1 as libc::c_int, 4 as libc::c_int)?;
-        s_0 = lua_tolstring(L, 1 as libc::c_int, &mut l_0);
-        (((2 as libc::c_int as i64 <= base && base <= 36 as libc::c_int as i64) as libc::c_int
-            != 0 as libc::c_int) as libc::c_int as libc::c_long
-            != 0
-            || luaL_argerror(L, 2 as libc::c_int, "base out of range")? != 0)
-            as libc::c_int;
-        if b_str2int(s_0, base as libc::c_int, &mut n) == s_0.offset(l_0 as isize) {
-            lua_pushinteger(L, n);
-            return Ok(1 as libc::c_int);
-        }
-    }
-    lua_pushnil(L);
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn ipairsaux(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut i: i64 = luaL_checkinteger(L, 2 as libc::c_int)?;
     i = (i as u64).wrapping_add(1 as libc::c_int as u64) as i64;
@@ -149,19 +73,10 @@ unsafe fn dofilecont(mut L: *mut Thread, mut d1: libc::c_int) -> libc::c_int {
     return lua_gettop(L) - 1 as libc::c_int;
 }
 
-static mut base_funcs: [luaL_Reg; 21] = [
-    {
-        let mut init = luaL_Reg {
-            name: b"ipairs\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_ipairs),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"tonumber\0" as *const u8 as *const libc::c_char,
-            func: Some(luaB_tonumber),
-        };
-        init
-    },
-];
+static mut base_funcs: [luaL_Reg; 21] = [{
+    let mut init = luaL_Reg {
+        name: b"ipairs\0" as *const u8 as *const libc::c_char,
+        func: Some(luaB_ipairs),
+    };
+    init
+}];

@@ -66,6 +66,7 @@ pub const OPR_NOT: UnOpr = 2;
 pub const OPR_BNOT: UnOpr = 1;
 pub const OPR_MINUS: UnOpr = 0;
 
+type c_short = i16;
 type c_int = i32;
 type c_uint = u32;
 type c_ulong = u64;
@@ -1591,7 +1592,7 @@ pub unsafe fn luaK_indexed<D>(
     if (*t).k as c_uint == VUPVAL as c_int as c_uint {
         let temp: c_int = (*t).u.info;
         (*t).u.ind.t = temp as u8;
-        (*t).u.ind.idx = (*k).u.info as libc::c_short;
+        (*t).u.ind.idx = (*k).u.info as c_short;
         (*t).k = VINDEXUP;
     } else {
         (*t).u.ind.t = (if (*t).k as c_uint == VLOCAL as c_int as c_uint {
@@ -1600,13 +1601,13 @@ pub unsafe fn luaK_indexed<D>(
             (*t).u.info
         }) as u8;
         if isKstr(fs, k) != 0 {
-            (*t).u.ind.idx = (*k).u.info as libc::c_short;
+            (*t).u.ind.idx = (*k).u.info as c_short;
             (*t).k = VINDEXSTR;
         } else if isCint(k) != 0 {
-            (*t).u.ind.idx = (*k).u.ival as c_int as libc::c_short;
+            (*t).u.ind.idx = (*k).u.ival as c_int as c_short;
             (*t).k = VINDEXI;
         } else {
-            (*t).u.ind.idx = luaK_exp2anyreg(ls, fs, k)? as libc::c_short;
+            (*t).u.ind.idx = luaK_exp2anyreg(ls, fs, k)? as c_short;
             (*t).k = VINDEXED;
         }
     };

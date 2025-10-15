@@ -304,9 +304,9 @@ pub fn select<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
 }
 
 /// Implementation of [setmetatable](https://www.lua.org/manual/5.4/manual.html#pdf-setmetatable).
-pub fn setmetatable<D>(
-    cx: Context<D, Args>,
-) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn setmetatable<A>(
+    cx: Context<A, Args>,
+) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let t = cx.arg(1).get_table()?;
     let mt = cx.arg(2).get_nilable_table(true)?;
 
@@ -329,8 +329,45 @@ pub fn setmetatable<D>(
     Ok(cx)
 }
 
+/// Implementation of [tonumber](https://www.lua.org/manual/5.4/manual.html#pdf-tonumber).
+pub fn tonumber<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let e = cx.arg(1);
+    let b = cx.arg(2);
+
+    match b.to_nilable_int(false)? {
+        Some(base) => {
+            let s = e.get_str()?;
+
+            if !(2 <= base && base <= 36) {
+                return Err(b.error("base out of range"));
+            } else if let Some(v) = b_str2int(s.as_bytes(), base as u8) {
+                cx.push(v)?;
+
+                return Ok(cx.into());
+            }
+        }
+        None => {
+            if let Some(v) = e.as_num() {
+                cx.push(v)?;
+
+                return Ok(cx.into());
+            } else if let Some(v) = e.as_str().and_then(|v| v.to_num()) {
+                cx.push(v)?;
+
+                return Ok(cx.into());
+            }
+
+            e.exists()?;
+        }
+    }
+
+    cx.push(Nil)?;
+
+    Ok(cx.into())
+}
+
 /// Implementation of [tostring](https://www.lua.org/manual/5.4/manual.html#pdf-tostring).
-pub fn tostring<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn tostring<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1).exists()?;
 
     cx.push(v.display()?)?;
@@ -346,4 +383,71 @@ pub fn r#type<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
     cx.push_str(t.to_string())?;
 
     Ok(cx.into())
+}
+
+fn b_str2int(s: &[u8], base: u8) -> Option<i64> {
+    // Skip initial spaces.
+    let mut s = s.iter();
+    let mut b = s.next().copied()?;
+    let is_space =
+        |b: u8| b == b' ' || b == 0x0C || b == b'\n' || b == b'\r' || b == b'\t' || b == 0x0B;
+
+    while is_space(b) {
+        b = s.next().copied()?;
+    }
+
+    // Check negative.
+    let neg = match b {
+        b'-' => {
+            b = s.next().copied()?;
+            true
+        }
+        b'+' => {
+            b = s.next().copied()?;
+            false
+        }
+        _ => false,
+    };
+
+    if !b.is_ascii_alphanumeric() {
+        return None;
+    }
+
+    // Parse.
+    let mut n: u64 = 0;
+
+    'top: loop {
+        let digit = match b.is_ascii_digit() {
+            true => b - b'0',
+            false => b.to_ascii_uppercase() - b'A' + 10,
+        };
+
+        if digit >= base {
+            return None;
+        }
+
+        n = n.wrapping_mul(base.into()).wrapping_add(digit.into());
+        b = match s.next().copied() {
+            Some(v) => v,
+            None => break,
+        };
+
+        if !b.is_ascii_alphanumeric() {
+            while is_space(b) {
+                b = match s.next().copied() {
+                    Some(v) => v,
+                    None => break 'top,
+                };
+            }
+
+            return None;
+        }
+    }
+
+    // Convert.
+    if neg {
+        n = 0u64.wrapping_sub(n);
+    }
+
+    Some(n as i64)
 }

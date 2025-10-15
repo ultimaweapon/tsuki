@@ -47,6 +47,7 @@ impl<A> Module<A> for BaseLib {
         m.set_str_key("rawset", fp!(self::base::rawset));
         m.set_str_key("select", fp!(self::base::select));
         m.set_str_key("setmetatable", fp!(self::base::setmetatable));
+        m.set_str_key("tonumber", fp!(self::base::tonumber));
         m.set_str_key("tostring", fp!(self::base::tostring));
         m.set_str_key("type", fp!(self::base::r#type));
 
