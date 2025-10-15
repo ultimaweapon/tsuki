@@ -1,16 +1,22 @@
 //! Implementation of [string library](https://www.lua.org/manual/5.4/manual.html#6.4).
 use crate::libc::snprintf;
-use crate::{Arg, Args, Context, Number, Ret, Type, Value};
+use crate::{Arg, Args, Context, Nil, Number, Ret, Type, Value};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+use core::num::NonZero;
 
 /// Implementation of `__add` metamethod for string.
 pub fn add<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
     arith(cx, "__add", |cx, lhs, rhs| {
         cx.push_add(lhs, rhs).map(|_| ())
     })
+}
+
+/// Implementation of [string.find](https://www.lua.org/manual/5.4/manual.html#pdf-string.find).
+pub fn find<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    str_find_aux(cx, true)
 }
 
 /// Implementation of [string.format](https://www.lua.org/manual/5.4/manual.html#pdf-string.format).
@@ -366,7 +372,7 @@ pub fn sub<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
     let s = cx.arg(1).to_str()?;
     let s = s.as_bytes();
     let start = cx.arg(2).to_int()?;
-    let start = posrelatI(start, s.len().try_into().unwrap());
+    let start = posrelatI(start, s.len().try_into().unwrap()).get();
     let end = cx.arg(3).to_nilable_int(false)?.unwrap_or(-1);
     let end = getendpos(end, s.len().try_into().unwrap());
     let s = if start <= end {
@@ -379,10 +385,7 @@ pub fn sub<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
         b""
     };
 
-    match core::str::from_utf8(s) {
-        Ok(v) => cx.push_str(v)?,
-        Err(_) => cx.push_bytes(s)?,
-    }
+    cx.push_bytes(s)?;
 
     Ok(cx.into())
 }
@@ -469,6 +472,95 @@ fn trymt<'a, D>(
     Ok(cx)
 }
 
+fn str_find_aux<A>(
+    cx: Context<A, Args>,
+    find: bool,
+) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let s = cx.arg(1).to_str()?;
+    let s = s.as_bytes();
+    let p = cx.arg(2).to_str()?;
+    let mut p = p.as_bytes();
+    let init = cx.arg(3).to_nilable_int(false)?.unwrap_or(1);
+    let ls = s.len().try_into().unwrap();
+    let lp = p.len();
+    let init = posrelatI(init, ls).get() - 1;
+
+    if init > ls as u64 {
+        cx.push(Nil)?;
+
+        return Ok(cx.into());
+    }
+
+    // When we are here init guarantee to fit in usize.
+    let mut init = init as usize;
+
+    if find && (cx.arg(4).to_bool() == Some(true) || nospecials(p)) {
+        if let Some(i) = memchr::memmem::find(&s[init..], p) {
+            let i = init + i;
+
+            cx.push((i + 1) as i64)?;
+            cx.push((i + lp) as i64)?;
+
+            return Ok(cx.into());
+        }
+    } else {
+        let mut ms = MatchState::prepstate(s);
+        let anchor = p.first().copied() == Some(b'^');
+
+        if anchor {
+            p = &p[1..];
+        }
+
+        loop {
+            ms.reprepstate();
+
+            if let Some(res) = ms.match_0(init, p)? {
+                if find {
+                    cx.push((init + 1) as i64)?;
+                    cx.push(res as i64)?;
+
+                    return ms.push_captures(cx, None, None);
+                } else {
+                    return ms.push_captures(cx, Some(init), Some(res));
+                }
+            }
+
+            let fresh4 = init;
+
+            init += 1;
+
+            if !(fresh4 < s.len() && !anchor) {
+                break;
+            }
+        }
+    }
+
+    cx.push(Nil)?;
+
+    Ok(cx.into())
+}
+
+fn nospecials(p: &[u8]) -> bool {
+    let m = |b| {
+        b == b'^'
+            || b == b'$'
+            || b == b'*'
+            || b == b'+'
+            || b == b'?'
+            || b == b'.'
+            || b == b'('
+            || b == b'['
+            || b == b'%'
+            || b == b'-'
+    };
+
+    if p.iter().copied().any(m) {
+        return false;
+    }
+
+    true
+}
+
 fn checkformat(
     form: &[u8],
     flags: &[u8],
@@ -520,8 +612,8 @@ fn checkformat(
 
 // TODO: Find a better name.
 #[allow(non_snake_case)]
-fn posrelatI(pos: i64, len: i64) -> u64 {
-    if pos > 0 {
+fn posrelatI(pos: i64, len: i64) -> NonZero<u64> {
+    let r = if pos > 0 {
         pos as u64
     } else if pos == 0 {
         1
@@ -529,7 +621,9 @@ fn posrelatI(pos: i64, len: i64) -> u64 {
         1
     } else {
         (len + pos + 1).try_into().unwrap()
-    }
+    };
+
+    NonZero::new(r).unwrap()
 }
 
 fn getendpos(pos: i64, len: i64) -> u64 {
@@ -542,4 +636,532 @@ fn getendpos(pos: i64, len: i64) -> u64 {
     } else {
         (len + pos + 1).try_into().unwrap()
     }
+}
+
+struct MatchState<'a> {
+    src: &'a [u8],
+    matchdepth: i32,
+    capture: Vec<MatchCapture>,
+}
+
+impl<'a> MatchState<'a> {
+    fn prepstate(s: &'a [u8]) -> Self {
+        Self {
+            src: s,
+            matchdepth: 200,
+            capture: Vec::with_capacity(32),
+        }
+    }
+
+    fn reprepstate(&mut self) {
+        self.capture.clear();
+    }
+
+    fn match_0(
+        &mut self,
+        mut off: usize,
+        mut p: &[u8],
+    ) -> Result<Option<usize>, Box<dyn core::error::Error>> {
+        // Check depth.
+        if self.matchdepth == 0 {
+            return Err("pattern too complex".into());
+        }
+
+        self.matchdepth -= 1;
+
+        // Match.
+        let current_block: u64;
+        let mut ep_0 = 0;
+        let mut res = loop {
+            // Check first character.
+            let first = match p.first().copied() {
+                Some(v) => v,
+                None => {
+                    current_block = 6476622998065200121;
+                    break Some(off);
+                }
+            };
+
+            match first {
+                b'(' => {
+                    let r = if p.get(1).copied() == Some(b')') {
+                        self.start_capture(off, &p[2..], -2)?
+                    } else {
+                        self.start_capture(off, &p[1..], -1)?
+                    };
+
+                    current_block = 6476622998065200121;
+                    break r;
+                }
+                b')' => {
+                    let r = self.end_capture(off, &p[1..])?;
+                    current_block = 6476622998065200121;
+                    break r;
+                }
+                b'$' => {
+                    if !p.get(1).is_some() {
+                        let r = if off == self.src.len() {
+                            Some(off)
+                        } else {
+                            None
+                        };
+                        current_block = 6476622998065200121;
+                        break r;
+                    }
+                }
+                b'%' => match p.get(1) {
+                    Some(b'b') => match self.matchbalance(off, &p[2..])? {
+                        Some(v) => {
+                            off = v;
+                            p = &p[4..];
+                            continue;
+                        }
+                        None => {
+                            current_block = 6476622998065200121;
+                            break None;
+                        }
+                    },
+                    Some(b'f') => {
+                        p = &p[2..];
+
+                        if p.first().copied().is_none_or(|b| b != b'[') {
+                            return Err("missing '[' after '%f' in pattern".into());
+                        }
+
+                        let ep = Self::classend(p)?;
+                        let previous = if off == 0 { 0 } else { self.src[off - 1] };
+
+                        if !Self::matchbracketclass(previous, p, ep - 1)
+                            && Self::matchbracketclass(self.src[off], p, ep - 1)
+                        {
+                            p = &p[ep..];
+                            continue;
+                        } else {
+                            current_block = 6476622998065200121;
+                            break None;
+                        }
+                    }
+                    Some(b'0') | Some(b'1') | Some(b'2') | Some(b'3') | Some(b'4') | Some(b'5')
+                    | Some(b'6') | Some(b'7') | Some(b'8') | Some(b'9') => {
+                        off = match self.match_capture(off, p[1])? {
+                            Some(v) => v,
+                            None => {
+                                current_block = 6476622998065200121;
+                                break None;
+                            }
+                        };
+
+                        p = &p[2..];
+                        continue;
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+
+            ep_0 = Self::classend(p)?;
+
+            if !self.singlematch(off, p, ep_0) {
+                if p[ep_0] == b'*' || p[ep_0] == b'?' || p[ep_0] == b'-' {
+                    p = &p[(ep_0 + 1)..];
+                } else {
+                    current_block = 6476622998065200121;
+                    break None;
+                }
+            } else {
+                match p.get(ep_0) {
+                    Some(b'?') => match self.match_0(off + 1, &p[(ep_0 + 1)..])? {
+                        Some(v) => {
+                            current_block = 6476622998065200121;
+                            break Some(v);
+                        }
+                        None => p = &p[(ep_0 + 1)..],
+                    },
+                    Some(b'+') => {
+                        current_block = 5161946086944071447;
+                        break Some(off + 1);
+                    }
+                    Some(b'*') => {
+                        current_block = 5161946086944071447;
+                        break Some(off);
+                    }
+                    Some(b'-') => {
+                        current_block = 6476622998065200121;
+                        break self.min_expand(off, p, ep_0)?;
+                    }
+                    _ => {
+                        off += 1;
+                        p = &p[ep_0..];
+                    }
+                }
+            }
+        };
+
+        match current_block {
+            5161946086944071447 => {
+                res = self.max_expand(off, p, ep_0)?;
+            }
+            _ => {}
+        }
+
+        self.matchdepth += 1;
+
+        Ok(res)
+    }
+
+    fn start_capture(
+        &mut self,
+        off: usize,
+        p: &[u8],
+        what: isize,
+    ) -> Result<Option<usize>, Box<dyn core::error::Error>> {
+        if self.capture.len() >= 32 {
+            return Err("too many captures".into());
+        }
+
+        self.capture.push(MatchCapture { off, len: what });
+
+        let res = self.match_0(off, p)?;
+
+        if res.is_none() {
+            self.capture.pop();
+        }
+
+        Ok(res)
+    }
+
+    fn end_capture(
+        &mut self,
+        off: usize,
+        p: &[u8],
+    ) -> Result<Option<usize>, Box<dyn core::error::Error>> {
+        let l = self.capture_to_close()?;
+
+        self.capture[l].len = (off - self.capture[l].off) as isize;
+
+        let res = self.match_0(off, p)?;
+
+        if res.is_none() {
+            self.capture[l].len = -1;
+        }
+
+        Ok(res)
+    }
+
+    fn capture_to_close(&self) -> Result<usize, Box<dyn core::error::Error>> {
+        for (l, c) in self.capture.iter().enumerate().rev() {
+            if c.len == -1 {
+                return Ok(l);
+            }
+        }
+
+        Err("invalid pattern capture".into())
+    }
+
+    fn matchbalance(
+        &self,
+        mut off: usize,
+        p: &[u8],
+    ) -> Result<Option<usize>, Box<dyn core::error::Error>> {
+        let mut iter = p.iter().copied();
+        let first = match iter.next() {
+            Some(v) => v,
+            None => return Err("malformed pattern (missing arguments to '%b')".into()),
+        };
+
+        if self.src[off] != first {
+            return Ok(None);
+        } else {
+            let e = iter.next();
+            let mut cont = 1;
+
+            loop {
+                off += 1;
+
+                if !(off < self.src.len()) {
+                    break;
+                }
+
+                if Some(self.src[off]) == e {
+                    cont -= 1;
+
+                    if cont == 0 {
+                        return Ok(Some(off + 1));
+                    }
+                } else if self.src[off] == first {
+                    cont += 1;
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn classend(p: &[u8]) -> Result<usize, Box<dyn core::error::Error>> {
+        let mut p = p.iter();
+
+        match p.next().copied() {
+            Some(b'%') => {
+                if p.next().is_none() {
+                    return Err("malformed pattern (ends with '%')".into());
+                }
+
+                Ok(2)
+            }
+            Some(b'[') => {
+                let mut o = 1;
+
+                if p.as_slice().first().copied() == Some(b'^') {
+                    p.next();
+                    o += 1;
+                }
+
+                loop {
+                    let fresh2 = match p.next().copied() {
+                        Some(v) => v,
+                        None => return Err("malformed pattern (missing ']')".into()),
+                    };
+
+                    o += 1;
+
+                    if fresh2 == b'%' && !p.as_slice().is_empty() {
+                        p.next();
+                        o += 1;
+                    }
+
+                    if !(p.as_slice().first().copied() != Some(b']')) {
+                        break;
+                    }
+                }
+
+                p.next();
+                o += 1;
+
+                Ok(o)
+            }
+            _ => Ok(1),
+        }
+    }
+
+    fn singlematch(&self, off: usize, p: &[u8], ep: usize) -> bool {
+        let c = match self.src.get(off).copied() {
+            Some(v) => v,
+            None => return false,
+        };
+
+        match p.first().copied() {
+            Some(b'.') => true,
+            Some(b'%') => Self::match_class(c, p[1]),
+            Some(b'[') => Self::matchbracketclass(c, p, ep - 1),
+            _ => p[0] == c,
+        }
+    }
+
+    fn matchbracketclass(c: u8, p: &[u8], ec: usize) -> bool {
+        let mut sig = true;
+        let mut i = 0;
+
+        if p[1] == b'^' {
+            sig = false;
+            i = 1;
+        }
+
+        loop {
+            i += 1;
+
+            if i >= ec {
+                break;
+            }
+
+            if p[i] == b'%' {
+                i += 1;
+
+                if Self::match_class(c, p[i]) {
+                    return sig;
+                }
+            } else if p[i + 1] == b'-' && (i + 2) < ec {
+                i += 2;
+
+                if p[i - 2] <= c && c <= p[i] {
+                    return sig;
+                }
+            } else if p[i] == c {
+                return sig;
+            }
+        }
+
+        sig == false
+    }
+
+    fn match_class(c: u8, cl: u8) -> bool {
+        let res = match cl.to_ascii_lowercase() {
+            b'a' => c.is_ascii_alphabetic(),
+            b'c' => c.is_ascii_control(),
+            b'd' => c.is_ascii_digit(),
+            b'g' => c.is_ascii_graphic(),
+            b'l' => c.is_ascii_lowercase(),
+            b'p' => c.is_ascii_punctuation(),
+            b's' => c == 0x20 || c == 0x0c || c == 0x0a || c == 0x0d || c == 0x09 || c == 0x0b,
+            b'u' => c.is_ascii_uppercase(),
+            b'w' => c.is_ascii_alphanumeric(),
+            b'x' => c.is_ascii_hexdigit(),
+            _ => return cl == c,
+        };
+
+        if cl.is_ascii_lowercase() {
+            res
+        } else {
+            res == false
+        }
+    }
+
+    fn match_capture(
+        &self,
+        off: usize,
+        l: u8,
+    ) -> Result<Option<usize>, Box<dyn core::error::Error>> {
+        let l = self.check_capture(l)?;
+        let len = usize::try_from(self.capture[l].len).unwrap();
+        let c = self.capture[l].off;
+        let c = &self.src[c..];
+        let c = &c[..len];
+        let s = &self.src[off..];
+        let s = match s.get(..len) {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        if s == c {
+            Ok(Some(off + len))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn check_capture(&self, l: u8) -> Result<usize, Box<dyn core::error::Error>> {
+        let mut l = isize::from(l);
+
+        l -= isize::from(b'1');
+
+        if l < 0 || self.capture.get(l as usize).is_none_or(|c| c.len == -1) {
+            return Err(format!("invalid capture index %{}", l + 1).into());
+        }
+
+        Ok(l as usize)
+    }
+
+    fn min_expand(
+        &mut self,
+        mut off: usize,
+        p: &[u8],
+        ep: usize,
+    ) -> Result<Option<usize>, Box<dyn core::error::Error>> {
+        loop {
+            if let Some(v) = self.match_0(off, &p[(ep + 1)..])? {
+                return Ok(Some(v));
+            }
+
+            if self.singlematch(off, p, ep) {
+                off += 1;
+            } else {
+                return Ok(None);
+            }
+        }
+    }
+
+    fn max_expand(
+        &mut self,
+        off: usize,
+        p: &[u8],
+        ep: usize,
+    ) -> Result<Option<usize>, Box<dyn core::error::Error>> {
+        let mut i = 0;
+
+        while self.singlematch(off + i, p, ep) {
+            i += 1;
+        }
+
+        for i in (0..=i).rev() {
+            if let Some(v) = self.match_0(off + i, &p[(ep + 1)..])? {
+                return Ok(Some(v));
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn push_captures<A>(
+        mut self,
+        cx: Context<A, Args>,
+        off: Option<usize>,
+        e: Option<usize>,
+    ) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+        let nlevels = if self.capture.is_empty() && off.is_some() {
+            1
+        } else {
+            self.capture.len()
+        };
+
+        if cx.reserve(nlevels).is_err() {
+            return Err("too many captures".into());
+        }
+
+        for i in 0..nlevels {
+            self.push_onecapture(&cx, i, off, e)?;
+        }
+
+        Ok(cx.into())
+    }
+
+    fn push_onecapture<A>(
+        &mut self,
+        cx: &Context<A, Args>,
+        i: usize,
+        off: Option<usize>,
+        e: Option<usize>,
+    ) -> Result<(), Box<dyn core::error::Error>> {
+        if let Some(v) = self.get_onecapture(cx, i, off, e)? {
+            cx.push_bytes(v)?;
+        }
+
+        Ok(())
+    }
+
+    fn get_onecapture<A>(
+        &mut self,
+        cx: &Context<A, Args>,
+        i: usize,
+        off: Option<usize>,
+        e: Option<usize>,
+    ) -> Result<Option<&'a [u8]>, Box<dyn core::error::Error>> {
+        let cap = match self.capture.get(i) {
+            Some(v) => v,
+            None => {
+                if i != 0 {
+                    return Err(format!("invalid capture index %{}", i + 1).into());
+                }
+
+                return Ok(Some(&self.src[off.unwrap()..e.unwrap()]));
+            }
+        };
+
+        match cap.len {
+            -1 => Err("unfinished capture".into()),
+            -2 => {
+                cx.push((cap.off + 1) as i64)?;
+
+                Ok(None)
+            }
+            l => {
+                let l = usize::try_from(l).unwrap();
+
+                Ok(Some(&self.src[cap.off..(cap.off + l)]))
+            }
+        }
+    }
+}
+
+struct MatchCapture {
+    off: usize,
+    len: isize,
 }
