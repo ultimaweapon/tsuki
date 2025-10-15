@@ -59,13 +59,6 @@ pub struct GMatchState {
     pub ms: MatchState,
 }
 
-unsafe fn str_len(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut l: usize = 0;
-    luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
-    lua_pushinteger(L, l as i64);
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn posrelatI(mut pos: i64, mut len: usize) -> usize {
     if pos > 0 as libc::c_int as i64 {
         return pos as usize;
@@ -1159,13 +1152,6 @@ static mut strlib: [luaL_Reg; 17] = [
         let mut init = luaL_Reg {
             name: b"gsub\0" as *const u8 as *const libc::c_char,
             func: Some(str_gsub),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"len\0" as *const u8 as *const libc::c_char,
-            func: Some(str_len),
         };
         init
     },

@@ -20,7 +20,7 @@ pub fn find<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
 }
 
 /// Implementation of [string.format](https://www.lua.org/manual/5.4/manual.html#pdf-string.format).
-pub fn format<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn format<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     // Get format.
     let mut next = 1;
     let arg = cx.arg(next);
@@ -284,6 +284,15 @@ pub fn format<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
     }
 
     cx.push_str(buf)?;
+
+    Ok(cx.into())
+}
+
+/// Implementation of [string.len](https://www.lua.org/manual/5.4/manual.html#pdf-string.len).
+pub fn len<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let l = cx.arg(1).to_str()?.len();
+
+    cx.push(l as i64)?;
 
     Ok(cx.into())
 }

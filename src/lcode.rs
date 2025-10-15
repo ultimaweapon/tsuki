@@ -27,6 +27,7 @@ use crate::vm::{
     luaV_tointegerns,
 };
 use crate::{ArithError, Ops, ParseError, Str};
+use core::ffi::c_void;
 use core::fmt::Display;
 use core::ops::Deref;
 use core::ptr::{null, null_mut};
@@ -437,7 +438,7 @@ unsafe fn savelineinfo<D>(
     } {
         (*f).abslineinfo = luaM_growaux_(
             &(*ls).g,
-            (*f).abslineinfo as *mut libc::c_void,
+            (*f).abslineinfo as *mut c_void,
             (*fs).nabslineinfo,
             &mut (*f).sizeabslineinfo,
             ::core::mem::size_of::<AbsLineInfo>() as libc::c_ulong as c_int,
@@ -462,7 +463,7 @@ unsafe fn savelineinfo<D>(
 
     (*f).lineinfo = luaM_growaux_(
         &(*ls).g,
-        (*f).lineinfo as *mut libc::c_void,
+        (*f).lineinfo as *mut c_void,
         pc,
         &mut (*f).sizelineinfo,
         ::core::mem::size_of::<i8>() as libc::c_ulong as c_int,
@@ -512,7 +513,7 @@ pub unsafe fn luaK_code<D>(
 
     (*f).code = luaM_growaux_(
         &(*ls).g,
-        (*f).code as *mut libc::c_void,
+        (*f).code as *mut c_void,
         (*fs).pc,
         &mut (*f).sizecode,
         ::core::mem::size_of::<u32>() as libc::c_ulong as c_int,
@@ -736,7 +737,7 @@ unsafe fn addk<D>(
     luaH_finishset((*ls).h.deref(), key, idx, &raw const val).unwrap(); // This should never fails.
     (*f).k = luaM_growaux_(
         &(*ls).g,
-        (*f).k as *mut libc::c_void,
+        (*f).k as *mut c_void,
         k,
         &mut (*f).sizek,
         ::core::mem::size_of::<UnsafeValue<D>>() as libc::c_ulong as c_int,
