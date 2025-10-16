@@ -138,7 +138,7 @@ impl<D> Thread<D> {
         let ot = unsafe { self.top.get().offset_from_unsigned(self.stack.get()) };
         let nargs = args.len();
 
-        unsafe { lua_checkstack(self, 1 + nargs)? };
+        unsafe { lua_checkstack(self, 1 + nargs, 0)? };
 
         unsafe { self.top.write(f) };
         unsafe { self.top.add(1) };
@@ -212,7 +212,7 @@ impl<D> Thread<D> {
         let ot = unsafe { self.top.get().offset_from_unsigned(self.stack.get()) };
         let nargs = args.len();
 
-        unsafe { lua_checkstack(self, 1 + nargs)? };
+        unsafe { lua_checkstack(self, 1 + nargs, 0)? };
 
         unsafe { self.top.write(f) };
         unsafe { self.top.add(1) };

@@ -43,7 +43,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 ### VM and Language
 
 - Binary chunk is not supported.
-- Panic when memory allocation is failed without retry (Rust behavior).
+- Panic when memory allocation is failed without retry (same as Rust).
 - Chunk name does not have a prefix (e.g. `@`).
 - Second argument to `__close` metamethod always `nil`.
 - `__gc` metamethod is not supported.

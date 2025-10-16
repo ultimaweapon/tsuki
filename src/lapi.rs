@@ -16,6 +16,7 @@ use crate::{
     api_incr_top,
 };
 use alloc::boxed::Box;
+use core::cmp::max;
 use core::convert::identity;
 use core::ffi::CStr;
 use core::ptr::{null, null_mut};
@@ -65,17 +66,30 @@ unsafe fn index2stack<D>(L: *const Thread<D>, idx: c_int) -> *mut StackValue<D> 
 }
 
 #[inline(always)]
-pub unsafe fn lua_checkstack<D>(L: *const Thread<D>, n: usize) -> Result<(), StackOverflow> {
+pub unsafe fn lua_checkstack<A>(
+    L: *const Thread<A>,
+    need: usize,
+    reserve: usize,
+) -> Result<(), StackOverflow> {
     let ci = (*L).ci.get();
 
-    if ((*L).stack_last.get()).offset_from_unsigned((*L).top.get()) > n {
+    if (*L).top.get().add(need) <= (*ci).top {
+        Ok(())
     } else {
+        growstack(L, max(need, reserve))
+    }
+}
+
+#[inline(never)]
+unsafe fn growstack<A>(L: *const Thread<A>, n: usize) -> Result<(), StackOverflow> {
+    let ci = (*L).ci.get();
+
+    // Check if remaining space is enough.
+    if (*L).stack_last.get().offset_from_unsigned((*L).top.get()) <= n {
         luaD_growstack(L, n)?;
     }
 
-    if (*ci).top < ((*L).top.get()).add(n) {
-        (*ci).top = ((*L).top.get()).add(n);
-    }
+    (*ci).top = (*L).top.get().add(n);
 
     Ok(())
 }

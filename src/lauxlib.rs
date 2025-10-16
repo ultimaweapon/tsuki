@@ -3,9 +3,8 @@
 
 use crate::Thread;
 use crate::lapi::{
-    lua_checkstack, lua_concat, lua_copy, lua_getfield, lua_getmetatable, lua_gettop, lua_next,
-    lua_pushlstring, lua_pushnil, lua_pushstring, lua_rawequal, lua_rawget, lua_rotate, lua_settop,
-    lua_tolstring, lua_type,
+    lua_checkstack, lua_concat, lua_copy, lua_getfield, lua_gettop, lua_next, lua_pushlstring,
+    lua_pushnil, lua_pushstring, lua_rawequal, lua_rotate, lua_settop, lua_tolstring, lua_type,
 };
 use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::lua_Debug;
@@ -18,81 +17,60 @@ use core::fmt::{Display, Formatter};
 use core::num::NonZero;
 use libc::strcmp;
 
+type c_int = i32;
+
 unsafe fn findfield<D>(
     L: *const Thread<D>,
-    objidx: libc::c_int,
-    level: libc::c_int,
-) -> Result<libc::c_int, Box<dyn core::error::Error>> {
-    if level == 0 as libc::c_int || !(lua_type(L, -(1 as libc::c_int)) == 5 as libc::c_int) {
-        return Ok(0 as libc::c_int);
+    objidx: c_int,
+    level: c_int,
+) -> Result<c_int, Box<dyn core::error::Error>> {
+    if level == 0 as c_int || !(lua_type(L, -(1 as c_int)) == 5 as c_int) {
+        return Ok(0 as c_int);
     }
     lua_pushnil(L);
     while lua_next(L, -2)? != 0 {
-        if lua_type(L, -(2 as libc::c_int)) == 4 as libc::c_int {
-            if lua_rawequal(L, objidx, -(1 as libc::c_int))? != 0 {
-                lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-                return Ok(1 as libc::c_int);
-            } else if findfield(L, objidx, level - 1 as libc::c_int)? != 0 {
+        if lua_type(L, -(2 as c_int)) == 4 as c_int {
+            if lua_rawequal(L, objidx, -(1 as c_int))? != 0 {
+                lua_settop(L, -(1 as c_int) - 1 as c_int)?;
+                return Ok(1 as c_int);
+            } else if findfield(L, objidx, level - 1 as c_int)? != 0 {
                 lua_pushstring(L, b".\0" as *const u8 as *const c_char);
-                lua_copy(L, -(1 as libc::c_int), -(3 as libc::c_int));
-                lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-                lua_concat(L, 3 as libc::c_int)?;
-                return Ok(1 as libc::c_int);
+                lua_copy(L, -(1 as c_int), -(3 as c_int));
+                lua_settop(L, -(1 as c_int) - 1 as c_int)?;
+                lua_concat(L, 3 as c_int)?;
+                return Ok(1 as c_int);
             }
         }
-        lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
+        lua_settop(L, -(1 as c_int) - 1 as c_int)?;
     }
-    return Ok(0 as libc::c_int);
+    return Ok(0 as c_int);
 }
 
 unsafe fn pushglobalfuncname<D>(
     L: *const Thread<D>,
     ar: &mut lua_Debug<D>,
-) -> Result<libc::c_int, Box<dyn core::error::Error>> {
-    let top: libc::c_int = lua_gettop(L);
+) -> Result<c_int, Box<dyn core::error::Error>> {
+    let top: c_int = lua_gettop(L);
     luaL_checkstack(L, 8, b"not enough stack\0" as *const u8 as *const c_char)?;
     lua_getinfo(L, b"f\0" as *const u8 as *const c_char, ar);
-    lua_getfield(
-        L,
-        -(1000000 as libc::c_int) - 1000 as libc::c_int,
-        "_LOADED",
-    )?;
+    lua_getfield(L, -(1000000 as c_int) - 1000 as c_int, "_LOADED")?;
 
-    if findfield(L, top + 1 as libc::c_int, 2 as libc::c_int)? != 0 {
+    if findfield(L, top + 1 as c_int, 2 as c_int)? != 0 {
         let name = (*lua_tolstring(L, -1, true)).as_bytes();
 
         if let Some(name) = name.strip_prefix(b"_G.") {
             lua_pushlstring(L, name);
-            lua_rotate(L, -(2 as libc::c_int), -(1 as libc::c_int));
-            lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
+            lua_rotate(L, -(2 as c_int), -(1 as c_int));
+            lua_settop(L, -(1 as c_int) - 1 as c_int)?;
         }
 
-        lua_copy(L, -(1 as libc::c_int), top + 1 as libc::c_int);
-        lua_settop(L, top + 1 as libc::c_int)?;
-        return Ok(1 as libc::c_int);
+        lua_copy(L, -(1 as c_int), top + 1 as c_int);
+        lua_settop(L, top + 1 as c_int)?;
+        return Ok(1 as c_int);
     } else {
         lua_settop(L, top)?;
-        return Ok(0 as libc::c_int);
+        return Ok(0 as c_int);
     }
-}
-
-unsafe fn lastlevel<D>(L: *mut Thread<D>) -> libc::c_int {
-    let mut ar = lua_Debug::default();
-    let mut li: libc::c_int = 1 as libc::c_int;
-    let mut le: libc::c_int = 1 as libc::c_int;
-    while lua_getstack(L, le, &mut ar) != 0 {
-        li = le;
-        le *= 2 as libc::c_int;
-    }
-    while li < le {
-        let m: libc::c_int = (li + le) / 2 as libc::c_int;
-        if lua_getstack(L, m, &mut ar) != 0 {
-            li = m + 1 as libc::c_int;
-        } else {
-            le = m;
-        }
-    }
-    return le - 1 as libc::c_int;
 }
 
 /// `arg` is used only for display.
@@ -104,7 +82,7 @@ pub unsafe fn luaL_argerror<D>(
 ) -> Box<dyn core::error::Error> {
     let mut ar = lua_Debug::default();
 
-    if lua_getstack(L, 0 as libc::c_int, &mut ar) == 0 {
+    if lua_getstack(L, 0 as c_int, &mut ar) == 0 {
         return Box::new(ArgError {
             message: format!("bad argument #{arg}"),
             reason: reason.into(),
@@ -113,7 +91,7 @@ pub unsafe fn luaL_argerror<D>(
 
     lua_getinfo(L, b"n\0" as *const u8 as *const c_char, &mut ar);
 
-    if strcmp(ar.namewhat, b"method\0" as *const u8 as *const c_char) == 0 as libc::c_int {
+    if strcmp(ar.namewhat, b"method\0" as *const u8 as *const c_char) == 0 as c_int {
         arg = match NonZero::new(arg.get() - 1) {
             Some(v) => v,
             None => {
@@ -145,7 +123,7 @@ pub unsafe fn luaL_argerror<D>(
     })
 }
 
-pub unsafe fn luaL_where<D>(L: *const Thread<D>, level: libc::c_int) -> Cow<'static, str> {
+pub unsafe fn luaL_where<D>(L: *const Thread<D>, level: c_int) -> Cow<'static, str> {
     let mut ar = lua_Debug::default();
 
     if lua_getstack(L, level, &mut ar) != 0 {
@@ -173,7 +151,7 @@ pub unsafe fn luaL_checkstack<D>(
     space: usize,
     msg: *const c_char,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    if lua_checkstack(L, space).is_err() {
+    if lua_checkstack(L, space, 0).is_err() {
         if !msg.is_null() {
             return Err(luaL_error(
                 L,
@@ -185,27 +163,6 @@ pub unsafe fn luaL_checkstack<D>(
     }
 
     Ok(())
-}
-
-pub unsafe fn luaL_getmetafield<D>(
-    L: *const Thread<D>,
-    obj: libc::c_int,
-    event: *const c_char,
-) -> Result<libc::c_int, Box<dyn core::error::Error>> {
-    if lua_getmetatable(L, obj) == 0 {
-        return Ok(0 as libc::c_int);
-    } else {
-        let mut tt: libc::c_int = 0;
-        lua_pushstring(L, event);
-        tt = lua_rawget(L, -(2 as libc::c_int));
-        if tt == 0 as libc::c_int {
-            lua_settop(L, -(2 as libc::c_int) - 1 as libc::c_int)?;
-        } else {
-            lua_rotate(L, -(2 as libc::c_int), -(1 as libc::c_int));
-            lua_settop(L, -(1 as libc::c_int) - 1 as libc::c_int)?;
-        }
-        return Ok(tt);
-    };
 }
 
 /// Represents an error when argument to Rust function is not valid.

@@ -293,7 +293,7 @@ impl<'a, A, T> Context<'a, A, T> {
         }
 
         // Push.
-        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { lua_checkstack(self.th, 1, 5)? };
         unsafe { self.th.top.write(v) };
         unsafe { self.th.top.add(1) };
         self.ret.set(self.ret.get() + 1);
@@ -309,7 +309,7 @@ impl<'a, A, T> Context<'a, A, T> {
     pub unsafe fn push_unchecked(&self, v: impl Into<UnsafeValue<A>>) -> Result<(), StackOverflow> {
         let v = v.into();
 
-        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { lua_checkstack(self.th, 1, 5)? };
         unsafe { self.th.top.write(v) };
         unsafe { self.th.top.add(1) };
         self.ret.set(self.ret.get() + 1);
@@ -328,7 +328,7 @@ impl<'a, A, T> Context<'a, A, T> {
     where
         V: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
-        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { lua_checkstack(self.th, 1, 5)? };
 
         // Create string.
         let g = self.th.hdr.global();
@@ -354,7 +354,7 @@ impl<'a, A, T> Context<'a, A, T> {
     where
         V: AsRef<[u8]> + Into<Vec<u8>>,
     {
-        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { lua_checkstack(self.th, 1, 5)? };
 
         // Create string.
         let g = self.th.hdr.global();
@@ -383,7 +383,7 @@ impl<'a, A, T> Context<'a, A, T> {
         t: &Table<A>,
         k: impl Into<UnsafeValue<A>>,
     ) -> Result<bool, Box<dyn core::error::Error>> {
-        unsafe { lua_checkstack(self.th, 2)? };
+        unsafe { lua_checkstack(self.th, 2, 5)? };
 
         // Check if table come from the same Lua.
         if t.hdr.global != self.th.hdr.global {
@@ -421,7 +421,7 @@ impl<'a, A, T> Context<'a, A, T> {
         t: &Table<A>,
         k: impl Into<UnsafeValue<A>>,
     ) -> Result<Type, StackOverflow> {
-        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { lua_checkstack(self.th, 1, 5)? };
 
         // Check if table come from the same Lua.
         if t.hdr.global != self.th.hdr.global {
@@ -440,13 +440,15 @@ impl<'a, A, T> Context<'a, A, T> {
 
     /// Push a value for `k` from `t` to the result of this call.
     ///
+    /// This method will trigger GC if new string is allocated.
+    ///
     /// # Panics
-    /// If `t` created from different [Lua](crate::Lua) instance.
+    /// If `t` was created from different [Lua](crate::Lua) instance.
     pub fn push_from_str_key<K>(&self, t: &Table<A>, k: K) -> Result<Type, StackOverflow>
     where
         K: AsRef<[u8]> + Into<Vec<u8>>,
     {
-        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { lua_checkstack(self.th, 1, 5)? };
 
         // Check if table come from the same Lua.
         if t.hdr.global != self.th.hdr.global {
@@ -454,11 +456,18 @@ impl<'a, A, T> Context<'a, A, T> {
         }
 
         // Get value and push it.
-        let v = t.get_raw_str_key(k);
+        let g = self.th.hdr.global();
+        let s = unsafe { Str::from_bytes(g, k) };
+        let k = unsafe { UnsafeValue::from_obj(s.unwrap_or_else(identity).cast()) };
+        let v = unsafe { luaH_get(t, &k) };
 
-        unsafe { self.th.top.write(*v) };
+        unsafe { self.th.top.write(v.read()) };
         unsafe { self.th.top.add(1) };
         self.ret.set(self.ret.get() + 1);
+
+        if s.is_ok() {
+            g.gc.step();
+        }
 
         Ok(unsafe { Type::from_tt((*v).tt_) })
     }
@@ -474,7 +483,7 @@ impl<'a, A, T> Context<'a, A, T> {
         t: impl Into<UnsafeValue<A>>,
         k: impl Into<UnsafeValue<A>>,
     ) -> Result<Type, Box<dyn core::error::Error>> {
-        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { lua_checkstack(self.th, 1, 5)? };
 
         // Check if table come from the same Lua.
         let t = t.into();
@@ -528,7 +537,7 @@ impl<'a, A, T> Context<'a, A, T> {
         t: impl Into<UnsafeValue<A>>,
         k: i64,
     ) -> Result<Type, Box<dyn core::error::Error>> {
-        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { lua_checkstack(self.th, 1, 5)? };
 
         // Check if table come from the same Lua.
         let t = t.into();
@@ -570,7 +579,7 @@ impl<'a, A, T> Context<'a, A, T> {
     ///
     /// Use [Self::push()] if you want to push a different thread.
     pub fn push_thread(&self) -> Result<(), StackOverflow> {
-        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { lua_checkstack(self.th, 1, 5)? };
         unsafe { self.th.top.write(UnsafeValue::from(self.th)) };
         unsafe { self.th.top.add(1) };
         self.ret.set(self.ret.get() + 1);
@@ -604,7 +613,7 @@ impl<'a, A, T> Context<'a, A, T> {
         // Perform addition.
         let r = unsafe { luaO_arith(self.th, Ops::Add, &lhs, &rhs)? };
 
-        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { lua_checkstack(self.th, 1, 5)? };
         unsafe { self.th.top.write(r) };
         unsafe { self.th.top.add(1) };
 
@@ -639,7 +648,7 @@ impl<'a, A, T> Context<'a, A, T> {
         // Perform subtraction.
         let r = unsafe { luaO_arith(self.th, Ops::Sub, &lhs, &rhs)? };
 
-        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { lua_checkstack(self.th, 1, 5)? };
         unsafe { self.th.top.write(r) };
         unsafe { self.th.top.add(1) };
 
@@ -674,7 +683,7 @@ impl<'a, A, T> Context<'a, A, T> {
         // Perform subtraction.
         let r = unsafe { luaO_arith(self.th, Ops::Mod, &lhs, &rhs)? };
 
-        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { lua_checkstack(self.th, 1, 5)? };
         unsafe { self.th.top.write(r) };
         unsafe { self.th.top.add(1) };
 
@@ -709,7 +718,7 @@ impl<'a, A, T> Context<'a, A, T> {
         // Perform subtraction.
         let r = unsafe { luaO_arith(self.th, Ops::Pow, &lhs, &rhs)? };
 
-        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { lua_checkstack(self.th, 1, 5)? };
         unsafe { self.th.top.write(r) };
         unsafe { self.th.top.add(1) };
 
@@ -738,7 +747,7 @@ impl<'a, A, T> Context<'a, A, T> {
         // Perform subtraction.
         let r = unsafe { luaO_arith(self.th, Ops::Neg, &v, &v)? };
 
-        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { lua_checkstack(self.th, 1, 5)? };
         unsafe { self.th.top.write(r) };
         unsafe { self.th.top.add(1) };
 
@@ -753,7 +762,7 @@ impl<'a, A, T> Context<'a, A, T> {
     ///
     /// This has the same semantic as `lua_checkstack`.
     pub fn reserve(&self, additional: usize) -> Result<(), StackOverflow> {
-        unsafe { lua_checkstack(self.th, additional) }
+        unsafe { lua_checkstack(self.th, additional, 0) }
     }
 
     /// Call `f` with values above it as arguments.
@@ -969,7 +978,7 @@ impl<'a, D> Context<'a, D, Ret> {
             panic!("attempt to push a value created from a different Lua");
         }
 
-        unsafe { lua_checkstack(self.th, 1)? };
+        unsafe { lua_checkstack(self.th, 1, 5)? };
 
         // Insert the value.
         let src = unsafe { (*ci).func.add(i.get()) };
