@@ -591,15 +591,36 @@ impl<T> Lua<T> {
         unsafe { &*tab }
     }
 
-    /// Create a Lua string.
+    /// Create a Lua string with UTF-8 content.
     #[inline(always)]
     pub fn create_str<V>(&self, v: V) -> Ref<'_, Str<T>>
     where
         V: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
-        self.gc.step();
+        let s = unsafe { Str::from_str(self, v) };
+        let v = unsafe { Ref::new(s.unwrap_or_else(identity)) };
 
-        unsafe { Ref::new(Str::from_str(self, v).unwrap_or_else(identity)) }
+        if s.is_ok() {
+            self.gc.step();
+        }
+
+        v
+    }
+
+    /// Create a Lua string with binary content.
+    #[inline(always)]
+    pub fn create_bytes<V>(&self, v: V) -> Ref<'_, Str<T>>
+    where
+        V: AsRef<[u8]> + Into<Vec<u8>>,
+    {
+        let s = unsafe { Str::from_bytes(self, v) };
+        let v = unsafe { Ref::new(s.unwrap_or_else(identity)) };
+
+        if s.is_ok() {
+            self.gc.step();
+        }
+
+        v
     }
 
     /// Create a Lua table.

@@ -85,15 +85,38 @@ impl<'a, A, T> Context<'a, A, T> {
         self.th.hdr.global().registry::<K>()
     }
 
-    /// Create a Lua string.
+    /// Create a Lua string with UTF-8 content.
     #[inline(always)]
     pub fn create_str<V>(&self, v: V) -> Ref<'a, Str<A>>
     where
         V: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
-        self.th.hdr.global().gc.step();
+        let g = self.th.hdr.global();
+        let s = unsafe { Str::from_str(g, v) };
+        let v = unsafe { Ref::new(s.unwrap_or_else(identity)) };
 
-        unsafe { Ref::new(Str::from_str(self.th.hdr.global, v).unwrap_or_else(identity)) }
+        if s.is_ok() {
+            g.gc.step();
+        }
+
+        v
+    }
+
+    /// Create a Lua string with binary content.
+    #[inline(always)]
+    pub fn create_bytes<V>(&self, v: V) -> Ref<'a, Str<A>>
+    where
+        V: AsRef<[u8]> + Into<Vec<u8>>,
+    {
+        let g = self.th.hdr.global();
+        let s = unsafe { Str::from_bytes(g, v) };
+        let v = unsafe { Ref::new(s.unwrap_or_else(identity)) };
+
+        if s.is_ok() {
+            g.gc.step();
+        }
+
+        v
     }
 
     /// Create a Lua table.
