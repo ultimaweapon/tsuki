@@ -741,39 +741,23 @@ pub unsafe fn luaO_utf8esc(buff: *mut c_char, mut x: c_ulong) -> c_int {
 }
 
 #[inline(never)]
-pub unsafe fn luaO_tostring<A>(obj: *const UnsafeValue<A>) -> String {
+pub fn luaO_tostring(n: f64) -> String {
     // TODO: Remove snprintf.
     let mut buff = [0; 44];
     let buff = buff.as_mut_ptr();
-    let len = if (*obj).tt_ == 3 | 0 << 4 {
-        snprintf(
-            buff,
-            44,
-            b"%lld\0" as *const u8 as *const c_char,
-            (*obj).value_.i,
-        )
-    } else {
-        let mut len = snprintf(
-            buff,
-            44,
-            b"%.14g\0" as *const u8 as *const c_char,
-            (*obj).value_.n,
-        );
+    let mut len = unsafe { snprintf(buff, 44, c"%.14g".as_ptr(), n) };
 
-        if *buff.offset(strspn(buff, c"-0123456789".as_ptr()) as isize) as c_int == '\0' as i32 {
-            let fresh2 = len;
-            len = len + 1;
-            *buff.offset(fresh2 as isize) = b'.' as _;
-            let fresh3 = len;
-            len = len + 1;
-            *buff.offset(fresh3 as isize) = '0' as i32 as c_char;
-        }
-
-        len
-    };
+    if unsafe { *buff.offset(strspn(buff, c"-0123456789".as_ptr()) as isize) == 0 } {
+        let fresh2 = len;
+        len = len + 1;
+        unsafe { *buff.offset(fresh2 as isize) = b'.' as _ };
+        let fresh3 = len;
+        len = len + 1;
+        unsafe { *buff.offset(fresh3 as isize) = '0' as i32 as c_char };
+    }
 
     // Get Rust string.
-    let s = core::slice::from_raw_parts(buff.cast(), len as usize);
+    let s = unsafe { core::slice::from_raw_parts(buff.cast(), len as usize) };
 
     core::str::from_utf8(s).unwrap().into() // snprintf may effect by C locale.
 }

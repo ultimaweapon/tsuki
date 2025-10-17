@@ -579,8 +579,15 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
     #[inline(never)]
     unsafe fn convert_str(&self, v: *const UnsafeValue<D>) -> Ref<'b, Str<D>> {
+        // Convert to string.
+        let s = if unsafe { (*v).tt_ & 0x3f == 0x03 } {
+            unsafe { (*v).value_.i.to_string() }
+        } else {
+            unsafe { luaO_tostring((*v).value_.n) }
+        };
+
+        // Create string.
         let g = self.cx.th.hdr.global();
-        let s = unsafe { luaO_tostring(v) };
         let s = unsafe { Str::from_str(g, s) };
         let v = unsafe { Ref::new(s.unwrap_or_else(identity)) };
 
@@ -640,7 +647,14 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
                 match r.tt_ & 0xf {
                     3 => unsafe {
-                        let s = luaO_tostring(&r);
+                        // Convert to string.
+                        let s = if r.tt_ & 0x3f == 0x03 {
+                            r.value_.i.to_string()
+                        } else {
+                            luaO_tostring(r.value_.n)
+                        };
+
+                        // Create string.
                         let s = Str::from_str(g, s);
                         let r = Ref::new(s.unwrap_or_else(identity));
 

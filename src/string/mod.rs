@@ -136,7 +136,9 @@ impl<A> Str<A> {
 
     /// Parses this string as a Lua number.
     ///
-    /// return [`None`] if the content is not valid number literal.
+    /// return [None] if the content is not valid number literal.
+    ///
+    /// This has the same semantic as `lua_stringtonumber`.
     pub fn to_num(&self) -> Option<Number> {
         unsafe { luaO_str2num(self.contents.as_ptr()) }
     }

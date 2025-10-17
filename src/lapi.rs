@@ -16,6 +16,7 @@ use crate::{
     api_incr_top,
 };
 use alloc::boxed::Box;
+use alloc::string::ToString;
 use core::cmp::max;
 use core::convert::identity;
 use core::ffi::CStr;
@@ -367,11 +368,16 @@ pub unsafe fn lua_tolstring<D>(L: *const Thread<D>, idx: c_int, convert: bool) -
     let mut o = index2value(L, idx);
 
     if !((*o).tt_ & 0xf == 4) {
-        if !convert || !((*o).tt_ & 0xf == 3) {
+        let s = if !convert {
             return null();
-        }
+        } else if (*o).tt_ & 0x3f == 0x03 {
+            (*o).value_.i.to_string()
+        } else if (*o).tt_ & 0x3f == 0x13 {
+            luaO_tostring((*o).value_.n)
+        } else {
+            return null();
+        };
 
-        let s = luaO_tostring(o);
         let s = Str::from_str((*L).hdr.global, s);
         let v = s.unwrap_or_else(identity);
 
