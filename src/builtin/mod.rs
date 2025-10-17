@@ -69,8 +69,6 @@ impl<A> Module<A> for CoroLib {
     fn open(self, lua: &Lua<A>) -> Result<Self::Instance<'_>, Box<dyn core::error::Error>> {
         let m = lua.create_table();
 
-        m.set_str_key("running", fp!(self::coroutine::running));
-
         Ok(m)
     }
 }

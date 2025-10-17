@@ -598,18 +598,6 @@ impl<'a, A, T> Context<'a, A, T> {
         Ok(Type::from_tt(v.tt_))
     }
 
-    /// Push the calling thread to the result of this call.
-    ///
-    /// Use [Self::push()] if you want to push a different thread.
-    pub fn push_thread(&self) -> Result<(), StackOverflow> {
-        unsafe { lua_checkstack(self.th, 1, 5)? };
-        unsafe { self.th.top.write(UnsafeValue::from(self.th)) };
-        unsafe { self.th.top.add(1) };
-        self.ret.set(self.ret.get() + 1);
-
-        Ok(())
-    }
-
     /// Push the result of addition between `lhs` and `rhs`, returns the type of pushed value.
     ///
     /// This method honor `__add` metavalue.
