@@ -15,6 +15,8 @@ pub fn add<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::err
 }
 
 /// Implementation of [string.find](https://www.lua.org/manual/5.4/manual.html#pdf-string.find).
+///
+/// Note that class `z` is not supported.
 pub fn find<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     str_find_aux(cx, true)
 }
@@ -433,7 +435,7 @@ fn arith<'a, D>(
 fn tonum<D>(arg: &Arg<D>) -> Option<Number> {
     if let Some(v) = arg.as_num() {
         Some(v)
-    } else if let Some(v) = arg.as_str() {
+    } else if let Some(v) = arg.as_str(false) {
         v.to_num()
     } else {
         None
@@ -528,10 +530,12 @@ fn str_find_aux<A>(
                     cx.push((init + 1) as i64)?;
                     cx.push(res as i64)?;
 
-                    return ms.push_captures(cx, None, None);
+                    ms.push_captures(&cx, None, None)?;
                 } else {
-                    return ms.push_captures(cx, Some(init), Some(res));
+                    ms.push_captures(&cx, Some(init), Some(res))?;
                 }
+
+                return Ok(cx.into());
             }
 
             let fresh4 = init;
@@ -1101,10 +1105,10 @@ impl<'a> MatchState<'a> {
 
     fn push_captures<A>(
         mut self,
-        cx: Context<A, Args>,
+        cx: &Context<A, Args>,
         off: Option<usize>,
         e: Option<usize>,
-    ) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    ) -> Result<(), Box<dyn core::error::Error>> {
         let nlevels = if self.capture.is_empty() && off.is_some() {
             1
         } else {
@@ -1119,7 +1123,7 @@ impl<'a> MatchState<'a> {
             self.push_onecapture(&cx, i, off, e)?;
         }
 
-        Ok(cx.into())
+        Ok(())
     }
 
     fn push_onecapture<A>(

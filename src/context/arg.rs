@@ -157,17 +157,20 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
     /// Checks if this argument is a string and return it.
     ///
-    /// This method will return [`None`] if this argument does not exists or not a string.
+    /// This method will accept a number if `convert` is `true`. In this case the argument will be
+    /// converted to a string **in-place**.
     #[inline(always)]
-    pub fn as_str(&self) -> Option<&'a Str<D>> {
+    pub fn as_str(&self, convert: bool) -> Option<&'a Str<D>> {
         let v = self.get_raw_or_null();
 
         if v.is_null() {
-            None
-        } else if unsafe { (*v).tt_ & 0xf == 4 } {
-            Some(unsafe { &*(*v).value_.gc.cast() })
-        } else {
-            None
+            return None;
+        }
+
+        match unsafe { (*v).tt_ & 0xf } {
+            3 if convert => Some(unsafe { &*self.convert_str(v) }),
+            4 => Some(unsafe { &*(*v).value_.gc.cast() }),
+            _ => None,
         }
     }
 
@@ -527,18 +530,18 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
     /// Checks if this argument is a string or number and return it as string.
     ///
-    /// This has the same semantic as `luaL_checklstring`, except it **does not** convert the
-    /// argument in-place if it is a number.
+    /// This has the same semantic as `luaL_checklstring`, which mean it will convert the argument
+    /// **in-place** if it is a number.
     ///
     /// This method will trigger GC if new string is allocated.
     #[inline(always)]
-    pub fn to_str(&self) -> Result<Ref<'b, Str<D>>, Box<dyn core::error::Error>> {
+    pub fn to_str(&self) -> Result<&'a Str<D>, Box<dyn core::error::Error>> {
         let expect = lua_typename(4);
         let v = self.get_raw(expect)?;
 
         match unsafe { (*v).tt_ & 0xf } {
-            3 => Ok(unsafe { self.convert_str(v) }),
-            4 => Ok(unsafe { Ref::new((*v).value_.gc.cast()) }),
+            3 => Ok(unsafe { &*self.convert_str(v) }),
+            4 => Ok(unsafe { &*(*v).value_.gc.cast() }),
             _ => Err(unsafe { self.type_error(expect, v) }),
         }
     }
@@ -550,13 +553,15 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     /// - This argument is `nil`.
     /// - This argument does not exists and `required` is `false`.
     ///
-    /// This has the same semantic as `luaL_checklstring`, except it **does not** convert the
-    /// argument in-place if it is a number.
+    /// This has the same semantic as `luaL_checklstring`, which mean it will convert the argument
+    /// **in-place** if it is a number.
+    ///
+    /// This method will trigger GC if new string is allocated.
     #[inline(always)]
     pub fn to_nilable_str(
         &self,
         required: bool,
-    ) -> Result<Option<Ref<'b, Str<D>>>, Box<dyn core::error::Error>> {
+    ) -> Result<Option<&'a Str<D>>, Box<dyn core::error::Error>> {
         // Get argument.
         let expect = "nil or string";
         let v = self.get_raw_or_null();
@@ -571,14 +576,14 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         // Check type.
         match unsafe { (*v).tt_ & 0xf } {
             0 => Ok(None),
-            3 => Ok(Some(unsafe { self.convert_str(v) })),
-            4 => Ok(Some(unsafe { Ref::new((*v).value_.gc.cast()) })),
+            3 => Ok(Some(unsafe { &*self.convert_str(v) })),
+            4 => Ok(Some(unsafe { &*(*v).value_.gc.cast() })),
             _ => Err(unsafe { self.type_error(expect, v) }),
         }
     }
 
     #[inline(never)]
-    unsafe fn convert_str(&self, v: *const UnsafeValue<D>) -> Ref<'b, Str<D>> {
+    unsafe fn convert_str(&self, v: *mut UnsafeValue<D>) -> *const Str<D> {
         // Convert to string.
         let s = if unsafe { (*v).tt_ & 0x3f == 0x03 } {
             unsafe { (*v).value_.i.to_string() }
@@ -589,13 +594,16 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         // Create string.
         let g = self.cx.th.hdr.global();
         let s = unsafe { Str::from_str(g, s) };
-        let v = unsafe { Ref::new(s.unwrap_or_else(identity)) };
+        let r = s.unwrap_or_else(identity);
+
+        unsafe { (*v).tt_ = (*r).hdr.tt | 1 << 6 };
+        unsafe { (*v).value_.gc = r.cast() };
 
         if s.is_ok() {
             g.gc.step();
         }
 
-        v
+        r
     }
 
     /// Gets the argument and convert it to Lua string suitable for display.

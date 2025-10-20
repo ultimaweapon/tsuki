@@ -81,23 +81,10 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - Remove libc.
 - JIT using Cranelift.
 
-## Breaking changes in 0.2
+## Breaking changes in 0.3
 
-- `Lua::with_seed` has parameters swapped.
-- `Lua::setup_base` has been replaced with `BaseLib`.
-- `Lua::setup_string` has been replaced with `StringLib`.
-- `Lua::setup_table` has been replaced with `TableLib`.
-- `Lua::setup_math` has been replaced with `MathLib`.
-- `Lua::setup_coroutine` has been replaced with `CoroLib`.
-- `Lua::load` and `Context::load` accept `Into<ChunkInfo>` instead of `ChunkInfo`.
-- `Arg::get_str` and `Arg::get_nilable_str` no longer accept a number. Use `Arg::to_str` or `Arg::to_nilable_str` instead of you want old behavior.
-- `Arg::to_num` renamed to `Arg::to_float`.
-- `Arg::to_nilable_num` renamed to `Arg::to_nilable_float`.
-- `Arg::len` is removed in favor of `Context::get_value_len`.
-- `Arg::lt` is removed in favor of `Context::is_value_lt`.
-- `Value::Num` is renamed to `Value::Float`.
-- `ChunkInfo` no longer implement `Default`.
-- `Str::is_utf8` and `Str::as_str` now lazy evaluate the content to see if data is UTF-8.
+- `Arg::as_str` has parameter to allow converting a number to string.
+- `Arg::to_str` and `Arg::to_nilable_str` now convert a number to string in-place.
 
 ## License
 

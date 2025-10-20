@@ -246,7 +246,7 @@ pub fn rawget<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::
 /// Implementation of [rawlen](https://www.lua.org/manual/5.4/manual.html#pdf-rawlen).
 pub fn rawlen<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1);
-    let l = if let Some(v) = v.as_str() {
+    let l = if let Some(v) = v.as_str(false) {
         v.len() as i64
     } else if let Some(v) = v.as_table() {
         v.len()
@@ -351,7 +351,7 @@ pub fn tonumber<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core
                 cx.push(v)?;
 
                 return Ok(cx.into());
-            } else if let Some(v) = e.as_str().and_then(|v| v.to_num()) {
+            } else if let Some(v) = e.as_str(false).and_then(|v| v.to_num()) {
                 cx.push(v)?;
 
                 return Ok(cx.into());
