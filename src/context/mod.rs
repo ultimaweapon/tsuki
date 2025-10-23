@@ -16,7 +16,6 @@ use alloc::vec::Vec;
 use core::any::Any;
 use core::cell::Cell;
 use core::convert::identity;
-use core::mem::MaybeUninit;
 use core::num::NonZero;
 use core::pin::pin;
 use core::ptr::null;
@@ -196,13 +195,10 @@ impl<'a, A, T> Context<'a, A, T> {
         }
 
         // Try convert to integer.
-        let mut v = MaybeUninit::uninit();
-
-        if unsafe { luaV_tointeger(&l, v.as_mut_ptr(), F2Ieq) == 0 } {
-            return Err("object length is not an integer".into());
+        match unsafe { luaV_tointeger(&l, F2Ieq) } {
+            Some(v) => Ok(v),
+            None => Err("object length is not an integer".into()),
         }
-
-        Ok(unsafe { v.assume_init() })
     }
 
     /// Check if `lhs` equal `rhs`.

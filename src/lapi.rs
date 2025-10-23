@@ -3,13 +3,12 @@
 
 use crate::ldo::luaD_growstack;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
-use crate::lobject::{CClosure, luaO_tostring};
+use crate::lobject::CClosure;
 use crate::ltm::luaT_typenames_;
 use crate::table::{luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_resize, luaH_setint};
 use crate::value::UnsafeValue;
 use crate::vm::{
-    F2Ieq, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_lessequal,
-    luaV_lessthan, luaV_tointeger, luaV_tonumber_,
+    luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_lessequal, luaV_lessthan,
 };
 use crate::{
     Args, Context, LuaFn, Object, Ret, StackOverflow, StackValue, Str, Table, Thread, UserData,
@@ -23,6 +22,7 @@ use core::ffi::CStr;
 use core::ptr::{null, null_mut};
 
 type c_int = i32;
+type c_long = i64;
 
 unsafe fn index2value<D>(L: *const Thread<D>, mut idx: c_int) -> *mut UnsafeValue<D> {
     let ci = (*L).ci.get();
@@ -117,13 +117,13 @@ pub unsafe fn lua_absindex<D>(L: *const Thread<D>, idx: c_int) -> c_int {
     return if idx > 0 as c_int || idx <= -(1000000 as c_int) - 1000 as c_int {
         idx
     } else {
-        ((*L).top.get()).offset_from((*(*L).ci.get()).func) as libc::c_long as c_int + idx
+        ((*L).top.get()).offset_from((*(*L).ci.get()).func) as c_long as c_int + idx
     };
 }
 
 pub unsafe fn lua_gettop<D>(L: *const Thread<D>) -> c_int {
     return ((*L).top.get()).offset_from(((*(*L).ci.get()).func).offset(1 as c_int as isize))
-        as libc::c_long as c_int;
+        as c_long as c_int;
 }
 
 pub unsafe fn lua_settop<D>(
@@ -271,18 +271,6 @@ pub unsafe fn lua_iscfunction<D>(L: *mut Thread<D>, idx: c_int) -> c_int {
         as c_int;
 }
 
-#[inline(never)]
-pub unsafe fn lua_isnumber<D>(L: *const Thread<D>, idx: c_int) -> c_int {
-    let mut n: f64 = 0.;
-    let o = index2value(L, idx);
-    return if (*o).tt_ == 3 | 1 << 4 {
-        n = (*o).value_.n;
-        1 as c_int
-    } else {
-        luaV_tonumber_(o, &mut n)
-    };
-}
-
 pub unsafe fn lua_isstring<D>(L: *const Thread<D>, idx: c_int) -> c_int {
     let o = index2value(L, idx);
     return ((*o).tt_ as c_int & 0xf as c_int == 4 as c_int
@@ -330,39 +318,6 @@ pub unsafe fn lua_compare<D>(
     return Ok(i);
 }
 
-pub unsafe fn lua_tonumberx<D>(L: *const Thread<D>, idx: c_int, pisnum: *mut c_int) -> f64 {
-    let mut n: f64 = 0 as c_int as f64;
-    let o = index2value(L, idx);
-    let isnum: c_int = if (*o).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
-        n = (*o).value_.n;
-        1 as c_int
-    } else {
-        luaV_tonumber_(o, &mut n)
-    };
-    if !pisnum.is_null() {
-        *pisnum = isnum;
-    }
-    return n;
-}
-
-#[inline(never)]
-pub unsafe fn lua_tointegerx<D>(L: *const Thread<D>, idx: c_int, pisnum: *mut c_int) -> i64 {
-    let mut res: i64 = 0 as c_int as i64;
-    let o = index2value(L, idx);
-    let isnum: c_int = if (*o).tt_ == 3 | 0 << 4 {
-        res = (*o).value_.i;
-        1 as c_int
-    } else {
-        luaV_tointeger(o, &mut res, F2Ieq)
-    };
-
-    if !pisnum.is_null() {
-        *pisnum = isnum;
-    }
-
-    return res;
-}
-
 #[inline(never)]
 pub unsafe fn lua_tolstring<D>(L: *const Thread<D>, idx: c_int, convert: bool) -> *const Str<D> {
     let mut o = index2value(L, idx);
@@ -373,7 +328,7 @@ pub unsafe fn lua_tolstring<D>(L: *const Thread<D>, idx: c_int, convert: bool) -
         } else if (*o).tt_ & 0x3f == 0x03 {
             (*o).value_.i.to_string()
         } else if (*o).tt_ & 0x3f == 0x13 {
-            luaO_tostring((*o).value_.n)
+            (*o).value_.n.to_string()
         } else {
             return null();
         };

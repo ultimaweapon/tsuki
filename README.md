@@ -85,6 +85,9 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 
 - `Arg::as_str` has parameter to allow converting a number to string.
 - `Arg::to_str` and `Arg::to_nilable_str` now convert a number to string in-place.
+- `Arg::to_float` and `Arg::to_nilable_float` now return `Float` instead of `f64`.
+- `Value::Float` and `Number::Float` value is changed from `f64` to `Float`.
+- Float to string conversion does not truncate precision (Lua limit this to 14 digits by default).
 
 ## License
 

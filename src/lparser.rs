@@ -32,7 +32,7 @@ use crate::vm::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_FORLOOP, OP_FORPREP, OP_GETUPVAL, OP_MOVE, OP_NEWTABLE,
     OP_TAILCALL, OP_TBC, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_VARARG, OP_VARARGPREP, OpCode,
 };
-use crate::{ChunkInfo, Lua, LuaFn, ParseError, Ref, Str, Table};
+use crate::{ChunkInfo, Float, Lua, LuaFn, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;
 use alloc::string::String;
@@ -240,7 +240,7 @@ impl<D> Copy for expdesc<D> {}
 #[repr(C)]
 pub union C2RustUnnamed_11<D> {
     pub ival: i64,
-    pub nval: f64,
+    pub nval: Float,
     pub strval: *const Str<D>,
     pub info: c_int,
     pub ind: C2RustUnnamed_13,
@@ -2800,11 +2800,15 @@ pub unsafe fn luaY_parser<D>(
         lastline: 0,
         t: Token {
             token: 0,
-            seminfo: SemInfo { r: 0. },
+            seminfo: SemInfo {
+                r: Float::default(),
+            },
         },
         lookahead: Token {
             token: 0,
-            seminfo: SemInfo { r: 0. },
+            seminfo: SemInfo {
+                r: Float::default(),
+            },
         },
         fs: null_mut(),
         g,

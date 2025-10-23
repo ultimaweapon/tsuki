@@ -13,7 +13,7 @@ use crate::lparser::{Dyndata, FuncState};
 use crate::lzio::{Mbuffer, ZIO};
 use crate::table::{luaH_finishset, luaH_getstr};
 use crate::value::UnsafeValue;
-use crate::{ChunkInfo, Lua, Node, ParseError, Ref, Str, Table};
+use crate::{ChunkInfo, Float, Lua, Node, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;
 use alloc::string::ToString;
@@ -69,7 +69,7 @@ type c_ulong = u64;
 
 #[repr(C)]
 pub union SemInfo<D> {
-    pub r: f64,
+    pub r: Float,
     pub i: i64,
     pub ts: *const Str<D>,
 }

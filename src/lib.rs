@@ -52,6 +52,7 @@
 //! - [u32]
 //! - [f32]
 //! - [f64]
+//! - [Float]
 //! - [Number]
 //! - Reference to [Str]
 //! - Reference to [Table]
@@ -166,6 +167,7 @@ pub use self::context::*;
 pub use self::function::*;
 pub use self::gc::Ref;
 pub use self::module::*;
+pub use self::number::*;
 pub use self::parser::*;
 pub use self::registry::*;
 pub use self::string::*;
@@ -230,6 +232,7 @@ mod lstring;
 mod ltm;
 mod lzio;
 mod module;
+mod number;
 mod parser;
 mod registry;
 mod string;
@@ -814,7 +817,7 @@ pub enum Value<'a, A> {
     /// The value is `integer`.
     Int(i64),
     /// The value is `float`.
-    Float(f64),
+    Float(Float),
     /// The value is `string`.
     Str(Ref<'a, Str<A>>),
     /// The value is `table`.
@@ -940,27 +943,6 @@ impl<D> Clone for AsyncFp<D> {
 }
 
 impl<D> Copy for AsyncFp<D> {}
-
-/// Helper enum to encapsulates either integer or float.
-#[derive(Clone, Copy, PartialEq)]
-pub enum Number {
-    Int(i64),
-    Float(f64),
-}
-
-impl From<i64> for Number {
-    #[inline(always)]
-    fn from(value: i64) -> Self {
-        Self::Int(value)
-    }
-}
-
-impl From<f64> for Number {
-    #[inline(always)]
-    fn from(value: f64) -> Self {
-        Self::Float(value)
-    }
-}
 
 /// Unit struct to store any value in registry or collection.
 pub struct Dynamic;

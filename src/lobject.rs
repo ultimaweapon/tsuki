@@ -3,18 +3,15 @@
 
 use crate::gc::Object;
 use crate::lctype::luai_ctype_;
-use crate::libc::snprintf;
 use crate::lmem::luaM_free_;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
-use crate::{Args, ArithError, ChunkInfo, Context, Number, Ops, Ret, Str, Thread};
+use crate::{Args, ArithError, ChunkInfo, Context, Float, Number, Ops, Ret, Str, Thread};
 use alloc::boxed::Box;
-use alloc::string::String;
 use core::cell::{Cell, UnsafeCell};
 use core::ffi::{c_char, c_void};
-use libc::{strpbrk, strspn, strtod};
-use libm::{floor, pow};
+use libc::{strpbrk, strtod};
 
 type c_uchar = u8;
 type c_int = i32;
@@ -467,7 +464,7 @@ fn intarith(op: Ops, v1: i64, v2: i64) -> Result<i64, ArithError> {
     Ok(r)
 }
 
-fn numarith(op: Ops, v1: f64, v2: f64) -> f64 {
+fn numarith(op: Ops, v1: Float, v2: Float) -> Float {
     match op {
         Ops::Add => v1 + v2,
         Ops::Sub => v1 - v2,
@@ -477,13 +474,13 @@ fn numarith(op: Ops, v1: f64, v2: f64) -> f64 {
             if v2 == 2.0 {
                 v1 * v1
             } else {
-                pow(v1, v2)
+                v1.pow(v2)
             }
         }
-        Ops::IntDiv => floor(v1 / v2),
+        Ops::IntDiv => (v1 / v2).floor(),
         Ops::Neg => -v1,
         Ops::Mod => luaV_modf(v1, v2),
-        _ => 0.0,
+        _ => Float::default(),
     }
 }
 
@@ -496,17 +493,24 @@ pub unsafe fn luaO_rawarith<D>(
         Ops::And | Ops::Or | Ops::Xor | Ops::Shl | Ops::Shr | Ops::Not => {
             let mut i1: i64 = 0;
             let mut i2: i64 = 0;
+
             if (if (*p1).tt_ == 3 | 0 << 4 {
                 i1 = (*p1).value_.i;
                 1 as c_int
+            } else if let Some(v) = luaV_tointegerns(p1, F2Ieq) {
+                i1 = v;
+                1
             } else {
-                luaV_tointegerns(p1, &mut i1, F2Ieq)
+                0
             }) != 0
                 && (if (*p2).tt_ == 3 | 0 << 4 {
                     i2 = (*p2).value_.i;
                     1 as c_int
+                } else if let Some(v) = luaV_tointegerns(p2, F2Ieq) {
+                    i2 = v;
+                    1
                 } else {
-                    luaV_tointegerns(p2, &mut i2, F2Ieq)
+                    0
                 }) != 0
             {
                 intarith(op, i1, i2).map(|v| Some(v.into()))
@@ -515,14 +519,15 @@ pub unsafe fn luaO_rawarith<D>(
             }
         }
         Ops::NumDiv | Ops::Pow => {
-            let mut n1: f64 = 0.;
-            let mut n2: f64 = 0.;
+            let mut n1 = Float::default();
+            let mut n2 = Float::default();
+
             if (if (*p1).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
                 n1 = (*p1).value_.n;
                 1 as c_int
             } else {
                 if (*p1).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
-                    n1 = (*p1).value_.i as f64;
+                    n1 = ((*p1).value_.i as f64).into();
                     1 as c_int
                 } else {
                     0 as c_int
@@ -533,7 +538,7 @@ pub unsafe fn luaO_rawarith<D>(
                     1 as c_int
                 } else {
                     if (*p2).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
-                        n2 = (*p2).value_.i as f64;
+                        n2 = ((*p2).value_.i as f64).into();
                         1 as c_int
                     } else {
                         0 as c_int
@@ -546,8 +551,8 @@ pub unsafe fn luaO_rawarith<D>(
             }
         }
         op => {
-            let mut n1_0: f64 = 0.;
-            let mut n2_0: f64 = 0.;
+            let mut n1_0 = Float::default();
+            let mut n2_0 = Float::default();
 
             if (*p1).tt_ == 3 | 0 << 4 && (*p2).tt_ == 3 | 0 << 4 {
                 intarith(op, (*p1).value_.i, (*p2).value_.i).map(|v| Some(v.into()))
@@ -556,7 +561,7 @@ pub unsafe fn luaO_rawarith<D>(
                 1 as c_int
             } else {
                 if (*p1).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
-                    n1_0 = (*p1).value_.i as f64;
+                    n1_0 = ((*p1).value_.i as f64).into();
                     1 as c_int
                 } else {
                     0 as c_int
@@ -567,7 +572,7 @@ pub unsafe fn luaO_rawarith<D>(
                     1 as c_int
                 } else {
                     if (*p2).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
-                        n2_0 = (*p2).value_.i as f64;
+                        n2_0 = ((*p2).value_.i as f64).into();
                         1 as c_int
                     } else {
                         0 as c_int
@@ -738,26 +743,4 @@ pub unsafe fn luaO_utf8esc(buff: *mut c_char, mut x: c_ulong) -> c_int {
         *buff.offset((8 as c_int - n) as isize) = ((!mfb << 1 as c_int) as c_ulong | x) as c_char;
     }
     return n;
-}
-
-#[inline(never)]
-pub fn luaO_tostring(n: f64) -> String {
-    // TODO: Remove snprintf.
-    let mut buff = [0; 44];
-    let buff = buff.as_mut_ptr();
-    let mut len = unsafe { snprintf(buff, 44, c"%.14g".as_ptr(), n) };
-
-    if unsafe { *buff.offset(strspn(buff, c"-0123456789".as_ptr()) as isize) == 0 } {
-        let fresh2 = len;
-        len = len + 1;
-        unsafe { *buff.offset(fresh2 as isize) = b'.' as _ };
-        let fresh3 = len;
-        len = len + 1;
-        unsafe { *buff.offset(fresh3 as isize) = '0' as i32 as c_char };
-    }
-
-    // Get Rust string.
-    let s = unsafe { core::slice::from_raw_parts(buff.cast(), len as usize) };
-
-    core::str::from_utf8(s).unwrap().into() // snprintf may effect by C locale.
 }

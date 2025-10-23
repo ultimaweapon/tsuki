@@ -917,9 +917,7 @@ pub unsafe fn luaG_tointerror<D>(
     p1: *const UnsafeValue<D>,
     mut p2: *const UnsafeValue<D>,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    let mut temp: i64 = 0;
-
-    if luaV_tointegerns(p1, &mut temp, F2Ieq) == 0 {
+    if luaV_tointegerns(p1, F2Ieq).is_none() {
         p2 = p1;
     }
 

@@ -9,7 +9,7 @@ use crate::lobject::luaO_ceillog2;
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_flttointeger};
-use crate::{Node, Str, Table, TableError};
+use crate::{Float, Node, Str, Table, TableError};
 use alloc::boxed::Box;
 use core::any::TypeId;
 use core::cell::Cell;
@@ -41,11 +41,12 @@ unsafe fn hashint<D>(t: *const Table<D>, i: i64) -> *mut Node<D> {
     };
 }
 
-unsafe fn l_hashfloat(mut n: f64) -> c_int {
-    let mut i: c_int = 0;
+unsafe fn l_hashfloat(n: Float) -> c_int {
     let mut ni: i64 = 0;
-    (n, i) = frexp(n);
+    let (mut n, i) = frexp(n.into());
+
     n = n * -((-(2147483647 as c_int) - 1 as c_int) as f64);
+
     if !(n >= (-(0x7fffffffffffffff as c_longlong) - 1 as c_int as c_longlong) as c_double
         && n < -((-(0x7fffffffffffffff as c_longlong) - 1 as c_int as c_longlong) as c_double)
         && {
@@ -71,7 +72,8 @@ unsafe fn mainpositionTV<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *
             return hashint(t, i);
         }
         19 => {
-            let n: f64 = (*key).value_.n;
+            let n = (*key).value_.n;
+
             return ((*t).node.get()).offset(
                 (l_hashfloat(n)
                     % (((1 as c_int) << (*t).lsizenode.get() as c_int) - 1 as c_int | 1 as c_int))
@@ -605,16 +607,18 @@ unsafe fn luaH_newkey<D>(
     if (*key).tt_ & 0xf == 0 {
         return Err(TableError::NilKey);
     } else if (*key).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 {
-        let f: f64 = (*key).value_.n;
-        let mut k: i64 = 0;
+        let f = (*key).value_.n;
 
-        if luaV_flttointeger(f, &mut k, F2Ieq) != 0 {
-            let io = &raw mut aux;
-            (*io).value_.i = k;
-            (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
-            key = &mut aux;
-        } else if !(f == f) {
-            return Err(TableError::NanKey);
+        match luaV_flttointeger(f, F2Ieq) {
+            Some(k) => {
+                aux = k.into();
+                key = &raw const aux;
+            }
+            None => {
+                if !(f == f) {
+                    return Err(TableError::NanKey);
+                }
+            }
         }
     }
 
@@ -785,8 +789,7 @@ pub unsafe fn luaH_get<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *co
         3 => return luaH_getint(t, (*key).value_.i),
         0 => return &raw const (*t).absent_key,
         19 => {
-            let mut k: i64 = 0;
-            if luaV_flttointeger((*key).value_.n, &mut k, F2Ieq) != 0 {
+            if let Some(k) = luaV_flttointeger((*key).value_.n, F2Ieq) {
                 return luaH_getint(t, k);
             }
         }

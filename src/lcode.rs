@@ -26,7 +26,7 @@ use crate::vm::{
     OP_TEST, OP_TESTSET, OP_UNM, OpCode, luaP_opmodes, luaV_equalobj, luaV_flttointeger,
     luaV_tointegerns,
 };
-use crate::{ArithError, Ops, ParseError, Str};
+use crate::{ArithError, Float, Ops, ParseError, Str};
 use core::ffi::c_void;
 use core::fmt::Display;
 use core::ops::Deref;
@@ -812,31 +812,33 @@ unsafe fn luaK_intK<D>(
 unsafe fn luaK_numberK<D>(
     ls: *mut LexState<D>,
     fs: *mut FuncState<D>,
-    r: f64,
+    r: Float,
 ) -> Result<c_int, ParseError> {
     let mut o = UnsafeValue::default();
-    let mut ik: i64 = 0;
     let io = &raw mut o;
 
     (*io).value_.n = r;
     (*io).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
-    if luaV_flttointeger(r, &mut ik, F2Ieq) == 0 {
-        return addk(ls, fs, &mut o, &mut o);
-    } else {
-        let nbm: c_int = 53 as c_int;
-        let q: f64 = ldexp(1.0f64, -nbm + 1 as c_int);
-        let k: f64 = if ik == 0 as c_int as i64 {
-            q
-        } else {
-            r + r * q
-        };
-        let mut kv = UnsafeValue::default();
-        let io_0 = &raw mut kv;
 
-        (*io_0).value_.n = k;
-        (*io_0).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
-        return addk(ls, fs, &mut kv, &mut o);
-    };
+    match luaV_flttointeger(r, F2Ieq) {
+        Some(ik) => {
+            let nbm: c_int = 53 as c_int;
+            let q: f64 = ldexp(1.0f64, -nbm + 1 as c_int);
+            let k = if ik == 0 as c_int as i64 {
+                q.into()
+            } else {
+                r + r * q
+            };
+            let mut kv = UnsafeValue::default();
+            let io_0 = &raw mut kv;
+
+            (*io_0).value_.n = k;
+            (*io_0).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
+
+            addk(ls, fs, &raw mut kv, &raw mut o)
+        }
+        None => addk(ls, fs, &raw mut o, &raw mut o),
+    }
 }
 
 unsafe fn boolF<D>(ls: *mut LexState<D>, fs: *mut FuncState<D>) -> Result<c_int, ParseError> {
@@ -897,13 +899,11 @@ unsafe fn luaK_float<D>(
     ls: *mut LexState<D>,
     fs: *mut FuncState<D>,
     reg: c_int,
-    f: f64,
+    f: Float,
 ) -> Result<(), ParseError> {
-    let mut fi: i64 = 0;
-    if luaV_flttointeger(f, &mut fi, F2Ieq) != 0 && fitsBx(fi) != 0 {
-        codeAsBx(ls, fs, OP_LOADF, reg, fi as c_int)?;
-    } else {
-        luaK_codek(ls, fs, reg, luaK_numberK(ls, fs, f)?)?;
+    match luaV_flttointeger(f, F2Ieq) {
+        Some(fi) => codeAsBx(ls, fs, OP_LOADF, reg, fi as c_int)?,
+        None => luaK_codek(ls, fs, reg, luaK_numberK(ls, fs, f)?)?,
     };
 
     Ok(())
@@ -1560,15 +1560,18 @@ unsafe fn isSCint<D>(e: *mut expdesc<D>) -> c_int {
 
 unsafe fn isSCnumber<D>(e: *mut expdesc<D>, pi: *mut c_int, isfloat: *mut c_int) -> c_int {
     let mut i: i64 = 0;
+
     if (*e).k as c_uint == VKINT as c_int as c_uint {
         i = (*e).u.ival;
     } else if (*e).k as c_uint == VKFLT as c_int as c_uint
-        && luaV_flttointeger((*e).u.nval, &mut i, F2Ieq) != 0
+        && let Some(v) = luaV_flttointeger((*e).u.nval, F2Ieq)
     {
+        i = v;
         *isfloat = 1 as c_int;
     } else {
         return 0 as c_int;
     }
+
     if !((*e).t != (*e).f) && fitsC(i) != 0 {
         *pi = i as c_int + (((1 as c_int) << 8 as c_int) - 1 as c_int >> 1 as c_int);
         return 1 as c_int;
@@ -1617,14 +1620,12 @@ pub unsafe fn luaK_indexed<D>(
 unsafe fn validop<D>(op: Ops, v1: *mut UnsafeValue<D>, v2: *mut UnsafeValue<D>) -> c_int {
     match op {
         Ops::And | Ops::Or | Ops::Xor | Ops::Shl | Ops::Shr | Ops::Not => {
-            let mut i: i64 = 0;
-
-            (luaV_tointegerns(v1, &mut i, F2Ieq) != 0 && luaV_tointegerns(v2, &mut i, F2Ieq) != 0)
+            (luaV_tointegerns(v1, F2Ieq).is_some() && luaV_tointegerns(v2, F2Ieq).is_some())
                 as c_int
         }
         Ops::NumDiv | Ops::IntDiv | Ops::Mod => {
             return ((if (*v2).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
-                (*v2).value_.i as f64
+                ((*v2).value_.i as f64).into()
             } else {
                 (*v2).value_.n
             }) != 0 as c_int as f64) as c_int;

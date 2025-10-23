@@ -1,5 +1,5 @@
 //! Implementation of [mathematical library](https://www.lua.org/manual/5.4/manual.html#6.7).
-use crate::{ArgNotFound, Args, Context, Nil, Number, Ret, Type};
+use crate::{ArgNotFound, Args, Context, Float, Nil, Number, Ret, Type};
 use alloc::boxed::Box;
 
 /// Implementation of [math.floor](https://www.lua.org/manual/5.4/manual.html#pdf-math.floor).
@@ -23,10 +23,10 @@ pub fn log<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::err
     let v = cx.arg(1).to_float()?;
 
     match cx.arg(2).to_nilable_float(false)? {
-        Some(2.0) => cx.push(v.log2())?,
-        Some(10.0) => cx.push(v.log10())?,
+        Some(Float(2.0)) => cx.push(v.log2())?,
+        Some(Float(10.0)) => cx.push(v.log10())?,
         Some(b) => cx.push(v.log(b))?,
-        None => cx.push(libm::log(v))?,
+        None => cx.push(libm::log(v.into()))?,
     }
 
     Ok(cx.into())
@@ -61,7 +61,7 @@ pub fn modf<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
         let ip = if n < 0.0 { n.ceil() } else { n.floor() };
 
         cx.push(pushnumint(ip))?;
-        cx.push(if n == ip { 0.0 } else { n - ip })?;
+        cx.push(if n == ip { Float::default() } else { n - ip })?;
     }
 
     Ok(cx.into())
@@ -94,11 +94,11 @@ pub fn r#type<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
 }
 
 #[inline(always)]
-fn pushnumint(d: f64) -> Number {
+fn pushnumint(d: Float) -> Number {
     // TODO: This does not seems right even on Lua implementation. Lua said MININTEGER always has an
     // exact representation as a float but it does not.
     if d >= i64::MIN as f64 && d <= i64::MAX as f64 {
-        Number::Int(d as i64)
+        Number::Int(f64::from(d) as i64)
     } else {
         Number::Float(d)
     }

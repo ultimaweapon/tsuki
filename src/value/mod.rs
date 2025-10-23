@@ -1,6 +1,6 @@
 use crate::{
-    Arg, Args, AsyncFp, Context, Fp, LuaFn, Nil, Number, Object, Ref, Ret, StackValue, Str, Table,
-    Thread, UserData, Value,
+    Arg, Args, AsyncFp, Context, Float, Fp, LuaFn, Nil, Number, Object, Ref, Ret, StackValue, Str,
+    Table, Thread, UserData, Value,
 };
 use alloc::boxed::Box;
 use core::error::Error;
@@ -159,19 +159,23 @@ impl<D> From<u32> for UnsafeValue<D> {
     }
 }
 
-impl<D> From<f32> for UnsafeValue<D> {
+impl<A> From<f32> for UnsafeValue<A> {
     #[inline(always)]
     fn from(value: f32) -> Self {
-        Self {
-            value_: UntaggedValue { n: value.into() },
-            tt_: 3 | 1 << 4,
-        }
+        Float::from(value).into()
     }
 }
 
-impl<D> From<f64> for UnsafeValue<D> {
+impl<A> From<f64> for UnsafeValue<A> {
     #[inline(always)]
     fn from(value: f64) -> Self {
+        Float::from(value).into()
+    }
+}
+
+impl<A> From<Float> for UnsafeValue<A> {
+    #[inline(always)]
+    fn from(value: Float) -> Self {
         Self {
             value_: UntaggedValue { n: value },
             tt_: 3 | 1 << 4,
@@ -179,7 +183,7 @@ impl<D> From<f64> for UnsafeValue<D> {
     }
 }
 
-impl<D> From<Number> for UnsafeValue<D> {
+impl<A> From<Number> for UnsafeValue<A> {
     #[inline(always)]
     fn from(value: Number) -> Self {
         match value {
@@ -342,7 +346,7 @@ pub union UntaggedValue<A> {
         Context<A, Args>,
     ) -> Pin<Box<dyn Future<Output = Result<Context<A, Ret>, Box<dyn Error>>> + '_>>,
     pub i: i64,
-    pub n: f64,
+    pub n: Float,
 }
 
 impl<A> Clone for UntaggedValue<A> {

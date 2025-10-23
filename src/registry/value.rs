@@ -263,7 +263,7 @@ unsafe impl<A> RegValue<A> for f32 {
     where
         A: 'a,
     {
-        unsafe { (*v).value_.n as f32 }
+        unsafe { f64::from((*v).value_.n) as f32 }
     }
 }
 
@@ -290,7 +290,7 @@ unsafe impl<A> RegValue<A> for f64 {
     where
         A: 'a,
     {
-        unsafe { (*v).value_.n }
+        unsafe { (*v).value_.n.into() }
     }
 }
 

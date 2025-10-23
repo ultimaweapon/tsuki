@@ -2,17 +2,15 @@ use super::{Args, Context};
 use crate::lapi::lua_typename;
 use crate::lauxlib::luaL_argerror;
 use crate::ldo::luaD_call;
-use crate::lobject::luaO_tostring;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_tointeger, luaV_tonumber_};
-use crate::{NON_YIELDABLE_WAKER, Number, Ref, Str, Table, Type, UserData, Value};
+use crate::{Float, NON_YIELDABLE_WAKER, Number, Ref, Str, Table, Type, UserData, Value};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
 use core::any::{Any, type_name};
 use core::convert::identity;
 use core::fmt::{Display, Write};
-use core::mem::MaybeUninit;
 use core::num::NonZero;
 use core::pin::pin;
 use core::ptr::{null, null_mut};
@@ -417,10 +415,8 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         &self,
         raw: *const UnsafeValue<D>,
     ) -> Result<i64, Box<dyn core::error::Error>> {
-        let mut val = MaybeUninit::uninit();
-
-        if unsafe { luaV_tointeger(raw, val.as_mut_ptr(), F2Ieq) != 0 } {
-            Ok(unsafe { val.assume_init() })
+        if let Some(val) = unsafe { luaV_tointeger(raw, F2Ieq) } {
+            Ok(val)
         } else if unsafe { (*raw).tt_ == 3 | 1 << 4 } {
             Err(self.error("number has no integer representation"))
         } else {
@@ -456,10 +452,8 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         };
 
         // Convert to integer.
-        let mut val = MaybeUninit::uninit();
-
-        if unsafe { luaV_tointeger(raw, val.as_mut_ptr(), F2Ieq) != 0 } {
-            Ok(Some(unsafe { val.assume_init() }))
+        if let Some(val) = unsafe { luaV_tointeger(raw, F2Ieq) } {
+            Ok(Some(val))
         } else if unsafe { (*raw).tt_ == 3 | 1 << 4 } {
             Err(self.error("number has no integer representation"))
         } else {
@@ -471,7 +465,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     ///
     /// This has the same semantic as `luaL_checknumber`.
     #[inline(always)]
-    pub fn to_float(&self) -> Result<f64, Box<dyn core::error::Error>> {
+    pub fn to_float(&self) -> Result<Float, Box<dyn core::error::Error>> {
         // Check if number.
         let expect = lua_typename(3);
         let raw = self.get_raw(expect)?;
@@ -481,10 +475,8 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         }
 
         // Convert to number.
-        let mut val = MaybeUninit::uninit();
-
-        if unsafe { luaV_tonumber_(raw, val.as_mut_ptr()) != 0 } {
-            Ok(unsafe { val.assume_init() })
+        if let Some(val) = unsafe { luaV_tonumber_(raw) } {
+            Ok(val)
         } else {
             Err(unsafe { self.type_error(expect, raw) })
         }
@@ -502,7 +494,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     pub fn to_nilable_float(
         &self,
         required: bool,
-    ) -> Result<Option<f64>, Box<dyn core::error::Error>> {
+    ) -> Result<Option<Float>, Box<dyn core::error::Error>> {
         // Check type.
         let expect = "nil or number";
         let raw = self.get_raw_or_null();
@@ -519,10 +511,8 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         };
 
         // Convert to number.
-        let mut val = MaybeUninit::uninit();
-
-        if unsafe { luaV_tonumber_(raw, val.as_mut_ptr()) != 0 } {
-            Ok(Some(unsafe { val.assume_init() }))
+        if let Some(val) = unsafe { luaV_tonumber_(raw) } {
+            Ok(Some(val))
         } else {
             Err(unsafe { self.type_error(expect, raw) })
         }
@@ -588,7 +578,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         let s = if unsafe { (*v).tt_ & 0x3f == 0x03 } {
             unsafe { (*v).value_.i.to_string() }
         } else {
-            unsafe { luaO_tostring((*v).value_.n) }
+            unsafe { (*v).value_.n.to_string() }
         };
 
         // Create string.
@@ -659,7 +649,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
                         let s = if r.tt_ & 0x3f == 0x03 {
                             r.value_.i.to_string()
                         } else {
-                            luaO_tostring(r.value_.n)
+                            r.value_.n.to_string()
                         };
 
                         // Create string.
@@ -704,15 +694,9 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
                     Str::from_str(g, (*arg).value_.i.to_string()).unwrap_or_else(identity)
                 },
                 1 => unsafe {
-                    // Lua expect 0.0 as "0.0". The problem is there is no way to force Rust to
-                    // output "0.0" so we need to do this manually.
                     let v = (*arg).value_.n;
 
-                    if v.fract() == 0.0 {
-                        Str::from_str(g, format!("{v:.1}")).unwrap_or_else(identity)
-                    } else {
-                        Str::from_str(g, v.to_string()).unwrap_or_else(identity)
-                    }
+                    Str::from_str(g, v.to_string()).unwrap_or_else(identity)
                 },
                 _ => unreachable!(),
             },

@@ -12,7 +12,7 @@ use crate::lobject::Proto;
 use crate::lstate::CallInfo;
 use crate::table::luaH_getshortstr;
 use crate::value::UnsafeValue;
-use crate::{CallError, Lua, NON_YIELDABLE_WAKER, StackValue, Str, Table, Thread, UserData};
+use crate::{CallError, Float, Lua, NON_YIELDABLE_WAKER, StackValue, Str, Table, Thread, UserData};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::string::String;
@@ -323,16 +323,14 @@ pub unsafe fn luaT_callorderiTM<D>(
     let mut p2 = null();
 
     if isfloat != 0 {
-        let io = &raw mut aux;
-
-        (*io).value_.n = v2 as f64;
-        (*io).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
+        aux = Float::from(v2).into();
     } else {
         let io_0 = &raw mut aux;
 
         (*io_0).value_.i = v2 as i64;
         (*io_0).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
     }
+
     if flip != 0 {
         p2 = p1;
         p1 = &mut aux;
