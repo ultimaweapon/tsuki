@@ -166,6 +166,7 @@ impl<A> Module<A> for StringLib {
 
         m.set_str_key("find", fp!(self::string::find));
         m.set_str_key("format", fp!(self::string::format));
+        m.set_str_key("gsub", fp!(self::string::gsub));
         m.set_str_key("len", fp!(self::string::len));
         m.set_str_key("rep", fp!(self::string::rep));
         m.set_str_key("sub", fp!(self::string::sub));

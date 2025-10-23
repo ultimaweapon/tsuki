@@ -63,7 +63,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
   - Second argument accept only a UTF-8 string and will be empty when absent.
   - Third argument must be `nil` or `"t"`.
 - `string.format` requires UTF-8 string for both format string and format value.
-- `string.find` does not support class `z`.
+- `string.find` and `string.gsub` does not support class `z`.
 - Native module is not supported.
 - Environment variable `LUA_PATH` and `LUA_PATH_5_4` is ignored.
 - `LUA_NOENV` in registry is ignored.
@@ -87,6 +87,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - `Arg::to_str` and `Arg::to_nilable_str` now convert a number to string in-place.
 - `Arg::to_float` and `Arg::to_nilable_float` now return `Float` instead of `f64`.
 - `Value::Float` and `Number::Float` value is changed from `f64` to `Float`.
+- `Thread::async_call` now accept only `LuaFn`.
 - Float to string conversion does not truncate precision (Lua limit this to 14 digits by default).
 
 ## License

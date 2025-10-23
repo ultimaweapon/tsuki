@@ -1,6 +1,6 @@
 use super::Thread;
 use crate::value::UnsafeValue;
-use crate::{Args, Context, Fp, Nil, Object, Ret, Str, Table};
+use crate::{Args, Context, Fp, Nil, Object, Ret, Str, Table, Value};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
@@ -8,9 +8,9 @@ use core::marker::PhantomData;
 /// Implementation of [`Inputs`] which size does not known at compile time.
 ///
 /// The order of arguments is the same as push order (e.g. first argument pushed first).
-pub struct DynamicInputs<'a, D> {
-    list: Vec<UnsafeValue<D>>,
-    phantom: PhantomData<&'a Object<D>>,
+pub struct DynamicInputs<'a, A> {
+    list: Vec<UnsafeValue<A>>,
+    phantom: PhantomData<&'a Object<A>>,
 }
 
 impl<'a, D> DynamicInputs<'a, D> {
@@ -137,6 +137,26 @@ unsafe impl<T: Into<UnsafeValue<D>>, D> Inputs<D> for T {
 
         unsafe { th.top.write(v) };
         unsafe { th.top.add(1) };
+    }
+}
+
+unsafe impl<'a, A> Inputs<A> for Vec<Value<'a, A>> {
+    #[inline(always)]
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    unsafe fn push_to(self, th: &Thread<A>) {
+        for (i, v) in self.into_iter().enumerate() {
+            let v = UnsafeValue::from(v);
+
+            if unsafe { (v.tt_ & 1 << 6 != 0) && (*v.value_.gc).global != th.hdr.global } {
+                panic!("argument #{i} was created from different Lua");
+            }
+
+            unsafe { th.top.write(v) };
+            unsafe { th.top.add(1) };
+        }
     }
 }
 

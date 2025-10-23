@@ -7,8 +7,9 @@ use crate::lobject::luaO_arith;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_equalobj, luaV_finishget, luaV_lessthan, luaV_objlen, luaV_tointeger};
 use crate::{
-    CallError, ChunkInfo, LuaFn, NON_YIELDABLE_WAKER, Ops, ParseError, Ref, RegKey, RegValue,
-    StackOverflow, Str, Table, Thread, Type, UserData, luaH_get, luaH_getint, luaH_getshortstr,
+    CallError, ChunkInfo, Inputs, LuaFn, NON_YIELDABLE_WAKER, Ops, Outputs, ParseError, Ref,
+    RegKey, RegValue, StackOverflow, Str, Table, Thread, Type, UserData, luaH_get, luaH_getint,
+    luaH_getshortstr,
 };
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
@@ -772,6 +773,17 @@ impl<'a, A, T> Context<'a, A, T> {
         unsafe { lua_checkstack(self.th, additional, 0) }
     }
 
+    /// Call a function or callable value.
+    ///
+    /// See [Thread::call()] for more details.
+    pub fn call<R: Outputs<'a, A>>(
+        &self,
+        f: impl Into<UnsafeValue<A>>,
+        args: impl Inputs<A>,
+    ) -> Result<R, Box<dyn core::error::Error>> {
+        self.th.call(f, args)
+    }
+
     /// Call `f` with values above it as arguments.
     ///
     /// Use negative `f` to refer from the top of stack (e.g. `-1` mean one value from the top of
@@ -924,7 +936,7 @@ impl<'a, A, T> Context<'a, A, T> {
     }
 }
 
-impl<'a, D> Context<'a, D, Args> {
+impl<'a, A> Context<'a, A, Args> {
     /// Returns number of arguments for this call.
     #[inline(always)]
     pub fn args(&self) -> usize {
@@ -939,7 +951,7 @@ impl<'a, D> Context<'a, D, Args> {
     /// # Panics
     /// If `n` is zero.
     #[inline(always)]
-    pub fn arg(&self, n: impl TryInto<NonZero<usize>>) -> Arg<'_, 'a, D> {
+    pub fn arg(&self, n: impl TryInto<NonZero<usize>>) -> Arg<'_, 'a, A> {
         let n = match n.try_into() {
             Ok(v) => v,
             Err(_) => panic!("zero is not a valid argument index"),

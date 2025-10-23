@@ -1,11 +1,12 @@
 //! Implementation of [string library](https://www.lua.org/manual/5.4/manual.html#6.4).
 use crate::libc::snprintf;
-use crate::{Arg, Args, Context, Nil, Number, Ret, Type, Value};
+use crate::{Arg, Args, Context, Fp, LuaFn, Nil, Number, Ret, Str, Table, Type, Value};
 use alloc::boxed::Box;
 use alloc::format;
-use alloc::string::String;
+use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::num::NonZero;
+use memchr::memchr;
 
 /// Implementation of `__add` metamethod for string.
 pub fn add<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
@@ -286,6 +287,77 @@ pub fn format<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::
     }
 
     cx.push_str(buf)?;
+
+    Ok(cx.into())
+}
+
+/// Implementation of [string.gsub](https://www.lua.org/manual/5.4/manual.html#pdf-string.gsub).
+///
+/// Note that class `z` is not supported.
+pub fn gsub<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let arg1 = cx.arg(1);
+    let src = arg1.to_str()?.as_bytes();
+    let mut p = cx.arg(2).to_str()?.as_bytes();
+    let tr = cx.arg(3);
+    let max_s = cx
+        .arg(4)
+        .to_nilable_int(false)?
+        .unwrap_or((src.len() + 1) as i64);
+    let anchor = p.first().copied() == Some(b'^');
+    let mut n = 0;
+    let mut changed = false;
+    let mut b = Vec::new();
+    let mut ms = MatchState::prepstate(src);
+    let mut off = 0;
+    let mut lastmatch = usize::MAX;
+    let tr = if let Some(v) = tr.as_str(true) {
+        Replacement::Str(v)
+    } else if let Some(v) = tr.as_table() {
+        Replacement::Table(v)
+    } else if let Some(v) = tr.as_fp() {
+        Replacement::Fp(v)
+    } else if let Some(v) = tr.as_lua_fn() {
+        Replacement::LuaFn(v)
+    } else {
+        return Err(tr.invalid_type("string/function/table"));
+    };
+
+    if anchor {
+        p = &p[1..];
+    }
+
+    while n < max_s {
+        ms.reprepstate();
+
+        if let Some(e) = ms.match_0(off, p)?
+            && e != lastmatch
+        {
+            n += 1;
+            changed |= ms.add_value(&cx, &mut b, off, e, &tr)?;
+            lastmatch = e;
+            off = lastmatch;
+        } else {
+            if !(off < src.len()) {
+                break;
+            }
+
+            b.push(src[off]);
+            off += 1;
+        }
+
+        if anchor {
+            break;
+        }
+    }
+
+    if !changed {
+        cx.push(arg1)?;
+    } else {
+        b.extend_from_slice(&src[off..]);
+        cx.push_bytes(b)?;
+    }
+
+    cx.push(n)?;
 
     Ok(cx.into())
 }
@@ -1103,8 +1175,35 @@ impl<'a> MatchState<'a> {
         Ok(None)
     }
 
+    fn captures_to_values<'b, A>(
+        &self,
+        cx: &Context<'b, A, Args>,
+        off: Option<usize>,
+        e: Option<usize>,
+    ) -> Result<Vec<Value<'b, A>>, Box<dyn core::error::Error>> {
+        let nlevels = if self.capture.is_empty() && off.is_some() {
+            1
+        } else {
+            self.capture.len()
+        };
+
+        // Create values.
+        let mut values = Vec::with_capacity(nlevels);
+
+        for i in 0..nlevels {
+            let v = match self.get_onecapture(i, off, e)? {
+                CaptureValue::Num(v) => Value::Int(v),
+                CaptureValue::Str(v) => Value::Str(cx.create_bytes(v)),
+            };
+
+            values.push(v);
+        }
+
+        Ok(values)
+    }
+
     fn push_captures<A>(
-        mut self,
+        self,
         cx: &Context<A, Args>,
         off: Option<usize>,
         e: Option<usize>,
@@ -1127,54 +1226,142 @@ impl<'a> MatchState<'a> {
     }
 
     fn push_onecapture<A>(
-        &mut self,
+        &self,
         cx: &Context<A, Args>,
         i: usize,
         off: Option<usize>,
         e: Option<usize>,
     ) -> Result<(), Box<dyn core::error::Error>> {
-        if let Some(v) = self.get_onecapture(cx, i, off, e)? {
-            cx.push_bytes(v)?;
+        match self.get_onecapture(i, off, e)? {
+            CaptureValue::Num(v) => cx.push(v)?,
+            CaptureValue::Str(v) => cx.push_bytes(v)?,
         }
 
         Ok(())
     }
 
-    fn get_onecapture<A>(
-        &mut self,
-        cx: &Context<A, Args>,
+    fn get_onecapture<'b>(
+        &self,
         i: usize,
         off: Option<usize>,
         e: Option<usize>,
-    ) -> Result<Option<&'a [u8]>, Box<dyn core::error::Error>> {
+    ) -> Result<CaptureValue<'a>, Box<dyn core::error::Error>> {
         let cap = match self.capture.get(i) {
             Some(v) => v,
             None => {
-                if i != 0 {
-                    return Err(format!("invalid capture index %{}", i + 1).into());
-                }
-
-                return Ok(Some(&self.src[off.unwrap()..e.unwrap()]));
+                return match i {
+                    0 => Ok(CaptureValue::Str(&self.src[off.unwrap()..e.unwrap()])),
+                    _ => Err(format!("invalid capture index %{}", i.wrapping_add(1)).into()),
+                };
             }
         };
 
         match cap.len {
             -1 => Err("unfinished capture".into()),
-            -2 => {
-                cx.push((cap.off + 1) as i64)?;
-
-                Ok(None)
-            }
+            -2 => Ok(CaptureValue::Num((cap.off + 1) as i64)),
             l => {
                 let l = usize::try_from(l).unwrap();
 
-                Ok(Some(&self.src[cap.off..(cap.off + l)]))
+                Ok(CaptureValue::Str(&self.src[cap.off..(cap.off + l)]))
             }
         }
+    }
+
+    fn add_value<A>(
+        &self,
+        cx: &Context<A, Args>,
+        b: &mut Vec<u8>,
+        off: usize,
+        e: usize,
+        tr: &Replacement<A>,
+    ) -> Result<bool, Box<dyn core::error::Error>> {
+        let r = match tr {
+            Replacement::Fp(f) => self
+                .captures_to_values(cx, Some(off), Some(e))
+                .and_then(move |args| cx.call(*f, args))?,
+            Replacement::Str(v) => {
+                self.add_s(b, off, e, v.as_bytes())?;
+
+                return Ok(true);
+            }
+            Replacement::Table(t) => match self.get_onecapture(0, Some(off), Some(e))? {
+                CaptureValue::Num(v) => t.get(v),
+                CaptureValue::Str(v) => t.get_str_key(v),
+            },
+            Replacement::LuaFn(f) => self
+                .captures_to_values(cx, Some(off), Some(e))
+                .and_then(move |args| cx.call(*f, args))?,
+        };
+
+        match r {
+            Value::Nil | Value::Bool(false) => {
+                b.extend_from_slice(&self.src[off..e]);
+
+                return Ok(false);
+            }
+            Value::Int(v) => b.extend_from_slice(v.to_string().as_bytes()),
+            Value::Float(v) => b.extend_from_slice(v.to_string().as_bytes()),
+            Value::Str(v) => b.extend_from_slice(v.as_bytes()),
+            v => return Err(format!("invalid replacement value (a {})", cx.type_name(v)).into()),
+        }
+
+        Ok(true)
+    }
+
+    fn add_s(
+        &self,
+        b: &mut Vec<u8>,
+        off: usize,
+        e: usize,
+        mut tr: &[u8],
+    ) -> Result<(), Box<dyn core::error::Error>> {
+        loop {
+            let mut p = match memchr(b'%', tr) {
+                Some(v) => v,
+                None => break,
+            };
+
+            b.extend_from_slice(&tr[..p]);
+            p += 1;
+
+            match tr.get(p).copied() {
+                Some(b'%') => b.push(b'%'),
+                Some(v) if v.is_ascii_digit() => {
+                    match self.get_onecapture(
+                        v.checked_sub(b'1').map(usize::from).unwrap_or(usize::MAX),
+                        Some(off),
+                        Some(e),
+                    )? {
+                        CaptureValue::Num(v) => b.extend_from_slice(v.to_string().as_bytes()),
+                        CaptureValue::Str(v) => b.extend_from_slice(v),
+                    }
+                }
+                Some(_) => return Err("invalid use of '%' in replacement string".into()),
+                None => b.extend_from_slice(&self.src[off..e]),
+            }
+
+            tr = &tr[(p + 1)..];
+        }
+
+        b.extend_from_slice(tr);
+
+        Ok(())
     }
 }
 
 struct MatchCapture {
     off: usize,
     len: isize,
+}
+
+enum CaptureValue<'a> {
+    Num(i64),
+    Str(&'a [u8]),
+}
+
+enum Replacement<'a, A> {
+    Fp(Fp<A>),
+    Str(&'a Str<A>),
+    Table(&'a Table<A>),
+    LuaFn(&'a LuaFn<A>),
 }

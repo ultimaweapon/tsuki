@@ -4,7 +4,9 @@ use crate::lauxlib::luaL_argerror;
 use crate::ldo::luaD_call;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_tointeger, luaV_tonumber_};
-use crate::{Float, NON_YIELDABLE_WAKER, Number, Ref, Str, Table, Type, UserData, Value};
+use crate::{
+    Float, Fp, LuaFn, NON_YIELDABLE_WAKER, Number, Ref, Str, Table, Type, UserData, Value,
+};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -25,9 +27,9 @@ pub struct Arg<'a, 'b, A> {
     index: NonZero<usize>,
 }
 
-impl<'a, 'b, D> Arg<'a, 'b, D> {
+impl<'a, 'b, A> Arg<'a, 'b, A> {
     #[inline(always)]
-    pub(super) fn new(cx: &'a Context<'b, D, Args>, index: NonZero<usize>) -> Self {
+    pub(super) fn new(cx: &'a Context<'b, A, Args>, index: NonZero<usize>) -> Self {
         Self { cx, index }
     }
 
@@ -100,7 +102,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     /// Gets metatable for this argument.
     ///
     /// Returns [None] if this argument does not exists.
-    pub fn get_metatable(&self) -> Option<Option<Ref<'b, Table<D>>>> {
+    pub fn get_metatable(&self) -> Option<Option<Ref<'b, Table<A>>>> {
         // Get argument.
         let v = self.get_raw_or_null();
 
@@ -158,7 +160,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     /// This method will accept a number if `convert` is `true`. In this case the argument will be
     /// converted to a string **in-place**.
     #[inline(always)]
-    pub fn as_str(&self, convert: bool) -> Option<&'a Str<D>> {
+    pub fn as_str(&self, convert: bool) -> Option<&'a Str<A>> {
         let v = self.get_raw_or_null();
 
         if v.is_null() {
@@ -176,12 +178,44 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     ///
     /// This method will return [None] if this argument does not exists or not a table.
     #[inline(always)]
-    pub fn as_table(&self) -> Option<&'a Table<D>> {
+    pub fn as_table(&self) -> Option<&'a Table<A>> {
         let v = self.get_raw_or_null();
 
         if v.is_null() {
             None
         } else if unsafe { (*v).tt_ & 0xf == 5 } {
+            Some(unsafe { &*(*v).value_.gc.cast() })
+        } else {
+            None
+        }
+    }
+
+    /// Checks if this argument is a Rust function and return it.
+    ///
+    /// This method will return [None] if this argument does not exists or not a Rust function.
+    #[inline(always)]
+    pub fn as_fp(&self) -> Option<Fp<A>> {
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            None
+        } else if unsafe { (*v).tt_ & 0x3f == 0x02 } {
+            Some(Fp(unsafe { (*v).value_.f }))
+        } else {
+            None
+        }
+    }
+
+    /// Checks if this argument is a Lua function and return it.
+    ///
+    /// This method will return [None] if this argument does not exists or not a Lua function.
+    #[inline(always)]
+    pub fn as_lua_fn(&self) -> Option<&'a LuaFn<A>> {
+        let v = self.get_raw_or_null();
+
+        if v.is_null() {
+            None
+        } else if unsafe { (*v).tt_ & 0x3f == 0x06 } {
             Some(unsafe { &*(*v).value_.gc.cast() })
         } else {
             None
@@ -203,7 +237,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
             2 => unsafe { (*v).value_.f as *const u8 },
             18 | 50 => todo!(),
             34 => unsafe { (*v).value_.a as *const u8 },
-            7 => unsafe { (*(*v).value_.gc.cast::<UserData<D, ()>>()).ptr.cast() },
+            7 => unsafe { (*(*v).value_.gc.cast::<UserData<A, ()>>()).ptr.cast() },
             _ => unsafe {
                 if (*v).tt_ & 1 << 6 != 0 {
                     (*v).value_.gc.cast()
@@ -219,7 +253,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     /// This method is expensive compared to a specialized method like [`Self::get_str()`]. Use this
     /// method only when you need [`Value`]. If you want to check type of this argument use
     /// [`Self::ty()`] instead since it much faster.
-    pub fn get(&self) -> Option<Value<'b, D>> {
+    pub fn get(&self) -> Option<Value<'b, A>> {
         let v = self.get_raw_or_null();
 
         if v.is_null() {
@@ -234,7 +268,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     /// This method **does not** convert a number to string. Use [Self::to_str()] if you want that
     /// behavior.
     #[inline(always)]
-    pub fn get_str(&self) -> Result<&'a Str<D>, Box<dyn core::error::Error>> {
+    pub fn get_str(&self) -> Result<&'a Str<A>, Box<dyn core::error::Error>> {
         let expect = lua_typename(4);
         let v = self.get_raw(expect)?;
 
@@ -257,7 +291,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     pub fn get_nilable_str(
         &self,
         required: bool,
-    ) -> Result<Option<&'a Str<D>>, Box<dyn core::error::Error>> {
+    ) -> Result<Option<&'a Str<A>>, Box<dyn core::error::Error>> {
         // Get argument.
         let expect = "nil or string";
         let v = self.get_raw_or_null();
@@ -279,7 +313,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
     /// Checks if this argument is a table and return it.
     #[inline(always)]
-    pub fn get_table(&self) -> Result<&'a Table<D>, Box<dyn core::error::Error>> {
+    pub fn get_table(&self) -> Result<&'a Table<A>, Box<dyn core::error::Error>> {
         let expect = lua_typename(5);
         let v = self.get_raw(expect)?;
 
@@ -299,7 +333,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     pub fn get_nilable_table(
         &self,
         required: bool,
-    ) -> Result<Option<&'a Table<D>>, Box<dyn core::error::Error>> {
+    ) -> Result<Option<&'a Table<A>>, Box<dyn core::error::Error>> {
         // Check if argument exists.
         let expect = "nil or table";
         let v = self.get_raw_or_null();
@@ -321,11 +355,11 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
 
     /// Checks if this argument is a userdata `T` and return it.
     #[inline(always)]
-    pub fn get_ud<T: Any>(&self) -> Result<&'a UserData<D, T>, Box<dyn core::error::Error>> {
+    pub fn get_ud<T: Any>(&self) -> Result<&'a UserData<A, T>, Box<dyn core::error::Error>> {
         let expect = type_name::<T>();
         let v = self.get_raw(expect)?;
         let ud = match unsafe { (*v).tt_ & 0xf } {
-            7 => unsafe { (*v).value_.gc.cast::<UserData<D, dyn Any>>() },
+            7 => unsafe { (*v).value_.gc.cast::<UserData<A, dyn Any>>() },
             _ => return Err(unsafe { self.type_error(expect, v) }),
         };
 
@@ -345,7 +379,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     pub fn get_nilable_ud<T: Any>(
         &self,
         required: bool,
-    ) -> Result<Option<&'a UserData<D, T>>, Box<dyn core::error::Error>> {
+    ) -> Result<Option<&'a UserData<A, T>>, Box<dyn core::error::Error>> {
         // Check if argument exists.
         let name = type_name::<T>();
         let expect = format_args!("nil or {name}");
@@ -361,7 +395,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
         // Check type.
         let ud = match unsafe { (*v).tt_ & 0xf } {
             0 => return Ok(None),
-            7 => unsafe { (*v).value_.gc.cast::<UserData<D, dyn Any>>() },
+            7 => unsafe { (*v).value_.gc.cast::<UserData<A, dyn Any>>() },
             _ => return Err(unsafe { self.type_error(expect, v) }),
         };
 
@@ -413,7 +447,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     #[inline(never)]
     unsafe fn convert_int(
         &self,
-        raw: *const UnsafeValue<D>,
+        raw: *const UnsafeValue<A>,
     ) -> Result<i64, Box<dyn core::error::Error>> {
         if let Some(val) = unsafe { luaV_tointeger(raw, F2Ieq) } {
             Ok(val)
@@ -525,7 +559,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     ///
     /// This method will trigger GC if new string is allocated.
     #[inline(always)]
-    pub fn to_str(&self) -> Result<&'a Str<D>, Box<dyn core::error::Error>> {
+    pub fn to_str(&self) -> Result<&'a Str<A>, Box<dyn core::error::Error>> {
         let expect = lua_typename(4);
         let v = self.get_raw(expect)?;
 
@@ -551,7 +585,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     pub fn to_nilable_str(
         &self,
         required: bool,
-    ) -> Result<Option<&'a Str<D>>, Box<dyn core::error::Error>> {
+    ) -> Result<Option<&'a Str<A>>, Box<dyn core::error::Error>> {
         // Get argument.
         let expect = "nil or string";
         let v = self.get_raw_or_null();
@@ -573,7 +607,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     }
 
     #[inline(never)]
-    unsafe fn convert_str(&self, v: *mut UnsafeValue<D>) -> *const Str<D> {
+    unsafe fn convert_str(&self, v: *mut UnsafeValue<A>) -> *const Str<A> {
         // Convert to string.
         let s = if unsafe { (*v).tt_ & 0x3f == 0x03 } {
             unsafe { (*v).value_.i.to_string() }
@@ -605,7 +639,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     /// The returned [`Str`] guarantee to be a UTF-8 string. If this argument is a string but it is
     /// not UTF-8 this method will return a new [`Str`] with content `string: CONTENT_IN_LOWER_HEX`
     /// instead.
-    pub fn display(&self) -> Result<Ref<'b, Str<D>>, Box<dyn core::error::Error>> {
+    pub fn display(&self) -> Result<Ref<'b, Str<A>>, Box<dyn core::error::Error>> {
         // Try __tostring metamethod.
         let t = self.cx.th;
         let g = t.hdr.global();
@@ -663,7 +697,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
                         return Ok(r);
                     },
                     4 => unsafe {
-                        let r = r.value_.gc.cast::<Str<D>>();
+                        let r = r.value_.gc.cast::<Str<A>>();
 
                         if !(*r).is_utf8() {
                             return Err(self.error("'__tostring' must return a UTF-8 string"));
@@ -700,15 +734,15 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
                 },
                 _ => unreachable!(),
             },
-            Some(4) if unsafe { (*(*arg).value_.gc.cast::<Str<D>>()).is_utf8() } => unsafe {
-                (*arg).value_.gc.cast::<Str<D>>()
+            Some(4) if unsafe { (*(*arg).value_.gc.cast::<Str<A>>()).is_utf8() } => unsafe {
+                (*arg).value_.gc.cast::<Str<A>>()
             },
             Some(v) => unsafe {
                 // Get __name from metatable.
                 let kind = match (mt.is_null() == false)
                     .then(move || (*mt).get_raw_str_key("__name"))
                     .filter(|&v| (*v).tt_ & 0xf == 4)
-                    .map(|v| (*v).value_.gc.cast::<Str<D>>())
+                    .map(|v| (*v).value_.gc.cast::<Str<A>>())
                 {
                     Some(v) => (*v)
                         .as_str()
@@ -726,7 +760,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
                     18 | 50 => todo!(),
                     34 => write!(buf, "{:p}", (*arg).value_.a).unwrap(),
                     4 => {
-                        let v = (*arg).value_.gc.cast::<Str<D>>();
+                        let v = (*arg).value_.gc.cast::<Str<A>>();
                         let v = (*v).as_bytes();
 
                         buf.reserve(v.len().saturating_mul(2).saturating_sub(18));
@@ -739,7 +773,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
                     7 => write!(
                         buf,
                         "{:p}",
-                        (*(*arg).value_.gc.cast::<UserData<D, ()>>()).ptr
+                        (*(*arg).value_.gc.cast::<UserData<A, ()>>()).ptr
                     )
                     .unwrap(),
                     _ => unreachable!(),
@@ -782,7 +816,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     fn get_raw(
         &self,
         expect: impl Display,
-    ) -> Result<*mut UnsafeValue<D>, Box<dyn core::error::Error>> {
+    ) -> Result<*mut UnsafeValue<A>, Box<dyn core::error::Error>> {
         let th = self.cx.th;
         let ci = th.ci.get();
 
@@ -794,7 +828,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     }
 
     #[inline(always)]
-    pub(crate) fn get_raw_or_null(&self) -> *mut UnsafeValue<D> {
+    pub(crate) fn get_raw_or_null(&self) -> *mut UnsafeValue<A> {
         let th = self.cx.th;
         let ci = th.ci.get();
 
@@ -809,7 +843,7 @@ impl<'a, 'b, D> Arg<'a, 'b, D> {
     unsafe fn type_error(
         &self,
         expect: impl Display,
-        actual: *const UnsafeValue<D>,
+        actual: *const UnsafeValue<A>,
     ) -> Box<dyn core::error::Error> {
         // Check if no value.
         if actual.is_null() {

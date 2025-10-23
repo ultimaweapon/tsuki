@@ -11,7 +11,7 @@ use crate::lmem::luaM_free_;
 use crate::lobject::UpVal;
 use crate::lstate::{CallInfo, lua_Debug};
 use crate::value::UnsafeValue;
-use crate::{Lua, NON_YIELDABLE_WAKER, Object};
+use crate::{Lua, LuaFn, NON_YIELDABLE_WAKER, Object};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use core::alloc::Layout;
@@ -55,8 +55,8 @@ pub struct Thread<A> {
     phantom: PhantomPinned,
 }
 
-impl<D> Thread<D> {
-    pub(crate) fn new(g: &Lua<D>) -> *const Self {
+impl<A> Thread<A> {
+    pub(crate) fn new(g: &Lua<A>) -> *const Self {
         // Create new thread.
         let layout = Layout::new::<Self>();
         let th = unsafe { g.gc.alloc(8, layout).cast::<Self>() };
@@ -75,8 +75,8 @@ impl<D> Thread<D> {
         unsafe { addr_of_mut!((*th).awaiting).write(Cell::new(false)) };
 
         // Allocate stack.
-        let layout = Layout::array::<StackValue<D>>(2 * 20 + 5).unwrap();
-        let stack = unsafe { alloc::alloc::alloc(layout) as *mut StackValue<D> };
+        let layout = Layout::array::<StackValue<A>>(2 * 20 + 5).unwrap();
+        let stack = unsafe { alloc::alloc::alloc(layout) as *mut StackValue<A> };
 
         if stack.is_null() {
             handle_alloc_error(layout);
@@ -110,17 +110,26 @@ impl<D> Thread<D> {
 
     /// Call a function or callable value.
     ///
-    /// `args` can be either `()`, any value that can be converted to [`UnsafeValue`] or a tuple or
-    /// [`DynamicInputs`].
+    /// `args` can be either:
+    ///
+    /// - A unit to represents zero arguments.
+    /// - Any value that can be converted to [UnsafeValue] or a tuple of it.
+    /// - [DynamicInputs].
+    ///
+    /// `R` can be either:
+    ///
+    /// - A unit to discard all results.
+    /// - [Value](crate::Value) to extract first result and discard the rest.
+    /// - [Vec](alloc::vec::Vec) of [Value](crate::Value) to extract all results.
     ///
     /// The error will be either [CallError](crate::CallError) or something else.
     ///
     /// # Panics
-    /// If `f` or some of `args` come from different [`Lua`] instance.
-    pub fn call<'a, R: Outputs<'a, D>>(
+    /// If `f` or some of `args` was created from different [Lua] instance.
+    pub fn call<'a, R: Outputs<'a, A>>(
         &'a self,
-        f: impl Into<UnsafeValue<D>>,
-        args: impl Inputs<D>,
+        f: impl Into<UnsafeValue<A>>,
+        args: impl Inputs<A>,
     ) -> Result<R, Box<dyn Error>> {
         // Don't allow while async call is active.
         if self.awaiting.get() {
@@ -178,22 +187,31 @@ impl<D> Thread<D> {
         Ok(unsafe { R::new(self, n) })
     }
 
-    /// Call a function with ability to call into any [AsyncFp](crate::AsyncFp).
+    /// Call a function with ability to call into [AsyncFp](crate::AsyncFp).
     ///
-    /// `args` can be either `()`, any value that can be converted to [`UnsafeValue`] or a tuple or
-    /// [`DynamicInputs`].
+    /// `args` can be either:
+    ///
+    /// - A unit to represents zero arguments.
+    /// - Any value that can be converted to [UnsafeValue] or a tuple of it.
+    /// - [DynamicInputs].
+    ///
+    /// `R` can be either:
+    ///
+    /// - A unit to discard all results.
+    /// - [Value](crate::Value) to extract first result and discard the rest.
+    /// - [Vec](alloc::vec::Vec) of [Value](crate::Value) to extract all results.
     ///
     /// The error will be either [CallError](crate::CallError) or something else.
     ///
-    /// This method is not available on main thread so you need to create a [`Thread`] to use this
+    /// This method is not available on main thread so you need to create a [Thread] to use this
     /// method.
     ///
     /// # Panics
-    /// If `f` or some of `args` come from different [`Lua`] instance.
-    pub async fn async_call<'a, R: Outputs<'a, D>>(
+    /// If `f` or some of `args` was created from different [Lua] instance.
+    pub async fn async_call<'a, R: Outputs<'a, A>>(
         &'a self,
-        f: impl Into<UnsafeValue<D>>,
-        args: impl Inputs<D>,
+        f: &LuaFn<A>,
+        args: impl Inputs<A>,
     ) -> Result<R, Box<dyn Error>> {
         // Don't allow while another call is active.
         let g = match AsyncGuard::new(&self.awaiting) {
@@ -202,10 +220,8 @@ impl<D> Thread<D> {
         };
 
         // Check if function created from the same Lua.
-        let f = f.into();
-
-        if unsafe { (f.tt_ & 1 << 6) != 0 && (*f.value_.gc).global != self.hdr.global } {
-            panic!("attempt to call a value created from a different Lua");
+        if f.hdr.global != self.hdr.global {
+            panic!("attempt to call a function created from a different Lua");
         }
 
         // Push function and its arguments.
@@ -214,7 +230,7 @@ impl<D> Thread<D> {
 
         unsafe { lua_checkstack(self, 1 + nargs, 0)? };
 
-        unsafe { self.top.write(f) };
+        unsafe { self.top.write(f.into()) };
         unsafe { self.top.add(1) };
         unsafe { args.push_to(self) };
 

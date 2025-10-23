@@ -38,7 +38,7 @@ fn async_call() {
                 let th = lua.create_thread();
                 let chunk = lua.registry::<Chunk>().unwrap();
 
-                th.async_call::<()>(chunk, ()).await.unwrap();
+                th.async_call::<()>(&chunk, ()).await.unwrap();
             });
         }
 

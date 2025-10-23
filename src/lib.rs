@@ -913,12 +913,17 @@ impl<D> Copy for YieldFp<D> {}
 
 /// Asynchronous Rust function.
 ///
+/// Note that this function can only be called from Lua. In other words, it cannot be called from
+/// [Fp] or this function either directly or indirectly.
+///
 /// Each call into async function from Lua always incur one heap allocation so create async function
 /// only when necessary.
-pub struct AsyncFp<D>(
+///
+/// You need to use [Thread::async_call()] to be able to call this function from Lua.
+pub struct AsyncFp<A>(
     fn(
-        Context<D, Args>,
-    ) -> Pin<Box<dyn Future<Output = Result<Context<D, Ret>, Box<dyn Error>>> + '_>>,
+        Context<A, Args>,
+    ) -> Pin<Box<dyn Future<Output = Result<Context<A, Ret>, Box<dyn Error>>> + '_>>,
 );
 
 impl<D> AsyncFp<D> {
