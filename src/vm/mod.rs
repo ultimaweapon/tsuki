@@ -94,7 +94,7 @@ pub fn luaV_flttointeger(n: Float, mode: F2Imod) -> Option<i64> {
         }
     }
 
-    match f >= (i64::MIN - 1) as f64 && f < -((i64::MIN - 1) as f64) {
+    match f >= i64::MIN as f64 && f < -(i64::MIN as f64) {
         true => Some(f64::from(f) as i64),
         false => None,
     }
