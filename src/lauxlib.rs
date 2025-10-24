@@ -1,76 +1,92 @@
 #![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::Thread;
-use crate::lapi::{
-    lua_checkstack, lua_concat, lua_copy, lua_getfield, lua_gettop, lua_next, lua_pushlstring,
-    lua_pushnil, lua_pushstring, lua_rawequal, lua_rotate, lua_settop, lua_tolstring, lua_type,
-};
 use crate::ldebug::{lua_getinfo, lua_getstack};
-use crate::lstate::lua_Debug;
+use crate::lstate::{CallInfo, lua_Debug};
+use crate::value::UnsafeValue;
+use crate::vm::luaV_equalobj;
+use crate::{Lua, Nil, Str, Table, Thread};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
+use alloc::vec::Vec;
 use core::ffi::{CStr, c_char};
 use core::fmt::{Display, Formatter};
 use core::num::NonZero;
+use core::ptr::null;
 use libc::strcmp;
 
 type c_int = i32;
 
-unsafe fn findfield<D>(
-    L: *const Thread<D>,
-    objidx: c_int,
-    level: c_int,
-) -> Result<c_int, Box<dyn core::error::Error>> {
-    if level == 0 as c_int || !(lua_type(L, -(1 as c_int)) == 5 as c_int) {
-        return Ok(0 as c_int);
-    }
-    lua_pushnil(L);
-    while lua_next(L, -2)? != 0 {
-        if lua_type(L, -(2 as c_int)) == 4 as c_int {
-            if lua_rawequal(L, objidx, -(1 as c_int))? != 0 {
-                lua_settop(L, -(1 as c_int) - 1 as c_int)?;
-                return Ok(1 as c_int);
-            } else if findfield(L, objidx, level - 1 as c_int)? != 0 {
-                lua_pushstring(L, b".\0" as *const u8 as *const c_char);
-                lua_copy(L, -(1 as c_int), -(3 as c_int));
-                lua_settop(L, -(1 as c_int) - 1 as c_int)?;
-                lua_concat(L, 3 as c_int)?;
-                return Ok(1 as c_int);
-            }
+unsafe fn findfield<A>(
+    names: &mut Vec<*const Str<A>>,
+    t: UnsafeValue<A>,
+    f: *const UnsafeValue<A>,
+    level: usize,
+) -> Result<bool, Box<dyn core::error::Error>> {
+    let t = if level == 0 || (t.tt_ & 0xf) != 5 {
+        return Ok(false);
+    } else {
+        t.value_.gc.cast::<Table<A>>()
+    };
+
+    // Enumerate table.
+    let mut key = UnsafeValue::from(Nil);
+
+    while let Some([k, v]) = (*t).next_raw(&key)? {
+        key = k;
+
+        // Check if string key.
+        let name = match k.tt_ & 0xf {
+            4 => k.value_.gc.cast::<Str<A>>(),
+            _ => continue,
+        };
+
+        names.push(name);
+
+        if luaV_equalobj(null(), &v, f)? || findfield(names, v, f, level - 1)? {
+            return Ok(true);
         }
-        lua_settop(L, -(1 as c_int) - 1 as c_int)?;
+
+        names.pop();
     }
-    return Ok(0 as c_int);
+
+    Ok(false)
 }
 
 unsafe fn pushglobalfuncname<D>(
-    L: *const Thread<D>,
-    ar: &mut lua_Debug<D>,
-) -> Result<c_int, Box<dyn core::error::Error>> {
-    let top: c_int = lua_gettop(L);
-    luaL_checkstack(L, 8, b"not enough stack\0" as *const u8 as *const c_char)?;
-    lua_getinfo(L, b"f\0" as *const u8 as *const c_char, ar);
-    lua_getfield(L, -(1000000 as c_int) - 1000 as c_int, "_LOADED")?;
+    L: *const Lua<D>,
+    ci: *mut CallInfo<D>,
+) -> Result<Vec<u8>, Box<dyn core::error::Error>> {
+    // Search function from all modules.
+    let mut names = Vec::with_capacity(2);
+    let t = UnsafeValue::from((*L).modules());
+    let func = (*ci).func;
 
-    if findfield(L, top + 1 as c_int, 2 as c_int)? != 0 {
-        let name = (*lua_tolstring(L, -1, true)).as_bytes();
+    findfield(&mut names, t, func.cast(), 2)?;
 
-        if let Some(name) = name.strip_prefix(b"_G.") {
-            lua_pushlstring(L, name);
-            lua_rotate(L, -(2 as c_int), -(1 as c_int));
-            lua_settop(L, -(1 as c_int) - 1 as c_int)?;
+    // Build full name.
+    let mut buf = Vec::new();
+    let mut iter = names.iter().copied();
+    let first = match iter.next() {
+        Some(v) => (*v).as_bytes(),
+        None => return Ok(buf),
+    };
+
+    if first != b"_G" {
+        buf.extend_from_slice(first);
+    }
+
+    for name in iter {
+        if !buf.is_empty() {
+            buf.push(b'.');
         }
 
-        lua_copy(L, -(1 as c_int), top + 1 as c_int);
-        lua_settop(L, top + 1 as c_int)?;
-        return Ok(1 as c_int);
-    } else {
-        lua_settop(L, top)?;
-        return Ok(0 as c_int);
+        buf.extend_from_slice((*name).as_bytes());
     }
+
+    Ok(buf)
 }
 
 /// `arg` is used only for display.
@@ -106,63 +122,23 @@ pub unsafe fn luaL_argerror<D>(
         };
     }
 
-    if (ar.name).is_null() {
-        ar.name = match pushglobalfuncname(L, &mut ar) {
-            Ok(0) => b"?\0" as *const u8 as *const c_char,
-            Ok(_) => (*lua_tolstring(L, -1, true)).contents.as_ptr(),
+    // Get name.
+    let name = match ar.name.is_null() {
+        true => match pushglobalfuncname((*L).hdr.global, ar.i_ci) {
+            Ok(v) if v.is_empty() => b"?".into(),
+            Ok(v) => Cow::Owned(v),
             Err(e) => return e,
-        };
-    }
+        },
+        false => Cow::Borrowed(CStr::from_ptr(ar.name).to_bytes()),
+    };
 
     Box::new(ArgError {
         message: format!(
             "bad argument #{arg} to '{}'",
-            CStr::from_ptr(ar.name).to_string_lossy()
+            String::from_utf8_lossy(&name)
         ),
         reason: reason.into(),
     })
-}
-
-pub unsafe fn luaL_where<D>(L: *const Thread<D>, level: c_int) -> Cow<'static, str> {
-    let mut ar = lua_Debug::default();
-
-    if lua_getstack(L, level, &mut ar) != 0 {
-        lua_getinfo(L, b"Sl\0" as *const u8 as *const c_char, &mut ar);
-
-        if ar.currentline > 0 {
-            return format!(
-                "{}:{}: ",
-                ar.source.as_ref().map(|v| v.name()).unwrap_or(""),
-                ar.currentline,
-            )
-            .into();
-        }
-    }
-
-    "".into()
-}
-
-pub unsafe fn luaL_error<D>(L: *const Thread<D>, m: impl Display) -> Box<dyn core::error::Error> {
-    format!("{}{}", luaL_where(L, 1), m).into()
-}
-
-pub unsafe fn luaL_checkstack<D>(
-    L: *const Thread<D>,
-    space: usize,
-    msg: *const c_char,
-) -> Result<(), Box<dyn core::error::Error>> {
-    if lua_checkstack(L, space, 0).is_err() {
-        if !msg.is_null() {
-            return Err(luaL_error(
-                L,
-                format!("stack overflow ({})", CStr::from_ptr(msg).to_string_lossy()),
-            ));
-        } else {
-            return Err(luaL_error(L, "stack overflow"));
-        }
-    }
-
-    Ok(())
 }
 
 /// Represents an error when argument to Rust function is not valid.

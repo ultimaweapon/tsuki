@@ -12,7 +12,7 @@ use crate::ltm::{
 use crate::table::luaH_setint;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, OpCode, luaP_opmodes, luaV_tointegerns};
-use crate::{ChunkInfo, LuaFn, Object, StackValue, Str, Table, Thread, api_incr_top};
+use crate::{ChunkInfo, Lua, LuaFn, Object, StackValue, Str, Table, Thread, api_incr_top};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
@@ -336,9 +336,9 @@ unsafe fn collectvalidlines<D>(L: *const Thread<D>, f: *const Object<D>) {
     }
 }
 
-unsafe fn getfuncname<D>(
-    L: *const Thread<D>,
-    ci: *mut CallInfo<D>,
+pub unsafe fn getfuncname<A>(
+    L: *const Lua<A>,
+    ci: *mut CallInfo<A>,
     name: *mut *const c_char,
 ) -> *const c_char {
     if !ci.is_null() && (*ci).callstatus as c_int & (1 as c_int) << 5 as c_int == 0 {
@@ -390,7 +390,7 @@ unsafe fn auxgetinfo<D>(
                 }) as c_char;
             }
             b'n' => {
-                (*ar).namewhat = getfuncname(L, ci, &mut (*ar).name);
+                (*ar).namewhat = getfuncname((*L).hdr.global, ci, &mut (*ar).name);
                 if ((*ar).namewhat).is_null() {
                     (*ar).namewhat = b"\0" as *const u8 as *const c_char;
                     (*ar).name = 0 as *const c_char;
@@ -440,7 +440,7 @@ pub unsafe fn lua_getinfo<D>(
         null()
     };
     status = auxgetinfo(L, what, ar, cl, ci);
-    if !(strchr(what, 'f' as i32)).is_null() {
+    if !strchr(what, 'f' as i32).is_null() {
         let io1 = (*L).top.get();
         let io2 = func;
 
@@ -448,7 +448,7 @@ pub unsafe fn lua_getinfo<D>(
         (*io1).tt_ = (*io2).tt_;
         api_incr_top(L);
     }
-    if !(strchr(what, 'L' as i32)).is_null() {
+    if !strchr(what, 'L' as i32).is_null() {
         collectvalidlines(L, cl);
     }
 
@@ -694,9 +694,9 @@ unsafe fn getobjname<D>(
     return 0 as *const c_char;
 }
 
-unsafe fn funcnamefromcode<D>(
-    L: *const Thread<D>,
-    p: *const Proto<D>,
+unsafe fn funcnamefromcode<A>(
+    L: *const Lua<A>,
+    p: *const Proto<A>,
     pc: c_int,
     name: *mut *const c_char,
 ) -> *const c_char {
@@ -733,13 +733,11 @@ unsafe fn funcnamefromcode<D>(
     }
 
     *name = (*(*L)
-        .hdr
-        .global()
         .events()
         .get_raw_int_key(tm.into())
         .value_
         .gc
-        .cast::<Str<D>>())
+        .cast::<Str<A>>())
     .contents
     .as_ptr()
     .add(2);
@@ -747,9 +745,9 @@ unsafe fn funcnamefromcode<D>(
     return b"metamethod\0" as *const u8 as *const c_char;
 }
 
-unsafe fn funcnamefromcall<D>(
-    L: *const Thread<D>,
-    ci: *mut CallInfo<D>,
+unsafe fn funcnamefromcall<A>(
+    L: *const Lua<A>,
+    ci: *mut CallInfo<A>,
     name: *mut *const c_char,
 ) -> *const c_char {
     if (*ci).callstatus as c_int & (1 as c_int) << 3 as c_int != 0 {
@@ -761,7 +759,7 @@ unsafe fn funcnamefromcall<D>(
     } else if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
         return funcnamefromcode(
             L,
-            (*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get(),
+            (*(*(*ci).func).value_.gc.cast::<LuaFn<A>>()).p.get(),
             currentpc(ci),
             name,
         );
@@ -860,7 +858,7 @@ pub unsafe fn luaG_callerror<D>(
 ) -> Box<dyn core::error::Error> {
     let ci = (*L).ci.get();
     let mut name: *const c_char = 0 as *const c_char;
-    let kind: *const c_char = funcnamefromcall(L, ci, &mut name);
+    let kind: *const c_char = funcnamefromcall((*L).hdr.global, ci, &mut name);
     let extra = if !kind.is_null() {
         formatvarinfo(kind, name)
     } else {
