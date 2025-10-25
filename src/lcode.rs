@@ -901,7 +901,7 @@ unsafe fn luaK_float<D>(
     reg: c_int,
     f: Float,
 ) -> Result<(), ParseError> {
-    match luaV_flttointeger(f, F2Ieq) {
+    match luaV_flttointeger(f, F2Ieq).filter(|v| fitsBx(*v) != 0) {
         Some(fi) => codeAsBx(ls, fs, OP_LOADF, reg, fi as c_int)?,
         None => luaK_codek(ls, fs, reg, luaK_numberK(ls, fs, f)?)?,
     };
