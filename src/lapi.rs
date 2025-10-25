@@ -22,6 +22,7 @@ use core::ffi::{CStr, c_char};
 use core::ptr::{null, null_mut};
 
 type c_int = i32;
+type c_uint = u32;
 type c_long = i64;
 
 unsafe fn index2value<D>(L: *const Thread<D>, mut idx: c_int) -> *mut UnsafeValue<D> {
@@ -628,7 +629,7 @@ pub unsafe fn lua_seti<D>(
         slot = null();
         0 as c_int
     } else {
-        slot = if (n as u64).wrapping_sub(1 as libc::c_uint as u64)
+        slot = if (n as u64).wrapping_sub(1 as c_uint as u64)
             < (*((*t).value_.gc as *mut Table<D>)).alimit.get() as u64
         {
             (*((*t).value_.gc as *mut Table<D>))
@@ -772,9 +773,7 @@ unsafe fn aux_upvalue<D>(
     match (*fi).tt_ as c_int & 0x3f as c_int {
         38 => {
             let f = (*fi).value_.gc as *mut CClosure<D>;
-            if !((n as libc::c_uint).wrapping_sub(1 as libc::c_uint)
-                < (*f).nupvalues as libc::c_uint)
-            {
+            if !((n as c_uint).wrapping_sub(1 as c_uint) < (*f).nupvalues as c_uint) {
                 return 0 as *const c_char;
             }
             *val = &mut *((*f).upvalue)
@@ -789,9 +788,7 @@ unsafe fn aux_upvalue<D>(
             let f_0 = (*fi).value_.gc as *mut LuaFn<D>;
             let p = (*f_0).p.get();
 
-            if !((n as libc::c_uint).wrapping_sub(1 as libc::c_uint)
-                < (*p).sizeupvalues as libc::c_uint)
-            {
+            if !((n as c_uint).wrapping_sub(1 as c_uint) < (*p).sizeupvalues as c_uint) {
                 return 0 as *const c_char;
             }
 

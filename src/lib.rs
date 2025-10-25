@@ -781,8 +781,10 @@ impl<'a> Drop for ModulesLock<'a> {
 pub enum Value<'a, A> {
     /// The value is `nil`.
     Nil,
-    /// The value is `boolean`.
-    Bool(bool),
+    /// The value is `false`.
+    False,
+    /// The value is `true`.
+    True,
     /// The value is `function` implemented in Rust.
     Fp(fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>),
     /// The value is `function` implemented in Rust as async function.
@@ -830,8 +832,8 @@ impl<'a, A> Value<'a, A> {
     #[inline(never)]
     unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self {
         match unsafe { (*v).tt_ & 0x3f } {
-            0x01 => Self::Bool(false),
-            0x11 => Self::Bool(true),
+            0x01 => Self::False,
+            0x11 => Self::True,
             0x02 => Self::Fp(unsafe { (*v).value_.f }),
             0x12 => todo!(),
             0x22 => Self::AsyncFp(unsafe { (*v).value_.a }),

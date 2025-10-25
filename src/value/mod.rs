@@ -297,7 +297,8 @@ impl<'a, D> From<Value<'a, D>> for UnsafeValue<D> {
     fn from(value: Value<'a, D>) -> Self {
         match value {
             Value::Nil => Self::from(Nil),
-            Value::Bool(v) => Self::from(v),
+            Value::False => Self::from(false),
+            Value::True => Self::from(true),
             Value::Fp(v) => Self::from(Fp(v)),
             Value::AsyncFp(v) => Self::from(AsyncFp(v)),
             Value::Int(v) => Self::from(v),

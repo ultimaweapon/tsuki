@@ -1323,7 +1323,7 @@ impl<'a> MatchState<'a> {
         };
 
         match r {
-            Value::Nil | Value::Bool(false) => {
+            Value::Nil | Value::False => {
                 b.extend_from_slice(&self.src[off..e]);
 
                 return Ok(false);
