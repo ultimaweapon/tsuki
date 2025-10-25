@@ -18,7 +18,7 @@ use alloc::boxed::Box;
 use alloc::string::ToString;
 use core::cmp::max;
 use core::convert::identity;
-use core::ffi::CStr;
+use core::ffi::{CStr, c_char};
 use core::ptr::{null, null_mut};
 
 type c_int = i32;
@@ -513,7 +513,7 @@ pub unsafe fn lua_getmetatable<D>(L: *const Thread<D>, objindex: c_int) -> c_int
 unsafe fn auxsetstr<D>(
     L: *const Thread<D>,
     t: *const UnsafeValue<D>,
-    k: *const libc::c_char,
+    k: *const c_char,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let mut slot = null();
     let str =
@@ -768,14 +768,14 @@ unsafe fn aux_upvalue<D>(
     n: c_int,
     val: *mut *mut UnsafeValue<D>,
     owner: *mut *mut Object<D>,
-) -> *const libc::c_char {
+) -> *const c_char {
     match (*fi).tt_ as c_int & 0x3f as c_int {
         38 => {
             let f = (*fi).value_.gc as *mut CClosure<D>;
             if !((n as libc::c_uint).wrapping_sub(1 as libc::c_uint)
                 < (*f).nupvalues as libc::c_uint)
             {
-                return 0 as *const libc::c_char;
+                return 0 as *const c_char;
             }
             *val = &mut *((*f).upvalue)
                 .as_mut_ptr()
@@ -783,7 +783,7 @@ unsafe fn aux_upvalue<D>(
             if !owner.is_null() {
                 *owner = f.cast();
             }
-            return b"\0" as *const u8 as *const libc::c_char;
+            return b"\0" as *const u8 as *const c_char;
         }
         6 => {
             let f_0 = (*fi).value_.gc as *mut LuaFn<D>;
@@ -792,7 +792,7 @@ unsafe fn aux_upvalue<D>(
             if !((n as libc::c_uint).wrapping_sub(1 as libc::c_uint)
                 < (*p).sizeupvalues as libc::c_uint)
             {
-                return 0 as *const libc::c_char;
+                return 0 as *const c_char;
             }
 
             *val = (*(*f_0).upvals[(n - 1) as usize].get()).v.get();
@@ -803,21 +803,17 @@ unsafe fn aux_upvalue<D>(
 
             let name = (*((*p).upvalues).offset((n - 1 as c_int) as isize)).name;
             return if name.is_null() {
-                b"(no name)\0" as *const u8 as *const libc::c_char
+                b"(no name)\0" as *const u8 as *const c_char
             } else {
-                ((*name).contents).as_ptr() as *const libc::c_char
+                ((*name).contents).as_ptr() as *const c_char
             };
         }
-        _ => return 0 as *const libc::c_char,
+        _ => return 0 as *const c_char,
     };
 }
 
-pub unsafe fn lua_getupvalue<D>(
-    L: *mut Thread<D>,
-    funcindex: c_int,
-    n: c_int,
-) -> *const libc::c_char {
-    let mut name: *const libc::c_char = 0 as *const libc::c_char;
+pub unsafe fn lua_getupvalue<D>(L: *mut Thread<D>, funcindex: c_int, n: c_int) -> *const c_char {
+    let mut name: *const c_char = 0 as *const c_char;
     let mut val = null_mut();
     name = aux_upvalue(index2value(L, funcindex), n, &mut val, null_mut());
     if !name.is_null() {
@@ -830,12 +826,8 @@ pub unsafe fn lua_getupvalue<D>(
     return name;
 }
 
-pub unsafe fn lua_setupvalue<D>(
-    L: *const Thread<D>,
-    funcindex: c_int,
-    n: c_int,
-) -> *const libc::c_char {
-    let mut name: *const libc::c_char = 0 as *const libc::c_char;
+pub unsafe fn lua_setupvalue<D>(L: *const Thread<D>, funcindex: c_int, n: c_int) -> *const c_char {
+    let mut name: *const c_char = 0 as *const c_char;
     let mut val = null_mut();
     let mut owner = null_mut();
     let fi = index2value(L, funcindex);

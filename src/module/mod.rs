@@ -20,10 +20,10 @@ pub trait Module<A> {
     /// This can be anything that can be converted to [UnsafeValue](crate::UnsafeValue). If
     /// [Nil](crate::Nil) the module will not be available on both `require` and global variable. In
     /// this case the module with the same name is allowed.
-    type Instance<'a>
+    type Inst<'a>
     where
         A: 'a;
 
     /// Open this module on `lua`.
-    fn open(self, lua: &Lua<A>) -> Result<Self::Instance<'_>, Box<dyn core::error::Error>>;
+    fn open(self, lua: &Lua<A>) -> Result<Self::Inst<'_>, Box<dyn core::error::Error>>;
 }

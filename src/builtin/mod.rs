@@ -24,12 +24,12 @@ pub struct BaseLib;
 impl<A> Module<A> for BaseLib {
     const NAME: &str = "_G";
 
-    type Instance<'a>
+    type Inst<'a>
         = &'a Table<A>
     where
         A: 'a;
 
-    fn open(self, lua: &Lua<A>) -> Result<Self::Instance<'_>, Box<dyn core::error::Error>> {
+    fn open(self, lua: &Lua<A>) -> Result<Self::Inst<'_>, Box<dyn core::error::Error>> {
         let m = lua.global();
 
         m.set_str_key("assert", fp!(self::base::assert));
@@ -61,12 +61,12 @@ pub struct CoroLib;
 impl<A> Module<A> for CoroLib {
     const NAME: &str = "coroutine";
 
-    type Instance<'a>
+    type Inst<'a>
         = Ref<'a, Table<A>>
     where
         A: 'a;
 
-    fn open(self, lua: &Lua<A>) -> Result<Self::Instance<'_>, Box<dyn core::error::Error>> {
+    fn open(self, lua: &Lua<A>) -> Result<Self::Inst<'_>, Box<dyn core::error::Error>> {
         let m = lua.create_table();
 
         Ok(m)
@@ -83,12 +83,12 @@ pub struct IoLib;
 impl<A> Module<A> for IoLib {
     const NAME: &str = "io";
 
-    type Instance<'a>
+    type Inst<'a>
         = Ref<'a, Table<A>>
     where
         A: 'a;
 
-    fn open(self, lua: &Lua<A>) -> Result<Self::Instance<'_>, Box<dyn core::error::Error>> {
+    fn open(self, lua: &Lua<A>) -> Result<Self::Inst<'_>, Box<dyn core::error::Error>> {
         let m = lua.create_table();
 
         Ok(m)
@@ -102,12 +102,12 @@ pub struct MathLib;
 impl<A> Module<A> for MathLib {
     const NAME: &str = "math";
 
-    type Instance<'a>
+    type Inst<'a>
         = Ref<'a, Table<A>>
     where
         A: 'a;
 
-    fn open(self, lua: &Lua<A>) -> Result<Self::Instance<'_>, Box<dyn core::error::Error>> {
+    fn open(self, lua: &Lua<A>) -> Result<Self::Inst<'_>, Box<dyn core::error::Error>> {
         let m = lua.create_table();
 
         m.set_str_key("floor", fp!(self::math::floor));
@@ -135,12 +135,12 @@ pub struct OsLib;
 impl<A> Module<A> for OsLib {
     const NAME: &str = "os";
 
-    type Instance<'a>
+    type Inst<'a>
         = Ref<'a, Table<A>>
     where
         A: 'a;
 
-    fn open(self, lua: &Lua<A>) -> Result<Self::Instance<'_>, Box<dyn core::error::Error>> {
+    fn open(self, lua: &Lua<A>) -> Result<Self::Inst<'_>, Box<dyn core::error::Error>> {
         let m = lua.create_table();
 
         Ok(m)
@@ -155,12 +155,12 @@ pub struct StringLib;
 impl<A> Module<A> for StringLib {
     const NAME: &str = "string";
 
-    type Instance<'a>
+    type Inst<'a>
         = Ref<'a, Table<A>>
     where
         A: 'a;
 
-    fn open(self, lua: &Lua<A>) -> Result<Self::Instance<'_>, Box<dyn core::error::Error>> {
+    fn open(self, lua: &Lua<A>) -> Result<Self::Inst<'_>, Box<dyn core::error::Error>> {
         // Set up module table.
         let m = lua.create_table();
 
@@ -194,12 +194,12 @@ pub struct TableLib;
 impl<A> Module<A> for TableLib {
     const NAME: &str = "table";
 
-    type Instance<'a>
+    type Inst<'a>
         = Ref<'a, Table<A>>
     where
         A: 'a;
 
-    fn open(self, lua: &Lua<A>) -> Result<Self::Instance<'_>, Box<dyn core::error::Error>> {
+    fn open(self, lua: &Lua<A>) -> Result<Self::Inst<'_>, Box<dyn core::error::Error>> {
         let m = lua.create_table();
 
         m.set_str_key("unpack", fp!(self::table::unpack));
@@ -214,12 +214,12 @@ pub struct Utf8Lib;
 impl<A> Module<A> for Utf8Lib {
     const NAME: &str = "utf8";
 
-    type Instance<'a>
+    type Inst<'a>
         = Ref<'a, Table<A>>
     where
         A: 'a;
 
-    fn open(self, lua: &Lua<A>) -> Result<Self::Instance<'_>, Box<dyn core::error::Error>> {
+    fn open(self, lua: &Lua<A>) -> Result<Self::Inst<'_>, Box<dyn core::error::Error>> {
         let m = lua.create_table();
 
         Ok(m)

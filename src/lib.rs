@@ -436,7 +436,7 @@ impl<T> Lua<T> {
     ) -> Result<(), Box<dyn Error>>
     where
         M: Module<T>,
-        M::Instance<'a>: Into<UnsafeValue<T>>,
+        M::Inst<'a>: Into<UnsafeValue<T>>,
     {
         // Prevent recursive call.
         let lock = match ModulesLock::new(&self.modules_locked) {
