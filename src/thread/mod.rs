@@ -51,7 +51,6 @@ pub struct Thread<A> {
     pub(crate) basehookcount: Cell<i32>,
     pub(crate) hookcount: Cell<i32>,
     pub(crate) hookmask: Cell<i32>,
-    pub(crate) awaiting: Cell<bool>,
     phantom: PhantomPinned,
 }
 
@@ -72,7 +71,6 @@ impl<A> Thread<A> {
         unsafe { addr_of_mut!((*th).hookcount).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*th).openupval).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*th).oldpc).write(Cell::new(0)) };
-        unsafe { addr_of_mut!((*th).awaiting).write(Cell::new(false)) };
 
         // Allocate stack.
         let layout = Layout::array::<StackValue<A>>(2 * 20 + 5).unwrap();
@@ -131,11 +129,6 @@ impl<A> Thread<A> {
         f: impl Into<UnsafeValue<A>>,
         args: impl Inputs<A>,
     ) -> Result<R, Box<dyn Error>> {
-        // Don't allow while async call is active.
-        if self.awaiting.get() {
-            return Err(AWAITING.into());
-        }
-
         // Check if function created from the same Lua.
         let f = f.into();
 
@@ -213,11 +206,10 @@ impl<A> Thread<A> {
         f: &LuaFn<A>,
         args: impl Inputs<A>,
     ) -> Result<R, Box<dyn Error>> {
-        // Don't allow while another call is active.
-        let g = match AsyncGuard::new(&self.awaiting) {
-            Some(v) => v,
-            None => return Err(AWAITING.into()),
-        };
+        // Only allows from top-level.
+        if self.ci.get() != self.base_ci.get() {
+            return Err("attempt to do async call within Rust frames".into());
+        }
 
         // Check if function created from the same Lua.
         if f.hdr.global != self.hdr.global {
@@ -258,8 +250,6 @@ impl<A> Thread<A> {
                 v
             },
         };
-
-        drop(g); // Suppress unused variable.
 
         Ok(unsafe { R::new(self, n) })
     }
@@ -303,26 +293,3 @@ impl<D> Drop for Thread<D> {
         unsafe { alloc::alloc::dealloc(self.stack.get().cast(), layout) };
     }
 }
-
-/// RAII struct to toggle [`Thread::awaiting`].
-struct AsyncGuard<'a>(&'a Cell<bool>);
-
-impl<'a> AsyncGuard<'a> {
-    #[inline(always)]
-    fn new(awaiting: &'a Cell<bool>) -> Option<Self> {
-        match awaiting.replace(true) {
-            true => None,
-            false => Some(Self(awaiting)),
-        }
-    }
-}
-
-impl<'a> Drop for AsyncGuard<'a> {
-    #[inline(always)]
-    fn drop(&mut self) {
-        self.0.set(false);
-    }
-}
-
-static AWAITING: &str =
-    "attempt to make another call on the thread being awaiting on async function";
