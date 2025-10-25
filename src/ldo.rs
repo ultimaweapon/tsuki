@@ -665,7 +665,6 @@ pub async unsafe fn luaD_call<D>(
             (*L).allowhook.set(old_allowhooks);
             r = luaD_closeprotected(L, old_top, r);
             (*L).top.set((*L).stack.get().byte_add(old_top));
-            luaD_shrinkstack(L);
 
             r
         }

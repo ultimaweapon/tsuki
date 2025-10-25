@@ -380,22 +380,6 @@ pub unsafe fn lua_pushnil<D>(L: *const Thread<D>) {
     api_incr_top(L);
 }
 
-pub unsafe fn lua_pushstring<D>(L: *const Thread<D>, s: *const libc::c_char) {
-    if s.is_null() {
-        (*(*L).top.get()).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
-    } else {
-        let s = CStr::from_ptr(s).to_bytes();
-        (*L).hdr.global().gc.step();
-        let ts = Str::from_bytes((*L).hdr.global, s).unwrap_or_else(identity);
-        let io = (*L).top.get();
-
-        (*io).value_.gc = ts.cast();
-        (*io).tt_ = ((*ts).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
-    }
-
-    api_incr_top(L);
-}
-
 pub unsafe fn lua_pushcclosure<D>(
     L: *const Thread<D>,
     fn_0: for<'a> fn(
