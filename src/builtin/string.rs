@@ -44,6 +44,26 @@ pub fn byte<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
     Ok(cx.into())
 }
 
+/// Implementation of [string.char](https://www.lua.org/manual/5.4/manual.html#pdf-string.char).
+pub fn char<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let n = cx.args();
+    let mut b = Vec::with_capacity(n);
+
+    for i in 1..=n {
+        let arg = cx.arg(i);
+        let val = arg.to_int()? as u64;
+        let val = val
+            .try_into()
+            .map_err(|_| arg.error("value out of range"))?;
+
+        b.push(val);
+    }
+
+    cx.push_bytes(b)?;
+
+    Ok(cx.into())
+}
+
 /// Implementation of [string.find](https://www.lua.org/manual/5.4/manual.html#pdf-string.find).
 ///
 /// Note that class `z` is not supported.

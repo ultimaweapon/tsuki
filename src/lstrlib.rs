@@ -112,24 +112,6 @@ unsafe fn str_upper(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn str_char(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut n: libc::c_int = lua_gettop(L);
-    let mut b = Vec::with_capacity(n.try_into().unwrap());
-    let mut i = 1 as libc::c_int;
-
-    while i <= n {
-        let mut c: u64 = luaL_checkinteger(L, i)? as u64;
-        ((c <= 255 as libc::c_int as u64) || luaL_argerror(L, i, "value out of range")? != 0)
-            as libc::c_int;
-        b.push(c as u8);
-        i += 1;
-    }
-
-    lua_pushlstring(L, b);
-
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn arith_mul(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return arith(
         L,
@@ -910,13 +892,6 @@ unsafe fn str_unpack(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::
 }
 
 static mut strlib: [luaL_Reg; 17] = [
-    {
-        let mut init = luaL_Reg {
-            name: b"char\0" as *const u8 as *const libc::c_char,
-            func: Some(str_char),
-        };
-        init
-    },
     {
         let mut init = luaL_Reg {
             name: b"gmatch\0" as *const u8 as *const libc::c_char,

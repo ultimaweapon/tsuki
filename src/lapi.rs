@@ -2,7 +2,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::ldo::luaD_growstack;
-use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
+use crate::lfunc::{luaF_close, luaF_newCclosure};
 use crate::lobject::CClosure;
 use crate::ltm::luaT_typenames_;
 use crate::table::{luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_setint};
@@ -728,20 +728,6 @@ pub unsafe fn lua_next<D>(
             Ok(0)
         }
     }
-}
-
-pub unsafe fn lua_toclose<D>(
-    L: *mut Thread<D>,
-    idx: c_int,
-) -> Result<(), Box<dyn core::error::Error>> {
-    let o = index2stack(L, idx);
-    let nresults = (*(*L).ci.get()).nresults as c_int;
-
-    luaF_newtbcupval(L, o)?;
-    if !(nresults < -(1 as c_int)) {
-        (*(*L).ci.get()).nresults = (-nresults - 3 as c_int) as libc::c_short;
-    }
-    Ok(())
 }
 
 pub unsafe fn lua_concat<D>(
