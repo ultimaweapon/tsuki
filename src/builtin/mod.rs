@@ -164,6 +164,7 @@ impl<A> Module<A> for StringLib {
         // Set up module table.
         let m = lua.create_table();
 
+        m.set_str_key("byte", fp!(self::string::byte));
         m.set_str_key("find", fp!(self::string::find));
         m.set_str_key("format", fp!(self::string::format));
         m.set_str_key("gsub", fp!(self::string::gsub));

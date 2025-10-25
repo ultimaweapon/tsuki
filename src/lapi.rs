@@ -5,7 +5,7 @@ use crate::ldo::luaD_growstack;
 use crate::lfunc::{luaF_close, luaF_newCclosure, luaF_newtbcupval};
 use crate::lobject::CClosure;
 use crate::ltm::luaT_typenames_;
-use crate::table::{luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_resize, luaH_setint};
+use crate::table::{luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_setint};
 use crate::value::UnsafeValue;
 use crate::vm::{
     luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_lessequal, luaV_lessthan,
@@ -490,21 +490,6 @@ pub unsafe fn lua_rawget<D>(L: *const Thread<D>, idx: c_int) -> c_int {
 pub unsafe fn lua_rawgeti<D>(L: *const Thread<D>, idx: c_int, n: i64) -> c_int {
     let t = gettable(L, idx);
     return finishrawget(L, luaH_getint(t, n));
-}
-
-pub unsafe fn lua_createtable<D>(L: *const Thread<D>, narray: c_int, nrec: c_int) {
-    (*L).hdr.global().gc.step();
-    let t = Table::new((*L).hdr.global);
-    let io = (*L).top.get();
-
-    (*io).value_.gc = t.cast();
-    (*io).tt_ = 5 | 0 << 4 | 1 << 6;
-
-    api_incr_top(L);
-
-    if narray > 0 as c_int || nrec > 0 as c_int {
-        luaH_resize(t, narray as libc::c_uint, nrec as libc::c_uint);
-    }
 }
 
 pub unsafe fn lua_getmetatable<D>(L: *const Thread<D>, objindex: c_int) -> c_int {

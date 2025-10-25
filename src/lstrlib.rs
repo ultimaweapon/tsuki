@@ -112,43 +112,6 @@ unsafe fn str_upper(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn str_byte(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut l: usize = 0;
-    let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
-    let mut pi: i64 = luaL_optinteger(L, 2 as libc::c_int, 1 as libc::c_int as i64)?;
-    let mut posi: usize = posrelatI(pi, l);
-    let mut pose: usize = getendpos(L, 3 as libc::c_int, pi, l)?;
-    let mut n: libc::c_int = 0;
-    let mut i: libc::c_int = 0;
-    if posi > pose {
-        return Ok(0 as libc::c_int);
-    }
-    if ((pose.wrapping_sub(posi) >= 2147483647 as libc::c_int as usize) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
-        != 0
-    {
-        return luaL_error(L, "string slice too long");
-    }
-    n = pose.wrapping_sub(posi) as libc::c_int + 1 as libc::c_int;
-    luaL_checkstack(
-        L,
-        n.try_into().unwrap(),
-        b"string slice too long\0" as *const u8 as *const libc::c_char,
-    )?;
-    i = 0 as libc::c_int;
-    while i < n {
-        lua_pushinteger(
-            L,
-            *s.offset(
-                posi.wrapping_add(i as usize)
-                    .wrapping_sub(1 as libc::c_int as usize) as isize,
-            ) as libc::c_uchar as i64,
-        );
-        i += 1;
-    }
-    return Ok(n);
-}
-
 unsafe fn str_char(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut n: libc::c_int = lua_gettop(L);
     let mut b = Vec::with_capacity(n.try_into().unwrap());
@@ -947,13 +910,6 @@ unsafe fn str_unpack(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::
 }
 
 static mut strlib: [luaL_Reg; 17] = [
-    {
-        let mut init = luaL_Reg {
-            name: b"byte\0" as *const u8 as *const libc::c_char,
-            func: Some(str_byte),
-        };
-        init
-    },
     {
         let mut init = luaL_Reg {
             name: b"char\0" as *const u8 as *const libc::c_char,

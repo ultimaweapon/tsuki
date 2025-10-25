@@ -9,10 +9,39 @@ use core::num::NonZero;
 use memchr::memchr;
 
 /// Implementation of `__add` metamethod for string.
-pub fn add<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn add<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     arith(cx, "__add", |cx, lhs, rhs| {
         cx.push_add(lhs, rhs).map(|_| ())
     })
+}
+
+/// Implementation of [string.byte](https://www.lua.org/manual/5.4/manual.html#pdf-string.byte).
+pub fn byte<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let s = cx.arg(1).to_str()?.as_bytes();
+    let pi = cx.arg(2).to_nilable_int(false)?.unwrap_or(1);
+    let pose = cx.arg(3).to_nilable_int(false)?.unwrap_or(pi);
+    let l = s.len() as i64;
+    let posi = posrelatI(pi, l);
+    let pose = getendpos(pose, l);
+
+    if posi.get() > pose {
+        return Ok(cx.into());
+    }
+
+    // Reserve stack.
+    let posi = posi.get() as usize; // posi guarantee to not exceed the length of string.
+    let pose = pose as usize; // Same here.
+    let n = pose - posi + 1;
+
+    if cx.reserve(n).is_err() {
+        return Err("string slice too long".into());
+    }
+
+    for i in 0..n {
+        cx.push(s[posi - 1 + i])?;
+    }
+
+    Ok(cx.into())
 }
 
 /// Implementation of [string.find](https://www.lua.org/manual/5.4/manual.html#pdf-string.find).
