@@ -176,10 +176,10 @@ impl From<f64> for Float {
 
 impl Display for Float {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        Display::fmt(&self.0, f)?;
-
         if self.0.fract() == 0.0 {
-            f.write_str(".0")?;
+            write!(f, "{:.1}", self.0)?;
+        } else {
+            write!(f, "{}", self.0)?;
         }
 
         Ok(())
