@@ -840,7 +840,7 @@ impl<'a, A> Value<'a, A> {
             0x32 => todo!(),
             0x03 => Self::Int(unsafe { (*v).value_.i }),
             0x13 => Self::Float(unsafe { (*v).value_.n }),
-            0x04 | 0x14 => Self::Str(unsafe { Ref::new((*v).value_.gc.cast()) }),
+            0x04 => Self::Str(unsafe { Ref::new((*v).value_.gc.cast()) }),
             0x05 => Self::Table(unsafe { Ref::new((*v).value_.gc.cast()) }),
             0x06 => Self::LuaFn(unsafe { Ref::new((*v).value_.gc.cast()) }),
             0x16 => todo!(),

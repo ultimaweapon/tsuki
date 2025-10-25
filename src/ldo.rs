@@ -504,7 +504,7 @@ pub async unsafe fn luaD_pretailcall<D>(
     delta: c_int,
 ) -> Result<c_int, Box<dyn Error>> {
     loop {
-        match (*func).tt_ as c_int & 0x3f as c_int {
+        match (*func).tt_ & 0x3f {
             38 => {
                 return precallC(
                     L,
@@ -569,7 +569,7 @@ pub async unsafe fn luaD_precall<D>(
     nresults: c_int,
 ) -> Result<*mut CallInfo<D>, Box<dyn Error>> {
     loop {
-        match (*func).tt_ as c_int & 0x3f as c_int {
+        match (*func).tt_ & 0x3f {
             38 => {
                 precallC(
                     L,

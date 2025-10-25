@@ -352,8 +352,9 @@ pub unsafe fn lua_tolstring<D>(L: *const Thread<D>, idx: c_int, convert: bool) -
 
 pub unsafe fn lua_rawlen<D>(L: *const Thread<D>, idx: c_int) -> u64 {
     let o = index2value(L, idx);
-    match (*o).tt_ as c_int & 0x3f as c_int {
-        4 | 20 => return (*((*o).value_.gc as *mut Str<D>)).len as u64,
+
+    match (*o).tt_ & 0x3f {
+        4 => return (*((*o).value_.gc.cast::<Str<D>>())).len as u64,
         7 => {
             let u = (*o).value_.gc.cast::<UserData<D, ()>>();
             let v = (*u).ptr;
@@ -770,7 +771,7 @@ unsafe fn aux_upvalue<D>(
     val: *mut *mut UnsafeValue<D>,
     owner: *mut *mut Object<D>,
 ) -> *const c_char {
-    match (*fi).tt_ as c_int & 0x3f as c_int {
+    match (*fi).tt_ & 0x3f {
         38 => {
             let f = (*fi).value_.gc as *mut CClosure<D>;
             if !((n as c_uint).wrapping_sub(1 as c_uint) < (*f).nupvalues as c_uint) {

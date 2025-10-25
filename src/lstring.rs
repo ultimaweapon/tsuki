@@ -25,7 +25,7 @@ pub unsafe fn luaS_hash(str: *const c_char, mut l: usize, seed: c_uint) -> c_uin
     return h;
 }
 
-pub unsafe fn luaS_hashlongstr<D>(ts: *mut Str<D>) -> c_uint {
+pub unsafe fn luaS_hashlongstr<A>(ts: *const Str<A>) -> c_uint {
     if (*ts).extra.get() as c_int == 0 as c_int {
         let s = (*ts).as_bytes();
 

@@ -910,7 +910,7 @@ unsafe fn luaK_float<D>(
 }
 
 unsafe fn const2exp<D>(v: *mut UnsafeValue<D>, e: *mut expdesc<D>) {
-    match (*v).tt_ as c_int & 0x3f as c_int {
+    match (*v).tt_ & 0x3f {
         3 => {
             (*e).k = VKINT;
             (*e).u.ival = (*v).value_.i;
@@ -928,7 +928,7 @@ unsafe fn const2exp<D>(v: *mut UnsafeValue<D>, e: *mut expdesc<D>) {
         0 => {
             (*e).k = VNIL;
         }
-        4 | 20 => {
+        4 => {
             (*e).k = VKSTR;
             (*e).u.strval = (*v).value_.gc.cast();
         }
@@ -1540,8 +1540,12 @@ unsafe fn isKstr<D>(fs: *mut FuncState<D>, e: *mut expdesc<D>) -> c_int {
         && !((*e).t != (*e).f)
         && (*e).u.info <= ((1 as c_int) << 8 as c_int) - 1 as c_int
         && (*((*(*fs).f).k).offset((*e).u.info as isize)).tt_ as c_int
-            == 4 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
-        as c_int;
+            == 4 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int
+        && (*(*((*(*fs).f).k).offset((*e).u.info as isize))
+            .value_
+            .gc
+            .cast::<Str<D>>())
+        .is_short()) as c_int;
 }
 
 unsafe fn isKint<D>(e: *mut expdesc<D>) -> c_int {

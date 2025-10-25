@@ -66,7 +66,7 @@ unsafe fn l_hashfloat(n: Float) -> c_int {
 }
 
 unsafe fn mainpositionTV<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *mut Node<D> {
-    match (*key).tt_ as c_int & 0x3f as c_int {
+    match (*key).tt_ & 0x3f {
         3 => {
             let i: i64 = (*key).value_.i;
             return hashint(t, i);
@@ -81,20 +81,15 @@ unsafe fn mainpositionTV<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *
             ) as *mut Node<D>;
         }
         4 => {
-            let ts = (*key).value_.gc as *mut Str<D>;
-            return ((*t).node.get()).offset(
-                ((*ts).hash.get()
-                    & (((1 as c_int) << (*t).lsizenode.get() as c_int) - 1 as c_int) as c_uint)
-                    as c_int as isize,
-            ) as *mut Node<D>;
-        }
-        20 => {
-            let ts_0 = (*key).value_.gc as *mut Str<D>;
-            return ((*t).node.get()).offset(
-                (luaS_hashlongstr(ts_0)
-                    & (((1 as c_int) << (*t).lsizenode.get() as c_int) - 1 as c_int) as c_uint)
-                    as c_int as isize,
-            ) as *mut Node<D>;
+            let ts = (*key).value_.gc.cast::<Str<D>>();
+            let h = match (*ts).is_short() {
+                true => (*ts).hash.get(),
+                false => luaS_hashlongstr(ts),
+            };
+
+            (*t).node
+                .get()
+                .add((h & (((1 as c_int) << (*t).lsizenode.get()) - 1) as c_uint) as usize)
         }
         1 => {
             return ((*t).node.get()).offset(
@@ -173,13 +168,19 @@ unsafe fn equalkey<D>(k1: *const UnsafeValue<D>, n2: *const Node<D>, deadok: c_i
         0 | 1 | 17 => 1,
         3 => ((*k1).value_.i == (*n2).u.key_val.i) as c_int,
         19 => ((*k1).value_.n == (*n2).u.key_val.n) as c_int,
-        2 | 18 | 50 => core::ptr::fn_addr_eq((*k1).value_.f, (*n2).u.key_val.f) as c_int,
+        2 => core::ptr::fn_addr_eq((*k1).value_.f, (*n2).u.key_val.f) as c_int,
+        18 => todo!(),
         34 => core::ptr::fn_addr_eq((*k1).value_.a, (*n2).u.key_val.a) as c_int,
-        84 => luaS_eqlngstr(
-            (*k1).value_.gc as *mut Str<D>,
-            (*n2).u.key_val.gc as *mut Str<D>,
-        )
-        .into(),
+        50 => todo!(),
+        0x44 => {
+            let n2 = (*n2).u.key_val.gc.cast::<Str<D>>();
+
+            if (*n2).is_short() {
+                ((*k1).value_.gc.cast() == n2) as c_int
+            } else {
+                luaS_eqlngstr((*k1).value_.gc.cast(), n2).into()
+            }
+        }
         _ => ((*k1).value_.gc == (*n2).u.key_val.gc) as c_int,
     }
 }
@@ -724,7 +725,7 @@ pub unsafe fn luaH_getshortstr<D>(t: *const Table<D>, key: *const Str<D>) -> *co
         ((*t).node.get()).offset(((*key).hash.get() & ((1 << (*t).lsizenode.get()) - 1)) as isize);
 
     loop {
-        if (*n).u.key_tt as c_int == 4 | 0 << 4 | 1 << 6 && (*n).u.key_val.gc.cast() == key {
+        if (*n).u.key_tt == 4 | 0 << 4 | 1 << 6 && (*n).u.key_val.gc.cast() == key {
             return &mut (*n).i_val;
         } else {
             let nx: c_int = (*n).u.next;
@@ -737,8 +738,8 @@ pub unsafe fn luaH_getshortstr<D>(t: *const Table<D>, key: *const Str<D>) -> *co
 }
 
 pub unsafe fn luaH_getstr<D>(t: *const Table<D>, key: *const Str<D>) -> *const UnsafeValue<D> {
-    if (*key).hdr.tt as c_int == 4 as c_int | (0 as c_int) << 4 as c_int {
-        return luaH_getshortstr(t, key);
+    if (*key).is_short() {
+        luaH_getshortstr(t, key)
     } else {
         let mut ko = UnsafeValue::default();
         let io = &raw mut ko;
@@ -746,8 +747,8 @@ pub unsafe fn luaH_getstr<D>(t: *const Table<D>, key: *const Str<D>) -> *const U
         (*io).value_.gc = key.cast();
         (*io).tt_ = ((*key).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
 
-        return getgeneric(t, &mut ko, 0 as c_int);
-    };
+        getgeneric(t, &raw const ko, 0)
+    }
 }
 
 pub unsafe fn luaH_getid<D>(t: *const Table<D>, k: &TypeId) -> *const UnsafeValue<D> {
@@ -785,7 +786,11 @@ pub unsafe fn luaH_getid<D>(t: *const Table<D>, k: &TypeId) -> *const UnsafeValu
 #[inline(never)]
 pub unsafe fn luaH_get<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *const UnsafeValue<D> {
     match (*key).tt_ & 0x3f {
-        4 => return luaH_getshortstr(t, (*key).value_.gc as *mut Str<D>),
+        4 => {
+            if (*(*key).value_.gc.cast::<Str<D>>()).is_short() {
+                return luaH_getshortstr(t, (*key).value_.gc.cast());
+            }
+        }
         3 => return luaH_getint(t, (*key).value_.i),
         0 => return &raw const (*t).absent_key,
         19 => {

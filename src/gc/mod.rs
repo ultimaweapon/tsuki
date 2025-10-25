@@ -230,7 +230,7 @@ impl<D> Gc<D> {
     #[inline(never)]
     pub unsafe fn mark(&self, o: *const Object<D>) {
         match (*o).tt {
-            4 | 20 | 14 => {
+            4 | 14 => {
                 (*o).marked
                     .set((*o).marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
                 self.debt.update(|v| v.saturating_sub_unsigned(1));
@@ -1013,7 +1013,7 @@ impl<D> Gc<D> {
                 core::ptr::drop_in_place(u);
                 alloc::alloc::dealloc(u.cast(), layout);
             },
-            4 | 20 => unsafe {
+            4 => unsafe {
                 let ts: *mut Str<D> = o as *mut Str<D>;
                 let size = offset_of!(Str<D>, contents) + (*ts).len + 1;
                 let align = align_of::<Str<D>>();

@@ -65,7 +65,7 @@ impl<A> Str<A> {
 
         if s.len() > Self::SHORT_LEN {
             let str = str.into();
-            let s = unsafe { Self::alloc(g, str.len(), 4 | 1 << 4, (*g).seed) };
+            let s = unsafe { Self::alloc(g, str.len(), 4 | 0 << 4, (*g).seed) };
 
             unsafe { addr_of_mut!((*s).ty).write(Cell::new(ty)) };
             unsafe { addr_of_mut!((*s).hnext).write(Cell::new(null())) };

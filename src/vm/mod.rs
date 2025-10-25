@@ -54,7 +54,6 @@ type c_uint = u32;
 type c_long = i64;
 type c_ulong = u64;
 type c_longlong = i64;
-type c_double = f64;
 
 mod opcode;
 
@@ -664,7 +663,7 @@ pub unsafe fn luaV_equalobj<A>(
         0x32 => todo!(),
         0x03 => return Ok((*t1).value_.i == (*t2).value_.i),
         0x13 => return Ok((*t1).value_.n == (*t2).value_.n),
-        0x04 | 0x14 => {
+        0x04 => {
             let t1 = (*t1).value_.gc.cast::<Str<A>>();
             let t2 = (*t2).value_.gc.cast::<Str<A>>();
 
@@ -928,7 +927,7 @@ pub unsafe fn luaV_objlen<D>(
 ) -> Result<UnsafeValue<D>, Box<dyn core::error::Error>> {
     let mut tm = null();
 
-    match (*rb).tt_ as c_int & 0x3f as c_int {
+    match (*rb).tt_ & 0xf {
         5 => {
             let h = (*rb).value_.gc as *mut Table<D>;
 
@@ -947,7 +946,7 @@ pub unsafe fn luaV_objlen<D>(
                 return Ok(i64::try_from(luaH_getn(h)).unwrap().into());
             }
         }
-        4 | 20 => {
+        4 => {
             return Ok(i64::try_from((*(*rb).value_.gc.cast::<Str<D>>()).len)
                 .unwrap()
                 .into());
