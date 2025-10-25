@@ -137,29 +137,6 @@
 //! List of methods to create Rust collection:
 //!
 //! - [BTreeMap]: [Lua::create_btree_map()] and [Context::create_btree_map()].
-//!
-//! # Derive macros
-//!
-//! Tsuki provides some derive macros to help with repetitive tasks.
-//!
-//! ## FromStr
-//!
-//! This will generate [FromStr](::core::str::FromStr) implementation to parse Lua
-//! [option](https://www.lua.org/manual/5.4/manual.html#luaL_checkoption). Only enum with unit
-//! variants is supported. The name to map will be the same as Lua convention, which is lower-cased
-//! without separators:
-//!
-//! ```
-//! use tsuki::FromStr;
-//!
-//! #[derive(FromStr)]
-//! enum MyOption {
-//!     Foo,
-//!     FooBar,
-//! }
-//! ```
-//!
-//! Will map `foo` to `MyOption::Foo` and `foobar` to `MyOption::FooBar`.
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 

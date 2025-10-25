@@ -114,10 +114,9 @@ pub unsafe fn luaF_findupval<D>(L: *const Thread<D>, level: *mut StackValue<D>) 
     return newupval(L, level, pp);
 }
 
-unsafe fn callclosemethod<D>(
-    L: *const Thread<D>,
-    obj: *const StackValue<D>,
-    err: *mut UnsafeValue<D>,
+unsafe fn callclosemethod<A>(
+    L: *const Thread<A>,
+    obj: *const StackValue<A>,
 ) -> Result<(), Box<CallError>> {
     let top = (*L).top.get();
     let tm = luaT_gettmbyobj(L, obj.cast(), TM_CLOSE);
@@ -130,9 +129,7 @@ unsafe fn callclosemethod<D>(
     (*io1_0).value_ = (*io2_0).value_;
     (*io1_0).tt_ = (*io2_0).tt_;
     let io1_1 = top.offset(2 as c_int as isize);
-    let io2_1 = err;
-    (*io1_1).value_ = (*io2_1).value_;
-    (*io1_1).tt_ = (*io2_1).tt_;
+    (*io1_1).tt_ = 0 | 0 << 4;
     (*L).top.set(top.offset(3 as c_int as isize));
 
     // Invoke.
@@ -167,15 +164,6 @@ unsafe fn checkclosemth<D>(
         ));
     }
     Ok(())
-}
-
-unsafe fn prepcallclosemth<D>(
-    L: *const Thread<D>,
-    level: *const StackValue<D>,
-) -> Result<(), Box<CallError>> {
-    let errobj = (*(*L).hdr.global).nilvalue.get();
-
-    callclosemethod(L, level, errobj)
 }
 
 pub unsafe fn luaF_newtbcupval<D>(
@@ -284,7 +272,7 @@ pub unsafe fn luaF_close<D>(
     while (*L).tbclist.get() >= level {
         let tbc = (*L).tbclist.get();
         poptbclist(L);
-        prepcallclosemth(L, tbc)?;
+        callclosemethod(L, tbc)?;
         level = ((*L).stack.get() as *mut c_char).offset(levelrel as isize) as *mut StackValue<D>;
     }
 

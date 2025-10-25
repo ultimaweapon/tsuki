@@ -614,14 +614,6 @@ pub unsafe fn lua_settable<D>(
     Ok(())
 }
 
-pub unsafe fn lua_setfield<D>(
-    L: *const Thread<D>,
-    idx: c_int,
-    k: *const libc::c_char,
-) -> Result<(), Box<dyn core::error::Error>> {
-    auxsetstr(L, index2value(L, idx), k)
-}
-
 pub unsafe fn lua_seti<D>(
     L: *const Thread<D>,
     idx: c_int,

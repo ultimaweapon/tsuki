@@ -49,6 +49,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - `__gc` metamethod is not supported.
 - `__name` metavalue must be UTF-8 string.
 - `__tostring` metamethod must return a UTF-8 string.
+- Float to string conversion does not truncate precision (Lua limit to 14 digits by default).
 - C locale is ignored (once `libc` has been completely removed).
 
 ### Standard library
