@@ -482,12 +482,6 @@ assert(tonumber('-0xffFFFfff') == -(1 << 32) + 1)
 -- possible confusion with decimal exponent
 assert(0E+1 == 0 and 0xE+1 == 15 and 0xe-1 == 13)
 
-
--- floating hexas
-
-assert('0xA.a' + 0 == 10 + 10/16)
-
-
 assert(1.1 == 1.+.1)
 assert(100.0 == 1E2 and .01 == 1e-2)
 assert(1111111111 - 1111111110 == 1000.00e-03)

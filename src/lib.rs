@@ -160,7 +160,7 @@ use self::lapi::lua_settop;
 use self::ldebug::lua_getinfo;
 use self::ldo::luaD_protectedparser;
 use self::llex::{TK_WHILE, luaX_tokens};
-use self::lstate::{CallInfo, lua_Debug};
+use self::lstate::lua_Debug;
 use self::ltm::{
     TM_ADD, TM_BAND, TM_BNOT, TM_BOR, TM_BXOR, TM_CALL, TM_CLOSE, TM_CONCAT, TM_DIV, TM_EQ, TM_GC,
     TM_IDIV, TM_INDEX, TM_LE, TM_LEN, TM_LT, TM_MOD, TM_MODE, TM_MUL, TM_NEWINDEX, TM_POW, TM_SHL,
@@ -981,11 +981,7 @@ pub struct CallError {
 }
 
 impl CallError {
-    unsafe fn new<D>(
-        th: *const Thread<D>,
-        caller: *mut CallInfo<D>,
-        mut reason: Box<dyn Error>,
-    ) -> Box<Self> {
+    unsafe fn new<A>(th: *const Thread<A>, mut reason: Box<dyn Error>) -> Box<Self> {
         // Forward ourself.
         reason = match reason.downcast() {
             Ok(v) => return v,
@@ -996,7 +992,7 @@ impl CallError {
         let mut ci = unsafe { (*th).ci.get() };
         let mut chunk = None;
 
-        while unsafe { ci != caller && ci != (*th).base_ci.get() } {
+        while unsafe { ci != (*th).base_ci.get() } {
             let mut ar = lua_Debug {
                 i_ci: ci,
                 ..Default::default()

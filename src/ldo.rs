@@ -659,7 +659,7 @@ pub async unsafe fn luaD_call<D>(
             Ok(())
         }
         Err(e) => {
-            let mut r = Err(CallError::new(L, old_ci, e));
+            let mut r = Err(CallError::new(L, e));
 
             (*L).ci.set(old_ci);
             (*L).allowhook.set(old_allowhooks);

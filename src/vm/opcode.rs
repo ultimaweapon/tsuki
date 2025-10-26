@@ -1,16 +1,8 @@
-#![allow(
-    dead_code,
-    mutable_transmutes,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    unused_assignments,
-    unused_mut
-)]
+#![allow(dead_code, non_snake_case, non_upper_case_globals)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-pub type OpCode = libc::c_uint;
-pub type OpMode = libc::c_uint;
+pub type OpCode = c_uint;
+pub type OpMode = c_uint;
 
 pub const OP_EXTRAARG: OpCode = 82;
 pub const OP_VARARGPREP: OpCode = 81;
@@ -101,6 +93,8 @@ pub const iAx: OpMode = 3;
 pub const iAsBx: OpMode = 2;
 pub const iABx: OpMode = 1;
 pub const iABC: OpMode = 0;
+
+type c_uint = u32;
 
 pub static mut luaP_opmodes: [u8; 83] = [
     ((0 as libc::c_int) << 7 as libc::c_int
