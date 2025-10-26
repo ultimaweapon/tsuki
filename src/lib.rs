@@ -179,6 +179,7 @@ use core::error::Error;
 use core::ffi::c_int;
 use core::fmt::{Display, Formatter};
 use core::marker::PhantomPinned;
+use core::mem::MaybeUninit;
 use core::ops::Deref;
 use core::pin::Pin;
 use core::ptr::null;
@@ -778,35 +779,36 @@ impl<'a> Drop for ModulesLock<'a> {
 }
 
 /// Encapsulates a Lua value.
+#[repr(u8)]
 pub enum Value<'a, A> {
     /// The value is `nil`.
-    Nil,
+    Nil = 0 | 0 << 4,
     /// The value is `false`.
-    False,
+    False = 1 | 0 << 4,
     /// The value is `true`.
-    True,
+    True = 1 | 1 << 4,
     /// The value is `function` implemented in Rust.
-    Fp(fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>),
+    Fp(fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>) = 2 | 0 << 4,
     /// The value is `function` implemented in Rust as async function.
     AsyncFp(
         fn(
             Context<A, Args>,
         ) -> Pin<Box<dyn Future<Output = Result<Context<A, Ret>, Box<dyn Error>>> + '_>>,
-    ),
+    ) = 2 | 2 << 4,
     /// The value is `integer`.
-    Int(i64),
+    Int(i64) = 3 | 0 << 4,
     /// The value is `float`.
-    Float(Float),
+    Float(Float) = 3 | 1 << 4,
     /// The value is `string`.
-    Str(Ref<'a, Str<A>>),
+    Str(Ref<'a, Str<A>>) = 4 | 0 << 4 | 1 << 6,
     /// The value is `table`.
-    Table(Ref<'a, Table<A>>),
+    Table(Ref<'a, Table<A>>) = 5 | 0 << 4 | 1 << 6,
     /// The value is `function` implemented in Lua.
-    LuaFn(Ref<'a, LuaFn<A>>),
+    LuaFn(Ref<'a, LuaFn<A>>) = 6 | 0 << 4 | 1 << 6,
     /// The value is `full userdata`.
-    UserData(Ref<'a, UserData<A, dyn Any>>),
+    UserData(Ref<'a, UserData<A, dyn Any>>) = 7 | 0 << 4 | 1 << 6,
     /// The value is `thread`.
-    Thread(Ref<'a, Thread<A>>),
+    Thread(Ref<'a, Thread<A>>) = 8 | 0 << 4 | 1 << 6,
 }
 
 impl<'a, A> Value<'a, A> {
@@ -831,28 +833,28 @@ impl<'a, A> Value<'a, A> {
 
     #[inline(never)]
     unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self {
-        match unsafe { (*v).tt_ & 0x3f } {
-            0x01 => Self::False,
-            0x11 => Self::True,
-            0x02 => Self::Fp(unsafe { (*v).value_.f }),
-            0x12 => todo!(),
-            0x22 => Self::AsyncFp(unsafe { (*v).value_.a }),
-            0x32 => todo!(),
-            0x03 => Self::Int(unsafe { (*v).value_.i }),
-            0x13 => Self::Float(unsafe { (*v).value_.n }),
-            0x04 => Self::Str(unsafe { Ref::new((*v).value_.gc.cast()) }),
-            0x05 => Self::Table(unsafe { Ref::new((*v).value_.gc.cast()) }),
-            0x06 => Self::LuaFn(unsafe { Ref::new((*v).value_.gc.cast()) }),
-            0x16 => todo!(),
-            0x26 => todo!(),
-            0x36 => todo!(),
-            0x07 => Self::UserData(unsafe { Ref::new((*v).value_.gc.cast()) }),
-            0x08 => Self::Thread(unsafe { Ref::new((*v).value_.gc.cast()) }),
-            v => match v & 0xf {
-                0 => Self::Nil,
-                _ => unreachable!(),
+        let mut r = MaybeUninit::<Self>::uninit();
+        let p = r.as_mut_ptr().cast::<UnsafeValue<A>>();
+        let t = unsafe { (*v).tt_ };
+
+        match t & 0xf {
+            0 => unsafe { (*p).tt_ = 0 | 0 << 4 },
+            1 | 2 | 3 => unsafe {
+                (*p).tt_ = t;
+                (*p).value_ = (*v).value_;
             },
+            4 | 5 | 6 | 7 | 8 => unsafe {
+                let v = (*v).value_.gc;
+
+                (*p).tt_ = t;
+                (*p).value_.gc = v;
+
+                core::mem::forget(Ref::new_inline(v));
+            },
+            _ => unreachable!(),
         }
+
+        unsafe { r.assume_init() }
     }
 }
 

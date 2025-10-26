@@ -22,6 +22,26 @@ impl<D> Object<D> {
     pub fn global(&self) -> &Lua<D> {
         unsafe { &*self.global }
     }
+
+    #[inline(always)]
+    pub(crate) unsafe fn unref(&self) {
+        // Decrease references.
+        self.refs.update(|v| v - 1);
+
+        if self.refs.get() != 0 {
+            return;
+        }
+
+        // Remove from list.
+        let n = self.refn.replace(null_mut());
+        let p = self.refp.replace(null());
+
+        unsafe { *n = p };
+
+        if !p.is_null() {
+            unsafe { (*p).refn.set(n) };
+        }
+    }
 }
 
 impl<D> Default for Object<D> {

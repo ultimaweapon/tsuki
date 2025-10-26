@@ -1,11 +1,11 @@
 use super::Object;
 use core::marker::PhantomData;
 use core::ops::Deref;
-use core::ptr::{null, null_mut};
 
 /// Strong reference to Lua object.
 ///
 /// The value of this struct will prevent Garbage Collector from collect the encapsulated value.
+#[repr(transparent)]
 pub struct Ref<'a, T> {
     obj: *const T,
     phantom: PhantomData<&'a T>,
@@ -14,6 +14,11 @@ pub struct Ref<'a, T> {
 impl<'a, T> Ref<'a, T> {
     #[inline(never)]
     pub(crate) unsafe fn new(o: *const T) -> Self {
+        Self::new_inline(o)
+    }
+
+    #[inline(always)]
+    pub(crate) unsafe fn new_inline(o: *const T) -> Self {
         let h = o.cast::<Object<()>>();
         let g = (*h).global();
         let r = (*h).refs.get();
@@ -52,24 +57,7 @@ impl<'a, T> Ref<'a, T> {
 impl<'a, T> Drop for Ref<'a, T> {
     #[inline(always)]
     fn drop(&mut self) {
-        // Decrease references.
-        let h = self.obj.cast::<Object<()>>();
-
-        unsafe { (*h).refs.set((*h).refs.get() - 1) };
-
-        if unsafe { (*h).refs.get() != 0 } {
-            return;
-        }
-
-        // Remove from list.
-        let n = unsafe { (*h).refn.replace(null_mut()) };
-        let p = unsafe { (*h).refp.replace(null()) };
-
-        unsafe { *n = p };
-
-        if !p.is_null() {
-            unsafe { (*p).refn.set(n) };
-        }
+        unsafe { (*self.obj.cast::<Object<()>>()).unref() };
     }
 }
 

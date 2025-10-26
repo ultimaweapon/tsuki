@@ -4,8 +4,9 @@ use crate::{
 };
 use alloc::boxed::Box;
 use core::error::Error;
-use core::mem::{transmute, zeroed};
+use core::mem::{ManuallyDrop, transmute, zeroed};
 use core::pin::Pin;
+use core::ptr::addr_of;
 
 /// The outside **must** never be able to construct or have the value of this type.
 ///
@@ -198,7 +199,7 @@ impl<D> From<&Str<D>> for UnsafeValue<D> {
     fn from(value: &Str<D>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
-            tt_: value.hdr.tt | 1 << 6,
+            tt_: 4 | 0 << 4 | 1 << 6,
         }
     }
 }
@@ -208,7 +209,7 @@ impl<'a, D> From<Ref<'a, Str<D>>> for UnsafeValue<D> {
     fn from(value: Ref<'a, Str<D>>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
-            tt_: value.hdr.tt | 1 << 6,
+            tt_: 4 | 0 << 4 | 1 << 6,
         }
     }
 }
@@ -238,7 +239,7 @@ impl<D> From<&LuaFn<D>> for UnsafeValue<D> {
     fn from(value: &LuaFn<D>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
-            tt_: value.hdr.tt | 1 << 6,
+            tt_: 6 | 0 << 4 | 1 << 6,
         }
     }
 }
@@ -258,7 +259,7 @@ impl<D, T: ?Sized> From<&UserData<D, T>> for UnsafeValue<D> {
     fn from(value: &UserData<D, T>) -> Self {
         Self {
             value_: UntaggedValue { gc: &value.hdr },
-            tt_: value.hdr.tt | 1 << 6,
+            tt_: 7 | 0 << 4 | 1 << 6,
         }
     }
 }
@@ -293,21 +294,20 @@ impl<'a, D> From<Ref<'a, Thread<D>>> for UnsafeValue<D> {
     }
 }
 
-impl<'a, D> From<Value<'a, D>> for UnsafeValue<D> {
-    fn from(value: Value<'a, D>) -> Self {
-        match value {
-            Value::Nil => Self::from(Nil),
-            Value::False => Self::from(false),
-            Value::True => Self::from(true),
-            Value::Fp(v) => Self::from(Fp(v)),
-            Value::AsyncFp(v) => Self::from(AsyncFp(v)),
-            Value::Int(v) => Self::from(v),
-            Value::Float(v) => Self::from(v),
-            Value::Str(v) => Self::from(v),
-            Value::Table(v) => Self::from(v),
-            Value::LuaFn(v) => Self::from(v),
-            Value::UserData(v) => Self::from(v),
-            Value::Thread(v) => Self::from(v),
+impl<'a, A> From<Value<'a, A>> for UnsafeValue<A> {
+    #[inline(never)]
+    fn from(value: Value<'a, A>) -> Self {
+        let value = ManuallyDrop::new(value);
+        let v = addr_of!(value) as *const Self;
+        let t = unsafe { (*v).tt_ };
+
+        if t & 1 << 6 != 0 {
+            unsafe { (*(*v).value_.gc).unref() };
+        }
+
+        Self {
+            tt_: t,
+            value_: unsafe { (*v).value_ },
         }
     }
 }
@@ -339,7 +339,7 @@ impl<A> From<StackValue<A>> for UnsafeValue<A> {
     }
 }
 
-#[repr(C, align(8))]
+#[repr(C)]
 pub union UntaggedValue<A> {
     pub gc: *const Object<A>,
     pub f: fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>,
