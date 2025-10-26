@@ -11,7 +11,6 @@ use crate::{Args, ArithError, ChunkInfo, Context, Float, Number, Ops, Ret, Str, 
 use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
 use core::ffi::{c_char, c_void};
-use libc::{strpbrk, strtod};
 
 type c_uchar = u8;
 type c_int = i32;
@@ -599,7 +598,7 @@ pub unsafe fn luaO_arith<D>(
     }
 }
 
-pub unsafe fn luaO_hexavalue(c: c_int) -> c_int {
+pub fn luaO_hexavalue(c: c_int) -> c_int {
     if luai_ctype_[(c + 1 as c_int) as usize] as c_int & (1 as c_int) << 1 as c_int != 0 {
         return c - '0' as i32;
     } else {
@@ -607,113 +606,115 @@ pub unsafe fn luaO_hexavalue(c: c_int) -> c_int {
     };
 }
 
-unsafe fn isneg(s: *mut *const c_char) -> c_int {
-    if **s as c_int == '-' as i32 {
-        *s = (*s).offset(1);
-        return 1 as c_int;
-    } else if **s as c_int == '+' as i32 {
-        *s = (*s).offset(1);
-    }
-    return 0 as c_int;
+fn l_str2d(s: &[u8]) -> Option<f64> {
+    let s = s.trim_ascii();
+
+    core::str::from_utf8(s)
+        .ok()?
+        .parse::<f64>()
+        .ok()
+        .filter(|v| v.is_finite())
 }
 
-unsafe fn l_str2dloc(s: *const c_char) -> Option<f64> {
-    // TODO: How to handle hex floating point in Rust?
-    let mut endptr: *mut c_char = 0 as *mut c_char;
-    let result = strtod(s, &mut endptr);
-
-    if endptr == s as *mut c_char {
-        return None;
-    }
-    while luai_ctype_[(*endptr as c_uchar as c_int + 1 as c_int) as usize] as c_int
-        & (1 as c_int) << 3 as c_int
-        != 0
-    {
-        endptr = endptr.offset(1);
-    }
-    return if *endptr as c_int == '\0' as i32 {
-        Some(result)
-    } else {
-        None
-    };
-}
-
-unsafe fn l_str2d(s: *const c_char) -> Option<f64> {
-    let pmode: *const c_char = strpbrk(s, b".xXnN\0" as *const u8 as *const c_char);
-    let mode: c_int = if !pmode.is_null() {
-        *pmode as c_uchar as c_int | 'A' as i32 ^ 'a' as i32
-    } else {
-        0 as c_int
-    };
-
-    if mode == 'n' as i32 {
-        return None;
-    }
-
-    l_str2dloc(s)
-}
-
-unsafe fn l_str2int(mut s: *const c_char) -> Option<i64> {
-    let mut a: u64 = 0 as c_int as u64;
-    let mut empty: c_int = 1 as c_int;
-
+fn l_str2int(s: &[u8]) -> Option<i64> {
     // Skip leading whitespace.
-    while luai_ctype_[(*s as c_uchar as c_int + 1 as c_int) as usize] as c_int & 1 << 3 != 0 {
-        s = s.offset(1);
+    let mut s = s.iter();
+    let mut b = s.next().copied()?;
+
+    while luai_ctype_[usize::from(b) + 1] & 1 << 3 != 0 {
+        b = s.next().copied()?;
     }
 
-    let neg = isneg(&mut s);
+    // Check if negative.
+    let neg = match b {
+        b'-' => {
+            b = s.next().copied()?;
+            true
+        }
+        b'+' => {
+            b = s.next().copied()?;
+            false
+        }
+        _ => false,
+    };
 
-    if *s.offset(0 as c_int as isize) as c_int == '0' as i32
-        && (*s.offset(1 as c_int as isize) as c_int == 'x' as i32
-            || *s.offset(1 as c_int as isize) as c_int == 'X' as i32)
-    {
-        s = s.offset(2 as c_int as isize);
-        while luai_ctype_[(*s as c_uchar as c_int + 1 as c_int) as usize] as c_int
-            & (1 as c_int) << 4 as c_int
-            != 0
-        {
+    // Parse.
+    let mut a = 0u64;
+    let mut empty = true;
+    let mut b = if b == b'0' && matches!(s.as_slice().first(), Some(b'x') | Some(b'X')) {
+        let mut b = Some(s.by_ref().skip(1).next().copied()?);
+
+        loop {
+            let v = match b {
+                Some(v) => v,
+                None => break,
+            };
+
+            if luai_ctype_[usize::from(v) + 1] & 1 << 4 == 0 {
+                break;
+            }
+
             a = a
                 .wrapping_mul(16)
-                .wrapping_add(luaO_hexavalue(*s as c_int) as u64);
-            empty = 0 as c_int;
-            s = s.offset(1);
+                .wrapping_add(luaO_hexavalue(v.into()) as u64);
+            empty = false;
+            b = s.next().copied();
         }
+
+        b
     } else {
-        while luai_ctype_[(*s as c_uchar as c_int + 1 as c_int) as usize] as c_int
-            & (1 as c_int) << 1 as c_int
-            != 0
-        {
-            let d: c_int = *s as c_int - '0' as i32;
-            if a >= (0x7fffffffffffffff as c_longlong / 10 as c_int as c_longlong) as u64
-                && (a > (0x7fffffffffffffff as c_longlong / 10 as c_int as c_longlong) as u64
-                    || d > (0x7fffffffffffffff as c_longlong % 10 as c_int as c_longlong) as c_int
-                        + neg)
+        let mut b = Some(b);
+
+        loop {
+            let v = match b {
+                Some(v) => v,
+                None => break,
+            };
+
+            if luai_ctype_[usize::from(v) + 1] & 1 << 1 == 0 {
+                break;
+            }
+
+            // TODO: Refactor this.
+            let d = u64::from(v - b'0');
+
+            if a >= (0x7fffffffffffffffu64 / 10)
+                && (a > (0x7fffffffffffffffu64 / 10)
+                    || d > (0x7fffffffffffffffu64 % 10) + u64::from(neg))
             {
                 return None;
             }
-            a = (a * 10 as c_int as u64).wrapping_add(d as u64);
-            empty = 0 as c_int;
-            s = s.offset(1);
+
+            a = a * 10 + d;
+            empty = false;
+            b = s.next().copied();
         }
-    }
-    while luai_ctype_[(*s as c_uchar as c_int + 1 as c_int) as usize] as c_int
-        & (1 as c_int) << 3 as c_int
-        != 0
-    {
-        s = s.offset(1);
+
+        b
+    };
+
+    if empty {
+        return None;
     }
 
-    if empty != 0 || *s as c_int != '\0' as i32 {
+    // Skip trailing whitespace.
+    while let Some(v) = b {
+        match luai_ctype_[usize::from(v) + 1] & 1 << 3 != 0 {
+            true => b = s.next().copied(),
+            false => break,
+        }
+    }
+
+    if b.is_some() {
         None
     } else {
-        let v = if neg != 0 { 0u64.wrapping_sub(a) } else { a };
+        let v = if neg { 0u64.wrapping_sub(a) } else { a };
 
         Some(v as i64)
     }
 }
 
-pub unsafe fn luaO_str2num(s: *const c_char) -> Option<Number> {
+pub fn luaO_str2num(s: &[u8]) -> Option<Number> {
     match l_str2int(s) {
         Some(i) => Some(i.into()),
         None => match l_str2d(s) {

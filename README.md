@@ -50,6 +50,8 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - `__name` metavalue must be UTF-8 string.
 - `__tostring` metamethod must return a UTF-8 string.
 - Float to string conversion does not truncate precision (Lua limit to 14 digits by default).
+- Float literal does not accept hexadecimal format.
+- U+000B VERTICAL TAB is not considered as a whitespace.
 - C locale is ignored (once `libc` has been completely removed).
 
 ### Standard library
@@ -92,6 +94,8 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - `Thread::async_call` now accept only `LuaFn`.
 - `Module::Instance` was renamed to `Module::Inst`.
 - Float to string conversion does not truncate precision (Lua limit this to 14 digits by default).
+- Float literal no longer accept hexadecimal format.
+- U+000B VERTICAL TAB no longer considered as a whitespace.
 
 ## License
 

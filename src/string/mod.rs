@@ -138,9 +138,10 @@ impl<A> Str<A> {
     ///
     /// return [None] if the content is not valid number literal.
     ///
-    /// This has the same semantic as `lua_stringtonumber`.
+    /// This has the same semantic as `lua_stringtonumber`, **except** it does not accept
+    /// hexadecimal floating-point. It also does not treat U+000B VERTICAL TAB as a whitespace.
     pub fn to_num(&self) -> Option<Number> {
-        unsafe { luaO_str2num(self.contents.as_ptr()) }
+        luaO_str2num(self.as_bytes())
     }
 
     #[inline(always)]
