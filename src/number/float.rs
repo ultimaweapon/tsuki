@@ -9,7 +9,7 @@ use core::ops::{Add, AddAssign, Div, Mul, Neg, Sub};
 /// it is zero but Lua requires this.
 ///
 /// Note that Tsuki **do not** truncate the precision while Lua limit this to 14 digits by default.
-#[repr(transparent)]
+#[repr(C, align(8))]
 #[derive(Default, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Float(pub f64);
 

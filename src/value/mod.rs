@@ -339,7 +339,7 @@ impl<A> From<StackValue<A>> for UnsafeValue<A> {
     }
 }
 
-#[repr(C)]
+#[repr(C, align(8))]
 pub union UntaggedValue<A> {
     pub gc: *const Object<A>,
     pub f: fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>,

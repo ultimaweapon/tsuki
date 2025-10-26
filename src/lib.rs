@@ -788,13 +788,9 @@ pub enum Value<'a, A> {
     /// The value is `true`.
     True = 1 | 1 << 4,
     /// The value is `function` implemented in Rust.
-    Fp(fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>) = 2 | 0 << 4,
+    Fp(Fp<A>) = 2 | 0 << 4,
     /// The value is `function` implemented in Rust as async function.
-    AsyncFp(
-        fn(
-            Context<A, Args>,
-        ) -> Pin<Box<dyn Future<Output = Result<Context<A, Ret>, Box<dyn Error>>> + '_>>,
-    ) = 2 | 2 << 4,
+    AsyncFp(AsyncFp<A>) = 2 | 2 << 4,
     /// The value is `integer`.
     Int(i64) = 3 | 0 << 4,
     /// The value is `float`.
@@ -862,6 +858,7 @@ impl<'a, A> Value<'a, A> {
 pub struct Nil;
 
 /// Non-Yieldable Rust function.
+#[repr(C, align(8))]
 pub struct Fp<D>(fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>);
 
 impl<D> Fp<D> {
@@ -901,6 +898,7 @@ impl<D> Copy for YieldFp<D> {}
 /// only when necessary.
 ///
 /// You need to use [Thread::async_call()] to be able to call this function from Lua.
+#[repr(C, align(8))]
 pub struct AsyncFp<A>(
     fn(
         Context<A, Args>,
