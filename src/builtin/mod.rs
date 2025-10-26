@@ -117,6 +117,7 @@ impl<A> Module<A> for MathLib {
         m.set_str_key("maxinteger", i64::MAX);
         m.set_str_key("mininteger", i64::MIN);
         m.set_str_key("modf", fp!(self::math::modf));
+        m.set_str_key("pi", core::f64::consts::PI);
         m.set_str_key("sin", fp!(self::math::sin));
         m.set_str_key("type", fp!(self::math::r#type));
 
