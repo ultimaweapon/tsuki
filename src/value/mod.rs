@@ -298,16 +298,17 @@ impl<'a, A> From<Value<'a, A>> for UnsafeValue<A> {
     #[inline(never)]
     fn from(value: Value<'a, A>) -> Self {
         let value = ManuallyDrop::new(value);
-        let v = addr_of!(value) as *const Self;
-        let t = unsafe { (*v).tt_ };
+        let v = addr_of!(value).cast::<u64>();
+        let t = unsafe { v.read() as u8 };
+        let v = unsafe { v.add(1).cast::<UntaggedValue<A>>() };
 
         if t & 1 << 6 != 0 {
-            unsafe { (*(*v).value_.gc).unref() };
+            unsafe { (*(*v).gc).unref() };
         }
 
         Self {
             tt_: t,
-            value_: unsafe { (*v).value_ },
+            value_: unsafe { v.read() },
         }
     }
 }

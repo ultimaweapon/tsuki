@@ -5,7 +5,7 @@ use core::ops::Deref;
 /// Strong reference to Lua object.
 ///
 /// The value of this struct will prevent Garbage Collector from collect the encapsulated value.
-#[repr(C, align(8))]
+#[repr(transparent)]
 pub struct Ref<'a, T> {
     obj: *const T,
     phantom: PhantomData<&'a T>,

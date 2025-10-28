@@ -779,7 +779,7 @@ impl<'a> Drop for ModulesLock<'a> {
 }
 
 /// Encapsulates a Lua value.
-#[repr(u8)]
+#[repr(u64)] // Force field to be at offset 8.
 pub enum Value<'a, A> {
     /// The value is `nil`.
     Nil = 0 | 0 << 4,
@@ -807,6 +807,13 @@ pub enum Value<'a, A> {
     Thread(Ref<'a, Thread<A>>) = 8 | 0 << 4 | 1 << 6,
 }
 
+// Make sure all fields live at offset 8.
+const _: () = assert!(align_of::<Fp<()>>() <= 8);
+const _: () = assert!(align_of::<AsyncFp<()>>() <= 8);
+const _: () = assert!(align_of::<i64>() <= 8);
+const _: () = assert!(align_of::<Float>() <= 8);
+const _: () = assert!(align_of::<Ref<Str<()>>>() <= 8);
+
 impl<'a, A> Value<'a, A> {
     /// Constructs [Value] from [Arg].
     ///
@@ -830,20 +837,20 @@ impl<'a, A> Value<'a, A> {
     #[inline(never)]
     unsafe fn from_unsafe(v: *const UnsafeValue<A>) -> Self {
         let mut r = MaybeUninit::<Self>::uninit();
-        let p = r.as_mut_ptr().cast::<UnsafeValue<A>>();
+        let p = r.as_mut_ptr().cast::<u64>();
         let t = unsafe { (*v).tt_ };
 
         match t & 0xf {
-            0 => unsafe { (*p).tt_ = 0 | 0 << 4 },
+            0 => unsafe { p.write(0 | 0 << 4) },
             1 | 2 | 3 => unsafe {
-                (*p).tt_ = t;
-                (*p).value_ = (*v).value_;
+                p.write(t.into());
+                p.add(1).cast::<UntaggedValue<A>>().write((*v).value_);
             },
             4 | 5 | 6 | 7 | 8 => unsafe {
                 let v = (*v).value_.gc;
 
-                (*p).tt_ = t;
-                (*p).value_.gc = v;
+                p.write(t.into());
+                p.add(1).cast::<*const Object<A>>().write(v);
 
                 core::mem::forget(Ref::new_inline(v));
             },
@@ -858,8 +865,8 @@ impl<'a, A> Value<'a, A> {
 pub struct Nil;
 
 /// Non-Yieldable Rust function.
-#[repr(C, align(8))]
-pub struct Fp<D>(fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>);
+#[repr(transparent)]
+pub struct Fp<A>(fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>);
 
 impl<D> Fp<D> {
     /// Construct a new [`Fp`] from a function pointer.
@@ -898,7 +905,7 @@ impl<D> Copy for YieldFp<D> {}
 /// only when necessary.
 ///
 /// You need to use [Thread::async_call()] to be able to call this function from Lua.
-#[repr(C, align(8))]
+#[repr(transparent)]
 pub struct AsyncFp<A>(
     fn(
         Context<A, Args>,

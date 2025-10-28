@@ -89,6 +89,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - `Arg::as_str` has parameter to allow converting a number to string.
 - `Arg::to_str` and `Arg::to_nilable_str` now convert a number to string in-place.
 - `Arg::to_float` and `Arg::to_nilable_float` now return `Float` instead of `f64`.
+- `Number` No longer implement `PartialEq`.
 - `Value::Float` and `Number::Float` value is changed from `f64` to `Float`.
 - `Value::Fp` value is changed from `fn` to `Fp`.
 - `Value::AsyncFp` value is changed from `fn` to `AsyncFp`.

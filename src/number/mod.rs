@@ -3,9 +3,11 @@ pub use self::float::*;
 mod float;
 
 /// Helper enum to encapsulates either integer or float.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy)]
 pub enum Number {
+    /// Integer number.
     Int(i64),
+    /// Float number.
     Float(Float),
 }
 
