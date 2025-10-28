@@ -152,9 +152,9 @@ impl<A> Module<A> for OsLib {
 /// [Module] implementation for [string library](https://www.lua.org/manual/5.4/manual.html#6.4).
 ///
 /// Note that [Self::open()] will **overwrite** string metatable.
-pub struct StringLib;
+pub struct StrLib;
 
-impl<A> Module<A> for StringLib {
+impl<A> Module<A> for StrLib {
     const NAME: &str = "string";
 
     type Inst<'a>

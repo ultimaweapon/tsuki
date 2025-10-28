@@ -96,6 +96,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - `Value::Bool` has been replaced with `Value::False` and `Value::True`.
 - `Thread::async_call` now accept only `LuaFn`.
 - `Module::Instance` was renamed to `Module::Inst`.
+- `StringLib` was renamed to `StrLib`.
 - Float to string conversion does not truncate precision (Lua limit this to 14 digits by default).
 - Float literal no longer accept hexadecimal format.
 - U+000B VERTICAL TAB no longer considered as a whitespace.
