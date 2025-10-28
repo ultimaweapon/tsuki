@@ -21,6 +21,7 @@ type c_int = i32;
 
 unsafe fn findfield<A>(
     names: &mut Vec<*const Str<A>>,
+    g: *const Table<A>,
     t: UnsafeValue<A>,
     f: *const UnsafeValue<A>,
     level: usize,
@@ -37,6 +38,11 @@ unsafe fn findfield<A>(
     while let Some([k, v]) = (*t).next_raw(&key)? {
         key = k;
 
+        // Skip global table.
+        if v.tt_ & 1 << 6 != 0 && v.value_.gc.cast() == g {
+            continue;
+        }
+
         // Check if string key.
         let name = match k.tt_ & 0xf {
             4 => k.value_.gc.cast::<Str<A>>(),
@@ -45,7 +51,7 @@ unsafe fn findfield<A>(
 
         names.push(name);
 
-        if luaV_equalobj(null(), &v, f)? || findfield(names, v, f, level - 1)? {
+        if luaV_equalobj(null(), &v, f)? || findfield(names, g, v, f, level - 1)? {
             return Ok(true);
         }
 
@@ -55,16 +61,25 @@ unsafe fn findfield<A>(
     Ok(false)
 }
 
-unsafe fn pushglobalfuncname<D>(
-    L: *const Lua<D>,
-    ci: *mut CallInfo<D>,
+unsafe fn pushglobalfuncname<A>(
+    L: *const Lua<A>,
+    ci: *mut CallInfo<A>,
 ) -> Result<Vec<u8>, Box<dyn core::error::Error>> {
-    // Search function from all modules.
+    // Search global table first so we don't found a global function in _G module.
     let mut names = Vec::with_capacity(2);
-    let t = UnsafeValue::from((*L).modules());
     let func = (*ci).func;
+    let g = (*L).global();
 
-    findfield(&mut names, t, func.cast(), 2)?;
+    findfield(&mut names, g, g.into(), func.cast(), 1)?;
+
+    if let Some(v) = names.first().copied() {
+        return Ok((*v).as_bytes().into());
+    }
+
+    // Search function from all modules.
+    let t = (*L).modules();
+
+    findfield(&mut names, g, t.into(), func.cast(), 2)?;
 
     // Build full name.
     let mut buf = Vec::new();
@@ -74,15 +89,10 @@ unsafe fn pushglobalfuncname<D>(
         None => return Ok(buf),
     };
 
-    if first != b"_G" {
-        buf.extend_from_slice(first);
-    }
+    buf.extend_from_slice(first);
 
     for name in iter {
-        if !buf.is_empty() {
-            buf.push(b'.');
-        }
-
+        buf.push(b'.');
         buf.extend_from_slice((*name).as_bytes());
     }
 
