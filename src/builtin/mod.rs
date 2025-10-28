@@ -121,6 +121,7 @@ impl<A> Module<A> for MathLib {
         m.set_str_key("pi", core::f64::consts::PI);
         m.set_str_key("sin", fp!(self::math::sin));
         m.set_str_key("type", fp!(self::math::r#type));
+        m.set_str_key("ult", fp!(self::math::ult));
 
         Ok(m)
     }

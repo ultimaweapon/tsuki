@@ -100,7 +100,7 @@ pub fn sin<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::err
 }
 
 /// Implementation of [math.type](https://www.lua.org/manual/5.4/manual.html#pdf-math.type).
-pub fn r#type<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn r#type<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1);
 
     if v.ty().ok_or_else(|| v.error(ArgNotFound))? == Type::Number {
@@ -112,6 +112,16 @@ pub fn r#type<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
     } else {
         cx.push(Nil)?;
     }
+
+    Ok(cx.into())
+}
+
+/// Implementation of [math.ult](https://www.lua.org/manual/5.4/manual.html#pdf-math.ult).
+pub fn ult<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let a = cx.arg(1).to_int()?;
+    let b = cx.arg(2).to_int()?;
+
+    cx.push((a as u64) < (b as u64))?;
 
     Ok(cx.into())
 }

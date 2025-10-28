@@ -114,13 +114,6 @@ unsafe fn math_sqrt(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn math_ult(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut a: i64 = luaL_checkinteger(L, 1 as libc::c_int)?;
-    let mut b: i64 = luaL_checkinteger(L, 2 as libc::c_int)?;
-    lua_pushboolean(L, ((a as u64) < b as u64) as libc::c_int);
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn math_exp(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     lua_pushnumber(L, exp(luaL_checknumber(L, 1 as libc::c_int)?));
     return Ok(1 as libc::c_int);
@@ -389,13 +382,6 @@ static mut mathlib: [luaL_Reg; 28] = [
         let mut init = luaL_Reg {
             name: b"fmod\0" as *const u8 as *const libc::c_char,
             func: Some(math_fmod),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"ult\0" as *const u8 as *const libc::c_char,
-            func: Some(math_ult),
         };
         init
     },
