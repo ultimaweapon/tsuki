@@ -33,19 +33,6 @@ struct RanState {
     s: [libc::c_ulong; 4],
 }
 
-unsafe fn math_abs(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    if lua_isinteger(L, 1 as libc::c_int) != 0 {
-        let mut n: i64 = lua_tointegerx(L, 1 as libc::c_int, 0 as *mut libc::c_int);
-        if n < 0 as libc::c_int as i64 {
-            n = (0 as libc::c_uint as u64).wrapping_sub(n as u64) as i64;
-        }
-        lua_pushinteger(L, n);
-    } else {
-        lua_pushnumber(L, fabs(luaL_checknumber(L, 1 as libc::c_int)?));
-    }
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn math_cos(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     lua_pushnumber(L, cos(luaL_checknumber(L, 1 as libc::c_int)?));
     return Ok(1 as libc::c_int);
@@ -342,13 +329,6 @@ unsafe fn setrandfunc(mut L: *const Thread) -> Result<(), Box<dyn std::error::Er
 }
 
 static mut mathlib: [luaL_Reg; 28] = [
-    {
-        let mut init = luaL_Reg {
-            name: b"abs\0" as *const u8 as *const libc::c_char,
-            func: Some(math_abs),
-        };
-        init
-    },
     {
         let mut init = luaL_Reg {
             name: b"acos\0" as *const u8 as *const libc::c_char,

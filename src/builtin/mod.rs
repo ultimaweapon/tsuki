@@ -110,6 +110,7 @@ impl<A> Module<A> for MathLib {
     fn open(self, lua: &Lua<A>) -> Result<Self::Inst<'_>, Box<dyn core::error::Error>> {
         let m = lua.create_table();
 
+        m.set_str_key("abs", fp!(self::math::abs));
         m.set_str_key("floor", fp!(self::math::floor));
         m.set_str_key("huge", f64::INFINITY);
         m.set_str_key("log", fp!(self::math::log));

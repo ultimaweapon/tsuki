@@ -1,9 +1,32 @@
 //! Implementation of [mathematical library](https://www.lua.org/manual/5.4/manual.html#6.7).
 use crate::{ArgNotFound, Args, Context, Float, Nil, Number, Ret, Type};
 use alloc::boxed::Box;
+use libm::fabs;
+
+/// Implementation of [math.abs](https://www.lua.org/manual/5.4/manual.html#pdf-math.abs).
+pub fn abs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let arg = cx.arg(1);
+
+    match arg.as_int() {
+        Some(mut n) => {
+            if n < 0 {
+                n = 0u64.wrapping_sub(n as u64) as i64;
+            }
+
+            cx.push(n)?;
+        }
+        None => {
+            let n = arg.to_float()?;
+
+            cx.push(fabs(n.into()))?;
+        }
+    }
+
+    Ok(cx.into())
+}
 
 /// Implementation of [math.floor](https://www.lua.org/manual/5.4/manual.html#pdf-math.floor).
-pub fn floor<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn floor<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1);
     let r = if v.is_int() == Some(true) {
         let mut r = cx.into_results(1);
