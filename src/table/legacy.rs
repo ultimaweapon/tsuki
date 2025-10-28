@@ -4,13 +4,15 @@
 use super::RustId;
 use crate::gc::Object;
 use crate::hasher::LuaHasher;
-use crate::lmem::{luaM_free_, luaM_malloc_, luaM_realloc_};
+use crate::lmem::luaM_realloc_;
 use crate::lobject::luaO_ceillog2;
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_flttointeger};
 use crate::{Float, Node, Str, Table, TableError};
+use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
+use core::alloc::Layout;
 use core::any::TypeId;
 use core::cell::Cell;
 use core::ffi::c_void;
@@ -290,11 +292,11 @@ pub(super) unsafe fn findindex<D>(
 
 pub(super) unsafe fn freehash<D>(t: *const Table<D>) {
     if !((*t).lastfree.get()).is_null() {
-        luaM_free_(
-            (*t).node.get() as *mut c_void,
-            (((1 as c_int) << (*t).lsizenode.get() as c_int) as usize)
-                .wrapping_mul(size_of::<Node<D>>()),
-        );
+        let nodes = (*t).node.get();
+        let len = 1 << (*t).lsizenode.get();
+        let layout = Layout::array::<Node<D>>(len).unwrap();
+
+        alloc::alloc::dealloc(nodes.cast(), layout);
     }
 }
 
@@ -427,9 +429,16 @@ unsafe fn setnodevector<D>(t: *const Table<D>, mut size: c_uint) {
         }
 
         size = ((1 as c_int) << lsize) as c_uint;
-        (*t).node.set(
-            luaM_malloc_((*t).hdr.global, (size as usize) * size_of::<Node<D>>()) as *mut Node<D>,
-        );
+
+        // Allocate nodes.
+        let layout = Layout::array::<Node<D>>(size as usize).unwrap();
+        let nodes = alloc::alloc::alloc(layout);
+
+        if nodes.is_null() {
+            handle_alloc_error(layout);
+        }
+
+        (*t).node.set(nodes.cast());
 
         i = 0 as c_int;
         while i < size as c_int {

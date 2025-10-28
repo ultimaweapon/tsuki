@@ -3,7 +3,7 @@
 //! # Quickstart
 //!
 //! ```
-//! use tsuki::builtin::{BaseLib, CoroLib, MathLib, StringLib, TableLib, Utf8Lib};
+//! use tsuki::builtin::{BaseLib, CoroLib, MathLib, StrLib, TableLib, Utf8Lib};
 //! use tsuki::{Args, Context, Lua, Ret, Value, fp};
 //!
 //! fn main() {
@@ -13,7 +13,7 @@
 //!     lua.use_module(None, true, BaseLib).unwrap();
 //!     lua.use_module(None, true, CoroLib).unwrap();
 //!     lua.use_module(None, true, MathLib).unwrap();
-//!     lua.use_module(None, true, StringLib).unwrap();
+//!     lua.use_module(None, true, StrLib).unwrap();
 //!     lua.use_module(None, true, TableLib).unwrap();
 //!     lua.use_module(None, true, Utf8Lib).unwrap();
 //!
@@ -156,7 +156,6 @@ pub use tsuki_macros::*;
 
 use self::collections::{BTreeMap, CollectionValue};
 use self::gc::{Gc, Object};
-use self::lapi::lua_settop;
 use self::ldebug::lua_getinfo;
 use self::ldo::luaD_protectedparser;
 use self::llex::{TK_WHILE, luaX_tokens};
@@ -176,7 +175,6 @@ use core::any::{Any, TypeId};
 use core::cell::{Cell, UnsafeCell};
 use core::convert::identity;
 use core::error::Error;
-use core::ffi::c_int;
 use core::fmt::{Display, Formatter};
 use core::marker::PhantomPinned;
 use core::mem::MaybeUninit;
@@ -224,11 +222,6 @@ mod vm;
 extern crate alloc;
 #[cfg(feature = "std")]
 extern crate std;
-
-#[inline(always)]
-unsafe fn lua_pop<D>(th: *const Thread<D>, n: c_int) -> Result<(), Box<dyn Error>> {
-    unsafe { lua_settop(th, -(n) - 1) }
-}
 
 #[inline(always)]
 unsafe fn api_incr_top<D>(th: *const Thread<D>) {
