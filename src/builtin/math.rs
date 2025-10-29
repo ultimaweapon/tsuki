@@ -25,6 +25,15 @@ pub fn abs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
     Ok(cx.into())
 }
 
+/// Implementation of [math.cos](https://www.lua.org/manual/5.4/manual.html#pdf-math.cos).
+pub fn cos<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let arg = cx.arg(1).to_float()?;
+
+    cx.push(libm::cos(arg.into()))?;
+
+    Ok(cx.into())
+}
+
 /// Implementation of [math.floor](https://www.lua.org/manual/5.4/manual.html#pdf-math.floor).
 pub fn floor<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1);

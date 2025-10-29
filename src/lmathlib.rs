@@ -33,11 +33,6 @@ struct RanState {
     s: [libc::c_ulong; 4],
 }
 
-unsafe fn math_cos(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    lua_pushnumber(L, cos(luaL_checknumber(L, 1 as libc::c_int)?));
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn math_tan(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     lua_pushnumber(L, tan(luaL_checknumber(L, 1 as libc::c_int)?));
     return Ok(1 as libc::c_int);
@@ -347,13 +342,6 @@ static mut mathlib: [luaL_Reg; 28] = [
         let mut init = luaL_Reg {
             name: b"ceil\0" as *const u8 as *const libc::c_char,
             func: Some(math_ceil),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"cos\0" as *const u8 as *const libc::c_char,
-            func: Some(math_cos),
         };
         init
     },
