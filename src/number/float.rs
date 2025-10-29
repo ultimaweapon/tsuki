@@ -60,6 +60,20 @@ impl Float {
         Self(self.0.sin())
     }
 
+    /// Computes the cosine of a number (in radians).
+    ///
+    /// See [f64::cos()] for more details.
+    pub fn cos(self) -> Self {
+        Self(self.0.cos())
+    }
+
+    /// Computes the tangent of a number (in radians).
+    ///
+    /// See [f64::tan()] for more details.
+    pub fn tan(self) -> Self {
+        Self(self.0.tan())
+    }
+
     /// Raises a number to a floating point power.
     ///
     /// See [f64::powf()] for more details.

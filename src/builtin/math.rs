@@ -29,7 +29,7 @@ pub fn abs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
 pub fn cos<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let arg = cx.arg(1).to_float()?;
 
-    cx.push(libm::cos(arg.into()))?;
+    cx.push(arg.cos())?;
 
     Ok(cx.into())
 }
@@ -100,10 +100,19 @@ pub fn modf<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
 }
 
 /// Implementation of [math.sin](https://www.lua.org/manual/5.4/manual.html#pdf-math.sin).
-pub fn sin<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn sin<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1).to_float()?;
 
     cx.push(v.sin())?;
+
+    Ok(cx.into())
+}
+
+/// Implementation of [math.tan](https://www.lua.org/manual/5.4/manual.html#pdf-math.tan).
+pub fn tan<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let v = cx.arg(1).to_float()?;
+
+    cx.push(v.tan())?;
 
     Ok(cx.into())
 }
