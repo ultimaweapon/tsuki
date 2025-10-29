@@ -377,11 +377,6 @@ pub unsafe fn lua_tothread<D>(L: *mut Thread<D>, idx: c_int) -> *const Thread<D>
     };
 }
 
-pub unsafe fn lua_pushnil<D>(L: *const Thread<D>) {
-    (*(*L).top.get()).tt_ = 0 | 0 << 4;
-    api_incr_top(L);
-}
-
 pub unsafe fn lua_pushcclosure<D>(
     L: *const Thread<D>,
     fn_0: for<'a> fn(

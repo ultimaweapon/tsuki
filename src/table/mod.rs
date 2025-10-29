@@ -136,6 +136,25 @@ impl<A> Table<A> {
     /// This method will trigger GC if new string is allocated.
     pub fn contains_str_key<K>(&self, k: K) -> bool
     where
+        K: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
+    {
+        let k = unsafe { Str::from_str(self.hdr.global, k) };
+        let v = unsafe { UnsafeValue::from_obj(k.unwrap_or_else(identity).cast()) };
+        let v = unsafe { luaH_get(self, &v) };
+        let v = unsafe { (*v).tt_ & 0xf != 0 };
+
+        if k.is_ok() {
+            self.hdr.global().gc.step();
+        }
+
+        v
+    }
+
+    /// Returns `true` if the table contains a value for `k`.
+    ///
+    /// This method will trigger GC if new string is allocated.
+    pub fn contains_bytes_key<K>(&self, k: K) -> bool
+    where
         K: AsRef<[u8]> + Into<Vec<u8>>,
     {
         let k = unsafe { Str::from_bytes(self.hdr.global, k) };
