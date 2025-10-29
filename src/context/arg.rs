@@ -102,7 +102,7 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
     /// Gets metatable for this argument.
     ///
     /// Returns [None] if this argument does not exists.
-    pub fn get_metatable(&self) -> Option<Option<Ref<'b, Table<A>>>> {
+    pub fn metatable(&self) -> Option<Option<Ref<'b, Table<A>>>> {
         // Get argument.
         let v = self.get_raw_or_null();
 

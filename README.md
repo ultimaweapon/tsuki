@@ -87,6 +87,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 
 ## Breaking changes in 0.3
 
+- `Arg::get_metatable` was renamed to `Arg::metatable`.
 - `Arg::as_str` has parameter to allow converting a number to string.
 - `Arg::to_str` and `Arg::to_nilable_str` now convert a number to string in-place.
 - `Arg::to_float` and `Arg::to_nilable_float` now return `Float` instead of `f64`.

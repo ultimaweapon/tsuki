@@ -553,7 +553,7 @@ fn arith<'a, D>(
     Ok(cx.into())
 }
 
-fn tonum<D>(arg: &Arg<D>) -> Option<Number> {
+fn tonum<A>(arg: &Arg<A>) -> Option<Number> {
     if let Some(v) = arg.as_num() {
         Some(v)
     } else if let Some(v) = arg.as_str(false) {
@@ -563,14 +563,14 @@ fn tonum<D>(arg: &Arg<D>) -> Option<Number> {
     }
 }
 
-fn trymt<'a, D>(
-    cx: Context<'a, D, Args>,
+fn trymt<'a, A>(
+    cx: Context<'a, A, Args>,
     name: &str,
-) -> Result<Context<'a, D, Ret>, Box<dyn core::error::Error>> {
+) -> Result<Context<'a, A, Ret>, Box<dyn core::error::Error>> {
     // Get metamethod.
     let lhs = cx.arg(1);
     let rhs = cx.arg(2);
-    let mt = (rhs.ty() != Some(Type::String)).then(|| rhs.get_metatable().unwrap());
+    let mt = (rhs.ty() != Some(Type::String)).then(|| rhs.metatable().unwrap());
     let mt = match mt
         .as_ref()
         .and_then(|t| t.as_ref())

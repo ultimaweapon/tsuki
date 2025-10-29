@@ -32,7 +32,7 @@ pub fn assert<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
 /// Implementation of [error](https://www.lua.org/manual/5.4/manual.html#pdf-error) function.
 ///
 /// Note that first argument accept only a string and second argument is not supported.
-pub fn error<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn error<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let arg = cx.arg(1);
     let msg = arg.to_str()?;
     let msg = msg
@@ -47,12 +47,12 @@ pub fn error<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::e
 }
 
 /// Implementation of [getmetatable](https://www.lua.org/manual/5.4/manual.html#pdf-getmetatable).
-pub fn getmetatable<D>(
-    cx: Context<D, Args>,
-) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn getmetatable<A>(
+    cx: Context<A, Args>,
+) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     // Get metatable.
-    let mt = cx.arg(1);
-    let mt = mt.get_metatable().ok_or_else(|| mt.error(ArgNotFound))?;
+    let arg = cx.arg(1);
+    let mt = arg.metatable().ok_or_else(|| arg.error(ArgNotFound))?;
     let mt = match mt {
         Some(v) => v,
         None => {
@@ -77,7 +77,7 @@ pub fn getmetatable<D>(
 /// - First argument accept only a string.
 /// - Second argument accept only a UTF-8 string and will be empty when absent.
 /// - Third argument must be `nil` or `"t"`.
-pub fn load<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn load<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let s = cx.arg(1).to_str()?;
 
     // Get name.
@@ -133,7 +133,7 @@ pub fn next<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
 /// Implementation of [pairs](https://www.lua.org/manual/5.4/manual.html#pdf-pairs).
 pub fn pairs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let t = cx.arg(1);
-    let m = t.get_metatable().ok_or_else(|| t.error(ArgNotFound))?;
+    let m = t.metatable().ok_or_else(|| t.error(ArgNotFound))?;
 
     match m
         .as_ref()
