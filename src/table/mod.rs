@@ -388,6 +388,27 @@ impl<A> Table<A> {
         }
     }
 
+    /// Inserts a value with string key into this table without checking if `v` created from the
+    /// same [Lua] instance.
+    ///
+    /// This method will trigger GC if new string is allocated.
+    ///
+    /// # Safety
+    /// `v` must created from the same [Lua] instance.
+    pub unsafe fn set_bytes_key_unchecked<K>(&self, k: K, v: impl Into<UnsafeValue<A>>)
+    where
+        K: AsRef<[u8]> + Into<Vec<u8>>,
+    {
+        let s = unsafe { Str::from_bytes(self.hdr.global, k) };
+        let k = unsafe { UnsafeValue::from_obj(s.unwrap_or_else(identity).cast()) };
+
+        unsafe { self.set_unchecked(k, v).unwrap_unchecked() };
+
+        if s.is_ok() {
+            self.hdr.global().gc.step();
+        }
+    }
+
     pub(crate) unsafe fn set_slot_unchecked(
         &self,
         s: *const UnsafeValue<A>,
@@ -454,13 +475,13 @@ impl<A> Table<A> {
     }
 }
 
-impl<D> Drop for Table<D> {
+impl<A> Drop for Table<A> {
     fn drop(&mut self) {
         unsafe { freehash(self) };
         unsafe {
             luaM_free_(
                 self.array.get().cast(),
-                (luaH_realasize(self) as usize).wrapping_mul(size_of::<UnsafeValue<D>>()),
+                (luaH_realasize(self) as usize).wrapping_mul(size_of::<UnsafeValue<A>>()),
             )
         };
     }
