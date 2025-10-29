@@ -1338,7 +1338,7 @@ impl<'a> MatchState<'a> {
             }
             Replacement::Table(t) => match self.get_onecapture(0, Some(off), Some(e))? {
                 CaptureValue::Num(v) => t.get(v),
-                CaptureValue::Str(v) => t.get_str_key(v),
+                CaptureValue::Str(v) => t.get_bytes_key(v),
             },
             Replacement::LuaFn(f) => self
                 .captures_to_values(cx, Some(off), Some(e))

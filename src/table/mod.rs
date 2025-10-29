@@ -188,6 +188,24 @@ impl<A> Table<A> {
     /// This method will trigger GC if new string is allocated.
     pub fn get_str_key<K>(&self, k: K) -> Value<'_, A>
     where
+        K: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
+    {
+        let k = unsafe { Str::from_str(self.hdr.global, k) };
+        let v = unsafe { UnsafeValue::from_obj(k.unwrap_or_else(identity).cast()) };
+        let v = unsafe { luaH_get(self, &v) };
+
+        if k.is_ok() {
+            self.hdr.global().gc.step();
+        }
+
+        unsafe { Value::from_unsafe(v) }
+    }
+
+    /// Returns a value corresponding to `k`.
+    ///
+    /// This method will trigger GC if new string is allocated.
+    pub fn get_bytes_key<K>(&self, k: K) -> Value<'_, A>
+    where
         K: AsRef<[u8]> + Into<Vec<u8>>,
     {
         let k = unsafe { Str::from_bytes(self.hdr.global, k) };

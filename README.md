@@ -102,6 +102,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - `Module::Instance` was renamed to `Module::Inst`.
 - `StringLib` was renamed to `StrLib`.
 - `Table::contains_str_key` now requires `AsRef<str>` on the key. Use `Table::contains_bytes_key` if you want old requirements.
+- `Table::get_str_key` now requires `AsRef<str>` on the key. Use `Table::get_bytes_key` if you want old requirements.
 - Float to string conversion does not truncate precision (Lua limit this to 14 digits by default).
 - Float literal no longer accept hexadecimal format.
 - U+000B VERTICAL TAB no longer considered as a whitespace.
