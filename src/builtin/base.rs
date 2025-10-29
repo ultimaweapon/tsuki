@@ -1,5 +1,5 @@
 //! Implementation of [basic library](https://www.lua.org/manual/5.4/manual.html#6.1).
-use crate::{ArgNotFound, Args, Context, Nil, Ret, TryCall, Type, fp};
+use crate::{ArgNotFound, Args, Context, Nil, Ret, Type, fp};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -157,39 +157,40 @@ pub fn pairs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
 
 /// Implementation of [pcall](https://www.lua.org/manual/5.4/manual.html#pdf-pcall).
 pub fn pcall<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
-    let r = match cx.try_forward(1)? {
-        TryCall::Ok(r) => {
-            r.insert(1, true)?;
-            r
-        }
-        TryCall::Err(cx, e) => {
-            use core::error::Error;
+    use core::error::Error;
 
-            // Write first error.
-            let mut m = String::with_capacity(128);
-
-            if let Some((s, l)) = e.location() {
-                write!(m, "{s}:{l}: ").unwrap();
-            }
-
-            write!(m, "{e}").unwrap();
-
-            // Write nested errors.
-            let mut e = e.source();
-
-            while let Some(v) = e {
-                write!(m, " -> {v}").unwrap();
-                e = v.source();
-            }
-
-            // Push results.
-            cx.push(false)?;
-            cx.push_str(m)?;
-            cx.into()
+    // Invoke the function.
+    let (cx, e) = cx.try_forward(1)?;
+    let e = match e {
+        Some(v) => v,
+        None => {
+            cx.insert(1, true)?;
+            return Ok(cx);
         }
     };
 
-    Ok(r)
+    // Write first error.
+    let mut m = String::with_capacity(128);
+
+    if let Some((s, l)) = e.location() {
+        write!(m, "{s}:{l}: ").unwrap();
+    }
+
+    write!(m, "{e}").unwrap();
+
+    // Write nested errors.
+    let mut e = e.source();
+
+    while let Some(v) = e {
+        write!(m, " -> {v}").unwrap();
+        e = v.source();
+    }
+
+    // Push results.
+    cx.push(false)?;
+    cx.push_str(m)?;
+
+    Ok(cx)
 }
 
 /// Implementation of [print](https://www.lua.org/manual/5.4/manual.html#pdf-print).

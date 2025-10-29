@@ -854,7 +854,7 @@ impl<'a, A, T> Context<'a, A, T> {
     pub fn try_forward(
         self,
         f: impl TryInto<NonZero<usize>>,
-    ) -> Result<TryCall<'a, A>, Box<dyn core::error::Error>> {
+    ) -> Result<(Context<'a, A, Ret>, Option<Box<CallError>>), Box<dyn core::error::Error>> {
         // Get function index.
         let f = match f.try_into() {
             Ok(v) => v,
@@ -883,7 +883,7 @@ impl<'a, A, T> Context<'a, A, T> {
 
             match f.poll(&mut core::task::Context::from_waker(&w)) {
                 Poll::Ready(Ok(_)) => (),
-                Poll::Ready(Err(e)) => return Ok(TryCall::Err(cx, e)),
+                Poll::Ready(Err(e)) => return Ok((cx, Some(e))),
                 Poll::Pending => unreachable!(),
             }
         }
@@ -894,7 +894,7 @@ impl<'a, A, T> Context<'a, A, T> {
 
         cx.ret.set(ret);
 
-        Ok(TryCall::Ok(cx))
+        Ok((cx, None))
     }
 
     /// Converts all values start at `i` to call results.
@@ -1058,12 +1058,6 @@ impl<'a, D> From<Context<'a, D, Args>> for Context<'a, D, Ret> {
             payload: Ret(value.payload.0),
         }
     }
-}
-
-/// Success result of [`Context::try_forward()`].
-pub enum TryCall<'a, D> {
-    Ok(Context<'a, D, Ret>),
-    Err(Context<'a, D, Ret>, Box<CallError>),
 }
 
 /// Call arguments encapsulated in [`Context`].
