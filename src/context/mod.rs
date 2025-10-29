@@ -794,7 +794,7 @@ impl<'a, A, T> Context<'a, A, T> {
     pub fn forward(
         self,
         f: impl TryInto<NonZero<isize>>,
-    ) -> Result<Context<'a, A, Ret>, Box<dyn core::error::Error>> {
+    ) -> (Context<'a, A, Ret>, Option<Box<CallError>>) {
         // Get function index.
         let f = match f.try_into() {
             Ok(v) => v,
@@ -833,7 +833,7 @@ impl<'a, A, T> Context<'a, A, T> {
 
             match f.poll(&mut core::task::Context::from_waker(&w)) {
                 Poll::Ready(Ok(_)) => (),
-                Poll::Ready(Err(e)) => return Err(e),
+                Poll::Ready(Err(e)) => return (cx, Some(e)),
                 Poll::Pending => unreachable!(),
             }
         }
@@ -844,57 +844,7 @@ impl<'a, A, T> Context<'a, A, T> {
 
         cx.ret.set(ret);
 
-        Ok(cx)
-    }
-
-    /// Call `f` with values above it as arguments.
-    ///
-    /// # Panics
-    /// If `f` is not a valid stack index.
-    pub fn try_forward(
-        self,
-        f: impl TryInto<NonZero<usize>>,
-    ) -> Result<(Context<'a, A, Ret>, Option<Box<CallError>>), Box<dyn core::error::Error>> {
-        // Get function index.
-        let f = match f.try_into() {
-            Ok(v) => v,
-            Err(_) => panic!("zero is not a valid stack index"),
-        };
-
-        // Check if index valid.
-        let ci = self.th.ci.get();
-
-        if unsafe { f.get() > (self.th.top.get().offset_from_unsigned((*ci).func) - 1) } {
-            panic!("{f} is not a valid stack index");
-        }
-
-        // Invoke.
-        let rem = f.get() - 1;
-        let f = unsafe { (*ci).func.add(f.get()) };
-        let cx = Context {
-            th: self.th,
-            ret: Cell::new(0),
-            payload: Ret(rem),
-        };
-
-        {
-            let f = unsafe { pin!(luaD_call(self.th, f, -1)) };
-            let w = unsafe { Waker::new(null(), &NON_YIELDABLE_WAKER) };
-
-            match f.poll(&mut core::task::Context::from_waker(&w)) {
-                Poll::Ready(Ok(_)) => (),
-                Poll::Ready(Err(e)) => return Ok((cx, Some(e))),
-                Poll::Pending => unreachable!(),
-            }
-        }
-
-        // Get number of results.
-        let ret = unsafe { (*ci).func.add(rem + 1) };
-        let ret = unsafe { cx.th.top.get().offset_from_unsigned(ret) };
-
-        cx.ret.set(ret);
-
-        Ok((cx, None))
+        (cx, None)
     }
 
     /// Converts all values start at `i` to call results.

@@ -143,7 +143,11 @@ pub fn pairs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
         Some(f) => {
             cx.push(f)?;
             cx.push(t)?;
-            cx.forward(-2)
+
+            match cx.forward(-2) {
+                (_, Some(e)) => Err(e),
+                (cx, _) => Ok(cx),
+            }
         }
         None => {
             cx.push(fp!(next))?;
@@ -159,8 +163,10 @@ pub fn pairs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
 pub fn pcall<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     use core::error::Error;
 
+    cx.arg(1).exists()?;
+
     // Invoke the function.
-    let (cx, e) = cx.try_forward(1)?;
+    let (cx, e) = cx.forward(1);
     let e = match e {
         Some(v) => v,
         None => {

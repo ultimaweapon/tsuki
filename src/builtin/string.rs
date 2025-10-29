@@ -597,7 +597,10 @@ fn trymt<'a, A>(
     cx.push(rhs)?;
 
     // Call metamethod.
-    let mut cx = cx.forward(-3)?;
+    let mut cx = match cx.forward(-3) {
+        (_, Some(e)) => return Err(e),
+        (cx, _) => cx,
+    };
 
     cx.truncate(1);
 

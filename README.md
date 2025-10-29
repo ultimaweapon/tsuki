@@ -87,7 +87,8 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 
 ## Breaking changes in 0.3
 
-- `TryCall` has been removed,
+- `TryCall` has been removed and `Context::try_forward` was merged with `Context::forward`.
+- Return type of `Context::forward` has been changed.
 - `Arg::get_metatable` was renamed to `Arg::metatable`.
 - `Arg::as_str` has parameter to allow converting a number to string.
 - `Arg::to_str` and `Arg::to_nilable_str` now convert a number to string in-place.
