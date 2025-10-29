@@ -529,6 +529,20 @@ pub fn subtract<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core
     })
 }
 
+/// Implementation of [string.upper](https://www.lua.org/manual/5.4/manual.html#pdf-string.upper).
+pub fn upper<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let s = cx.arg(1).to_str()?;
+    let mut s = s.as_bytes().to_vec();
+
+    for b in &mut s {
+        b.make_ascii_uppercase();
+    }
+
+    cx.push_bytes(s)?;
+
+    Ok(cx.into())
+}
+
 fn arith<'a, D>(
     cx: Context<'a, D, Args>,
     mt: &str,
