@@ -47,7 +47,7 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
     /// This has the same effect as:
     ///
     /// ```
-    /// # use tsuki::{Args, Context, Ret, ArgNotFound};
+    /// # use tsuki::context::{Args, Context, Ret, ArgNotFound};
     /// # fn f(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
     /// # let arg = cx.arg(1);
     /// if !arg.is_exists() {

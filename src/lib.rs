@@ -4,7 +4,8 @@
 //!
 //! ```
 //! use tsuki::builtin::{BaseLib, CoroLib, MathLib, StrLib, TableLib, Utf8Lib};
-//! use tsuki::{Args, Context, Lua, Ret, Value, fp};
+//! use tsuki::context::{Args, Context, Ret};
+//! use tsuki::{Lua, Value, fp};
 //!
 //! fn main() {
 //!     // Set up.
@@ -71,7 +72,7 @@
 //! Use [Context::arg()] to get an argument passed to Rust function:
 //!
 //! ```
-//! # use tsuki::{Args, Context, Ret};
+//! # use tsuki::context::{Args, Context, Ret};
 //! fn myfunc(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
 //!     let arg = cx.arg(1); // One-based the same as Lua so this is first argument.
 //!     let val = arg.to_int()?;
@@ -113,7 +114,8 @@
 //!
 //! ```
 //! use tsuki::collections::BTreeMap;
-//! use tsuki::{Args, Context, Dynamic, RegKey, Ret};
+//! use tsuki::context::{Args, Context, Ret};
+//! use tsuki::{Dynamic, RegKey};
 //!
 //! fn myfunc(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
 //!     let v = cx.arg(1);
