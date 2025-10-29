@@ -934,7 +934,7 @@ pub struct Dynamic;
 /// Type of operator.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Ops {
+enum Ops {
     Add,
     Sub,
     Mul,
@@ -952,7 +952,7 @@ pub enum Ops {
 }
 
 impl Ops {
-    pub const fn from_u8(v: u8) -> Option<Self> {
+    const fn from_u8(v: u8) -> Option<Self> {
         match v {
             v if v == Self::Add as u8 => Some(Self::Add),
             v if v == Self::Sub as u8 => Some(Self::Sub),
