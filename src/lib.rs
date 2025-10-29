@@ -140,7 +140,6 @@
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-pub use self::context::*;
 pub use self::function::*;
 pub use self::gc::Ref;
 pub use self::module::*;
@@ -155,6 +154,7 @@ pub use self::userdata::*;
 pub use tsuki_macros::*;
 
 use self::collections::{BTreeMap, CollectionValue};
+use self::context::{Arg, Args, Context, Ret};
 use self::gc::{Gc, Object};
 use self::ldebug::lua_getinfo;
 use self::ldo::luaD_protectedparser;
@@ -186,8 +186,8 @@ use thiserror::Error;
 
 pub mod builtin;
 pub mod collections;
+pub mod context;
 
-mod context;
 mod function;
 mod gc;
 mod hasher;

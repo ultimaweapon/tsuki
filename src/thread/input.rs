@@ -1,6 +1,7 @@
 use super::Thread;
+use crate::context::{Args, Context, Ret};
 use crate::value::UnsafeValue;
-use crate::{Args, Context, Fp, Nil, Object, Ret, Str, Table, Value};
+use crate::{Fp, Nil, Object, Str, Table, Value};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::marker::PhantomData;

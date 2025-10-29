@@ -1,6 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use crate::context::{Args, Context, Ret};
 use crate::ldo::luaD_growstack;
 use crate::lfunc::{luaF_close, luaF_newCclosure};
 use crate::lobject::CClosure;
@@ -10,10 +11,7 @@ use crate::value::UnsafeValue;
 use crate::vm::{
     luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_lessequal, luaV_lessthan,
 };
-use crate::{
-    Args, Context, LuaFn, Object, Ret, StackOverflow, StackValue, Str, Table, Thread, UserData,
-    api_incr_top,
-};
+use crate::{LuaFn, Object, StackOverflow, StackValue, Str, Table, Thread, UserData, api_incr_top};
 use alloc::boxed::Box;
 use alloc::string::ToString;
 use core::cmp::max;

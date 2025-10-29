@@ -2,7 +2,8 @@ use core::error::Error;
 use core::time::Duration;
 use tokio::task::{JoinSet, LocalSet};
 use tsuki::builtin::{BaseLib, CoroLib, IoLib, MathLib, StrLib, TableLib, Utf8Lib};
-use tsuki::{Args, ChunkInfo, Context, Lua, LuaFn, RegKey, Ret, fp};
+use tsuki::context::{Args, Context, Ret};
+use tsuki::{ChunkInfo, Lua, LuaFn, RegKey, fp};
 
 #[test]
 fn async_call() {

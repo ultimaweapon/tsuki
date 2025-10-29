@@ -1,6 +1,7 @@
+use crate::context::{Arg, Args, Context, Ret};
 use crate::{
-    Arg, Args, AsyncFp, Context, Float, Fp, LuaFn, Nil, Number, Object, Ref, Ret, StackValue, Str,
-    Table, Thread, UserData, Value,
+    AsyncFp, Float, Fp, LuaFn, Nil, Number, Object, Ref, StackValue, Str, Table, Thread, UserData,
+    Value,
 };
 use alloc::boxed::Box;
 use core::error::Error;

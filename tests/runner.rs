@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 use std::sync::LazyLock;
 use tsuki::builtin::{BaseLib, CoroLib, IoLib, MathLib, StrLib, TableLib, Utf8Lib};
-use tsuki::{Args, CallError, ChunkInfo, Context, Lua, Ret, fp};
+use tsuki::context::{Args, Context, Ret};
+use tsuki::{CallError, ChunkInfo, Lua, fp};
 
 #[test]
 fn badkey() {

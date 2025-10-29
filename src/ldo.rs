@@ -1,6 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use crate::context::{Args, Context, Ret};
 use crate::ldebug::luaG_callerror;
 use crate::lfunc::{luaF_close, luaF_initupvals};
 use crate::lmem::{luaM_free_, luaM_saferealloc_};
@@ -11,8 +12,8 @@ use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lzio::{Mbuffer, Zio};
 use crate::vm::luaV_execute;
 use crate::{
-    Args, CallError, ChunkInfo, Context, Lua, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, Ret,
-    StackOverflow, StackValue, Thread,
+    CallError, ChunkInfo, Lua, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, StackOverflow,
+    StackValue, Thread,
 };
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
@@ -448,28 +449,28 @@ unsafe fn prepCallInfo<D>(
 }
 
 async unsafe fn precallC<A>(
-    L: *const Thread<A>,
+    L: &Thread<A>,
     func: *mut StackValue<A>,
     nresults: c_int,
     f: Func<A>,
 ) -> Result<c_int, Box<dyn Error>> {
     // Set current CI.
-    let ci = prepCallInfo(L, func, nresults, 1 << 1, (*L).top.get());
+    let ci = prepCallInfo(L, func, nresults, 1 << 1, L.top.get());
 
-    (*L).ci.set(ci);
+    L.ci.set(ci);
 
     // Invoke hook.
-    let narg = (*L).top.get().offset_from_unsigned(func) - 1;
+    let narg = L.top.get().offset_from_unsigned(func) - 1;
 
-    if ((*L).hookmask.get() & (1 as c_int) << 0 != 0) as c_int as c_long != 0 {
+    if (L.hookmask.get() & (1 as c_int) << 0 != 0) as c_int as c_long != 0 {
         luaD_hook(L, 0 as c_int, -(1 as c_int), 1 as c_int, narg)?;
     }
 
     // Invoke Rust function.
-    let cx = Context::new(&*L, Args::new(narg));
+    let cx = Context::new(L, Args::new(narg));
     let cx = match f {
         Func::NonYieldableFp(f) => {
-            let active = ActiveCall::new((*L).hdr.global());
+            let active = ActiveCall::new(L.hdr.global());
 
             if active.get() >= 100 {
                 return Err("too many nested call into Rust functions".into());
@@ -479,7 +480,7 @@ async unsafe fn precallC<A>(
         }
         Func::AsyncFp(f) => {
             AsyncInvoker {
-                g: (*L).hdr.global(),
+                g: L.hdr.global(),
                 f: f(cx),
             }
             .await?
@@ -507,16 +508,16 @@ pub async unsafe fn luaD_pretailcall<D>(
         match (*func).tt_ & 0x3f {
             38 => {
                 return precallC(
-                    L,
+                    &*L,
                     func,
                     -(1 as c_int),
                     Func::NonYieldableFp((*((*func).value_.gc as *mut CClosure<D>)).f),
                 )
                 .await;
             }
-            2 => return precallC(L, func, -1, Func::NonYieldableFp((*func).value_.f)).await,
+            2 => return precallC(&*L, func, -1, Func::NonYieldableFp((*func).value_.f)).await,
             18 | 50 => todo!(),
-            34 => return precallC(L, func, -1, Func::AsyncFp((*func).value_.a)).await,
+            34 => return precallC(&*L, func, -1, Func::AsyncFp((*func).value_.a)).await,
             6 => {
                 let p = (*(*func).value_.gc.cast::<LuaFn<D>>()).p.get();
                 let fsize: c_int = (*p).maxstacksize as c_int;
@@ -572,7 +573,7 @@ pub async unsafe fn luaD_precall<D>(
         match (*func).tt_ & 0x3f {
             38 => {
                 precallC(
-                    L,
+                    &*L,
                     func,
                     nresults,
                     Func::NonYieldableFp((*((*func).value_.gc as *mut CClosure<D>)).f),
@@ -582,13 +583,13 @@ pub async unsafe fn luaD_precall<D>(
                 return Ok(null_mut());
             }
             2 => {
-                precallC(L, func, nresults, Func::NonYieldableFp((*func).value_.f)).await?;
+                precallC(&*L, func, nresults, Func::NonYieldableFp((*func).value_.f)).await?;
 
                 return Ok(null_mut());
             }
             18 | 50 => todo!(),
             34 => {
-                precallC(L, func, nresults, Func::AsyncFp((*func).value_.a)).await?;
+                precallC(&*L, func, nresults, Func::AsyncFp((*func).value_.a)).await?;
                 return Ok(null_mut());
             }
             6 => {
@@ -756,12 +757,12 @@ pub unsafe fn luaD_protectedparser<D>(
 }
 
 /// Encapsulates a function pointer.
-enum Func<D> {
-    NonYieldableFp(for<'a> fn(Context<'a, D, Args>) -> Result<Context<'a, D, Ret>, Box<dyn Error>>),
+enum Func<A> {
+    NonYieldableFp(for<'a> fn(Context<'a, A, Args>) -> Result<Context<'a, A, Ret>, Box<dyn Error>>),
     AsyncFp(
         fn(
-            Context<D, Args>,
-        ) -> Pin<Box<dyn Future<Output = Result<Context<D, Ret>, Box<dyn Error>>> + '_>>,
+            Context<A, Args>,
+        ) -> Pin<Box<dyn Future<Output = Result<Context<A, Ret>, Box<dyn Error>>> + '_>>,
     ),
 }
 

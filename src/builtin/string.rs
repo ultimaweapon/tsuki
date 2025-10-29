@@ -1,6 +1,7 @@
 //! Implementation of [string library](https://www.lua.org/manual/5.4/manual.html#6.4).
+use crate::context::{Arg, Args, Context, Ret};
 use crate::libc::snprintf;
-use crate::{Arg, Args, Context, Fp, LuaFn, Nil, Number, Ret, Str, Table, Type, Value};
+use crate::{Fp, LuaFn, Nil, Number, Str, Table, Type, Value};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};

@@ -1,3 +1,4 @@
+//! Provides [Context] to interact with Lua VM from [Fp](crate::Fp) and [AsyncFp](crate::AsyncFp).
 pub use self::arg::*;
 
 use crate::collections::{BTreeMap, CollectionValue};

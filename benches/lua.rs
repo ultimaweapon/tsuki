@@ -69,8 +69,9 @@ fn async_call(c: &mut Criterion) {
         }
 
         async fn asyncfn(
-            cx: tsuki::Context<'_, (), tsuki::Args>,
-        ) -> Result<tsuki::Context<'_, (), tsuki::Ret>, Box<dyn std::error::Error>> {
+            cx: tsuki::context::Context<'_, (), tsuki::context::Args>,
+        ) -> Result<tsuki::context::Context<'_, (), tsuki::context::Ret>, Box<dyn std::error::Error>>
+        {
             let yc = cx.arg(1).to_int()?;
 
             for _ in 0..yc {

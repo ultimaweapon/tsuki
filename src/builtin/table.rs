@@ -1,9 +1,9 @@
 //! Implementation of [table library](https://www.lua.org/manual/5.4/manual.html#6.6).
-use crate::{Args, Context, Ret};
+use crate::context::{Args, Context, Ret};
 use alloc::boxed::Box;
 
 /// Implementation of [table.unpack](https://www.lua.org/manual/5.4/manual.html#pdf-table.unpack).
-pub fn unpack<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn unpack<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     // Check if start index greater than end index.
     let l = cx.arg(1);
     let i = cx.arg(2).to_nilable_int(false)?.unwrap_or(1);

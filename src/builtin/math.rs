@@ -1,5 +1,6 @@
 //! Implementation of [mathematical library](https://www.lua.org/manual/5.4/manual.html#6.7).
-use crate::{ArgNotFound, Args, Context, Float, Nil, Number, Ret, Type};
+use crate::context::{ArgNotFound, Args, Context, Ret};
+use crate::{Float, Nil, Number, Type};
 use alloc::boxed::Box;
 use libm::fabs;
 

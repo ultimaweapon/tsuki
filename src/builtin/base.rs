@@ -1,5 +1,6 @@
 //! Implementation of [basic library](https://www.lua.org/manual/5.4/manual.html#6.1).
-use crate::{ArgNotFound, Args, Context, Nil, Ret, Type, fp};
+use crate::context::{ArgNotFound, Args, Context, Ret};
+use crate::{Nil, Type, fp};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
