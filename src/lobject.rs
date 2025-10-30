@@ -13,11 +13,9 @@ use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
 use core::ffi::{c_char, c_void};
 
-type c_uchar = u8;
 type c_int = i32;
 type c_uint = u32;
 type c_ulong = u64;
-type c_longlong = i64;
 
 #[repr(C)]
 pub struct UpVal<D> {

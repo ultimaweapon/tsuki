@@ -6,14 +6,13 @@ use crate::ldo::luaD_growstack;
 use crate::lfunc::{luaF_close, luaF_newCclosure};
 use crate::lobject::CClosure;
 use crate::ltm::luaT_typenames_;
-use crate::table::{luaH_get, luaH_getint, luaH_getn, luaH_getstr, luaH_setint};
+use crate::table::{luaH_get, luaH_getint, luaH_getn, luaH_getstr};
 use crate::value::UnsafeValue;
 use crate::vm::{
     luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_lessequal, luaV_lessthan,
 };
 use crate::{LuaFn, Object, StackOverflow, StackValue, Str, Table, Thread, UserData, api_incr_top};
 use alloc::boxed::Box;
-use alloc::string::ToString;
 use core::cmp::max;
 use core::convert::identity;
 use core::ffi::{CStr, c_char};
@@ -21,7 +20,6 @@ use core::ptr::{null, null_mut};
 
 type c_int = i32;
 type c_uint = u32;
-type c_long = i64;
 
 unsafe fn index2value<D>(L: *const Thread<D>, mut idx: c_int) -> *mut UnsafeValue<D> {
     let ci = (*L).ci.get();
@@ -110,19 +108,6 @@ pub unsafe fn lua_xmove<D>(from: *mut Thread<D>, to: *mut Thread<D>, n: c_int) {
 
         i += 1;
     }
-}
-
-pub unsafe fn lua_absindex<D>(L: *const Thread<D>, idx: c_int) -> c_int {
-    return if idx > 0 as c_int || idx <= -(1000000 as c_int) - 1000 as c_int {
-        idx
-    } else {
-        ((*L).top.get()).offset_from((*(*L).ci.get()).func) as c_long as c_int + idx
-    };
-}
-
-pub unsafe fn lua_gettop<D>(L: *const Thread<D>) -> c_int {
-    return ((*L).top.get()).offset_from(((*(*L).ci.get()).func).offset(1 as c_int as isize))
-        as c_long as c_int;
 }
 
 pub unsafe fn lua_settop<D>(
@@ -238,14 +223,6 @@ pub unsafe fn lua_copy<D>(L: *const Thread<D>, fromidx: c_int, toidx: c_int) {
     }
 }
 
-pub unsafe fn lua_pushvalue<D>(L: *const Thread<D>, idx: c_int) {
-    let io1 = (*L).top.get();
-    let io2 = index2value(L, idx);
-    (*io1).value_ = (*io2).value_;
-    (*io1).tt_ = (*io2).tt_;
-    api_incr_top(L);
-}
-
 pub unsafe fn lua_type<D>(L: *const Thread<D>, idx: c_int) -> c_int {
     let o = index2value(L, idx);
     return if !((*o).tt_ as c_int & 0xf as c_int == 0 as c_int)
@@ -317,37 +294,6 @@ pub unsafe fn lua_compare<D>(
     return Ok(i);
 }
 
-#[inline(never)]
-pub unsafe fn lua_tolstring<D>(L: *const Thread<D>, idx: c_int, convert: bool) -> *const Str<D> {
-    let mut o = index2value(L, idx);
-
-    if !((*o).tt_ & 0xf == 4) {
-        let s = if !convert {
-            return null();
-        } else if (*o).tt_ & 0x3f == 0x03 {
-            (*o).value_.i.to_string()
-        } else if (*o).tt_ & 0x3f == 0x13 {
-            (*o).value_.n.to_string()
-        } else {
-            return null();
-        };
-
-        let s = Str::from_str((*L).hdr.global, s);
-        let v = s.unwrap_or_else(identity);
-
-        (*o).tt_ = (*v).hdr.tt | 1 << 6;
-        (*o).value_.gc = v.cast();
-
-        if s.is_ok() {
-            (*L).hdr.global().gc.step();
-        }
-
-        o = index2value(L, idx);
-    }
-
-    (*o).value_.gc.cast::<Str<D>>()
-}
-
 pub unsafe fn lua_rawlen<D>(L: *const Thread<D>, idx: c_int) -> u64 {
     let o = index2value(L, idx);
 
@@ -362,17 +308,6 @@ pub unsafe fn lua_rawlen<D>(L: *const Thread<D>, idx: c_int) -> u64 {
         5 => return luaH_getn((*o).value_.gc as *mut Table<D>),
         _ => return 0 as c_int as u64,
     }
-}
-
-pub unsafe fn lua_tothread<D>(L: *mut Thread<D>, idx: c_int) -> *const Thread<D> {
-    let o = index2value(L, idx);
-    return if !((*o).tt_ as c_int
-        == 8 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
-    {
-        null()
-    } else {
-        (*o).value_.gc.cast()
-    };
 }
 
 pub unsafe fn lua_pushcclosure<D>(
@@ -485,24 +420,6 @@ pub unsafe fn lua_rawget<D>(L: *const Thread<D>, idx: c_int) -> c_int {
 pub unsafe fn lua_rawgeti<D>(L: *const Thread<D>, idx: c_int, n: i64) -> c_int {
     let t = gettable(L, idx);
     return finishrawget(L, luaH_getint(t, n));
-}
-
-pub unsafe fn lua_getmetatable<D>(L: *const Thread<D>, objindex: c_int) -> c_int {
-    let mut res: c_int = 0 as c_int;
-    let obj = index2value(L, objindex);
-    let mt = (*L).hdr.global().metatable(obj);
-
-    if !mt.is_null() {
-        let io = (*L).top.get();
-
-        (*io).value_.gc = mt.cast();
-        (*io).tt_ = (5 as c_int | (0 as c_int) << 4 as c_int | 1 << 6) as u8;
-
-        api_incr_top(L);
-        res = 1 as c_int;
-    }
-
-    return res;
 }
 
 unsafe fn auxsetstr<D>(
@@ -671,56 +588,6 @@ pub unsafe fn lua_seti<D>(
     (*L).top.sub(1);
 
     Ok(())
-}
-
-pub unsafe fn lua_rawseti<D>(L: *mut Thread<D>, idx: c_int, n: i64) {
-    let t = gettable(L, idx);
-
-    luaH_setint(t, n, ((*L).top.get()).offset(-(1 as c_int as isize)).cast());
-
-    if (*((*L).top.get()).offset(-(1 as c_int as isize))).tt_ as c_int & (1 as c_int) << 6 as c_int
-        != 0
-    {
-        if (*t).hdr.marked.get() as c_int & (1 as c_int) << 5 as c_int != 0
-            && (*(*((*L).top.get()).offset(-(1 as c_int as isize))).value_.gc)
-                .marked
-                .get() as c_int
-                & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                != 0
-        {
-            (*L).hdr.global().gc.barrier_back(t.cast());
-        }
-    }
-
-    (*L).top.sub(1);
-}
-
-pub unsafe fn lua_next<D>(
-    L: *const Thread<D>,
-    idx: c_int,
-) -> Result<c_int, Box<dyn core::error::Error>> {
-    let t = gettable(L, idx);
-    let k = (*L).top.get().offset(-1);
-
-    match (*t).next_raw(&(*k.cast()))? {
-        Some(v) => {
-            for i in [0, 1] {
-                let k = k.add(i);
-
-                (*k).tt_ = v[i].tt_;
-                (*k).value_ = v[i].value_;
-            }
-
-            api_incr_top(L);
-
-            Ok(1)
-        }
-        None => {
-            (*L).top.sub(1);
-
-            Ok(0)
-        }
-    }
 }
 
 pub unsafe fn lua_concat<D>(

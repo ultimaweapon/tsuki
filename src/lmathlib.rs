@@ -38,11 +38,6 @@ unsafe fn math_asin(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn math_acos(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    lua_pushnumber(L, acos(luaL_checknumber(L, 1 as libc::c_int)?));
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn math_toint(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut valid: libc::c_int = 0;
     let mut n: i64 = lua_tointegerx(L, 1 as libc::c_int, &mut valid);
@@ -305,13 +300,6 @@ unsafe fn setrandfunc(mut L: *const Thread) -> Result<(), Box<dyn std::error::Er
 }
 
 static mut mathlib: [luaL_Reg; 28] = [
-    {
-        let mut init = luaL_Reg {
-            name: b"acos\0" as *const u8 as *const libc::c_char,
-            func: Some(math_acos),
-        };
-        init
-    },
     {
         let mut init = luaL_Reg {
             name: b"asin\0" as *const u8 as *const libc::c_char,

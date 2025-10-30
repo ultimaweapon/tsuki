@@ -22,7 +22,7 @@
 //!
 //!     // Run on main thread.
 //!     let chunk = lua.load("abc.lua", "return myfunc()").unwrap();
-//!     let result = lua.call::<Value<_>>(chunk, ()).unwrap();
+//!     let result = lua.call(chunk, ()).unwrap();
 //!
 //!     match result {
 //!         Value::Str(v) => assert_eq!(v.as_str(), Some("Hello world!")),
@@ -32,6 +32,7 @@
 //!
 //! fn myfunc(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
 //!     cx.push_str("Hello world!")?;
+//!
 //!     Ok(cx.into())
 //! }
 //! ```

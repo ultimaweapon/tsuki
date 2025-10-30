@@ -21,6 +21,15 @@ pub fn abs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
     Ok(cx.into())
 }
 
+/// Implementation of [math.acos](https://www.lua.org/manual/5.4/manual.html#pdf-math.acos).
+pub fn acos<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let arg = cx.arg(1).to_float()?;
+
+    cx.push(arg.acos())?;
+
+    Ok(cx.into())
+}
+
 /// Implementation of [math.atan](https://www.lua.org/manual/5.4/manual.html#pdf-math.atan).
 pub fn atan<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let y = cx.arg(1).to_float()?;

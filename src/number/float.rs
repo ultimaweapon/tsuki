@@ -85,6 +85,14 @@ impl Float {
         Self(self.0.tan())
     }
 
+    /// Computes the arccosine of a number.
+    ///
+    /// See [f64::acos()] for more details.
+    #[inline(always)]
+    pub fn acos(self) -> Self {
+        Self(self.0.acos())
+    }
+
     /// Computes the four quadrant arctangent of `self` (`y`) and `x` in radians.
     ///
     /// See [f64::atan2()] for more details.
