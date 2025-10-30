@@ -144,7 +144,8 @@ pub unsafe fn luaL_argerror<D>(
 
     Box::new(ArgError {
         message: format!(
-            "bad argument #{arg} to '{}'",
+            "bad argument #{} to '{}'",
+            arg,
             String::from_utf8_lossy(&name)
         ),
         reason: reason.into(),

@@ -2,7 +2,6 @@
 use crate::context::{ArgNotFound, Args, Context, Ret};
 use crate::{Float, Nil, Number, Type};
 use alloc::boxed::Box;
-use libm::fabs;
 
 /// Implementation of [math.abs](https://www.lua.org/manual/5.4/manual.html#pdf-math.abs).
 pub fn abs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
@@ -16,12 +15,18 @@ pub fn abs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
 
             cx.push(n)?;
         }
-        None => {
-            let n = arg.to_float()?;
-
-            cx.push(fabs(n.into()))?;
-        }
+        None => cx.push(arg.to_float()?.abs())?,
     }
+
+    Ok(cx.into())
+}
+
+/// Implementation of [math.atan](https://www.lua.org/manual/5.4/manual.html#pdf-math.atan).
+pub fn atan<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let y = cx.arg(1).to_float()?;
+    let x = cx.arg(2).to_nilable_float(false)?.unwrap_or(Float(1.0));
+
+    cx.push(y.atan2(x))?;
 
     Ok(cx.into())
 }

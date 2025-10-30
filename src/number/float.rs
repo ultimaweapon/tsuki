@@ -6,14 +6,21 @@ use core::ops::{Add, AddAssign, Div, Mul, Neg, Sub};
 ///
 /// This type provides [Display] implementation to match with Lua behavior when converting float to
 /// string without fractional part. [Display] implementation on [f64] will omit fractional part if
-/// it is zero but Lua requires this.
-///
-/// Note that Tsuki **do not** truncate the precision while Lua limit this to 14 digits by default.
+/// it is zero but Lua requires this. Note that Tsuki **do not** truncate the precision while Lua
+/// limit this to 14 digits by default.
 #[repr(transparent)]
 #[derive(Default, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Float(pub f64);
 
 impl Float {
+    /// Computes the absolute value of `self`.
+    ///
+    /// See [f64::abs()] for more details.
+    #[inline(always)]
+    pub const fn abs(self) -> Self {
+        Self(self.0.abs())
+    }
+
     /// Returns the largest integer less than or equal to `self`.
     ///
     /// See [f64::floor()] for more details.
@@ -25,6 +32,7 @@ impl Float {
     /// Returns the smallest integer greater than or equal to `self`.
     ///
     /// See [f64::ceil()] for more details.
+    #[inline(always)]
     pub const fn ceil(self) -> Self {
         Self(self.0.ceil())
     }
@@ -56,6 +64,7 @@ impl Float {
     /// Computes the sine of a number (in radians).
     ///
     /// See [f64::sin()] for more details.
+    #[inline(always)]
     pub fn sin(self) -> Self {
         Self(self.0.sin())
     }
@@ -63,6 +72,7 @@ impl Float {
     /// Computes the cosine of a number (in radians).
     ///
     /// See [f64::cos()] for more details.
+    #[inline(always)]
     pub fn cos(self) -> Self {
         Self(self.0.cos())
     }
@@ -70,8 +80,17 @@ impl Float {
     /// Computes the tangent of a number (in radians).
     ///
     /// See [f64::tan()] for more details.
+    #[inline(always)]
     pub fn tan(self) -> Self {
         Self(self.0.tan())
+    }
+
+    /// Computes the four quadrant arctangent of `self` (`y`) and `x` in radians.
+    ///
+    /// See [f64::atan2()] for more details.
+    #[inline(always)]
+    pub fn atan2(self, x: Self) -> Self {
+        Self(self.0.atan2(x.0))
     }
 
     /// Raises a number to a floating point power.
