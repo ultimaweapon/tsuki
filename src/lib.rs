@@ -774,7 +774,7 @@ impl<'a> Drop for ModulesLock<'a> {
 }
 
 /// Encapsulates a Lua value.
-#[repr(u64)] // Force field to be at offset 8.
+#[repr(u64, align(8))] // Force field to be at offset 8.
 pub enum Value<'a, A> {
     /// The value is `nil`.
     Nil = 0 | 0 << 4,
