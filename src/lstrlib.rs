@@ -84,20 +84,6 @@ unsafe fn str_reverse(mut L: *const Thread) -> Result<c_int, Box<dyn std::error:
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn str_lower(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut l: usize = 0;
-    let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
-    let mut s = std::slice::from_raw_parts(s.cast::<u8>(), l).to_vec();
-
-    for b in &mut s {
-        b.make_ascii_lowercase();
-    }
-
-    lua_pushlstring(L, s);
-
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn arith_mul(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return arith(
         L,
@@ -882,13 +868,6 @@ static mut strlib: [luaL_Reg; 17] = [
         let mut init = luaL_Reg {
             name: b"gmatch\0" as *const u8 as *const libc::c_char,
             func: Some(gmatch),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"lower\0" as *const u8 as *const libc::c_char,
-            func: Some(str_lower),
         };
         init
     },

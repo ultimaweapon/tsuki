@@ -421,6 +421,19 @@ pub fn len<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
     Ok(cx.into())
 }
 
+/// Implementation of [string.lower](https://www.lua.org/manual/5.4/manual.html#pdf-string.lower).
+pub fn lower<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let mut s = cx.arg(1).to_str()?.as_bytes().to_vec();
+
+    for b in &mut s {
+        b.make_ascii_lowercase();
+    }
+
+    cx.push_bytes(s)?;
+
+    Ok(cx.into())
+}
+
 /// Implementation of `__unm` metamethod for string.
 pub fn negate<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     arith(cx, "__unm", |cx, v, _| cx.push_neg(v).map(|_| ()))
