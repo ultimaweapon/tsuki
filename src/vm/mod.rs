@@ -32,6 +32,7 @@ use crate::{
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+use core::any::Any;
 use core::cell::Cell;
 use core::cmp::Ordering;
 use core::convert::identity;
@@ -301,17 +302,16 @@ unsafe fn floatforloop<D>(ra: *mut StackValue<D>) -> c_int {
     };
 }
 
-pub unsafe fn luaV_finishget<D>(
-    L: *const Thread<D>,
-    mut t: *const UnsafeValue<D>,
-    key: *const UnsafeValue<D>,
-    mut slot: *const UnsafeValue<D>,
-) -> Result<UnsafeValue<D>, Box<dyn core::error::Error>> {
-    let mut loop_0: c_int = 0;
+#[inline(never)]
+pub unsafe fn luaV_finishget<A>(
+    L: *const Thread<A>,
+    mut t: *const UnsafeValue<A>,
+    key: *const UnsafeValue<A>,
+    mut slot: *const UnsafeValue<A>,
+) -> Result<UnsafeValue<A>, Box<dyn core::error::Error>> {
     let mut tm = null();
 
-    loop_0 = 0 as c_int;
-    while loop_0 < 2000 as c_int {
+    for _ in 0..2000 {
         if slot.is_null() {
             tm = luaT_gettmbyobj(L, t, TM_INDEX);
 
@@ -319,21 +319,16 @@ pub unsafe fn luaV_finishget<D>(
                 return Err(luaG_typeerror(L, t, "index"));
             }
         } else {
-            tm = if ((*((*t).value_.gc.cast::<Table<D>>())).metatable.get()).is_null() {
+            let mt = (*(*t).value_.gc.cast::<Table<A>>()).metatable.get();
+
+            tm = if mt.is_null() {
                 null()
-            } else if (*(*((*t).value_.gc.cast::<Table<D>>())).metatable.get())
-                .flags
-                .get() as c_uint
-                & (1 as c_uint) << TM_INDEX as c_int
-                != 0
-            {
+            } else if (*mt).flags.get() & 1 << TM_INDEX != 0 {
                 null()
             } else {
-                luaT_gettm(
-                    (*((*t).value_.gc.cast::<Table<D>>())).metatable.get(),
-                    TM_INDEX,
-                )
+                luaT_gettm(mt, TM_INDEX)
             };
+
             if tm.is_null() {
                 return Ok(Nil.into());
             }
@@ -350,19 +345,16 @@ pub unsafe fn luaV_finishget<D>(
         }
 
         t = tm;
-        if if !((*t).tt_ as c_int
-            == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
-        {
+
+        if if !((*t).tt_ == 5 | 0 << 4 | 1 << 6) {
             slot = null();
-            0 as c_int
+            false
         } else {
             slot = luaH_get((*t).value_.gc.cast(), key);
-            !((*slot).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int
-        } != 0
-        {
+            (*slot).tt_ & 0xf != 0
+        } {
             return Ok(slot.read());
         }
-        loop_0 += 1;
     }
 
     Err(luaG_runerror(L, "'__index' chain too long; possible loop"))
@@ -1110,7 +1102,7 @@ pub async unsafe fn luaV_execute<A>(
             let mut base = ((*ci).func).add(1);
             let mut i = pc.read();
             let mut tab = null_mut();
-            let mut key = null_mut();
+            let mut key = UnsafeValue::default();
             let mut slot = null();
 
             if trap != 0 {
@@ -1307,12 +1299,13 @@ pub async unsafe fn luaV_execute<A>(
                         }
                         next!();
                     }
-                    11 => {
-                        let ra_10 = base.offset(
+                    OP_GETTABUP => {
+                        let ra = base.offset(
                             (i >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                 as c_int as isize,
                         );
+
                         tab = (*(*cl).upvals[(i
                             >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8) << 0)
@@ -1320,35 +1313,50 @@ pub async unsafe fn luaV_execute<A>(
                             .get())
                         .v
                         .get();
-                        key = k.offset(
+                        let k = k.offset(
                             (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                 as c_int as isize,
                         );
 
-                        if if !((*tab).tt_ as c_int
-                            == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
-                        {
-                            slot = null();
-                            0 as c_int
-                        } else {
-                            slot =
-                                luaH_getshortstr((*tab).value_.gc.cast(), (*key).value_.gc.cast());
-                            !((*slot).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int
-                        } != 0
-                        {
-                            let io1_4 = ra_10;
-                            let io2_4 = slot;
+                        // Check if userdata with properties.
+                        slot = match (*tab).tt_ & 0xf {
+                            5 => luaH_getshortstr((*tab).value_.gc.cast(), (*k).value_.gc.cast()),
+                            7 => {
+                                let t = (*(*tab).value_.gc.cast::<UserData<A, dyn Any>>())
+                                    .props
+                                    .get();
 
-                            (*io1_4).value_ = (*io2_4).value_;
-                            (*io1_4).tt_ = (*io2_4).tt_;
+                                if !t.is_null() {
+                                    let v = luaH_getshortstr(t, (*k).value_.gc.cast());
+
+                                    if (*v).tt_ & 0xf != 0 {
+                                        (*ra).tt_ = (*v).tt_;
+                                        (*ra).value_ = (*v).value_;
+
+                                        next!();
+                                    }
+                                }
+
+                                null()
+                            }
+                            _ => null(),
+                        };
+
+                        if !slot.is_null() && (*slot).tt_ & 0xf != 0 {
+                            (*ra).tt_ = (*slot).tt_;
+                            (*ra).value_ = (*slot).value_;
+
                             next!();
-                        } else {
-                            current_block = 0;
                         }
+
+                        key.tt_ = (*k).tt_;
+                        key.value_ = (*k).value_;
+
+                        current_block = 0;
                     }
                     OP_GETTABLE => {
-                        let ra_11 = base.offset(
+                        let ra = base.offset(
                             (i >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                 as c_int as isize,
@@ -1361,7 +1369,7 @@ pub async unsafe fn luaV_execute<A>(
                                     as c_int as isize,
                             )
                             .cast();
-                        key = base
+                        let k = base
                             .offset(
                                 (i >> 0 as c_int
                                     + 7 as c_int
@@ -1371,100 +1379,61 @@ pub async unsafe fn luaV_execute<A>(
                                     & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                     as c_int as isize,
                             )
-                            .cast();
-                        slot = match (*tab).tt_ == 5 | 0 << 4 | 1 << 6 {
-                            true => {
-                                if (*key).tt_ == 3 | 0 << 4 {
-                                    luaH_getint((*tab).value_.gc.cast(), (*key).value_.i)
+                            .cast::<UnsafeValue<A>>();
+
+                        // Check if userdata with properties.
+                        slot = match (*tab).tt_ & 0xf {
+                            5 => {
+                                if (*k).tt_ == 3 | 0 << 4 {
+                                    luaH_getint((*tab).value_.gc.cast(), (*k).value_.i)
                                 } else {
-                                    luaH_get((*tab).value_.gc.cast(), key)
+                                    luaH_get((*tab).value_.gc.cast(), k)
                                 }
                             }
-                            false => null(),
+                            7 => {
+                                let t = (*(*tab).value_.gc.cast::<UserData<A, dyn Any>>())
+                                    .props
+                                    .get();
+
+                                if !t.is_null() {
+                                    let v = if (*k).tt_ == 3 | 0 << 4 {
+                                        luaH_getint(t, (*k).value_.i)
+                                    } else {
+                                        luaH_get(t, k)
+                                    };
+
+                                    if (*v).tt_ & 0xf != 0 {
+                                        (*ra).tt_ = (*v).tt_;
+                                        (*ra).value_ = (*v).value_;
+
+                                        next!();
+                                    }
+                                }
+
+                                null()
+                            }
+                            _ => null(),
                         };
 
                         if !slot.is_null() && (*slot).tt_ & 0xf != 0 {
-                            let io1_5 = ra_11;
-
-                            (*io1_5).tt_ = (*slot).tt_;
-                            (*io1_5).value_ = (*slot).value_;
+                            (*ra).tt_ = (*slot).tt_;
+                            (*ra).value_ = (*slot).value_;
 
                             next!();
                         }
 
+                        key.tt_ = (*k).tt_;
+                        key.value_ = (*k).value_;
+
                         current_block = 0;
                     }
                     13 => {
-                        let mut ra_12 = base.offset(
+                        let ra = base.offset(
                             (i >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                 as c_int as isize,
                         );
-                        let mut slot_1 = null();
-                        let rb_2 = base.offset(
-                            (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
-                                & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                as c_int as isize,
-                        );
-                        let c: c_int = (i
-                            >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
-                            & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                            as c_int;
-                        if if !((*rb_2).tt_ as c_int
-                            == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
-                        {
-                            slot_1 = null();
-                            0 as c_int
-                        } else {
-                            slot_1 = if (c as u64).wrapping_sub(1 as c_uint as u64)
-                                < (*((*rb_2).value_.gc as *mut Table<A>)).alimit.get() as u64
-                            {
-                                (*((*rb_2).value_.gc as *mut Table<A>))
-                                    .array
-                                    .get()
-                                    .offset((c - 1 as c_int) as isize)
-                            } else {
-                                luaH_getint((*rb_2).value_.gc.cast(), c as i64)
-                            };
-                            !((*slot_1).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int
-                        } != 0
-                        {
-                            let io1_6 = ra_12;
-                            let io2_6 = slot_1;
 
-                            (*io1_6).value_ = (*io2_6).value_;
-                            (*io1_6).tt_ = (*io2_6).tt_;
-                        } else {
-                            let mut key_0 = UnsafeValue::default();
-                            let io_1 = &raw mut key_0;
-
-                            (*io_1).value_.i = c as i64;
-                            (*io_1).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
-                            (*ci).u.savedpc = pc;
-                            (*th).top.set((*ci).top);
-
-                            let val = luaV_finishget(th, rb_2.cast(), &mut key_0, slot_1)?;
-
-                            base = (*ci).func.add(1);
-                            ra_12 = base.offset(
-                                (i >> 0 as c_int + 7 as c_int
-                                    & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                    as c_int as isize,
-                            );
-
-                            (*ra_12).tt_ = val.tt_;
-                            (*ra_12).value_ = val.value_;
-
-                            trap = (*ci).u.trap;
-                        }
-                        next!();
-                    }
-                    14 => {
-                        let ra_13 = base.offset(
-                            (i >> 0 as c_int + 7 as c_int
-                                & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                as c_int as isize,
-                        );
                         tab = base
                             .offset(
                                 (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
@@ -1472,32 +1441,102 @@ pub async unsafe fn luaV_execute<A>(
                                     as c_int as isize,
                             )
                             .cast();
-                        key = k.offset(
+                        let c: c_int = (i
+                            >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
+                            & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                            as c_int;
+
+                        // Check if userdata with properties.
+                        slot = match (*tab).tt_ & 0xf {
+                            5 => luaH_getint((*tab).value_.gc.cast(), c.into()),
+                            7 => {
+                                let t = (*(*tab).value_.gc.cast::<UserData<A, dyn Any>>())
+                                    .props
+                                    .get();
+
+                                if !t.is_null() {
+                                    let v = luaH_getint(t, c.into());
+
+                                    if (*v).tt_ & 0xf != 0 {
+                                        (*ra).tt_ = (*v).tt_;
+                                        (*ra).value_ = (*v).value_;
+
+                                        next!();
+                                    }
+                                }
+
+                                null()
+                            }
+                            _ => null(),
+                        };
+
+                        if !slot.is_null() && (*slot).tt_ & 0xf != 0 {
+                            (*ra).tt_ = (*slot).tt_;
+                            (*ra).value_ = (*slot).value_;
+
+                            next!();
+                        }
+
+                        key.tt_ = 3 | 0 << 4;
+                        key.value_.i = c.into();
+
+                        current_block = 0;
+                    }
+                    14 => {
+                        let ra = base.offset(
+                            (i >> 0 as c_int + 7 as c_int
+                                & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                                as c_int as isize,
+                        );
+
+                        tab = base
+                            .offset(
+                                (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
+                                    & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
+                                    as c_int as isize,
+                            )
+                            .cast();
+                        let k = k.offset(
                             (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                 as c_int as isize,
                         );
-                        let key_1 = (*key).value_.gc as *mut Str<A>;
 
-                        if if !((*tab).tt_ as c_int
-                            == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
-                        {
-                            slot = null();
-                            0 as c_int
-                        } else {
-                            slot = luaH_getshortstr((*tab).value_.gc.cast(), key_1);
-                            !((*slot).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int
-                        } != 0
-                        {
-                            let io1_7 = ra_13;
-                            let io2_7 = slot;
+                        // Check if userdata with properties.
+                        slot = match (*tab).tt_ & 0xf {
+                            5 => luaH_getshortstr((*tab).value_.gc.cast(), (*k).value_.gc.cast()),
+                            7 => {
+                                let t = (*(*tab).value_.gc.cast::<UserData<A, dyn Any>>())
+                                    .props
+                                    .get();
 
-                            (*io1_7).value_ = (*io2_7).value_;
-                            (*io1_7).tt_ = (*io2_7).tt_;
+                                if !t.is_null() {
+                                    let v = luaH_getshortstr(t, (*k).value_.gc.cast());
+
+                                    if (*v).tt_ & 0xf != 0 {
+                                        (*ra).tt_ = (*v).tt_;
+                                        (*ra).value_ = (*v).value_;
+
+                                        next!();
+                                    }
+                                }
+
+                                null()
+                            }
+                            _ => null(),
+                        };
+
+                        if !slot.is_null() && (*slot).tt_ & 0xf != 0 {
+                            (*ra).tt_ = (*slot).tt_;
+                            (*ra).value_ = (*slot).value_;
+
                             next!();
-                        } else {
-                            current_block = 0;
                         }
+
+                        key.tt_ = (*k).tt_;
+                        key.value_ = (*k).value_;
+
+                        current_block = 0;
                     }
                     15 => {
                         let mut slot_3 = null();
@@ -1860,11 +1899,12 @@ pub async unsafe fn luaV_execute<A>(
                         next!();
                     }
                     20 => {
-                        let ra_18 = base.offset(
+                        let ra = base.offset(
                             (i >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                 as c_int as isize,
                         );
+
                         tab = base
                             .offset(
                                 (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
@@ -1872,10 +1912,9 @@ pub async unsafe fn luaV_execute<A>(
                                     as c_int as isize,
                             )
                             .cast();
-                        key = if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int)
-                            as c_int
-                            != 0
-                        {
+
+                        // This one need to set here otherwise it will impact the performance.
+                        key = if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) != 0 {
                             k.offset(
                                 (i >> 0 as c_int
                                     + 7 as c_int
@@ -1885,6 +1924,7 @@ pub async unsafe fn luaV_execute<A>(
                                     & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                     as c_int as isize,
                             )
+                            .read()
                         } else {
                             base.offset(
                                 (i >> 0 as c_int
@@ -1895,33 +1935,48 @@ pub async unsafe fn luaV_execute<A>(
                                     & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                     as c_int as isize,
                             )
-                            .cast()
+                            .cast::<UnsafeValue<A>>()
+                            .read()
                         };
-                        let key_5 = (*key).value_.gc as *mut Str<A>;
-                        let io1_12 = ra_18.offset(1 as c_int as isize);
+
+                        let io1_12 = ra.offset(1 as c_int as isize);
                         let io2_12 = tab;
 
                         (*io1_12).value_ = (*io2_12).value_;
                         (*io1_12).tt_ = (*io2_12).tt_;
-                        if if !((*tab).tt_ as c_int
-                            == 5 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int)
-                        {
-                            slot = null();
-                            0 as c_int
-                        } else {
-                            slot = luaH_getstr((*tab).value_.gc.cast(), key_5);
-                            !((*slot).tt_ as c_int & 0xf as c_int == 0 as c_int) as c_int
-                        } != 0
-                        {
-                            let io1_13 = ra_18;
-                            let io2_13 = slot;
 
-                            (*io1_13).value_ = (*io2_13).value_;
-                            (*io1_13).tt_ = (*io2_13).tt_;
+                        // Check if userdata with properties.
+                        slot = match (*tab).tt_ & 0xf {
+                            5 => luaH_getstr((*tab).value_.gc.cast(), key.value_.gc.cast()),
+                            7 => {
+                                let t = (*(*tab).value_.gc.cast::<UserData<A, dyn Any>>())
+                                    .props
+                                    .get();
+
+                                if !t.is_null() {
+                                    let v = luaH_getstr(t, key.value_.gc.cast());
+
+                                    if (*v).tt_ & 0xf != 0 {
+                                        (*ra).tt_ = (*v).tt_;
+                                        (*ra).value_ = (*v).value_;
+
+                                        next!();
+                                    }
+                                }
+
+                                null()
+                            }
+                            _ => null(),
+                        };
+
+                        if !slot.is_null() && (*slot).tt_ & 0xf != 0 {
+                            (*ra).tt_ = (*slot).tt_;
+                            (*ra).value_ = (*slot).value_;
+
                             next!();
-                        } else {
-                            current_block = 0;
                         }
+
+                        current_block = 0;
                     }
                     OP_ADDI => {
                         let ra_19 = base.offset(
@@ -4400,7 +4455,7 @@ pub async unsafe fn luaV_execute<A>(
                     77 => {
                         current_block = 15611964311717037170;
                     }
-                    78 => {
+                    OP_SETLIST => {
                         let ra_76 = base.offset(
                             (i >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -4531,7 +4586,7 @@ pub async unsafe fn luaV_execute<A>(
                         (*ci).u.savedpc = pc;
                         (*th).top.set((*ci).top);
 
-                        let val = luaV_finishget(th, tab, key, slot)?;
+                        let val = luaV_finishget(th, tab, &raw const key, slot)?;
 
                         base = (*ci).func.add(1);
 

@@ -186,6 +186,7 @@ impl<A> Table<A> {
     /// Returns a value corresponding to `k`.
     ///
     /// This method will trigger GC if new string is allocated.
+    #[inline]
     pub fn get_str_key<K>(&self, k: K) -> Value<'_, A>
     where
         K: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
@@ -311,6 +312,7 @@ impl<A> Table<A> {
     ///
     /// # Panics
     /// If `v` was created from different [Lua](crate::Lua) instance.
+    #[inline(never)]
     pub fn set_str_key<K>(&self, k: K, v: impl Into<UnsafeValue<A>>)
     where
         K: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,

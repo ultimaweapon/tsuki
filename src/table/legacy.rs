@@ -7,7 +7,7 @@ use crate::hasher::LuaHasher;
 use crate::lmem::luaM_realloc_;
 use crate::lobject::luaO_ceillog2;
 use crate::lstring::{luaS_eqlngstr, luaS_hashlongstr};
-use crate::value::UnsafeValue;
+use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{F2Ieq, luaV_flttointeger};
 use crate::{Float, Node, Str, Table, TableError};
 use alloc::alloc::handle_alloc_error;
@@ -218,6 +218,7 @@ unsafe fn setlimittosize<D>(t: *const Table<D>) -> c_uint {
     return (*t).alimit.get();
 }
 
+#[inline(never)]
 unsafe fn getgeneric<D>(
     t: *const Table<D>,
     key: *const UnsafeValue<D>,
@@ -729,7 +730,8 @@ unsafe fn luaH_searchint<A>(t: *const Table<A>, key: i64) -> *const UnsafeValue<
     &raw const (*t).absent_key
 }
 
-pub unsafe fn luaH_getshortstr<D>(t: *const Table<D>, key: *const Str<D>) -> *const UnsafeValue<D> {
+#[inline(never)]
+pub unsafe fn luaH_getshortstr<A>(t: *const Table<A>, key: *const Str<A>) -> *const UnsafeValue<A> {
     let mut n =
         ((*t).node.get()).offset(((*key).hash.get() & ((1 << (*t).lsizenode.get()) - 1)) as isize);
 
@@ -746,21 +748,21 @@ pub unsafe fn luaH_getshortstr<D>(t: *const Table<D>, key: *const Str<D>) -> *co
     }
 }
 
-pub unsafe fn luaH_getstr<D>(t: *const Table<D>, key: *const Str<D>) -> *const UnsafeValue<D> {
+#[inline(always)]
+pub unsafe fn luaH_getstr<A>(t: *const Table<A>, key: *const Str<A>) -> *const UnsafeValue<A> {
     if (*key).is_short() {
         luaH_getshortstr(t, key)
     } else {
-        let mut ko = UnsafeValue::default();
-        let io = &raw mut ko;
-
-        (*io).value_.gc = key.cast();
-        (*io).tt_ = ((*key).hdr.tt as c_int | (1 as c_int) << 6 as c_int) as u8;
+        let ko = UnsafeValue {
+            tt_: 4 | 0 << 4 | 1 << 6,
+            value_: UntaggedValue { gc: key.cast() },
+        };
 
         getgeneric(t, &raw const ko, 0)
     }
 }
 
-pub unsafe fn luaH_getid<D>(t: *const Table<D>, k: &TypeId) -> *const UnsafeValue<D> {
+pub unsafe fn luaH_getid<A>(t: *const Table<A>, k: &TypeId) -> *const UnsafeValue<A> {
     // Get hash.
     let mut h = LuaHasher::new((*t).hdr.global);
 
@@ -774,7 +776,7 @@ pub unsafe fn luaH_getid<D>(t: *const Table<D>, k: &TypeId) -> *const UnsafeValu
     loop {
         // Check key.
         if (*n).u.key_tt == 14 | 0 << 4 | 1 << 6
-            && (*(*n).u.key_val.gc.cast::<RustId<D>>()).value() == k
+            && (*(*n).u.key_val.gc.cast::<RustId<A>>()).value() == k
         {
             return &raw const (*n).i_val;
         }
@@ -795,11 +797,7 @@ pub unsafe fn luaH_getid<D>(t: *const Table<D>, k: &TypeId) -> *const UnsafeValu
 #[inline(never)]
 pub unsafe fn luaH_get<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *const UnsafeValue<D> {
     match (*key).tt_ & 0x3f {
-        4 => {
-            if (*(*key).value_.gc.cast::<Str<D>>()).is_short() {
-                return luaH_getshortstr(t, (*key).value_.gc.cast());
-            }
-        }
+        4 => return luaH_getstr(t, (*key).value_.gc.cast()),
         3 => return luaH_getint(t, (*key).value_.i),
         0 => return &raw const (*t).absent_key,
         19 => {

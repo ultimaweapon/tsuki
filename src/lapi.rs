@@ -223,17 +223,6 @@ pub unsafe fn lua_copy<D>(L: *const Thread<D>, fromidx: c_int, toidx: c_int) {
     }
 }
 
-pub unsafe fn lua_type<D>(L: *const Thread<D>, idx: c_int) -> c_int {
-    let o = index2value(L, idx);
-    return if !((*o).tt_ as c_int & 0xf as c_int == 0 as c_int)
-        || o != (*(*L).hdr.global).nilvalue.get()
-    {
-        (*o).tt_ as c_int & 0xf as c_int
-    } else {
-        -(1 as c_int)
-    };
-}
-
 #[inline(always)]
 pub const fn lua_typename(t: c_int) -> &'static str {
     luaT_typenames_[(t + 1) as usize]

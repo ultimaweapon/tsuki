@@ -1,26 +1,29 @@
 # Tsuki
 [![Crates.io Version](https://img.shields.io/crates/v/tsuki)](https://crates.io/crates/tsuki)
 
-Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all code are Rust and can be using without C compiler[^1]. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that this port was done **without** compatibility with the previous version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
+Tsuki is a port of Lua 5.4 to Rust. This is a port, not binding; which mean all code are Rust and can be using without C compiler[^1]. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that this port was done **without** compatibility with the previous version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
 
-> [!IMPORTANT]
-> All types in Tsuki does not implement `Send` and `Sync` and no plan to support this at the moment.
+> [!WARNING]
+> Tsuki currently in a pre-1.0 so prepare for a lot of breaking changes!
 
 ## Status
 
 The VM to run Lua code is fully working almost exactly as vanilla Lua (see some of differences below). Some functions on Lua standard library are still missing.
 
+> [!IMPORTANT]
+> All types in Tsuki does not implement `Send` and `Sync` and no plan to support this at the moment.
+
 ## Safety
 
 All public API of Tsuki should provide 100% safety as long as you don't use unsafe API incorrectly.
 
-Tsuki is not designed to run untrusted Lua script. Although you can limit what Lua script can do by not expose a function to it but there is no way to limit amount of memory or execution time used by Lua script. The meaning of this is Lua script can cause a panic due to out of memory or never return the control back to Rust with infinite loop.
+Tsuki was not designed to run untrusted Lua script. Although you can limit what Lua script can do by not expose a function to it but there is no way to limit amount of memory or execution time used by Lua script. The meaning of this is Lua script can cause a panic due to out of memory or never return the control back to Rust with infinite loop.
 
 ## Performance
 
-### VM
+### Interpreter
 
-On platform that Lua cannot use computed goto (e.g. Windows with MSVC) Tsuki VM is faster than Lua about 10% otherwise Lua is faster about 30%. The only possibility for Tsuki to be faster than Lua with computed goto is JIT since computed goto does not available on Rust. See issue [18](https://github.com/ultimaweapon/tsuki/issues/18) for more details.
+On platform that Lua cannot use computed goto (e.g. Windows with MSVC) Tsuki is faster than Lua about 10% otherwise Lua is faster about 30%. The only possibility for Tsuki to be faster than Lua with computed goto is JIT since computed goto does not available on Rust. See issue [18](https://github.com/ultimaweapon/tsuki/issues/18) for more details.
 
 ### Async
 
@@ -37,6 +40,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - Any error propagated to the caller via Rust `Result` instead of a long jump.
 - `core::any::Any` as Lua userdata and can be created without the need to define its metatable.
 - Metatable for a userdata is lookup with `core::any::TypeId` instead of a string.
+- Property system on userdata to store per-object values for fast access from Lua.
 
 ## Differences from Lua
 

@@ -263,8 +263,13 @@ impl<D> Gc<D> {
             }
             7 => {
                 let u = o.cast::<UserData<D, ()>>();
+                let props = (*u).props.get();
                 let mt = (*u).mt;
                 let uv = (*u).uv;
+
+                if !props.is_null() && (*props).hdr.marked.is_white() {
+                    self.mark(props.cast());
+                }
 
                 if !mt.is_null() && (*mt).hdr.marked.is_white() {
                     self.mark(mt.cast());
