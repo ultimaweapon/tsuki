@@ -91,6 +91,9 @@ impl<A, T: ?Sized> UserData<A, T> {
 
     /// Sets a property of this userdata.
     ///
+    /// Once this method is called the index operation on this userdata no longer report an error
+    /// even if this userdata does not have a metatable or no `__index` on its metatable.
+    ///
     /// See [UserData] for a list of supported value on `name`.
     ///
     /// # Panics

@@ -40,7 +40,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - Any error propagated to the caller via Rust `Result` instead of a long jump.
 - `core::any::Any` as Lua userdata and can be created without the need to define its metatable.
 - Metatable for a userdata is lookup with `core::any::TypeId` instead of a string.
-- Property system on userdata to store per-object values for fast access from Lua.
+- Property system on userdata to store per-object values for access from Lua.
 
 ## Differences from Lua
 

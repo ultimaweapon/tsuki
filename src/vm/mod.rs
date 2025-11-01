@@ -307,54 +307,84 @@ pub unsafe fn luaV_finishget<A>(
     L: *const Thread<A>,
     mut t: *const UnsafeValue<A>,
     key: *const UnsafeValue<A>,
-    mut slot: *const UnsafeValue<A>,
+    _: *const UnsafeValue<A>,
 ) -> Result<UnsafeValue<A>, Box<dyn core::error::Error>> {
-    let mut tm = null();
-
     for _ in 0..2000 {
-        if slot.is_null() {
-            tm = luaT_gettmbyobj(L, t, TM_INDEX);
+        // Check type.
+        let mt = match (*t).tt_ & 0xf {
+            5 => Some((*(*t).value_.gc.cast::<Table<A>>()).metatable.get()),
+            7 => 'b: {
+                // Check for properties.
+                let ud = (*t).value_.gc.cast::<UserData<A, dyn Any>>();
+                let props = (*ud).props.get();
 
-            if (*tm).tt_ & 0xf == 0 {
-                return Err(luaG_typeerror(L, t, "index"));
+                if props.is_null() {
+                    break 'b None;
+                }
+
+                // Get property.
+                let v = luaH_get(props, key);
+
+                if (*v).tt_ & 0xf != 0 {
+                    return Ok(v.read());
+                }
+
+                // Return nil in case of property not found and no metatable instead of error.
+                Some((*ud).mt)
             }
-        } else {
-            let mt = (*(*t).value_.gc.cast::<Table<A>>()).metatable.get();
+            _ => None,
+        };
 
-            tm = if mt.is_null() {
-                null()
-            } else if (*mt).flags.get() & 1 << TM_INDEX != 0 {
-                null()
-            } else {
-                luaT_gettm(mt, TM_INDEX)
-            };
+        // Get __index.
+        let index = match mt {
+            Some(v) => {
+                let v = if v.is_null() {
+                    null()
+                } else if (*v).flags.get() & 1 << TM_INDEX != 0 {
+                    null()
+                } else {
+                    luaT_gettm(v, TM_INDEX)
+                };
 
-            if tm.is_null() {
-                return Ok(Nil.into());
+                if v.is_null() {
+                    return Ok(Nil.into());
+                }
+
+                v
             }
+            None => {
+                let v = luaT_gettmbyobj(L, t, TM_INDEX);
+
+                if (*v).tt_ & 0xf == 0 {
+                    return Err(luaG_typeerror(L, t, "index"));
+                }
+
+                v
+            }
+        };
+
+        // Check __index type.
+        match (*index).tt_ & 0xf {
+            2 | 6 => {
+                if let Err(e) = luaT_callTMres(L, index, t, key) {
+                    return Err(e); // Requires unsized coercion.
+                }
+
+                (*L).top.sub(1);
+
+                return Ok((*L).top.read(0));
+            }
+            5 => {
+                let v = luaH_get((*index).value_.gc.cast(), key);
+
+                if (*v).tt_ & 0xf != 0 {
+                    return Ok(v.read());
+                }
+            }
+            _ => (),
         }
 
-        if ((*tm).tt_ & 0xf) == 2 || ((*tm).tt_ & 0xf) == 6 {
-            if let Err(e) = luaT_callTMres(L, tm, t, key) {
-                return Err(e); // Requires unsized coercion.
-            }
-
-            (*L).top.sub(1);
-
-            return Ok((*L).top.read(0));
-        }
-
-        t = tm;
-
-        if if !((*t).tt_ == 5 | 0 << 4 | 1 << 6) {
-            slot = null();
-            false
-        } else {
-            slot = luaH_get((*t).value_.gc.cast(), key);
-            (*slot).tt_ & 0xf != 0
-        } {
-            return Ok(slot.read());
-        }
+        t = index;
     }
 
     Err(luaG_runerror(L, "'__index' chain too long; possible loop"))
@@ -1138,21 +1168,17 @@ pub async unsafe fn luaV_execute<A>(
 
                         next!();
                     }
-                    1 => {
-                        let ra_0 = base.offset(
-                            (i >> 0 as c_int + 7 as c_int
-                                & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                                as c_int as isize,
-                        );
+                    OP_LOADI => {
+                        let ra = base.add((i >> 7 & 0xFF) as usize);
                         let b: i64 = ((i >> 0 as c_int + 7 as c_int + 8 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)
                                 << 0 as c_int) as c_int
                             - (((1 as c_int) << 8 as c_int + 8 as c_int + 1 as c_int) - 1 as c_int
                                 >> 1 as c_int)) as i64;
-                        let io = ra_0;
 
-                        (*io).value_.i = b;
-                        (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
+                        (*ra).tt_ = 3 | 0 << 4;
+                        (*ra).value_.i = b;
+
                         next!();
                     }
                     OP_LOADF => {
@@ -1319,35 +1345,21 @@ pub async unsafe fn luaV_execute<A>(
                                 as c_int as isize,
                         );
 
-                        // Check if userdata with properties.
-                        slot = match (*tab).tt_ & 0xf {
-                            5 => luaH_getshortstr((*tab).value_.gc.cast(), (*k).value_.gc.cast()),
-                            7 => {
-                                let t = (*(*tab).value_.gc.cast::<UserData<A, dyn Any>>())
-                                    .props
-                                    .get();
+                        match (*tab).tt_ & 0xf {
+                            5 => {
+                                slot = luaH_getshortstr(
+                                    (*tab).value_.gc.cast(),
+                                    (*k).value_.gc.cast(),
+                                );
 
-                                if !t.is_null() {
-                                    let v = luaH_getshortstr(t, (*k).value_.gc.cast());
+                                if (*slot).tt_ & 0xf != 0 {
+                                    (*ra).tt_ = (*slot).tt_;
+                                    (*ra).value_ = (*slot).value_;
 
-                                    if (*v).tt_ & 0xf != 0 {
-                                        (*ra).tt_ = (*v).tt_;
-                                        (*ra).value_ = (*v).value_;
-
-                                        next!();
-                                    }
+                                    next!();
                                 }
-
-                                null()
                             }
-                            _ => null(),
-                        };
-
-                        if !slot.is_null() && (*slot).tt_ & 0xf != 0 {
-                            (*ra).tt_ = (*slot).tt_;
-                            (*ra).value_ = (*slot).value_;
-
-                            next!();
+                            _ => slot = null(),
                         }
 
                         key.tt_ = (*k).tt_;
@@ -1381,45 +1393,22 @@ pub async unsafe fn luaV_execute<A>(
                             )
                             .cast::<UnsafeValue<A>>();
 
-                        // Check if userdata with properties.
-                        slot = match (*tab).tt_ & 0xf {
+                        match (*tab).tt_ & 0xf {
                             5 => {
-                                if (*k).tt_ == 3 | 0 << 4 {
+                                slot = if (*k).tt_ == 3 | 0 << 4 {
                                     luaH_getint((*tab).value_.gc.cast(), (*k).value_.i)
                                 } else {
                                     luaH_get((*tab).value_.gc.cast(), k)
+                                };
+
+                                if (*slot).tt_ & 0xf != 0 {
+                                    (*ra).tt_ = (*slot).tt_;
+                                    (*ra).value_ = (*slot).value_;
+
+                                    next!();
                                 }
                             }
-                            7 => {
-                                let t = (*(*tab).value_.gc.cast::<UserData<A, dyn Any>>())
-                                    .props
-                                    .get();
-
-                                if !t.is_null() {
-                                    let v = if (*k).tt_ == 3 | 0 << 4 {
-                                        luaH_getint(t, (*k).value_.i)
-                                    } else {
-                                        luaH_get(t, k)
-                                    };
-
-                                    if (*v).tt_ & 0xf != 0 {
-                                        (*ra).tt_ = (*v).tt_;
-                                        (*ra).value_ = (*v).value_;
-
-                                        next!();
-                                    }
-                                }
-
-                                null()
-                            }
-                            _ => null(),
-                        };
-
-                        if !slot.is_null() && (*slot).tt_ & 0xf != 0 {
-                            (*ra).tt_ = (*slot).tt_;
-                            (*ra).value_ = (*slot).value_;
-
-                            next!();
+                            _ => slot = null(),
                         }
 
                         key.tt_ = (*k).tt_;
@@ -1446,35 +1435,18 @@ pub async unsafe fn luaV_execute<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int;
 
-                        // Check if userdata with properties.
-                        slot = match (*tab).tt_ & 0xf {
-                            5 => luaH_getint((*tab).value_.gc.cast(), c.into()),
-                            7 => {
-                                let t = (*(*tab).value_.gc.cast::<UserData<A, dyn Any>>())
-                                    .props
-                                    .get();
+                        match (*tab).tt_ & 0xf {
+                            5 => {
+                                slot = luaH_getint((*tab).value_.gc.cast(), c.into());
 
-                                if !t.is_null() {
-                                    let v = luaH_getint(t, c.into());
+                                if (*slot).tt_ & 0xf != 0 {
+                                    (*ra).tt_ = (*slot).tt_;
+                                    (*ra).value_ = (*slot).value_;
 
-                                    if (*v).tt_ & 0xf != 0 {
-                                        (*ra).tt_ = (*v).tt_;
-                                        (*ra).value_ = (*v).value_;
-
-                                        next!();
-                                    }
+                                    next!();
                                 }
-
-                                null()
                             }
-                            _ => null(),
-                        };
-
-                        if !slot.is_null() && (*slot).tt_ & 0xf != 0 {
-                            (*ra).tt_ = (*slot).tt_;
-                            (*ra).value_ = (*slot).value_;
-
-                            next!();
+                            _ => slot = null(),
                         }
 
                         key.tt_ = 3 | 0 << 4;
@@ -1502,35 +1474,21 @@ pub async unsafe fn luaV_execute<A>(
                                 as c_int as isize,
                         );
 
-                        // Check if userdata with properties.
-                        slot = match (*tab).tt_ & 0xf {
-                            5 => luaH_getshortstr((*tab).value_.gc.cast(), (*k).value_.gc.cast()),
-                            7 => {
-                                let t = (*(*tab).value_.gc.cast::<UserData<A, dyn Any>>())
-                                    .props
-                                    .get();
+                        match (*tab).tt_ & 0xf {
+                            5 => {
+                                slot = luaH_getshortstr(
+                                    (*tab).value_.gc.cast(),
+                                    (*k).value_.gc.cast(),
+                                );
 
-                                if !t.is_null() {
-                                    let v = luaH_getshortstr(t, (*k).value_.gc.cast());
+                                if (*slot).tt_ & 0xf != 0 {
+                                    (*ra).tt_ = (*slot).tt_;
+                                    (*ra).value_ = (*slot).value_;
 
-                                    if (*v).tt_ & 0xf != 0 {
-                                        (*ra).tt_ = (*v).tt_;
-                                        (*ra).value_ = (*v).value_;
-
-                                        next!();
-                                    }
+                                    next!();
                                 }
-
-                                null()
                             }
-                            _ => null(),
-                        };
-
-                        if !slot.is_null() && (*slot).tt_ & 0xf != 0 {
-                            (*ra).tt_ = (*slot).tt_;
-                            (*ra).value_ = (*slot).value_;
-
-                            next!();
+                            _ => slot = null(),
                         }
 
                         key.tt_ = (*k).tt_;
@@ -1940,40 +1898,22 @@ pub async unsafe fn luaV_execute<A>(
                         };
 
                         let io1_12 = ra.offset(1 as c_int as isize);
-                        let io2_12 = tab;
 
-                        (*io1_12).value_ = (*io2_12).value_;
-                        (*io1_12).tt_ = (*io2_12).tt_;
+                        (*io1_12).tt_ = (*tab).tt_;
+                        (*io1_12).value_ = (*tab).value_;
 
-                        // Check if userdata with properties.
-                        slot = match (*tab).tt_ & 0xf {
-                            5 => luaH_getstr((*tab).value_.gc.cast(), key.value_.gc.cast()),
-                            7 => {
-                                let t = (*(*tab).value_.gc.cast::<UserData<A, dyn Any>>())
-                                    .props
-                                    .get();
+                        match (*tab).tt_ & 0xf {
+                            5 => {
+                                slot = luaH_getstr((*tab).value_.gc.cast(), key.value_.gc.cast());
 
-                                if !t.is_null() {
-                                    let v = luaH_getstr(t, key.value_.gc.cast());
+                                if (*slot).tt_ & 0xf != 0 {
+                                    (*ra).tt_ = (*slot).tt_;
+                                    (*ra).value_ = (*slot).value_;
 
-                                    if (*v).tt_ & 0xf != 0 {
-                                        (*ra).tt_ = (*v).tt_;
-                                        (*ra).value_ = (*v).value_;
-
-                                        next!();
-                                    }
+                                    next!();
                                 }
-
-                                null()
                             }
-                            _ => null(),
-                        };
-
-                        if !slot.is_null() && (*slot).tt_ & 0xf != 0 {
-                            (*ra).tt_ = (*slot).tt_;
-                            (*ra).value_ = (*slot).value_;
-
-                            next!();
+                            _ => slot = null(),
                         }
 
                         current_block = 0;
