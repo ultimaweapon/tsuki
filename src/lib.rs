@@ -141,9 +141,7 @@
 //! }
 //! ```
 //!
-//! List of methods to create Rust collection:
-//!
-//! - [BTreeMap]: [Lua::create_btree_map()] and [Context::create_btree_map()].
+//! See [collections] module for available collections.
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
@@ -178,7 +176,7 @@ use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::any::{Any, TypeId};
+use core::any::{Any, TypeId, type_name};
 use core::cell::{Cell, UnsafeCell};
 use core::convert::identity;
 use core::error::Error;
@@ -268,7 +266,7 @@ pub struct Lua<A> {
     phantom: PhantomPinned,
 }
 
-impl<T> Lua<T> {
+impl<A> Lua<A> {
     /// Create a new [Lua] with a random seed to hash Lua string.
     ///
     /// You can retrieve `associated_data` later with [Self::associated_data()] or
@@ -277,7 +275,7 @@ impl<T> Lua<T> {
     /// Note that all built-in functions (e.g. `print`) are not enabled by default.
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-    pub fn new(associated_data: T) -> Pin<Rc<Self>> {
+    pub fn new(associated_data: A) -> Pin<Rc<Self>> {
         Self::with_seed(associated_data, rand::random())
     }
 
@@ -292,7 +290,7 @@ impl<T> Lua<T> {
     /// [Context::associated_data()].
     ///
     /// Note that all built-in functions (e.g. `print`) are not enabled by default.
-    pub fn with_seed(associated_data: T, seed: u32) -> Pin<Rc<Self>> {
+    pub fn with_seed(associated_data: A, seed: u32) -> Pin<Rc<Self>> {
         let g = Rc::pin(Lua {
             gc: unsafe { Gc::new() }, // SAFETY: gc in the first field on Lua.
             strt: StringTable::new(),
@@ -413,7 +411,7 @@ impl<T> Lua<T> {
 
     /// Returns associated data that passed to [Self::new()] or [Self::with_seed()].
     #[inline(always)]
-    pub fn associated_data(&self) -> &T {
+    pub fn associated_data(&self) -> &A {
         &self.associated_data
     }
 
@@ -436,8 +434,8 @@ impl<T> Lua<T> {
         module: M,
     ) -> Result<(), Box<dyn Error>>
     where
-        M: Module<T>,
-        M::Inst<'a>: Into<UnsafeValue<T>>,
+        M: Module<A>,
+        M::Inst<'a>: Into<UnsafeValue<A>>,
     {
         // Prevent recursive call.
         let lock = match ModulesLock::new(&self.modules_locked) {
@@ -457,7 +455,7 @@ impl<T> Lua<T> {
         }
 
         // Open the module. We need a strong reference to name here since the module can trigger GC.
-        let n = unsafe { Ref::new(n.value_.gc.cast::<Str<T>>()) };
+        let n = unsafe { Ref::new(n.value_.gc.cast::<Str<A>>()) };
         let m = module.open(self)?.into();
 
         if (m.tt_ & 0xf) == 0 {
@@ -483,7 +481,7 @@ impl<T> Lua<T> {
     /// # Panics
     /// - If `mt` was created from different [Lua](crate::Lua) instance.
     /// - If `mt` contains `__gc`.
-    pub fn set_str_metatable(&self, mt: &Table<T>) {
+    pub fn set_str_metatable(&self, mt: &Table<A>) {
         if mt.hdr.global != self {
             panic!("attempt to set string metatable created from a different Lua");
         }
@@ -496,15 +494,17 @@ impl<T> Lua<T> {
         unsafe { self.metatables().set_unchecked(4, mt).unwrap_unchecked() };
     }
 
-    /// Register a metatable for userdata `V`. If the metatable for `V` already exists it will be
-    /// replaced.
+    /// Register a metatable for userdata `T`. If the metatable for `T` already exists it will be
+    /// **replaced**.
     ///
-    /// This does not change the metatable for the userdata that already created.
+    /// See [Class] if you want to automate the metatable creation for your userdata.
+    ///
+    /// This does not change the metatable for any userdata that already created.
     ///
     /// # Panics
-    /// - If `mt` come from different [Lua](crate::Lua) instance.
+    /// - If `mt` was created from different [Lua](crate::Lua) instance.
     /// - If `mt` contains `__gc`.
-    pub fn register_metatable<V: Any>(&self, mt: &Table<T>) {
+    pub fn register_metatable<T: Any>(&self, mt: &Table<A>) {
         if mt.hdr.global != self {
             panic!("attempt to register a metatable created from a different Lua");
         }
@@ -514,21 +514,55 @@ impl<T> Lua<T> {
             panic!("__gc metamethod is not supported");
         }
 
-        // Get type ID.
-        let k = unsafe { RustId::new(self, TypeId::of::<V>()) };
+        // Add to list.
+        let k = unsafe { RustId::new(self, TypeId::of::<T>()) };
         let k = unsafe { UnsafeValue::from_obj(k.cast()) };
 
         unsafe { self.metatables().set_unchecked(k, mt).unwrap_unchecked() };
+
+        self.gc.step();
+    }
+
+    /// Register a metatable for userdata `T`. If the metatable for `T` already exists it will be
+    /// **replaced**.
+    ///
+    /// This does not change the metatable for any userdata that already created.
+    ///
+    /// # Panics
+    /// - If [Class::create_metatable()] returns a table that was created from different
+    ///   [Lua](crate::Lua) instance.
+    /// - If [Class::create_metatable()] returns a table that contains `__gc`.
+    pub fn register_class<T: Class<A>>(&self) {
+        // Create metatable.
+        let mt = T::create_metatable(self);
+        let mt = mt.deref();
+
+        if mt.hdr.global != self {
+            panic!(
+                "{} returns a table that was created from a different Lua",
+                type_name::<T>()
+            );
+        } else if unsafe { mt.flags.get() & 1 << TM_GC == 0 && !luaT_gettm(mt, TM_GC).is_null() } {
+            panic!("{} returns a table that contains __gc", type_name::<T>());
+        }
+
+        // Add to list.
+        let k = unsafe { RustId::new(self, TypeId::of::<T>()) };
+        let k = unsafe { UnsafeValue::from_obj(k.cast()) };
+
+        unsafe { self.metatables().set_unchecked(k, mt).unwrap_unchecked() };
+
+        self.gc.step();
     }
 
     /// Sets a value to registry.
     ///
     /// # Panics
     /// If `v` was created from different [Lua](crate::Lua) instance.
-    pub fn set_registry<'a, K>(&self, v: <K::Value<'a> as RegValue<T>>::In<'a>)
+    pub fn set_registry<'a, K>(&self, v: <K::Value<'a> as RegValue<A>>::In<'a>)
     where
-        K: RegKey<T>,
-        K::Value<'a>: RegValue<T>,
+        K: RegKey<A>,
+        K::Value<'a>: RegValue<A>,
     {
         let v = K::Value::into_unsafe(v);
 
@@ -537,7 +571,7 @@ impl<T> Lua<T> {
         }
 
         // Set.
-        let r = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
+        let r = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<A>>() };
         let k = unsafe { RustId::new(self, TypeId::of::<K>()) };
         let k = unsafe { UnsafeValue::from_obj(k.cast()) };
 
@@ -547,13 +581,13 @@ impl<T> Lua<T> {
 
     /// Returns value on registry that was set with [Self::set_registry()] or
     /// [Context::set_registry()].
-    pub fn registry<'a, K>(&'a self) -> Option<<K::Value<'a> as RegValue<T>>::Out<'a>>
+    pub fn registry<'a, K>(&'a self) -> Option<<K::Value<'a> as RegValue<A>>::Out<'a>>
     where
-        K: RegKey<T>,
-        K::Value<'a>: RegValue<T>,
+        K: RegKey<A>,
+        K::Value<'a>: RegValue<A>,
     {
         let id = TypeId::of::<K>();
-        let reg = unsafe { &*(*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
+        let reg = unsafe { &*(*self.l_registry.get()).value_.gc.cast::<Table<A>>() };
         let s = unsafe { luaH_getid(reg, &id) };
 
         match unsafe { (*s).tt_ & 0xf } {
@@ -564,19 +598,19 @@ impl<T> Lua<T> {
 
     /// Returns a global table.
     #[inline(always)]
-    pub fn global(&self) -> &Table<T> {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
+    pub fn global(&self) -> &Table<A> {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<A>>() };
         let tab = unsafe { (*reg).array.get().add(1) };
-        let tab = unsafe { (*tab).value_.gc.cast::<Table<T>>() };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table<A>>() };
 
         unsafe { &*tab }
     }
 
     /// Create a Lua string with UTF-8 content.
     #[inline(always)]
-    pub fn create_str<V>(&self, v: V) -> Ref<'_, Str<T>>
+    pub fn create_str<T>(&self, v: T) -> Ref<'_, Str<A>>
     where
-        V: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
+        T: AsRef<str> + AsRef<[u8]> + Into<Vec<u8>>,
     {
         let s = unsafe { Str::from_str(self, v) };
         let v = unsafe { Ref::new(s.unwrap_or_else(identity)) };
@@ -590,9 +624,9 @@ impl<T> Lua<T> {
 
     /// Create a Lua string with binary content.
     #[inline(always)]
-    pub fn create_bytes<V>(&self, v: V) -> Ref<'_, Str<T>>
+    pub fn create_bytes<T>(&self, v: T) -> Ref<'_, Str<A>>
     where
-        V: AsRef<[u8]> + Into<Vec<u8>>,
+        T: AsRef<[u8]> + Into<Vec<u8>>,
     {
         let s = unsafe { Str::from_bytes(self, v) };
         let v = unsafe { Ref::new(s.unwrap_or_else(identity)) };
@@ -606,7 +640,7 @@ impl<T> Lua<T> {
 
     /// Create a Lua table.
     #[inline(always)]
-    pub fn create_table(&self) -> Ref<'_, Table<T>> {
+    pub fn create_table(&self) -> Ref<'_, Table<A>> {
         self.gc.step();
 
         unsafe { Ref::new(Table::new(self)) }
@@ -618,14 +652,14 @@ impl<T> Lua<T> {
     /// loaded during creation. A call to [Self::register_metatable()] has no effect for any
     /// userdata that already created.
     #[inline(always)]
-    pub fn create_ud<V: Any>(&self, v: V) -> Ref<'_, UserData<T, V>> {
+    pub fn create_ud<T: Any>(&self, v: T) -> Ref<'_, UserData<A, T>> {
         self.gc.step();
 
         unsafe { Ref::new(UserData::new(self, v).cast()) }
     }
 
     /// Create a new Lua thread (AKA coroutine).
-    pub fn create_thread(&self) -> Ref<'_, Thread<T>> {
+    pub fn create_thread(&self) -> Ref<'_, Thread<A>> {
         self.gc.step();
 
         unsafe { Ref::new(Thread::new(self)) }
@@ -635,10 +669,10 @@ impl<T> Lua<T> {
     ///
     /// `K` can be any Rust type that implement [Ord]. See [collections] module for a list of
     /// possible type for `V`.
-    pub fn create_btree_map<K, V>(&self) -> Ref<'_, BTreeMap<T, K, V>>
+    pub fn create_btree_map<K, V>(&self) -> Ref<'_, BTreeMap<A, K, V>>
     where
         K: Ord + 'static,
-        V: CollectionValue<T> + 'static,
+        V: CollectionValue<A> + 'static,
     {
         self.gc.step();
 
@@ -650,7 +684,7 @@ impl<T> Lua<T> {
         &self,
         info: impl Into<ChunkInfo>,
         chunk: impl AsRef<[u8]>,
-    ) -> Result<Ref<'_, LuaFn<T>>, ParseError> {
+    ) -> Result<Ref<'_, LuaFn<A>>, ParseError> {
         let chunk = chunk.as_ref();
         let z = Zio {
             n: chunk.len(),
@@ -662,7 +696,7 @@ impl<T> Lua<T> {
 
         if !(*f).upvals.is_empty() {
             let gt = unsafe {
-                (*((*self.l_registry.get()).value_.gc.cast::<Table<T>>()))
+                (*((*self.l_registry.get()).value_.gc.cast::<Table<A>>()))
                     .array
                     .get()
                     .offset(2 - 1)
@@ -693,63 +727,63 @@ impl<T> Lua<T> {
     ///
     /// See [`Thread::call()`] for more details.
     #[inline(always)]
-    pub fn call<'a, R: Outputs<'a, T>>(
+    pub fn call<'a, R: Outputs<'a, A>>(
         &'a self,
-        f: impl Into<UnsafeValue<T>>,
-        args: impl Inputs<T>,
+        f: impl Into<UnsafeValue<A>>,
+        args: impl Inputs<A>,
     ) -> Result<R, Box<dyn Error>> {
         self.main().call(f, args)
     }
 
     #[inline(always)]
-    fn main(&self) -> &Thread<T> {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
+    fn main(&self) -> &Thread<A> {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<A>>() };
         let val = unsafe { (*reg).array.get().add(0) };
-        let val = unsafe { (*val).value_.gc.cast::<Thread<T>>() };
+        let val = unsafe { (*val).value_.gc.cast::<Thread<A>>() };
 
         unsafe { &*val }
     }
 
-    unsafe fn metatable(&self, o: *const UnsafeValue<T>) -> *const Table<T> {
+    unsafe fn metatable(&self, o: *const UnsafeValue<A>) -> *const Table<A> {
         match unsafe { (*o).tt_ & 0xf } {
-            5 => unsafe { (*(*o).value_.gc.cast::<Table<T>>()).metatable.get() },
-            7 => unsafe { (*(*o).value_.gc.cast::<UserData<T, ()>>()).mt },
+            5 => unsafe { (*(*o).value_.gc.cast::<Table<A>>()).metatable.get() },
+            7 => unsafe { (*(*o).value_.gc.cast::<UserData<A, ()>>()).mt },
             v => unsafe { self.metatables().get_raw_int_key(v.into()).value_.gc.cast() },
         }
     }
 
     #[inline(always)]
-    fn metatables(&self) -> &Table<T> {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
+    fn metatables(&self) -> &Table<A> {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<A>>() };
         let tab = unsafe { (*reg).array.get().add(2) };
-        let tab = unsafe { (*tab).value_.gc.cast::<Table<T>>() };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table<A>>() };
 
         unsafe { &*tab }
     }
 
     #[inline(always)]
-    fn events(&self) -> &Table<T> {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
+    fn events(&self) -> &Table<A> {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<A>>() };
         let tab = unsafe { (*reg).array.get().add(3) };
-        let tab = unsafe { (*tab).value_.gc.cast::<Table<T>>() };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table<A>>() };
 
         unsafe { &*tab }
     }
 
     #[inline(always)]
-    fn tokens(&self) -> &Table<T> {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
+    fn tokens(&self) -> &Table<A> {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<A>>() };
         let tab = unsafe { (*reg).array.get().add(4) };
-        let tab = unsafe { (*tab).value_.gc.cast::<Table<T>>() };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table<A>>() };
 
         unsafe { &*tab }
     }
 
     #[inline(always)]
-    fn modules(&self) -> &Table<T> {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<T>>() };
+    fn modules(&self) -> &Table<A> {
+        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<A>>() };
         let tab = unsafe { (*reg).array.get().add(5) };
-        let tab = unsafe { (*tab).value_.gc.cast::<Table<T>>() };
+        let tab = unsafe { (*tab).value_.gc.cast::<Table<A>>() };
 
         unsafe { &*tab }
     }

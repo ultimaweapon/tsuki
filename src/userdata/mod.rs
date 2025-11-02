@@ -1,3 +1,5 @@
+pub use self::class::*;
+
 use self::property::PropertyKey;
 use crate::gc::Object;
 use crate::value::UnsafeValue;
@@ -9,6 +11,7 @@ use core::marker::PhantomData;
 use core::mem::transmute;
 use core::ptr::{addr_of_mut, null};
 
+mod class;
 mod property;
 
 /// Lua full userdata.

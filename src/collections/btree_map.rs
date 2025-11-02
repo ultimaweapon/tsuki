@@ -9,6 +9,11 @@ use core::mem::transmute;
 use core::ptr::addr_of_mut;
 
 /// Rust [BTreeMap](alloc::collections::btree_map::BTreeMap) to map value of `K` to Lua value `V`.
+///
+/// See [super] for a list of possible type for `V`.
+///
+/// Use [Lua::create_btree_map()] or
+/// [Context::create_btree_map()](crate::Context::create_btree_map()) to create a value of this type.
 #[repr(C)]
 pub struct BTreeMap<A, K, V> {
     hdr: Header<A>,
