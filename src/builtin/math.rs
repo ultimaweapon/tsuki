@@ -30,6 +30,15 @@ pub fn acos<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
     Ok(cx.into())
 }
 
+/// Implementation of [math.asin](https://www.lua.org/manual/5.4/manual.html#pdf-math.asin).
+pub fn asin<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let Float(arg) = cx.arg(1).to_float()?;
+
+    cx.push(arg.asin())?;
+
+    Ok(cx.into())
+}
+
 /// Implementation of [math.atan](https://www.lua.org/manual/5.4/manual.html#pdf-math.atan).
 pub fn atan<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let y = cx.arg(1).to_float()?;

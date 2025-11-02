@@ -87,6 +87,10 @@
 //! }
 //! ```
 //!
+//! # Parsing Lua option
+//!
+//! Tsuki provides a derive macro [FromStr] to handle this.
+//!
 //! # Store value in registry
 //!
 //! You need to create a type per key in registry:
