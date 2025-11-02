@@ -156,7 +156,6 @@ pub use self::table::*;
 pub use self::thread::*;
 pub use self::ty::*;
 pub use self::userdata::*;
-pub use tsuki_macros::*;
 
 use self::collections::{BTreeMap, CollectionValue};
 use self::context::{Arg, Args, Context, Ret};
@@ -237,7 +236,7 @@ unsafe fn api_incr_top<D>(th: *const Thread<D>) {
     }
 }
 
-/// Helper macro to construct [`Fp`] or [`AsyncFp`].
+/// Helper macro to construct [Fp] or [AsyncFp].
 #[macro_export]
 macro_rules! fp {
     ($f:path) => {
@@ -250,6 +249,65 @@ macro_rules! fp {
         $crate::AsyncFp::new(|cx| Box::pin($f(cx)))
     }};
 }
+
+/// Generate [core::str::FromStr] implementation for enum to parse Lua
+/// [option](https://www.lua.org/manual/5.4/manual.html#luaL_checkoption).
+///
+/// Only enum with unit variants is supported. The name to map will be the same as Lua convention,
+/// which is lower-cased without separators:
+///
+/// ```
+/// use tsuki::FromStr;
+///
+/// #[derive(FromStr)]
+/// enum MyOption {
+///     Foo,
+///     FooBar,
+/// }
+/// ```
+///
+/// Will map `foo` to `MyOption::Foo` and `foobar` to `MyOption::FooBar`.
+pub use tsuki_macros::FromStr;
+
+/// Generate [Class] implementation from `impl` block.
+///
+/// This attribute macro inspect all associated functions and methods within the `impl` block and
+/// generate a metatable:
+///
+/// ```
+/// use tsuki::context::{Args, Context, Ret};
+/// use tsuki::class;
+///
+/// struct MyUserData;
+///
+/// #[class(associated_data = ())]
+/// impl MyUserData {
+///     fn index1(&self, cx: &Context<(), Args>) -> Result<(), Box<dyn core::error::Error>> {
+///         Ok(())
+///     }
+///
+///     fn index2(cx: Context<(), Args>) -> Result<Context<(), Ret>, Box<dyn core::error::Error>> {
+///         Ok(cx.into())
+///     }
+///
+///     async fn index3(&self, cx: &Context<'_, (), Args>) -> Result<(), Box<dyn core::error::Error>> {
+///         Ok(())
+///     }
+///
+///     #[close]
+///     fn close(&self, cx: &Context<(), Args>) -> Result<(), Box<dyn core::error::Error>> {
+///         Ok(())
+///     }
+/// }
+/// ```
+///
+/// Will set `index1`, `index2`, `index3` and `close` to the metatable with the same name. The
+/// `__index` will be set to the table itself and `__close` will be set to `close`. Use
+/// `#[close(hidden)]` to set to `__close` only.
+///
+/// The `associated_data` is a type of the value passed as `associated_data` to [Lua::new()]. You
+/// can specify a type parameter if `MyUserData` can works with multiple types.
+pub use tsuki_macros::class;
 
 /// Global states shared with all Lua threads.
 #[repr(C)] // Force gc field to be the first field.
@@ -903,9 +961,10 @@ pub struct Nil;
 pub struct Fp<A>(fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>);
 
 impl<D> Fp<D> {
-    /// Construct a new [`Fp`] from a function pointer.
+    /// Construct a new [Fp] from a function pointer.
     ///
-    /// [`fp`] macro is more convenience than this function.
+    /// [fp] macro is more convenience than this function.
+    #[inline(always)]
     pub const fn new(v: fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>) -> Self {
         Self(v)
     }
