@@ -537,7 +537,7 @@ impl<'a, A, T> Context<'a, A, T> {
             unsafe { slot.read() }
         } else {
             // Try __index.
-            unsafe { luaV_finishget(self.th, &t, &mut k, slot)? }
+            unsafe { luaV_finishget(self.th, &t, &mut k, false)? }
         };
 
         unsafe { self.th.top.write(v) };
@@ -586,7 +586,7 @@ impl<'a, A, T> Context<'a, A, T> {
             // Try __index.
             let mut k = UnsafeValue::from(k);
 
-            unsafe { luaV_finishget(self.th, &t, &mut k, slot)? }
+            unsafe { luaV_finishget(self.th, &t, &mut k, false)? }
         };
 
         unsafe { self.th.top.write(v) };

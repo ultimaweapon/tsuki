@@ -361,7 +361,7 @@ unsafe fn auxgetstr<D>(
 
         api_incr_top(L);
 
-        let val = luaV_finishget(L, t, ((*L).top.get()).offset(-1).cast(), slot)?;
+        let val = luaV_finishget(L, t, ((*L).top.get()).offset(-1).cast(), false)?;
         let io = (*L).top.get().offset(-1);
 
         (*io).value_ = val.value_;
@@ -379,36 +379,10 @@ pub unsafe fn lua_getfield<D>(
     return auxgetstr(L, index2value(L, idx), k.as_ref());
 }
 
-unsafe fn finishrawget<D>(L: *const Thread<D>, val: *const UnsafeValue<D>) -> c_int {
-    if (*val).tt_ as c_int & 0xf as c_int == 0 as c_int {
-        (*(*L).top.get()).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
-    } else {
-        let io1 = (*L).top.get();
-        let io2 = val;
-        (*io1).value_ = (*io2).value_;
-        (*io1).tt_ = (*io2).tt_;
-    }
-    api_incr_top(L);
-    return (*((*L).top.get()).offset(-(1 as c_int as isize))).tt_ as c_int & 0xf as c_int;
-}
-
 unsafe fn gettable<D>(L: *const Thread<D>, idx: c_int) -> *const Table<D> {
     let t = index2value(L, idx);
 
     (*t).value_.gc.cast()
-}
-
-pub unsafe fn lua_rawget<D>(L: *const Thread<D>, idx: c_int) -> c_int {
-    let t = gettable(L, idx);
-    let val = luaH_get(t, ((*L).top.get()).offset(-(1 as c_int as isize)).cast());
-    (*L).top.sub(1);
-
-    return finishrawget(L, val);
-}
-
-pub unsafe fn lua_rawgeti<D>(L: *const Thread<D>, idx: c_int, n: i64) -> c_int {
-    let t = gettable(L, idx);
-    return finishrawget(L, luaH_getint(t, n));
 }
 
 unsafe fn auxsetstr<D>(
