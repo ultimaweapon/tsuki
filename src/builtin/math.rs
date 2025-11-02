@@ -2,6 +2,7 @@
 use crate::context::{ArgNotFound, Args, Context, Ret};
 use crate::{Float, Nil, Number, Type};
 use alloc::boxed::Box;
+use core::f64::consts::PI;
 
 /// Implementation of [math.abs](https://www.lua.org/manual/5.4/manual.html#pdf-math.abs).
 pub fn abs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
@@ -54,6 +55,15 @@ pub fn cos<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
     let arg = cx.arg(1).to_float()?;
 
     cx.push(arg.cos())?;
+
+    Ok(cx.into())
+}
+
+/// Implementation of [math.deg](https://www.lua.org/manual/5.4/manual.html#pdf-math.deg).
+pub fn deg<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let Float(arg) = cx.arg(1).to_float()?;
+
+    cx.push(arg * (180.0 / PI))?;
 
     Ok(cx.into())
 }
