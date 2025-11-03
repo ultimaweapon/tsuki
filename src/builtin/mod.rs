@@ -124,6 +124,7 @@ impl<A> Module<A> for MathLib {
         m.set_str_key("mininteger", i64::MIN);
         m.set_str_key("modf", fp!(self::math::modf));
         m.set_str_key("pi", core::f64::consts::PI);
+        m.set_str_key("rad", fp!(self::math::rad));
         m.set_str_key("sin", fp!(self::math::sin));
         m.set_str_key("tan", fp!(self::math::tan));
         m.set_str_key("type", fp!(self::math::r#type));

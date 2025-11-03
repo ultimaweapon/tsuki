@@ -92,15 +92,6 @@ unsafe fn math_exp(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Er
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn math_rad(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    lua_pushnumber(
-        L,
-        luaL_checknumber(L, 1 as libc::c_int)?
-            * (3.141592653589793238462643383279502884f64 / 180.0f64),
-    );
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn math_min(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut n: libc::c_int = lua_gettop(L);
     let mut imin: libc::c_int = 1 as libc::c_int;
@@ -318,13 +309,6 @@ static mut mathlib: [luaL_Reg; 28] = [
         let mut init = luaL_Reg {
             name: b"min\0" as *const u8 as *const libc::c_char,
             func: Some(math_min),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"rad\0" as *const u8 as *const libc::c_char,
-            func: Some(math_rad),
         };
         init
     },

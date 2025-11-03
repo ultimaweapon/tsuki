@@ -133,6 +133,15 @@ pub fn modf<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
     Ok(cx.into())
 }
 
+/// Implementation of [math.rad](https://www.lua.org/manual/5.4/manual.html#pdf-math.rad).
+pub fn rad<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let Float(arg) = cx.arg(1).to_float()?;
+
+    cx.push(arg * (PI / 180.0))?;
+
+    Ok(cx.into())
+}
+
 /// Implementation of [math.sin](https://www.lua.org/manual/5.4/manual.html#pdf-math.sin).
 pub fn sin<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1).to_float()?;
