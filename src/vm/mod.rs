@@ -6,9 +6,9 @@
 )]
 #![allow(unsafe_op_in_unsafe_fn)]
 
+pub use self::interpreter::*;
 pub use self::opcode::*;
 
-use self::interpreter::exec;
 use crate::ldebug::{luaG_forerror, luaG_runerror, luaG_typeerror};
 use crate::lfunc::{luaF_findupval, luaF_newLclosure};
 use crate::lobject::{Proto, UpVal, luaO_str2num};
@@ -1106,8 +1106,10 @@ pub async unsafe fn run<A>(
     th: &Thread<A>,
     mut ci: *mut CallInfo<A>,
 ) -> Result<(), Box<dyn core::error::Error>> {
+    let g = th.hdr.global();
+
     loop {
-        ci = exec(th, ci).await?;
+        ci = g.executor.exec(th, ci).await?;
 
         if ci.is_null() {
             return Ok(());

@@ -171,6 +171,7 @@ use self::ltm::{
 };
 use self::lzio::Zio;
 use self::value::{UnsafeValue, UntaggedValue};
+use self::vm::Executor;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::string::String;
@@ -313,6 +314,7 @@ pub use tsuki_macros::class;
 #[repr(C)] // Force gc field to be the first field.
 pub struct Lua<A> {
     gc: Gc<A>,
+    executor: Executor,
     strt: StringTable<A>,
     l_registry: UnsafeCell<UnsafeValue<A>>,
     nilvalue: UnsafeCell<UnsafeValue<A>>,
@@ -351,6 +353,7 @@ impl<A> Lua<A> {
     pub fn with_seed(associated_data: A, seed: u32) -> Pin<Rc<Self>> {
         let g = Rc::pin(Lua {
             gc: unsafe { Gc::new() }, // SAFETY: gc in the first field on Lua.
+            executor: Executor::default(),
             strt: StringTable::new(),
             l_registry: UnsafeCell::new(Nil.into()),
             nilvalue: UnsafeCell::new(Nil.into()),
