@@ -529,7 +529,6 @@ pub unsafe fn luaH_resize<D>(t: *const Table<D>, newasize: c_uint, nhsize: c_uin
     }
 
     newarray = luaM_realloc_(
-        (*t).hdr.global,
         (*t).array.get() as *mut c_void,
         (oldasize as usize).wrapping_mul(::core::mem::size_of::<UnsafeValue<D>>()),
         (newasize as usize).wrapping_mul(::core::mem::size_of::<UnsafeValue<D>>()),

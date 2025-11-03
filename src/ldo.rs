@@ -738,7 +738,7 @@ pub unsafe fn luaD_protectedparser<D>(
         luaF_initupvals(g, cl.deref());
     }
 
-    buff.buffer = luaM_saferealloc_(g, buff.buffer as *mut c_void, buff.buffsize, 0).cast();
+    buff.buffer = luaM_saferealloc_(buff.buffer as *mut c_void, buff.buffsize, 0).cast();
 
     luaM_free_(
         dyd.actvar.arr as *mut c_void,

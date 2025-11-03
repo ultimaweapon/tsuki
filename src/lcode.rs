@@ -439,7 +439,6 @@ unsafe fn savelineinfo<D>(
         fresh0 as c_int >= 128 as c_int
     } {
         (*f).abslineinfo = luaM_growaux_(
-            &(*ls).g,
             (*f).abslineinfo as *mut c_void,
             (*fs).nabslineinfo,
             &mut (*f).sizeabslineinfo,
@@ -464,7 +463,6 @@ unsafe fn savelineinfo<D>(
     }
 
     (*f).lineinfo = luaM_growaux_(
-        &(*ls).g,
         (*f).lineinfo as *mut c_void,
         pc,
         &mut (*f).sizelineinfo,
@@ -514,7 +512,6 @@ pub unsafe fn luaK_code<D>(
     let f = (*fs).f;
 
     (*f).code = luaM_growaux_(
-        &(*ls).g,
         (*f).code as *mut c_void,
         (*fs).pc,
         &mut (*f).sizecode,
@@ -738,7 +735,6 @@ unsafe fn addk<D>(
     (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
     luaH_finishset((*ls).h.deref(), key, idx, &raw const val).unwrap(); // This should never fails.
     (*f).k = luaM_growaux_(
-        &(*ls).g,
         (*f).k as *mut c_void,
         k,
         &mut (*f).sizek,

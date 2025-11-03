@@ -9,7 +9,7 @@
 use crate::lctype::luai_ctype_;
 use crate::lmem::luaM_saferealloc_;
 use crate::lobject::{luaO_hexavalue, luaO_str2num, luaO_utf8esc};
-use crate::lparser::{Dyndata, FuncState};
+use crate::lparser::Dyndata;
 use crate::lzio::{Mbuffer, ZIO};
 use crate::table::{luaH_finishset, luaH_getstr};
 use crate::value::UnsafeValue;
@@ -102,7 +102,6 @@ pub struct LexState<'a, D> {
     pub lastline: c_int,
     pub t: Token<D>,
     pub lookahead: Token<D>,
-    pub fs: *mut FuncState<D>,
     pub g: &'a Lua<D>,
     pub z: *mut ZIO,
     pub buff: *mut Mbuffer,
@@ -159,7 +158,6 @@ unsafe fn save<D>(ls: *mut LexState<D>, c: c_int) {
         let newsize = (*b).buffsize * 2 as c_int as usize;
 
         (*b).buffer = luaM_saferealloc_(
-            (*ls).g,
             (*b).buffer as *mut c_void,
             ((*b).buffsize).wrapping_mul(::core::mem::size_of::<c_char>()),
             newsize.wrapping_mul(::core::mem::size_of::<c_char>()),
@@ -275,12 +273,10 @@ pub unsafe fn luaX_setinput<D>(ls: &mut LexState<D>, z: *mut ZIO, firstchar: c_i
     (*ls).current = firstchar;
     (*ls).lookahead.token = TK_EOS as c_int;
     (*ls).z = z;
-    (*ls).fs = null_mut();
     (*ls).linenumber = 1 as c_int;
     (*ls).lastline = 1 as c_int;
     (*ls).envn = Str::from_str((*ls).g, "_ENV").unwrap_or_else(identity);
     (*(*ls).buff).buffer = luaM_saferealloc_(
-        (*ls).g,
         (*(*ls).buff).buffer as *mut c_void,
         ((*(*ls).buff).buffsize).wrapping_mul(::core::mem::size_of::<c_char>()),
         32usize.wrapping_mul(::core::mem::size_of::<c_char>()),

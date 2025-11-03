@@ -92,24 +92,6 @@ unsafe fn growstack<A>(L: *const Thread<A>, n: usize) -> Result<(), StackOverflo
     Ok(())
 }
 
-pub unsafe fn lua_xmove<D>(from: *mut Thread<D>, to: *mut Thread<D>, n: c_int) {
-    let mut i: c_int = 0;
-    if from == to {
-        return;
-    }
-    (*from).top.sub(n.try_into().unwrap());
-    i = 0 as c_int;
-    while i < n {
-        let io1 = (*to).top.get();
-        let io2 = ((*from).top.get()).offset(i as isize);
-        (*io1).value_ = (*io2).value_;
-        (*io1).tt_ = (*io2).tt_;
-        (*to).top.add(1);
-
-        i += 1;
-    }
-}
-
 pub unsafe fn lua_settop<D>(
     L: *const Thread<D>,
     idx: c_int,

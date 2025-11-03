@@ -8,8 +8,7 @@ use libc::{free, realloc};
 
 type c_int = i32;
 
-pub unsafe fn luaM_growaux_<D>(
-    g: &Lua<D>,
+pub unsafe fn luaM_growaux_(
     block: *mut c_void,
     nelems: c_int,
     psize: *mut c_int,
@@ -35,7 +34,6 @@ pub unsafe fn luaM_growaux_<D>(
     }
 
     let newblock = luaM_saferealloc_(
-        g,
         block,
         *psize as usize * size_elems as usize,
         size as usize * size_elems as usize,
@@ -53,7 +51,7 @@ pub unsafe fn luaM_shrinkvector_<D>(
 ) -> *mut c_void {
     let oldsize: usize = (*size * size_elem) as usize;
     let newsize: usize = (final_n * size_elem) as usize;
-    let newblock = luaM_saferealloc_(g, block, oldsize, newsize);
+    let newblock = luaM_saferealloc_(block, oldsize, newsize);
     *size = final_n;
     return newblock;
 }
@@ -62,12 +60,7 @@ pub unsafe fn luaM_free_(block: *mut c_void, osize: usize) {
     free(block);
 }
 
-pub unsafe fn luaM_realloc_<D>(
-    g: *const Lua<D>,
-    block: *mut c_void,
-    osize: usize,
-    nsize: usize,
-) -> *mut c_void {
+pub unsafe fn luaM_realloc_(block: *mut c_void, osize: usize, nsize: usize) -> *mut c_void {
     let newblock = if nsize == 0 {
         free(block);
         0 as *mut c_void
@@ -82,13 +75,8 @@ pub unsafe fn luaM_realloc_<D>(
     return newblock;
 }
 
-pub unsafe fn luaM_saferealloc_<D>(
-    g: *const Lua<D>,
-    block: *mut c_void,
-    osize: usize,
-    nsize: usize,
-) -> *mut c_void {
-    let newblock: *mut c_void = luaM_realloc_(g, block, osize, nsize);
+pub unsafe fn luaM_saferealloc_(block: *mut c_void, osize: usize, nsize: usize) -> *mut c_void {
+    let newblock: *mut c_void = luaM_realloc_(block, osize, nsize);
 
     if newblock.is_null() && nsize > 0 {
         todo!("invoke handle_alloc_error");
