@@ -14,7 +14,6 @@ use alloc::vec::Vec;
 use core::ffi::{CStr, c_char};
 use core::fmt::{Display, Formatter};
 use core::num::NonZero;
-use core::ptr::null;
 use libc::strcmp;
 
 type c_int = i32;
@@ -51,7 +50,7 @@ unsafe fn findfield<A>(
 
         names.push(name);
 
-        if luaV_equalobj(null(), &v, f)? || findfield(names, g, v, f, level - 1)? {
+        if luaV_equalobj(None, &v, f)? || findfield(names, g, v, f, level - 1)? {
             return Ok(true);
         }
 

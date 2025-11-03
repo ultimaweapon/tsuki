@@ -134,7 +134,7 @@ pub unsafe fn luaE_shrinkCI<D>(L: *const Thread<D>) {
     }
 }
 
-pub unsafe fn lua_closethread<D>(L: *const Thread<D>) -> Result<(), Box<CallError>> {
+pub unsafe fn lua_closethread<D>(L: &Thread<D>) -> Result<(), Box<CallError>> {
     (*L).ci.set((*L).base_ci.get());
     let ci = (*L).ci.get();
 

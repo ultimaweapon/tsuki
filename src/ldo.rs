@@ -10,7 +10,6 @@ use crate::lparser::{C2RustUnnamed_9, Dyndata, Labeldesc, Labellist, Vardesc, lu
 use crate::lstate::{CallInfo, lua_Debug, luaE_extendCI, luaE_shrinkCI};
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lzio::{Mbuffer, Zio};
-use crate::vm::luaV_execute;
 use crate::{
     CallError, ChunkInfo, Lua, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, StackOverflow,
     StackValue, Thread,
@@ -337,9 +336,9 @@ unsafe fn tryfuncTM<D>(
     return Ok(func);
 }
 
-unsafe fn moveresults<D>(
-    L: *const Thread<D>,
-    mut res: *mut StackValue<D>,
+unsafe fn moveresults<A>(
+    L: &Thread<A>,
+    mut res: *mut StackValue<A>,
     mut nres: c_int,
     mut wanted: c_int,
 ) -> Result<(), Box<dyn Error>> {
@@ -411,9 +410,9 @@ unsafe fn moveresults<D>(
 }
 
 #[inline(always)]
-pub unsafe fn luaD_poscall<D>(
-    L: *const Thread<D>,
-    ci: *mut CallInfo<D>,
+pub unsafe fn luaD_poscall<A>(
+    L: &Thread<A>,
+    ci: *mut CallInfo<A>,
     nres: c_int,
 ) -> Result<(), Box<dyn Error>> {
     let wanted: c_int = (*ci).nresults as c_int;
@@ -632,9 +631,9 @@ pub async unsafe fn luaD_precall<D>(
 /// A call to this function should **never** use a try operator otherwise [`CallError`] will not
 /// properly forwarded. See https://users.rust-lang.org/t/mystified-by-downcast-failure/52459 for
 /// more details.
-pub async unsafe fn luaD_call<D>(
-    L: *const Thread<D>,
-    func: *mut StackValue<D>,
+pub async unsafe fn luaD_call<A>(
+    L: &Thread<A>,
+    func: *mut StackValue<A>,
     nResults: c_int,
 ) -> Result<(), Box<CallError>> {
     let old_top = func.byte_offset_from_unsigned((*L).stack.get());
@@ -645,7 +644,8 @@ pub async unsafe fn luaD_call<D>(
             true => Ok(()),
             false => {
                 (*ci).callstatus = 1 << 2;
-                luaV_execute(&*L, ci).await
+
+                crate::vm::run(L, ci).await
             }
         },
         Err(e) => Err(e),
@@ -672,8 +672,8 @@ pub async unsafe fn luaD_call<D>(
     }
 }
 
-pub unsafe fn luaD_closeprotected<D>(
-    L: *const Thread<D>,
+pub unsafe fn luaD_closeprotected<A>(
+    L: &Thread<A>,
     level: usize,
     mut status: Result<(), Box<CallError>>,
 ) -> Result<(), Box<CallError>> {

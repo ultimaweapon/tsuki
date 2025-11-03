@@ -232,8 +232,8 @@ impl<'a, A, T> Context<'a, A, T> {
 
         // Compare.
         let th = match mt {
-            true => self.th,
-            false => null(),
+            true => Some(self.th),
+            false => None,
         };
 
         unsafe { luaV_equalobj(th, &lhs, &rhs) }

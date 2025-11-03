@@ -30,7 +30,7 @@ use crate::{ArithError, Float, Ops, ParseError, Str};
 use core::ffi::c_void;
 use core::fmt::Display;
 use core::ops::Deref;
-use core::ptr::{null, null_mut};
+use core::ptr::null_mut;
 use libc::abs;
 use libm::ldexp;
 
@@ -722,7 +722,7 @@ unsafe fn addk<D>(
         if k < (*fs).nk
             && (*((*f).k).offset(k as isize)).tt_ as c_int & 0x3f as c_int
                 == (*v).tt_ as c_int & 0x3f as c_int
-            && luaV_equalobj(null(), ((*f).k).offset(k as isize), v).unwrap()
+            && luaV_equalobj(None, ((*f).k).offset(k as isize), v).unwrap()
         {
             return Ok(k);
         }

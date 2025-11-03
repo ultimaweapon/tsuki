@@ -585,12 +585,12 @@ pub unsafe fn luaO_rawarith<D>(
     }
 }
 
-pub unsafe fn luaO_arith<D>(
-    L: *const Thread<D>,
+pub unsafe fn luaO_arith<A>(
+    L: &Thread<A>,
     op: Ops,
-    p1: *const UnsafeValue<D>,
-    p2: *const UnsafeValue<D>,
-) -> Result<UnsafeValue<D>, Box<dyn core::error::Error>> {
+    p1: *const UnsafeValue<A>,
+    p2: *const UnsafeValue<A>,
+) -> Result<UnsafeValue<A>, Box<dyn core::error::Error>> {
     match luaO_rawarith(op, p1, p2)? {
         Some(v) => Ok(v),
         None => luaT_trybinTM(L, p1, p2, (op as i32 + TM_ADD as c_int) as TMS),

@@ -304,7 +304,7 @@ unsafe fn floatforloop<D>(ra: *mut StackValue<D>) -> c_int {
 
 #[inline(never)]
 pub unsafe fn luaV_finishget<A>(
-    L: *const Thread<A>,
+    L: &Thread<A>,
     mut t: *const UnsafeValue<A>,
     key: *const UnsafeValue<A>,
     mut props_tried: bool,
@@ -392,12 +392,12 @@ pub unsafe fn luaV_finishget<A>(
     Err(luaG_runerror(L, "'__index' chain too long; possible loop"))
 }
 
-pub unsafe fn luaV_finishset<D>(
-    L: *const Thread<D>,
-    mut t: *const UnsafeValue<D>,
-    key: *const UnsafeValue<D>,
-    val: *const UnsafeValue<D>,
-    mut slot: *const UnsafeValue<D>,
+pub unsafe fn luaV_finishset<A>(
+    L: &Thread<A>,
+    mut t: *const UnsafeValue<A>,
+    key: *const UnsafeValue<A>,
+    val: *const UnsafeValue<A>,
+    mut slot: *const UnsafeValue<A>,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let mut loop_0: c_int = 0;
     loop_0 = 0 as c_int;
@@ -405,7 +405,7 @@ pub unsafe fn luaV_finishset<D>(
         let mut tm = null();
 
         if !slot.is_null() {
-            let h = (*t).value_.gc.cast::<Table<D>>();
+            let h = (*t).value_.gc.cast::<Table<A>>();
 
             tm = if ((*h).metatable.get()).is_null() {
                 null()
@@ -595,16 +595,16 @@ unsafe fn LEnum<D>(l: *const UnsafeValue<D>, r: *const UnsafeValue<D>) -> c_int 
     };
 }
 
-unsafe fn lessthanothers<D>(
-    L: *const Thread<D>,
-    l: *const UnsafeValue<D>,
-    r: *const UnsafeValue<D>,
+unsafe fn lessthanothers<A>(
+    L: &Thread<A>,
+    l: *const UnsafeValue<A>,
+    r: *const UnsafeValue<A>,
 ) -> Result<c_int, Box<dyn core::error::Error>> {
     if (*l).tt_ as c_int & 0xf as c_int == 4 as c_int
         && (*r).tt_ as c_int & 0xf as c_int == 4 as c_int
     {
         return Ok(
-            (l_strcmp::<D>((*l).value_.gc.cast(), (*r).value_.gc.cast()) < 0 as c_int) as c_int,
+            (l_strcmp::<A>((*l).value_.gc.cast(), (*r).value_.gc.cast()) < 0 as c_int) as c_int,
         );
     } else {
         return luaT_callorderTM(L, l, r, TM_LT);
@@ -612,10 +612,10 @@ unsafe fn lessthanothers<D>(
 }
 
 #[inline(never)]
-pub unsafe fn luaV_lessthan<D>(
-    L: *const Thread<D>,
-    l: *const UnsafeValue<D>,
-    r: *const UnsafeValue<D>,
+pub unsafe fn luaV_lessthan<A>(
+    L: &Thread<A>,
+    l: *const UnsafeValue<A>,
+    r: *const UnsafeValue<A>,
 ) -> Result<c_int, Box<dyn core::error::Error>> {
     if (*l).tt_ as c_int & 0xf as c_int == 3 as c_int
         && (*r).tt_ as c_int & 0xf as c_int == 3 as c_int
@@ -626,26 +626,26 @@ pub unsafe fn luaV_lessthan<D>(
     };
 }
 
-unsafe fn lessequalothers<D>(
-    L: *const Thread<D>,
-    l: *const UnsafeValue<D>,
-    r: *const UnsafeValue<D>,
+unsafe fn lessequalothers<A>(
+    L: &Thread<A>,
+    l: *const UnsafeValue<A>,
+    r: *const UnsafeValue<A>,
 ) -> Result<c_int, Box<dyn core::error::Error>> {
     if (*l).tt_ as c_int & 0xf as c_int == 4 as c_int
         && (*r).tt_ as c_int & 0xf as c_int == 4 as c_int
     {
         return Ok(
-            (l_strcmp::<D>((*l).value_.gc.cast(), (*r).value_.gc.cast()) <= 0 as c_int) as c_int,
+            (l_strcmp::<A>((*l).value_.gc.cast(), (*r).value_.gc.cast()) <= 0 as c_int) as c_int,
         );
     } else {
         return luaT_callorderTM(L, l, r, TM_LE);
     };
 }
 
-pub unsafe fn luaV_lessequal<D>(
-    L: *const Thread<D>,
-    l: *const UnsafeValue<D>,
-    r: *const UnsafeValue<D>,
+pub unsafe fn luaV_lessequal<A>(
+    L: &Thread<A>,
+    l: *const UnsafeValue<A>,
+    r: *const UnsafeValue<A>,
 ) -> Result<c_int, Box<dyn core::error::Error>> {
     if (*l).tt_ as c_int & 0xf as c_int == 3 as c_int
         && (*r).tt_ as c_int & 0xf as c_int == 3 as c_int
@@ -658,7 +658,7 @@ pub unsafe fn luaV_lessequal<D>(
 
 #[inline(never)]
 pub unsafe fn luaV_equalobj<A>(
-    L: *const Thread<A>,
+    L: Option<&Thread<A>>,
     t1: *const UnsafeValue<A>,
     t2: *const UnsafeValue<A>,
 ) -> Result<bool, Box<dyn core::error::Error>> {
@@ -678,8 +678,7 @@ pub unsafe fn luaV_equalobj<A>(
 
     // Compare.
     let mut tm = null();
-
-    match (*t1).tt_ & 0x3f {
+    let th = match (*t1).tt_ & 0x3f {
         0x00 | 0x01 | 0x11 => return Ok(true),
         0x02 => return Ok(core::ptr::fn_addr_eq((*t1).value_.f, (*t2).value_.f)),
         0x12 => todo!(),
@@ -700,11 +699,14 @@ pub unsafe fn luaV_equalobj<A>(
             };
         }
         0x05 => {
-            if ((*t1).value_.gc) == ((*t2).value_.gc) {
+            if (*t1).value_.gc == (*t2).value_.gc {
                 return Ok(true);
-            } else if L.is_null() {
-                return Ok(false);
             }
+
+            let th = match L {
+                Some(v) => v,
+                None => return Ok(false),
+            };
 
             tm = if ((*((*t1).value_.gc as *mut Table<A>)).metatable.get()).is_null() {
                 null()
@@ -733,13 +735,18 @@ pub unsafe fn luaV_equalobj<A>(
                     luaT_gettm((*((*t2).value_.gc as *mut Table<A>)).metatable.get(), TM_EQ)
                 };
             }
+
+            th
         }
         0x07 => {
             if ((*t1).value_.gc) == ((*t2).value_.gc) {
                 return Ok(true);
-            } else if L.is_null() {
-                return Ok(false);
             }
+
+            let th = match L {
+                Some(v) => v,
+                None => return Ok(false),
+            };
 
             tm = if (*(*t1).value_.gc.cast::<UserData<A, ()>>()).mt.is_null() {
                 null()
@@ -768,19 +775,21 @@ pub unsafe fn luaV_equalobj<A>(
                     luaT_gettm((*(*t2).value_.gc.cast::<UserData<A, ()>>()).mt, TM_EQ)
                 };
             }
+
+            th
         }
         _ => return Ok((*t1).value_.gc == (*t2).value_.gc),
-    }
+    };
 
     if tm.is_null() {
         return Ok(false);
     }
 
     // Invoke __eq.
-    let r = match luaT_callTMres(L, tm, t1, t2) {
+    let r = match luaT_callTMres(th, tm, t1, t2) {
         Ok(_) => {
-            (*L).top.sub(1);
-            (*L).top.read(0)
+            th.top.sub(1);
+            th.top.read(0)
         }
         Err(e) => return Err(e), // Requires unsized coercion.
     };
@@ -821,8 +830,8 @@ unsafe fn copy2buff<A>(
     .unwrap_or_else(identity)
 }
 
-pub unsafe fn luaV_concat<D>(
-    L: *const Thread<D>,
+pub unsafe fn luaV_concat<A>(
+    L: &Thread<A>,
     mut total: c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
     if total == 1 {
@@ -853,7 +862,7 @@ pub unsafe fn luaV_concat<D>(
             luaT_tryconcatTM(L)?;
         } else if (*top.offset(-(1 as c_int as isize))).tt_ as c_int
             == 4 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int
-            && (*((*top.offset(-(1 as c_int as isize))).value_.gc as *mut Str<D>)).len as c_int
+            && (*((*top.offset(-(1 as c_int as isize))).value_.gc as *mut Str<A>)).len as c_int
                 == 0 as c_int
         {
             ((*top.offset(-(2 as c_int as isize))).tt_ as c_int & 0xf as c_int == 4 as c_int
@@ -873,7 +882,7 @@ pub unsafe fn luaV_concat<D>(
                 }) as c_int;
         } else if (*top.offset(-(2 as c_int as isize))).tt_ as c_int
             == 4 as c_int | (0 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int
-            && (*((*top.offset(-(2 as c_int as isize))).value_.gc as *mut Str<D>)).len as c_int
+            && (*((*top.offset(-(2 as c_int as isize))).value_.gc as *mut Str<A>)).len as c_int
                 == 0 as c_int
         {
             let io1 = top.offset(-(2 as c_int as isize));
@@ -882,7 +891,7 @@ pub unsafe fn luaV_concat<D>(
             (*io1).value_ = (*io2).value_;
             (*io1).tt_ = (*io2).tt_;
         } else {
-            let mut tl = (*((*top.offset(-1)).value_.gc as *mut Str<D>)).len;
+            let mut tl = (*((*top.offset(-1)).value_.gc as *mut Str<A>)).len;
 
             n = 1 as c_int;
             while n < total
@@ -906,7 +915,7 @@ pub unsafe fn luaV_concat<D>(
             {
                 let l = (*((*top.offset(-(n as isize)).offset(-(1 as c_int as isize)))
                     .value_
-                    .gc as *mut Str<D>))
+                    .gc as *mut Str<A>))
                     .len;
 
                 if ((l
@@ -917,7 +926,7 @@ pub unsafe fn luaV_concat<D>(
                     } else {
                         0x7fffffffffffffff as c_longlong as usize
                     })
-                    .wrapping_sub(::core::mem::size_of::<Str<D>>())
+                    .wrapping_sub(::core::mem::size_of::<Str<A>>())
                     .wrapping_sub(tl)) as c_int
                     != 0 as c_int) as c_int as c_long
                     != 0
@@ -945,15 +954,15 @@ pub unsafe fn luaV_concat<D>(
     }
 }
 
-pub unsafe fn luaV_objlen<D>(
-    L: *const Thread<D>,
-    rb: *const UnsafeValue<D>,
-) -> Result<UnsafeValue<D>, Box<dyn core::error::Error>> {
+pub unsafe fn luaV_objlen<A>(
+    L: &Thread<A>,
+    rb: *const UnsafeValue<A>,
+) -> Result<UnsafeValue<A>, Box<dyn core::error::Error>> {
     let mut tm = null();
 
     match (*rb).tt_ & 0xf {
         5 => {
-            let h = (*rb).value_.gc as *mut Table<D>;
+            let h = (*rb).value_.gc as *mut Table<A>;
 
             tm = if ((*h).metatable.get()).is_null() {
                 null()
@@ -971,7 +980,7 @@ pub unsafe fn luaV_objlen<D>(
             }
         }
         4 => {
-            return Ok(i64::try_from((*(*rb).value_.gc.cast::<Str<D>>()).len)
+            return Ok(i64::try_from((*(*rb).value_.gc.cast::<Str<A>>()).len)
                 .unwrap()
                 .into());
         }
@@ -1106,7 +1115,7 @@ unsafe fn pushclosure<D>(
     }
 }
 
-pub async unsafe fn luaV_execute<A>(
+pub async unsafe fn run<A>(
     th: &Thread<A>,
     mut ci: *mut CallInfo<A>,
 ) -> Result<(), Box<dyn core::error::Error>> {
@@ -3629,7 +3638,7 @@ pub async unsafe fn luaV_execute<A>(
                         );
                         (*ci).u.savedpc = pc;
                         (*th).top.set((*ci).top);
-                        cond = luaV_equalobj(th, ra_54.cast(), rb_14.cast())?.into();
+                        cond = luaV_equalobj(Some(th), ra_54.cast(), rb_14.cast())?.into();
                         base = (*ci).func.add(1);
                         if cond
                             != (i >> 0 as c_int + 7 as c_int + 8 as c_int
@@ -3764,7 +3773,7 @@ pub async unsafe fn luaV_execute<A>(
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                 as c_int as isize,
                         );
-                        let cond_2: c_int = luaV_equalobj(null(), ra_57.cast(), rb_17)?.into();
+                        let cond_2: c_int = luaV_equalobj(None, ra_57.cast(), rb_17)?.into();
 
                         base = (*ci).func.add(1);
 

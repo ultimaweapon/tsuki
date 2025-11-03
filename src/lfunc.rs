@@ -115,7 +115,7 @@ pub unsafe fn luaF_findupval<D>(L: *const Thread<D>, level: *mut StackValue<D>) 
 }
 
 unsafe fn callclosemethod<A>(
-    L: *const Thread<A>,
+    L: &Thread<A>,
     obj: *const StackValue<A>,
 ) -> Result<(), Box<CallError>> {
     let top = (*L).top.get();
@@ -261,10 +261,10 @@ unsafe fn poptbclist<D>(L: *const Thread<D>) {
     (*L).tbclist.set(tbc);
 }
 
-pub unsafe fn luaF_close<D>(
-    L: *const Thread<D>,
-    mut level: *mut StackValue<D>,
-) -> Result<*mut StackValue<D>, Box<CallError>> {
+pub unsafe fn luaF_close<A>(
+    L: &Thread<A>,
+    mut level: *mut StackValue<A>,
+) -> Result<*mut StackValue<A>, Box<CallError>> {
     let levelrel = (level as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
 
     luaF_closeupval(L, level);
@@ -273,7 +273,7 @@ pub unsafe fn luaF_close<D>(
         let tbc = (*L).tbclist.get();
         poptbclist(L);
         callclosemethod(L, tbc)?;
-        level = ((*L).stack.get() as *mut c_char).offset(levelrel as isize) as *mut StackValue<D>;
+        level = ((*L).stack.get() as *mut c_char).offset(levelrel as isize) as *mut StackValue<A>;
     }
 
     return Ok(level);

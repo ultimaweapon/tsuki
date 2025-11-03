@@ -125,12 +125,12 @@ pub unsafe fn luaT_objtypename<D>(g: *const Lua<D>, o: *const UnsafeValue<D>) ->
     luaT_typenames_[(((*o).tt_ as c_int & 0xf) + 1 as c_int) as usize].into()
 }
 
-pub unsafe fn luaT_callTM<D>(
-    L: *const Thread<D>,
-    f: *const UnsafeValue<D>,
-    p1: *const UnsafeValue<D>,
-    p2: *const UnsafeValue<D>,
-    p3: *const UnsafeValue<D>,
+pub unsafe fn luaT_callTM<A>(
+    L: &Thread<A>,
+    f: *const UnsafeValue<A>,
+    p1: *const UnsafeValue<A>,
+    p2: *const UnsafeValue<A>,
+    p3: *const UnsafeValue<A>,
 ) -> Result<(), Box<CallError>> {
     let func = (*L).top.get();
     let io1 = func;
@@ -162,11 +162,11 @@ pub unsafe fn luaT_callTM<D>(
 }
 
 /// The result will be on the top of stack.
-pub unsafe fn luaT_callTMres<D>(
-    L: *const Thread<D>,
-    f: *const UnsafeValue<D>,
-    p1: *const UnsafeValue<D>,
-    p2: *const UnsafeValue<D>,
+pub unsafe fn luaT_callTMres<A>(
+    L: &Thread<A>,
+    f: *const UnsafeValue<A>,
+    p1: *const UnsafeValue<A>,
+    p2: *const UnsafeValue<A>,
 ) -> Result<(), Box<CallError>> {
     let func = (*L).top.get();
     let io1 = func;
@@ -194,10 +194,10 @@ pub unsafe fn luaT_callTMres<D>(
 }
 
 /// The result will be on the top of stack.
-unsafe fn callbinTM<D>(
-    L: *const Thread<D>,
-    p1: *const UnsafeValue<D>,
-    p2: *const UnsafeValue<D>,
+unsafe fn callbinTM<A>(
+    L: &Thread<A>,
+    p1: *const UnsafeValue<A>,
+    p2: *const UnsafeValue<A>,
     event: TMS,
 ) -> Result<c_int, Box<dyn core::error::Error>> {
     let mut tm = luaT_gettmbyobj(L, p1, event);
@@ -215,12 +215,12 @@ unsafe fn callbinTM<D>(
     }
 }
 
-pub unsafe fn luaT_trybinTM<D>(
-    L: *const Thread<D>,
-    p1: *const UnsafeValue<D>,
-    p2: *const UnsafeValue<D>,
+pub unsafe fn luaT_trybinTM<A>(
+    L: &Thread<A>,
+    p1: *const UnsafeValue<A>,
+    p2: *const UnsafeValue<A>,
     event: TMS,
-) -> Result<UnsafeValue<D>, Box<dyn core::error::Error>> {
+) -> Result<UnsafeValue<A>, Box<dyn core::error::Error>> {
     if callbinTM(L, p1, p2, event)? == 0 {
         match event as c_uint {
             TM_BAND | TM_BOR | TM_BXOR | 16 | 17 | 19 => {
@@ -239,7 +239,7 @@ pub unsafe fn luaT_trybinTM<D>(
     Ok((*L).top.read(0))
 }
 
-pub unsafe fn luaT_tryconcatTM<D>(L: *const Thread<D>) -> Result<(), Box<dyn core::error::Error>> {
+pub unsafe fn luaT_tryconcatTM<A>(L: &Thread<A>) -> Result<(), Box<dyn core::error::Error>> {
     let top = (*L).top.get();
 
     if callbinTM(
@@ -263,13 +263,13 @@ pub unsafe fn luaT_tryconcatTM<D>(L: *const Thread<D>) -> Result<(), Box<dyn cor
     Ok(())
 }
 
-pub unsafe fn luaT_trybinassocTM<D>(
-    L: *const Thread<D>,
-    p1: *const UnsafeValue<D>,
-    p2: *const UnsafeValue<D>,
+pub unsafe fn luaT_trybinassocTM<A>(
+    L: &Thread<A>,
+    p1: *const UnsafeValue<A>,
+    p2: *const UnsafeValue<A>,
     flip: c_int,
     event: TMS,
-) -> Result<UnsafeValue<D>, Box<dyn core::error::Error>> {
+) -> Result<UnsafeValue<A>, Box<dyn core::error::Error>> {
     if flip != 0 {
         luaT_trybinTM(L, p2, p1, event)
     } else {
@@ -277,13 +277,13 @@ pub unsafe fn luaT_trybinassocTM<D>(
     }
 }
 
-pub unsafe fn luaT_trybiniTM<D>(
-    L: *const Thread<D>,
-    p1: *const UnsafeValue<D>,
+pub unsafe fn luaT_trybiniTM<A>(
+    L: &Thread<A>,
+    p1: *const UnsafeValue<A>,
     i2: i64,
     flip: c_int,
     event: TMS,
-) -> Result<UnsafeValue<D>, Box<dyn core::error::Error>> {
+) -> Result<UnsafeValue<A>, Box<dyn core::error::Error>> {
     let mut aux = UnsafeValue::default();
     let io = &raw mut aux;
 
@@ -292,10 +292,10 @@ pub unsafe fn luaT_trybiniTM<D>(
     luaT_trybinassocTM(L, p1, &mut aux, flip, event)
 }
 
-pub unsafe fn luaT_callorderTM<D>(
-    L: *const Thread<D>,
-    p1: *const UnsafeValue<D>,
-    p2: *const UnsafeValue<D>,
+pub unsafe fn luaT_callorderTM<A>(
+    L: &Thread<A>,
+    p1: *const UnsafeValue<A>,
+    p2: *const UnsafeValue<A>,
     event: TMS,
 ) -> Result<c_int, Box<dyn core::error::Error>> {
     if callbinTM(L, p1, p2, event)? != 0 {
@@ -311,9 +311,9 @@ pub unsafe fn luaT_callorderTM<D>(
     Err(luaG_ordererror(L, p1, p2))
 }
 
-pub unsafe fn luaT_callorderiTM<D>(
-    L: *const Thread<D>,
-    mut p1: *const UnsafeValue<D>,
+pub unsafe fn luaT_callorderiTM<A>(
+    L: &Thread<A>,
+    mut p1: *const UnsafeValue<A>,
     v2: c_int,
     flip: c_int,
     isfloat: c_int,
