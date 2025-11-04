@@ -219,6 +219,7 @@ unsafe fn tryfuncTM<D>(
     return Ok(func);
 }
 
+#[inline(never)]
 unsafe fn moveresults<A>(
     L: &Thread<A>,
     mut res: *mut StackValue<A>,
@@ -363,6 +364,7 @@ async unsafe fn precallC<A>(
     Ok(n)
 }
 
+#[inline(never)]
 pub async unsafe fn luaD_pretailcall<D>(
     L: *const Thread<D>,
     ci: *mut CallInfo<D>,
@@ -430,6 +432,7 @@ pub async unsafe fn luaD_pretailcall<D>(
     }
 }
 
+#[inline(never)]
 pub async unsafe fn luaD_precall<D>(
     L: *const Thread<D>,
     mut func: *mut StackValue<D>,
@@ -498,6 +501,7 @@ pub async unsafe fn luaD_precall<D>(
 /// A call to this function should **never** use a try operator otherwise [`CallError`] will not
 /// properly forwarded. See https://users.rust-lang.org/t/mystified-by-downcast-failure/52459 for
 /// more details.
+#[inline(never)]
 pub async unsafe fn luaD_call<A>(
     L: &Thread<A>,
     func: *mut StackValue<A>,

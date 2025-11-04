@@ -11,11 +11,10 @@ use crate::ltm::{
 use crate::table::luaH_setint;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, OpCode, luaP_opmodes, luaV_tointegerns};
-use crate::{ChunkInfo, Lua, LuaFn, Object, StackValue, Str, Table, Thread, api_incr_top};
+use crate::{Lua, LuaFn, Object, StackValue, Str, Table, Thread, api_incr_top};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
-use alloc::string::{String, ToString};
 use core::ffi::{CStr, c_char};
 use core::fmt::Display;
 use core::ptr::{null, null_mut};
@@ -838,14 +837,12 @@ pub unsafe fn luaG_forerror<D>(
     o: *const UnsafeValue<D>,
     what: impl Display,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    Err(luaG_runerror(
-        L,
-        format_args!(
-            "bad 'for' {} (number expected, got {})",
-            what,
-            luaT_objtypename((*L).hdr.global, o)
-        ),
-    ))
+    Err(format!(
+        "bad 'for' {} (number expected, got {})",
+        what,
+        luaT_objtypename((*L).hdr.global, o)
+    )
+    .into())
 }
 
 pub unsafe fn luaG_concaterror<D>(
@@ -884,10 +881,7 @@ pub unsafe fn luaG_tointerror<D>(
         p2 = p1;
     }
 
-    Err(luaG_runerror(
-        L,
-        format_args!("number{} has no integer representation", varinfo(L, p2)),
-    ))
+    Err(format!("number{} has no integer representation", varinfo(L, p2)).into())
 }
 
 pub unsafe fn luaG_ordererror<D>(
@@ -903,28 +897,6 @@ pub unsafe fn luaG_ordererror<D>(
     } else {
         format!("attempt to compare {t1} with {t2}").into()
     }
-}
-
-pub unsafe fn luaG_addinfo(msg: impl Display, src: &ChunkInfo, line: c_int) -> String {
-    format!("{}:{}: {}", src.name(), line, msg)
-}
-
-pub unsafe fn luaG_runerror<D>(
-    L: *const Thread<D>,
-    fmt: impl Display,
-) -> Box<dyn core::error::Error> {
-    let ci = (*L).ci.get();
-    let msg = if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
-        luaG_addinfo(
-            fmt,
-            &(*(*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get()).chunk,
-            getcurrentline(ci),
-        )
-    } else {
-        fmt.to_string()
-    };
-
-    msg.into()
 }
 
 unsafe fn changedline<D>(p: *const Proto<D>, oldpc: c_int, newpc: c_int) -> c_int {

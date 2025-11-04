@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::ldebug::{luaG_findlocal, luaG_runerror};
+use crate::ldebug::luaG_findlocal;
 use crate::ldo::luaD_call;
 use crate::lobject::{AbsLineInfo, CClosure, Proto, UpVal};
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
@@ -142,9 +142,10 @@ unsafe fn callclosemethod<A>(
     }
 }
 
-unsafe fn checkclosemth<D>(
-    L: *const Thread<D>,
-    level: *mut StackValue<D>,
+#[inline(never)]
+unsafe fn checkclosemth<A>(
+    L: *const Thread<A>,
+    level: *mut StackValue<A>,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let tm = luaT_gettmbyobj(L, level.cast(), TM_CLOSE);
 
@@ -155,17 +156,16 @@ unsafe fn checkclosemth<D>(
             vname = b"?\0" as *const u8 as *const c_char;
         }
 
-        return Err(luaG_runerror(
-            L,
-            format!(
-                "variable '{}' got a non-closable value",
-                CStr::from_ptr(vname).to_string_lossy()
-            ),
-        ));
+        return Err(format!(
+            "variable '{}' got a non-closable value",
+            CStr::from_ptr(vname).to_string_lossy()
+        )
+        .into());
     }
     Ok(())
 }
 
+#[inline(always)]
 pub unsafe fn luaF_newtbcupval<D>(
     L: *const Thread<D>,
     level: *mut StackValue<D>,
@@ -201,6 +201,7 @@ pub unsafe fn luaF_newtbcupval<D>(
     Ok(())
 }
 
+#[inline(always)]
 pub unsafe fn luaF_unlinkupval<D>(uv: *mut UpVal<D>) {
     *(*(*uv).u.get()).open.previous = (*(*uv).u.get()).open.next;
     if !((*(*uv).u.get()).open.next).is_null() {
@@ -208,6 +209,7 @@ pub unsafe fn luaF_unlinkupval<D>(uv: *mut UpVal<D>) {
     }
 }
 
+#[inline(always)]
 pub unsafe fn luaF_closeupval<D>(L: *const Thread<D>, level: *mut StackValue<D>) {
     let mut upl = null_mut();
 
@@ -261,6 +263,7 @@ unsafe fn poptbclist<D>(L: *const Thread<D>) {
     (*L).tbclist.set(tbc);
 }
 
+#[inline(never)]
 pub unsafe fn luaF_close<A>(
     L: &Thread<A>,
     mut level: *mut StackValue<A>,

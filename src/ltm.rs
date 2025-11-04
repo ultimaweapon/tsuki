@@ -215,6 +215,7 @@ unsafe fn callbinTM<A>(
     }
 }
 
+#[inline(never)]
 pub unsafe fn luaT_trybinTM<A>(
     L: &Thread<A>,
     p1: *const UnsafeValue<A>,
@@ -263,6 +264,7 @@ pub unsafe fn luaT_tryconcatTM<A>(L: &Thread<A>) -> Result<(), Box<dyn core::err
     Ok(())
 }
 
+#[inline(always)]
 pub unsafe fn luaT_trybinassocTM<A>(
     L: &Thread<A>,
     p1: *const UnsafeValue<A>,
@@ -277,6 +279,7 @@ pub unsafe fn luaT_trybinassocTM<A>(
     }
 }
 
+#[inline(always)]
 pub unsafe fn luaT_trybiniTM<A>(
     L: &Thread<A>,
     p1: *const UnsafeValue<A>,
@@ -292,6 +295,7 @@ pub unsafe fn luaT_trybiniTM<A>(
     luaT_trybinassocTM(L, p1, &mut aux, flip, event)
 }
 
+#[inline(never)]
 pub unsafe fn luaT_callorderTM<A>(
     L: &Thread<A>,
     p1: *const UnsafeValue<A>,
@@ -311,6 +315,7 @@ pub unsafe fn luaT_callorderTM<A>(
     Err(luaG_ordererror(L, p1, p2))
 }
 
+#[inline(always)]
 pub unsafe fn luaT_callorderiTM<A>(
     L: &Thread<A>,
     mut p1: *const UnsafeValue<A>,
@@ -340,6 +345,7 @@ pub unsafe fn luaT_callorderiTM<A>(
     return luaT_callorderTM(L, p1, p2, event);
 }
 
+#[inline(always)]
 pub unsafe fn luaT_adjustvarargs<D>(
     L: *const Thread<D>,
     nfixparams: c_int,
@@ -383,6 +389,7 @@ pub unsafe fn luaT_adjustvarargs<D>(
     Ok(())
 }
 
+#[inline(always)]
 pub unsafe fn luaT_getvarargs<D>(
     L: *const Thread<D>,
     ci: *mut CallInfo<D>,

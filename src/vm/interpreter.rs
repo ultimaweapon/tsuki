@@ -5,7 +5,6 @@ use super::{
     luaV_finishget, luaV_finishset, luaV_idiv, luaV_mod, luaV_modf, luaV_objlen, luaV_shiftl,
     luaV_tointegerns, pushclosure,
 };
-use crate::ldebug::luaG_runerror;
 use crate::ldo::{luaD_call, luaD_poscall, luaD_precall, luaD_pretailcall};
 use crate::lfunc::{luaF_close, luaF_closeupval, luaF_newtbcupval};
 use crate::lstate::CallInfo;
@@ -15,9 +14,8 @@ use crate::ltm::{
 };
 use crate::value::UnsafeValue;
 use crate::{
-    ArithError, Float, LuaFn, NON_YIELDABLE_WAKER, StackValue, Str, Table, Thread, UserData,
-    luaH_get, luaH_getint, luaH_getshortstr, luaH_getstr, luaH_realasize, luaH_resize,
-    luaH_resizearray,
+    ArithError, Float, LuaFn, NON_YIELDABLE_WAKER, Str, Table, Thread, UserData, luaH_get,
+    luaH_getint, luaH_getshortstr, luaH_getstr, luaH_realasize, luaH_resize, luaH_resizearray,
 };
 use alloc::boxed::Box;
 use core::any::Any;
@@ -25,7 +23,6 @@ use core::hint::unreachable_unchecked;
 use core::pin::pin;
 use core::ptr::{null, null_mut};
 use core::task::{Context, Poll, Waker};
-use libc::memcpy;
 
 type c_int = i32;
 type c_uint = u32;
@@ -749,14 +746,12 @@ impl Executor {
                         )
                         .cast();
 
-                    // This one need to set here otherwise it will impact the performance.
-                    key = if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) != 0 {
+                    let k = if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) != 0 {
                         k.offset(
                             (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                 as c_int as isize,
                         )
-                        .read()
                     } else {
                         base.offset(
                             (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
@@ -764,7 +759,6 @@ impl Executor {
                                 as c_int as isize,
                         )
                         .cast::<UnsafeValue<A>>()
-                        .read()
                     };
 
                     let io1_12 = ra.offset(1 as c_int as isize);
@@ -773,14 +767,14 @@ impl Executor {
                     (*io1_12).value_ = (*tab).value_;
 
                     let v = match (*tab).tt_ & 0xf {
-                        5 => luaH_getstr((*tab).value_.gc.cast(), key.value_.gc.cast()),
+                        5 => luaH_getstr((*tab).value_.gc.cast(), (*k).value_.gc.cast()),
                         7 => {
                             let ud = (*tab).value_.gc.cast::<UserData<A, dyn Any>>();
                             let props = (*ud).props.get();
 
                             match props.is_null() {
                                 true => null(),
-                                false => luaH_getstr(props, key.value_.gc.cast()),
+                                false => luaH_getstr(props, (*k).value_.gc.cast()),
                             }
                         }
                         _ => null(),
@@ -792,6 +786,9 @@ impl Executor {
 
                         next!();
                     }
+
+                    key.tt_ = (*k).tt_;
+                    key.value_ = (*k).value_;
 
                     current_block = 0;
                 }
@@ -1054,7 +1051,7 @@ impl Executor {
 
                         (*io_12).value_.i = match luaV_mod(i1_2, i2_2) {
                             Some(v) => v,
-                            None => return Err(luaG_runerror(th, ArithError::ModZero)),
+                            None => return Err(Box::new(ArithError::ModZero)),
                         };
                         (*io_12).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
@@ -1225,7 +1222,7 @@ impl Executor {
 
                         (*io_16).value_.i = match luaV_idiv(i1_3, i2_3) {
                             Some(v) => v,
-                            None => return Err(luaG_runerror(th, ArithError::DivZero)),
+                            None => return Err(Box::new(ArithError::DivZero)),
                         };
                         (*io_16).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
@@ -1663,7 +1660,7 @@ impl Executor {
                         let io_29 = ra_35;
                         (*io_29).value_.i = match luaV_mod(i1_10, i2_10) {
                             Some(v) => v,
-                            None => return Err(luaG_runerror(th, ArithError::ModZero)),
+                            None => return Err(Box::new(ArithError::ModZero)),
                         };
                         (*io_29).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
@@ -1835,7 +1832,7 @@ impl Executor {
                         let io_33 = ra_38;
                         (*io_33).value_.i = match luaV_idiv(i1_11, i2_11) {
                             Some(v) => v,
-                            None => return Err(luaG_runerror(th, ArithError::DivZero)),
+                            None => return Err(Box::new(ArithError::DivZero)),
                         };
                         (*io_33).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
@@ -3288,11 +3285,9 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    memcpy(
-                        ra_74.offset(4).cast(),
-                        ra_74.cast(),
-                        3usize * size_of::<StackValue<A>>(),
-                    );
+
+                    ra_74.copy_to_nonoverlapping(ra_74.add(4), 3);
+
                     (*th).top.set(
                         ra_74
                             .offset(4 as c_int as isize)

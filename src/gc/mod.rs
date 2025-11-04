@@ -95,14 +95,10 @@ impl<D> Gc<D> {
         }
     }
 
+    #[inline(always)]
     pub unsafe fn barrier(&self, o: *const Object<D>, v: *const Object<D>) {
         if self.state.get() <= 2 {
             self.mark(v);
-
-            if (*o).marked.get() as c_int & 7 as c_int > 1 as c_int {
-                (*v).marked
-                    .set(((*v).marked.get() as c_int & !(7 as c_int) | 2) as u8);
-            }
         } else {
             (*o).marked.set(
                 (*o).marked.get() & !(1 << 5 | (1 << 3 | 1 << 4))
@@ -111,6 +107,7 @@ impl<D> Gc<D> {
         }
     }
 
+    #[inline(always)]
     pub unsafe fn barrier_back(&self, o: *const Object<D>) {
         self.linkgclist_(o, (*o).gclist.as_ptr(), self.grayagain.as_ptr());
     }
@@ -1053,6 +1050,7 @@ impl<D> Gc<D> {
         self.paused.set(false);
     }
 
+    #[inline(always)]
     unsafe fn linkgclist_(
         &self,
         o: *const Object<D>,

@@ -187,6 +187,7 @@ unsafe fn equalkey<D>(k1: *const UnsafeValue<D>, n2: *const Node<D>, deadok: c_i
     }
 }
 
+#[inline(always)]
 pub unsafe fn luaH_realasize<D>(t: *const Table<D>) -> c_uint {
     if (*t).flags.get() as c_int & (1 as c_int) << 7 as c_int == 0
         || (*t).alimit.get() & ((*t).alimit.get()).wrapping_sub(1 as c_int as c_uint)
@@ -218,15 +219,14 @@ unsafe fn setlimittosize<D>(t: *const Table<D>) -> c_uint {
     return (*t).alimit.get();
 }
 
-#[inline(never)]
-unsafe fn getgeneric<D>(
-    t: *const Table<D>,
-    key: *const UnsafeValue<D>,
+unsafe fn getgeneric<A>(
+    t: *const Table<A>,
+    key: *const UnsafeValue<A>,
     deadok: c_int,
-) -> *const UnsafeValue<D> {
+) -> *const UnsafeValue<A> {
     let mut n = mainpositionTV(t, key);
     loop {
-        if equalkey::<D>(key, n, deadok) != 0 {
+        if equalkey::<A>(key, n, deadok) != 0 {
             return &raw const (*n).i_val;
         } else {
             let nx: c_int = (*n).u.next;
@@ -489,6 +489,7 @@ unsafe fn exchangehashpart<D>(t1: *const Table<D>, t2: *mut Table<D>) {
     (*t2).lastfree.set(lastfree);
 }
 
+#[inline(never)]
 pub unsafe fn luaH_resize<D>(t: *const Table<D>, newasize: c_uint, nhsize: c_uint) {
     let mut i: c_uint = 0;
     let mut newt = Table {
@@ -555,6 +556,7 @@ pub unsafe fn luaH_resize<D>(t: *const Table<D>, newasize: c_uint, nhsize: c_uin
     reinsert(&raw const newt, t);
 }
 
+#[inline(always)]
 pub unsafe fn luaH_resizearray<D>(t: *const Table<D>, nasize: c_uint) {
     let nsize: c_int = if ((*t).lastfree.get()).is_null() {
         0 as c_int
@@ -729,7 +731,7 @@ unsafe fn luaH_searchint<A>(t: *const Table<A>, key: i64) -> *const UnsafeValue<
     &raw const (*t).absent_key
 }
 
-#[inline(never)]
+#[inline(always)]
 pub unsafe fn luaH_getshortstr<A>(t: *const Table<A>, key: *const Str<A>) -> *const UnsafeValue<A> {
     let mut n =
         ((*t).node.get()).offset(((*key).hash.get() & ((1 << (*t).lsizenode.get()) - 1)) as isize);
@@ -747,7 +749,7 @@ pub unsafe fn luaH_getshortstr<A>(t: *const Table<A>, key: *const Str<A>) -> *co
     }
 }
 
-#[inline(always)]
+#[inline(never)]
 pub unsafe fn luaH_getstr<A>(t: *const Table<A>, key: *const Str<A>) -> *const UnsafeValue<A> {
     if (*key).is_short() {
         luaH_getshortstr(t, key)

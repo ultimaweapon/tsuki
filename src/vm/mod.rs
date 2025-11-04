@@ -9,7 +9,7 @@
 pub use self::interpreter::*;
 pub use self::opcode::*;
 
-use crate::ldebug::{luaG_forerror, luaG_runerror, luaG_typeerror};
+use crate::ldebug::{luaG_forerror, luaG_typeerror};
 use crate::lfunc::{luaF_findupval, luaF_newLclosure};
 use crate::lobject::{Proto, UpVal, luaO_str2num};
 use crate::lstate::CallInfo;
@@ -70,6 +70,7 @@ pub unsafe fn luaV_tonumber_<A>(obj: *const UnsafeValue<A>) -> Option<Float> {
     }
 }
 
+#[inline(always)]
 pub fn luaV_flttointeger(n: Float, mode: F2Imod) -> Option<i64> {
     let mut f = n.floor();
 
@@ -87,6 +88,7 @@ pub fn luaV_flttointeger(n: Float, mode: F2Imod) -> Option<i64> {
     }
 }
 
+#[inline(always)]
 pub unsafe fn luaV_tointegerns<A>(obj: *const UnsafeValue<A>, mode: F2Imod) -> Option<i64> {
     if (*obj).tt_ == 3 | 1 << 4 {
         luaV_flttointeger((*obj).value_.n, mode)
@@ -151,6 +153,7 @@ unsafe fn forlimit<D>(
     };
 }
 
+#[inline(never)]
 unsafe fn forprep<D>(
     L: *const Thread<D>,
     ra: *mut StackValue<D>,
@@ -166,7 +169,7 @@ unsafe fn forprep<D>(
         let step: i64 = (*pstep).value_.i;
         let mut limit: i64 = 0;
         if step == 0 as c_int as i64 {
-            return Err(luaG_runerror(L, "'for' step is zero"));
+            return Err("'for' step is zero".into());
         }
         let io = ra.offset(3 as c_int as isize);
 
@@ -236,7 +239,7 @@ unsafe fn forprep<D>(
         }
 
         if step_0 == 0 as c_int as f64 {
-            return Err(luaG_runerror(L, "'for' step is zero"));
+            return Err("'for' step is zero".into());
         }
 
         if if step_0 > 0f64 {
@@ -264,6 +267,7 @@ unsafe fn forprep<D>(
     return Ok(0 as c_int);
 }
 
+#[inline(always)]
 unsafe fn floatforloop<D>(ra: *mut StackValue<D>) -> c_int {
     let step = (*ra.offset(2)).value_.n;
     let limit = (*ra.offset(1)).value_.n;
@@ -376,9 +380,10 @@ pub unsafe fn luaV_finishget<A>(
         t = index;
     }
 
-    Err(luaG_runerror(L, "'__index' chain too long; possible loop"))
+    Err("'__index' chain too long; possible loop".into())
 }
 
+#[inline(never)]
 pub unsafe fn luaV_finishset<A>(
     L: &Thread<A>,
     mut t: *const UnsafeValue<A>,
@@ -474,10 +479,7 @@ pub unsafe fn luaV_finishset<A>(
         loop_0 += 1;
     }
 
-    Err(luaG_runerror(
-        L,
-        "'__newindex' chain too long; possible loop",
-    ))
+    Err("'__newindex' chain too long; possible loop".into())
 }
 
 #[inline(always)]
@@ -492,6 +494,7 @@ unsafe fn l_strcmp<D>(ts1: *const Str<D>, ts2: *const Str<D>) -> c_int {
     }
 }
 
+#[inline(always)]
 unsafe fn LTintfloat(i: i64, f: Float) -> c_int {
     if ((1 as c_int as u64) << 53 as c_int).wrapping_add(i as u64)
         <= 2 as c_int as u64 * ((1 as c_int as u64) << 53 as c_int)
@@ -505,6 +508,7 @@ unsafe fn LTintfloat(i: i64, f: Float) -> c_int {
     }
 }
 
+#[inline(always)]
 unsafe fn LEintfloat(i: i64, f: Float) -> c_int {
     if ((1 as c_int as u64) << 53 as c_int).wrapping_add(i as u64)
         <= 2 as c_int as u64 * ((1 as c_int as u64) << 53 as c_int)
@@ -518,6 +522,7 @@ unsafe fn LEintfloat(i: i64, f: Float) -> c_int {
     }
 }
 
+#[inline(always)]
 unsafe fn LTfloatint(f: Float, i: i64) -> c_int {
     if ((1 as c_int as u64) << 53 as c_int).wrapping_add(i as u64)
         <= 2 as c_int as u64 * ((1 as c_int as u64) << 53 as c_int)
@@ -531,6 +536,7 @@ unsafe fn LTfloatint(f: Float, i: i64) -> c_int {
     }
 }
 
+#[inline(always)]
 unsafe fn LEfloatint(f: Float, i: i64) -> c_int {
     if ((1 as c_int as u64) << 53 as c_int).wrapping_add(i as u64)
         <= 2 as c_int as u64 * ((1 as c_int as u64) << 53 as c_int)
@@ -544,7 +550,8 @@ unsafe fn LEfloatint(f: Float, i: i64) -> c_int {
     }
 }
 
-unsafe fn LTnum<D>(l: *const UnsafeValue<D>, r: *const UnsafeValue<D>) -> c_int {
+#[inline(always)]
+unsafe fn LTnum<A>(l: *const UnsafeValue<A>, r: *const UnsafeValue<A>) -> c_int {
     if (*l).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
         let li: i64 = (*l).value_.i;
         if (*r).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
@@ -563,6 +570,7 @@ unsafe fn LTnum<D>(l: *const UnsafeValue<D>, r: *const UnsafeValue<D>) -> c_int 
     };
 }
 
+#[inline(always)]
 unsafe fn LEnum<D>(l: *const UnsafeValue<D>, r: *const UnsafeValue<D>) -> c_int {
     if (*l).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
         let li: i64 = (*l).value_.i;
@@ -582,6 +590,7 @@ unsafe fn LEnum<D>(l: *const UnsafeValue<D>, r: *const UnsafeValue<D>) -> c_int 
     };
 }
 
+#[inline(always)]
 unsafe fn lessthanothers<A>(
     L: &Thread<A>,
     l: *const UnsafeValue<A>,
@@ -613,6 +622,7 @@ pub unsafe fn luaV_lessthan<A>(
     };
 }
 
+#[inline(always)]
 unsafe fn lessequalothers<A>(
     L: &Thread<A>,
     l: *const UnsafeValue<A>,
@@ -817,6 +827,7 @@ unsafe fn copy2buff<A>(
     .unwrap_or_else(identity)
 }
 
+#[inline(never)]
 pub unsafe fn luaV_concat<A>(
     L: &Thread<A>,
     mut total: c_int,
@@ -919,7 +930,7 @@ pub unsafe fn luaV_concat<A>(
                     != 0
                 {
                     (*L).top.set(top.offset(-(total as isize)));
-                    return Err(luaG_runerror(L, "string length overflow"));
+                    return Err("string length overflow".into());
                 }
                 tl = tl.wrapping_add(l);
                 n += 1;
@@ -941,6 +952,7 @@ pub unsafe fn luaV_concat<A>(
     }
 }
 
+#[inline(never)]
 pub unsafe fn luaV_objlen<A>(
     L: &Thread<A>,
     rb: *const UnsafeValue<A>,
@@ -991,6 +1003,7 @@ pub unsafe fn luaV_objlen<A>(
 }
 
 /// Returns [`None`] if `n` is zero.
+#[inline(always)]
 pub fn luaV_idiv(m: i64, n: i64) -> Option<i64> {
     if (((n as u64).wrapping_add(1 as c_uint as u64) <= 1 as c_uint as u64) as c_int != 0 as c_int)
         as c_int as c_long
@@ -1010,11 +1023,9 @@ pub fn luaV_idiv(m: i64, n: i64) -> Option<i64> {
 }
 
 /// Returns [`None`] if `n` is zero.
+#[inline(always)]
 pub fn luaV_mod(m: i64, n: i64) -> Option<i64> {
-    if (((n as u64).wrapping_add(1 as c_uint as u64) <= 1 as c_uint as u64) as c_int != 0 as c_int)
-        as c_int as c_long
-        != 0
-    {
+    if (n as u64).wrapping_add(1) <= 1 {
         if n == 0 as c_int as i64 {
             return None;
         }
@@ -1028,6 +1039,7 @@ pub fn luaV_mod(m: i64, n: i64) -> Option<i64> {
     };
 }
 
+#[inline(always)]
 pub fn luaV_modf(m: Float, n: Float) -> Float {
     let mut r = fmod(m.into(), n.into());
 
@@ -1042,6 +1054,7 @@ pub fn luaV_modf(m: Float, n: Float) -> Float {
     r.into()
 }
 
+#[inline(always)]
 pub fn luaV_shiftl(x: i64, y: i64) -> i64 {
     if y < 0 as c_int as i64 {
         if y <= -((::core::mem::size_of::<i64>() as c_ulong).wrapping_mul(8 as c_int as c_ulong)
@@ -1061,6 +1074,7 @@ pub fn luaV_shiftl(x: i64, y: i64) -> i64 {
     };
 }
 
+#[inline(never)]
 unsafe fn pushclosure<D>(
     L: *const Thread<D>,
     p: *mut Proto<D>,
