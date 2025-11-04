@@ -2402,7 +2402,7 @@ impl Executor {
                     next!();
                 }
                 56 => {
-                    (*ci).pc = (*ci).pc.strict_add_signed(
+                    (*ci).pc = (*ci).pc.wrapping_add_signed(
                         ((i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32)
                                 << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2439,7 +2439,7 @@ impl Executor {
                     } else {
                         let ni: u32 = code[(*ci).pc];
 
-                        (*ci).pc = (*ci).pc.strict_add_signed(
+                        (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2489,7 +2489,7 @@ impl Executor {
                     } else {
                         let ni_0: u32 = code[(*ci).pc];
 
-                        (*ci).pc = (*ci).pc.strict_add_signed(
+                        (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni_0 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2539,7 +2539,7 @@ impl Executor {
                     } else {
                         let ni_1: u32 = code[(*ci).pc];
 
-                        (*ci).pc = (*ci).pc.strict_add_signed(
+                        (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni_1 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2577,7 +2577,7 @@ impl Executor {
                     } else {
                         let ni_2: u32 = code[(*ci).pc];
 
-                        (*ci).pc = (*ci).pc.strict_add_signed(
+                        (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni_2 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2618,7 +2618,7 @@ impl Executor {
                     } else {
                         let ni_3: u32 = code[(*ci).pc];
 
-                        (*ci).pc = (*ci).pc.strict_add_signed(
+                        (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni_3 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2670,7 +2670,7 @@ impl Executor {
                     } else {
                         let ni_4: u32 = code[(*ci).pc];
 
-                        (*ci).pc = (*ci).pc.strict_add_signed(
+                        (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni_4 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2723,7 +2723,7 @@ impl Executor {
                     } else {
                         let ni_5: u32 = code[(*ci).pc];
 
-                        (*ci).pc = (*ci).pc.strict_add_signed(
+                        (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni_5 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2776,7 +2776,7 @@ impl Executor {
                     } else {
                         let ni_6: u32 = code[(*ci).pc];
 
-                        (*ci).pc = (*ci).pc.strict_add_signed(
+                        (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni_6 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2829,7 +2829,7 @@ impl Executor {
                     } else {
                         let ni_7: u32 = code[(*ci).pc];
 
-                        (*ci).pc = (*ci).pc.strict_add_signed(
+                        (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni_7 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2863,7 +2863,7 @@ impl Executor {
                     } else {
                         let ni_8: u32 = code[(*ci).pc];
 
-                        (*ci).pc = (*ci).pc.strict_add_signed(
+                        (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni_8 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2904,7 +2904,7 @@ impl Executor {
                         (*io1_14).tt_ = (*io2_14).tt_;
                         let ni_9: u32 = code[(*ci).pc];
 
-                        (*ci).pc = (*ci).pc.strict_add_signed(
+                        (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni_9 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -3090,7 +3090,7 @@ impl Executor {
                             (*io_45).value_.i = idx;
                             (*io_45).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
 
-                            (*ci).pc = (*ci).pc.strict_add_signed(
+                            (*ci).pc = (*ci).pc.wrapping_add_signed(
                                 -((i >> 0 as c_int + 7 as c_int + 8 as c_int
                                     & !(!(0 as c_int as u32)
                                         << 8 as c_int + 8 as c_int + 1 as c_int)
@@ -3099,7 +3099,7 @@ impl Executor {
                             );
                         }
                     } else if floatforloop(ra_71) != 0 {
-                        (*ci).pc = (*ci).pc.strict_add_signed(
+                        (*ci).pc = (*ci).pc.wrapping_add_signed(
                             -((i >> 0 as c_int + 7 as c_int + 8 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)
                                     << 0 as c_int) as c_int as isize),
@@ -3117,7 +3117,7 @@ impl Executor {
                     (*th).top.set((*ci).top);
 
                     if forprep(th, ra_72)? != 0 {
-                        (*ci).pc = (*ci).pc.strict_add_signed(
+                        (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((i >> 0 as c_int + 7 as c_int + 8 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)
                                     << 0 as c_int) as c_int
@@ -3134,7 +3134,7 @@ impl Executor {
                     );
                     (*th).top.set((*ci).top);
                     luaF_newtbcupval(th, ra_73.offset(3 as c_int as isize))?;
-                    (*ci).pc = (*ci).pc.strict_add_signed(
+                    (*ci).pc = (*ci).pc.wrapping_add_signed(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)
                                 << 0 as c_int) as c_int as isize,
@@ -3334,7 +3334,7 @@ impl Executor {
                 (*io1_16).value_ = (*io2_16).value_;
                 (*io1_16).tt_ = (*io2_16).tt_;
 
-                (*ci).pc = (*ci).pc.strict_add_signed(
+                (*ci).pc = (*ci).pc.wrapping_add_signed(
                     -((i >> 0 as c_int + 7 as c_int + 8 as c_int
                         & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)
                             << 0 as c_int) as c_int as isize),
