@@ -1,7 +1,6 @@
 #![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::ldo::{luaD_hook, luaD_hookcall};
 use crate::lfunc::luaF_getlocalname;
 use crate::lobject::{CClosure, Proto};
 use crate::lstate::{CallInfo, lua_Debug};
@@ -29,10 +28,7 @@ type c_uint = u32;
 type c_long = i64;
 
 unsafe fn currentpc<D>(ci: *mut CallInfo<D>) -> c_int {
-    return ((*ci).u.savedpc)
-        .offset_from((*(*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get()).code)
-        as c_int
-        - 1;
+    return (*ci).pc as c_int - 1;
 }
 
 unsafe fn getbaseline<D>(f: *const Proto<D>, pc: c_int, basepc: *mut c_int) -> c_int {
@@ -87,37 +83,6 @@ unsafe fn settraps<D>(mut ci: *mut CallInfo<D>) {
         }
         ci = (*ci).previous;
     }
-}
-
-pub unsafe fn lua_sethook<D>(
-    L: *const Thread<D>,
-    mut func: Option<unsafe fn(*const Thread<D>, *mut lua_Debug<D>)>,
-    mut mask: c_int,
-    count: c_int,
-) {
-    if func.is_none() || mask == 0 as c_int {
-        mask = 0 as c_int;
-        func = None;
-    }
-
-    (*L).hook.set(func);
-    (*L).basehookcount.set(count);
-    (*L).hookcount.set((*L).basehookcount.get());
-    (*L).hookmask.set(mask);
-
-    if mask != 0 {
-        settraps((*L).ci.get());
-    }
-}
-
-pub unsafe fn lua_gethook<D>(
-    L: *const Thread<D>,
-) -> Option<unsafe fn(*const Thread<D>, *mut lua_Debug<D>)> {
-    return (*L).hook.get();
-}
-
-pub unsafe fn lua_gethookmask<D>(L: *const Thread<D>) -> c_int {
-    return (*L).hookmask.get();
 }
 
 pub unsafe fn lua_gethookcount<D>(L: *const Thread<D>) -> c_int {
@@ -982,83 +947,4 @@ unsafe fn changedline<D>(p: *const Proto<D>, oldpc: c_int, newpc: c_int) -> c_in
         }
     }
     return (luaG_getfuncline(p, oldpc) != luaG_getfuncline(p, newpc)) as c_int;
-}
-
-pub unsafe fn luaG_tracecall<D>(L: *const Thread<D>) -> Result<c_int, Box<dyn core::error::Error>> {
-    let ci = (*L).ci.get();
-    let p = (*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get();
-
-    ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut c_int, 1 as c_int);
-    if (*ci).u.savedpc == (*p).code as *const u32 {
-        if (*p).is_vararg != 0 {
-            return Ok(0 as c_int);
-        } else if (*ci).callstatus as c_int & (1 as c_int) << 6 as c_int == 0 {
-            luaD_hookcall(L, ci)?;
-        }
-    }
-    return Ok(1 as c_int);
-}
-
-pub unsafe fn luaG_traceexec<D>(
-    L: *const Thread<D>,
-    mut pc: *const u32,
-) -> Result<c_int, Box<dyn core::error::Error>> {
-    let ci = (*L).ci.get();
-    let mask: u8 = (*L).hookmask.get() as u8;
-    let p = (*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get();
-    let mut counthook: c_int = 0;
-    if mask as c_int & ((1 as c_int) << 2 as c_int | (1 as c_int) << 3 as c_int) == 0 {
-        ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut c_int, 0 as c_int);
-        return Ok(0 as c_int);
-    }
-    pc = pc.offset(1);
-    (*ci).u.savedpc = pc;
-    counthook = (mask as c_int & (1 as c_int) << 3 as c_int != 0 && {
-        (*L).hookcount.set((*L).hookcount.get() - 1);
-        (*L).hookcount.get() == 0
-    }) as c_int;
-    if counthook != 0 {
-        (*L).hookcount.set((*L).basehookcount.get());
-    } else if mask as c_int & (1 as c_int) << 2 as c_int == 0 {
-        return Ok(1 as c_int);
-    }
-    if (*ci).callstatus as c_int & (1 as c_int) << 6 as c_int != 0 {
-        (*ci).callstatus = ((*ci).callstatus as c_int & !((1 as c_int) << 6 as c_int)) as c_ushort;
-        return Ok(1 as c_int);
-    }
-    if !(luaP_opmodes[(*((*ci).u.savedpc).offset(-(1 as c_int as isize)) >> 0 as c_int
-        & !(!(0 as c_int as u32) << 7 as c_int) << 0 as c_int) as OpCode
-        as usize] as c_int
-        & (1 as c_int) << 5 as c_int
-        != 0
-        && (*((*ci).u.savedpc).offset(-(1 as c_int as isize))
-            >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
-            & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int) as c_int
-            == 0 as c_int)
-    {
-        (*L).top.set((*ci).top);
-    }
-
-    if counthook != 0 {
-        luaD_hook(L, 3 as c_int, -(1 as c_int), 0, 0)?;
-    }
-
-    if mask as c_int & (1 as c_int) << 2 as c_int != 0 {
-        let oldpc: c_int = if (*L).oldpc.get() < (*p).sizecode {
-            (*L).oldpc.get()
-        } else {
-            0 as c_int
-        };
-        let npci: c_int = pc.offset_from((*p).code) as c_long as c_int - 1 as c_int;
-
-        if npci <= oldpc || changedline(p, oldpc, npci) != 0 {
-            let newline: c_int = luaG_getfuncline(p, npci);
-
-            luaD_hook(L, 2 as c_int, newline, 0 as c_int, 0)?;
-        }
-
-        (*L).oldpc.set(npci);
-    }
-
-    Ok(1)
 }

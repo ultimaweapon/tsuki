@@ -47,6 +47,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 ### VM and Language
 
 - Binary chunk is not supported.
+- Hook functions is not supported.
 - Panic when memory allocation is failed without retry (same as Rust).
 - GC has only one mode and cannot control from outside.
 - Chunk name does not have a prefix (e.g. `@`).

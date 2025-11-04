@@ -7,7 +7,7 @@ use crate::lfunc::{luaF_close, luaF_initupvals};
 use crate::lmem::{luaM_free_, luaM_saferealloc_};
 use crate::lobject::CClosure;
 use crate::lparser::{C2RustUnnamed_9, Dyndata, Labeldesc, Labellist, Vardesc, luaY_parser};
-use crate::lstate::{CallInfo, lua_Debug, luaE_extendCI, luaE_shrinkCI};
+use crate::lstate::{CallInfo, luaE_extendCI, luaE_shrinkCI};
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lzio::{Mbuffer, Zio};
 use crate::{
@@ -182,123 +182,6 @@ pub unsafe fn luaD_shrinkstack<D>(L: *const Thread<D>) {
     luaE_shrinkCI(L);
 }
 
-pub unsafe fn luaD_hook<D>(
-    L: *const Thread<D>,
-    event: c_int,
-    line: c_int,
-    ftransfer: c_int,
-    ntransfer: usize,
-) -> Result<(), Box<dyn Error>> {
-    let hook = (*L).hook.get();
-    if hook.is_some() && (*L).allowhook.get() != 0 {
-        let mut mask: c_int = (1 as c_int) << 3 as c_int;
-        let ci = (*L).ci.get();
-        let top: isize =
-            ((*L).top.get() as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
-        let ci_top: isize = ((*ci).top as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
-        let mut ar = lua_Debug::default();
-        ar.event = event;
-        ar.currentline = line;
-        ar.i_ci = ci;
-
-        if ntransfer != 0 {
-            mask |= (1 as c_int) << 8 as c_int;
-            (*ci).u2.transferinfo.ftransfer = ftransfer as c_ushort;
-            (*ci).u2.transferinfo.ntransfer = ntransfer;
-        }
-
-        if (*ci).callstatus as c_int & (1 as c_int) << 1 == 0 && (*L).top.get() < (*ci).top {
-            (*L).top.set((*ci).top);
-        }
-
-        if ((((*L).stack_last.get()).offset_from((*L).top.get()) as c_long <= 20 as c_int as c_long)
-            as c_int
-            != 0 as c_int) as c_int as c_long
-            != 0
-        {
-            luaD_growstack(L, 20)?;
-        }
-        if (*ci).top < ((*L).top.get()).offset(20 as c_int as isize) {
-            (*ci).top = ((*L).top.get()).offset(20 as c_int as isize);
-        }
-        (*L).allowhook.set(0);
-        (*ci).callstatus = ((*ci).callstatus as c_int | mask) as c_ushort;
-        (Some(hook.expect("non-null function pointer"))).expect("non-null function pointer")(
-            L, &mut ar,
-        );
-        (*L).allowhook.set(1);
-        (*ci).top = ((*L).stack.get() as *mut c_char).offset(ci_top as isize) as _;
-        (*L).top
-            .set(((*L).stack.get() as *mut c_char).offset(top as isize) as _);
-        (*ci).callstatus = ((*ci).callstatus as c_int & !mask) as c_ushort;
-    }
-    Ok(())
-}
-
-pub unsafe fn luaD_hookcall<D>(
-    L: *const Thread<D>,
-    ci: *mut CallInfo<D>,
-) -> Result<(), Box<dyn Error>> {
-    (*L).oldpc.set(0);
-
-    if (*L).hookmask.get() & 1 << 0 != 0 {
-        let event: c_int = if (*ci).callstatus as c_int & (1 as c_int) << 5 as c_int != 0 {
-            4 as c_int
-        } else {
-            0 as c_int
-        };
-        let p = (*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get();
-        (*ci).u.savedpc = ((*ci).u.savedpc).offset(1);
-        (*ci).u.savedpc;
-        luaD_hook(L, event, -(1 as c_int), 1 as c_int, (*p).numparams.into())?;
-        (*ci).u.savedpc = ((*ci).u.savedpc).offset(-1);
-        (*ci).u.savedpc;
-    }
-    Ok(())
-}
-
-unsafe fn rethook<D>(
-    L: *const Thread<D>,
-    mut ci: *mut CallInfo<D>,
-    nres: c_int,
-) -> Result<(), Box<dyn Error>> {
-    if (*L).hookmask.get() & 1 << 1 != 0 {
-        let firstres = ((*L).top.get()).offset(-(nres as isize));
-        let mut delta: c_int = 0 as c_int;
-        let mut ftransfer: c_int = 0;
-        if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
-            let p = (*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get();
-            if (*p).is_vararg != 0 {
-                delta = (*ci).u.nextraargs + (*p).numparams as c_int + 1 as c_int;
-            }
-        }
-        (*ci).func = ((*ci).func).offset(delta as isize);
-        ftransfer = firstres.offset_from((*ci).func) as c_long as c_ushort as c_int;
-
-        luaD_hook(
-            L,
-            1 as c_int,
-            -(1 as c_int),
-            ftransfer,
-            nres.try_into().unwrap(),
-        )?;
-
-        (*ci).func = ((*ci).func).offset(-(delta as isize));
-    }
-    ci = (*ci).previous;
-
-    if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
-        (*L).oldpc.set(
-            ((*ci).u.savedpc)
-                .offset_from((*(*(*(*ci).func).value_.gc.cast::<LuaFn<D>>()).p.get()).code)
-                as c_long as c_int
-                - 1,
-        );
-    }
-
-    Ok(())
-}
-
 unsafe fn tryfuncTM<D>(
     L: *const Thread<D>,
     mut func: *mut StackValue<D>,
@@ -376,12 +259,7 @@ unsafe fn moveresults<A>(
                 (*(*L).ci.get()).callstatus = ((*(*L).ci.get()).callstatus as c_int
                     & !((1 as c_int) << 9 as c_int))
                     as c_ushort;
-                if (*L).hookmask.get() != 0 {
-                    let savedres: isize =
-                        (res as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
-                    rethook(L, (*L).ci.get(), nres)?;
-                    res = ((*L).stack.get() as *mut c_char).offset(savedres as isize) as _;
-                }
+
                 wanted = -wanted - 3 as c_int;
                 if wanted == -(1 as c_int) {
                     wanted = nres;
@@ -416,12 +294,7 @@ pub unsafe fn luaD_poscall<A>(
     nres: c_int,
 ) -> Result<(), Box<dyn Error>> {
     let wanted: c_int = (*ci).nresults as c_int;
-    if (((*L).hookmask.get() != 0 && !(wanted < -(1 as c_int))) as c_int != 0 as c_int) as c_int
-        as c_long
-        != 0
-    {
-        rethook(L, ci, nres)?;
-    }
+
     moveresults(L, (*ci).func, nres, wanted)?;
     (*L).ci.set((*ci).previous);
     Ok(())
@@ -458,14 +331,8 @@ async unsafe fn precallC<A>(
 
     L.ci.set(ci);
 
-    // Invoke hook.
-    let narg = L.top.get().offset_from_unsigned(func) - 1;
-
-    if (L.hookmask.get() & (1 as c_int) << 0 != 0) as c_int as c_long != 0 {
-        luaD_hook(L, 0 as c_int, -(1 as c_int), 1 as c_int, narg)?;
-    }
-
     // Invoke Rust function.
+    let narg = L.top.get().offset_from_unsigned(func) - 1;
     let cx = Context::new(L, Args::new(narg));
     let cx = match f {
         Func::NonYieldableFp(f) => {
@@ -549,7 +416,7 @@ pub async unsafe fn luaD_pretailcall<D>(
                     narg1 += 1;
                 }
                 (*ci).top = func.offset(1 as c_int as isize).offset(fsize as isize);
-                (*ci).u.savedpc = (*p).code;
+                (*ci).pc = 0;
                 (*ci).callstatus =
                     ((*ci).callstatus as c_int | (1 as c_int) << 5 as c_int) as c_ushort;
                 (*L).top.set(func.offset(narg1 as isize));
@@ -614,7 +481,7 @@ pub async unsafe fn luaD_precall<D>(
                     func.offset(1 as c_int as isize).offset(fsize as isize),
                 );
                 (*L).ci.set(ci);
-                (*ci).u.savedpc = (*p).code;
+                (*ci).pc = 0;
                 while narg < nfixparams {
                     let fresh2 = (*L).top.get();
                     (*L).top.add(1);

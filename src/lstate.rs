@@ -56,13 +56,14 @@ impl<D> Default for lua_Debug<D> {
 }
 
 #[repr(C)]
-pub struct CallInfo<D> {
-    pub func: *mut StackValue<D>,
-    pub top: *mut StackValue<D>,
+pub struct CallInfo<A> {
+    pub func: *mut StackValue<A>,
+    pub top: *mut StackValue<A>,
     pub previous: *mut Self,
     pub next: *mut Self,
     pub u: C2RustUnnamed_3,
     pub u2: C2RustUnnamed,
+    pub pc: usize,
     pub nresults: c_short,
     pub callstatus: c_ushort,
 }
@@ -93,7 +94,6 @@ pub struct C2RustUnnamed_0 {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct C2RustUnnamed_3 {
-    pub savedpc: *const u32,
     pub trap: c_int,
     pub nextraargs: c_int,
 }

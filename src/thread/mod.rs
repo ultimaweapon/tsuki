@@ -9,7 +9,7 @@ use crate::ldo::luaD_call;
 use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
 use crate::lobject::UpVal;
-use crate::lstate::{CallInfo, lua_Debug};
+use crate::lstate::CallInfo;
 use crate::value::UnsafeValue;
 use crate::{Lua, LuaFn, NON_YIELDABLE_WAKER, Object};
 use alloc::alloc::handle_alloc_error;
@@ -46,11 +46,9 @@ pub struct Thread<A> {
     pub(crate) tbclist: Cell<*mut StackValue<A>>,
     pub(crate) twups: Cell<*const Self>,
     pub(crate) base_ci: UnsafeCell<CallInfo<A>>,
-    pub(crate) hook: Cell<Option<unsafe fn(*const Self, *mut lua_Debug<A>)>>,
     pub(crate) oldpc: Cell<i32>,
     pub(crate) basehookcount: Cell<i32>,
     pub(crate) hookcount: Cell<i32>,
-    pub(crate) hookmask: Cell<i32>,
     phantom: PhantomPinned,
 }
 
@@ -64,8 +62,6 @@ impl<A> Thread<A> {
         unsafe { addr_of_mut!((*th).ci).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*th).nci).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*th).twups).write(Cell::new(th)) };
-        unsafe { addr_of_mut!((*th).hook).write(Cell::new(None)) };
-        unsafe { addr_of_mut!((*th).hookmask).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*th).basehookcount).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*th).allowhook).write(Cell::new(1)) };
         unsafe { addr_of_mut!((*th).hookcount).write(Cell::new(0)) };
@@ -96,7 +92,7 @@ impl<A> Thread<A> {
         unsafe { (*ci).next = (*ci).previous };
         unsafe { (*ci).callstatus = 1 << 1 };
         unsafe { (*ci).func = (*th).top.get() };
-        unsafe { (*ci).u.savedpc = null() };
+        unsafe { addr_of_mut!((*ci).pc).write(0) };
         unsafe { (*ci).nresults = 0 };
         unsafe { (*th).top.write_nil() };
         unsafe { (*th).top.add(1) };
