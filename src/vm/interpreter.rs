@@ -41,21 +41,20 @@ impl Executor {
     ) -> Result<*mut CallInfo<A>, Box<dyn core::error::Error>> {
         let cl = (*(*ci).func).value_.gc.cast::<LuaFn<A>>();
         let k = (*(*cl).p.get()).k;
-        let mut pc = (*ci).u.savedpc;
         let mut base = (*ci).func.add(1);
-        let mut i = pc.read();
+        let mut i = (*ci).u.savedpc.read();
         let mut tab = null_mut();
         let mut key = UnsafeValue::default();
 
-        pc = pc.offset(1);
+        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
 
         loop {
             let current_block: u64;
 
             macro_rules! next {
                 () => {
-                    i = pc.read();
-                    pc = pc.offset(1);
+                    i = (*ci).u.savedpc.read();
+                    (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     continue;
                 };
             }
@@ -121,12 +120,14 @@ impl Executor {
                             as c_int as isize,
                     );
                     let rb_0 = k.offset(
-                        (*pc >> 0 as c_int + 7 as c_int
+                        ((*ci).u.savedpc.read() >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32)
                                 << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
                                 << 0 as c_int) as c_int as isize,
                     );
-                    pc = pc.offset(1);
+
+                    (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
+
                     let io1_1 = ra_3;
                     let io2_1 = rb_0;
 
@@ -150,7 +151,7 @@ impl Executor {
                             as c_int as isize,
                     );
                     (*ra_5).tt_ = (1 as c_int | (0 as c_int) << 4 as c_int) as u8;
-                    pc = pc.offset(1);
+                    (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     next!();
                 }
                 7 => {
@@ -474,7 +475,6 @@ impl Executor {
                             }
                         }
                     } else {
-                        (*ci).u.savedpc = pc;
                         (*th).top.set((*ci).top);
                         luaV_finishset(th, upval_0, rb_4, rc_2, slot_3)?;
 
@@ -539,7 +539,6 @@ impl Executor {
                             }
                         }
                     } else {
-                        (*ci).u.savedpc = pc;
                         (*th).top.set((*ci).top);
                         luaV_finishset(th, tab.cast(), key.cast(), val, slot)?;
 
@@ -615,7 +614,6 @@ impl Executor {
 
                         (*io_2).value_.i = c_0 as i64;
                         (*io_2).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
-                        (*ci).u.savedpc = pc;
                         (*th).top.set((*ci).top);
                         luaV_finishset(th, ra_15.cast(), &mut key_3, rc_4, slot_5)?;
 
@@ -681,7 +679,6 @@ impl Executor {
                             }
                         }
                     } else {
-                        (*ci).u.savedpc = pc;
                         (*th).top.set((*ci).top);
                         luaV_finishset(th, ra_16.cast(), rb_6, rc_5, slot_6)?;
 
@@ -707,13 +704,14 @@ impl Executor {
                         b_3 = (1 as c_int) << b_3 - 1 as c_int;
                     }
                     if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0 {
-                        c_1 += (*pc >> 0 as c_int + 7 as c_int
+                        c_1 += ((*ci).u.savedpc.read() >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32)
                                 << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
                                 << 0 as c_int) as c_int
                             * (((1 as c_int) << 8 as c_int) - 1 as c_int + 1 as c_int);
                     }
-                    pc = pc.offset(1);
+
+                    (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     (*th).top.set(ra_17.offset(1 as c_int as isize));
 
                     // Create table.
@@ -727,7 +725,6 @@ impl Executor {
                         luaH_resize(t, c_1 as c_uint, b_3 as c_uint);
                     }
 
-                    (*ci).u.savedpc = pc;
                     (*th).top.set(ra_17.offset(1 as c_int as isize));
                     (*th).hdr.global().gc.step();
 
@@ -835,7 +832,7 @@ impl Executor {
                         unreachable_unchecked();
                     }
 
-                    pc = pc.offset(1);
+                    (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     next!();
                 }
                 22 => {
@@ -859,7 +856,7 @@ impl Executor {
                     {
                         let i1: i64 = (*v1_0).value_.i;
                         let i2: i64 = (*v2).value_.i;
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_6 = ra_20;
 
                         (*io_6).value_.i = (i1 as u64).wrapping_add(i2 as u64) as i64;
@@ -891,7 +888,7 @@ impl Executor {
                                 }
                             }) != 0
                         {
-                            pc = pc.offset(1);
+                            (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                             let io_7 = ra_20;
 
                             (*io_7).value_.n = n1 + n2;
@@ -922,7 +919,7 @@ impl Executor {
                     {
                         let i1_0: i64 = (*v1_1).value_.i;
                         let i2_0: i64 = (*v2_0).value_.i;
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_8 = ra_21;
 
                         (*io_8).value_.i = (i1_0 as u64).wrapping_sub(i2_0 as u64) as i64;
@@ -954,7 +951,7 @@ impl Executor {
                                 }
                             }) != 0
                         {
-                            pc = pc.offset(1);
+                            (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                             let io_9 = ra_21;
 
                             (*io_9).value_.n = n1_0 - n2_0;
@@ -985,7 +982,7 @@ impl Executor {
                     {
                         let i1_1: i64 = (*v1_2).value_.i;
                         let i2_1: i64 = (*v2_1).value_.i;
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_10 = ra_22;
 
                         (*io_10).value_.i = (i1_1 as u64 * i2_1 as u64) as i64;
@@ -1017,7 +1014,7 @@ impl Executor {
                                 }
                             }) != 0
                         {
-                            pc = pc.offset(1);
+                            (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                             let io_11 = ra_22;
 
                             (*io_11).value_.n = n1_1 * n2_1;
@@ -1028,7 +1025,6 @@ impl Executor {
                     next!();
                 }
                 25 => {
-                    (*ci).u.savedpc = pc;
                     (*th).top.set((*ci).top);
 
                     let v1_3 = base.offset(
@@ -1051,7 +1047,7 @@ impl Executor {
                     {
                         let i1_2: i64 = (*v1_3).value_.i;
                         let i2_2: i64 = (*v2_2).value_.i;
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_12 = ra_23;
 
                         (*io_12).value_.i = match luaV_mod(i1_2, i2_2) {
@@ -1086,7 +1082,7 @@ impl Executor {
                                 }
                             }) != 0
                         {
-                            pc = pc.offset(1);
+                            (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                             let io_13 = ra_23;
 
                             (*io_13).value_.n = luaV_modf(n1_2, n2_2);
@@ -1138,7 +1134,7 @@ impl Executor {
                             }
                         }) != 0
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_14 = ra_24;
                         (*io_14).value_.n = if n2_3 == 2 as c_int as f64 {
                             n1_3 * n1_3
@@ -1192,7 +1188,7 @@ impl Executor {
                             }
                         }) != 0
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_15 = ra_25;
 
                         (*io_15).value_.n = n1_4 / n2_4;
@@ -1201,7 +1197,6 @@ impl Executor {
                     next!();
                 }
                 28 => {
-                    (*ci).u.savedpc = pc;
                     (*th).top.set((*ci).top);
                     let v1_6 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
@@ -1223,7 +1218,7 @@ impl Executor {
                     {
                         let i1_3: i64 = (*v1_6).value_.i;
                         let i2_3: i64 = (*v2_5).value_.i;
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_16 = ra_26;
 
                         (*io_16).value_.i = match luaV_idiv(i1_3, i2_3) {
@@ -1258,7 +1253,7 @@ impl Executor {
                                 }
                             }) != 0
                         {
-                            pc = pc.offset(1);
+                            (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                             let io_17 = ra_26;
                             (*io_17).value_.n = (n1_5 / n2_5).floor();
                             (*io_17).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -1295,7 +1290,7 @@ impl Executor {
                         0
                     } != 0
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_18 = ra_27;
                         (*io_18).value_.i = (i1_4 as u64 & i2_4 as u64) as i64;
                         (*io_18).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -1332,7 +1327,7 @@ impl Executor {
                         0
                     } != 0
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_19 = ra_28;
 
                         (*io_19).value_.i = (i1_5 as u64 | i2_5 as u64) as i64;
@@ -1370,7 +1365,7 @@ impl Executor {
                         0
                     } != 0
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_20 = ra_29;
                         (*io_20).value_.i = (i1_6 as u64 ^ i2_6 as u64) as i64;
                         (*io_20).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -1406,7 +1401,7 @@ impl Executor {
                         0
                     } != 0
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_21 = ra_30;
 
                         (*io_21).value_.i = luaV_shiftl(ib, -ic as i64);
@@ -1443,7 +1438,7 @@ impl Executor {
                         0
                     } != 0
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_22 = ra_31;
                         (*io_22).value_.i = luaV_shiftl(ic_0 as i64, ib_0);
                         (*io_22).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -1472,7 +1467,7 @@ impl Executor {
                     {
                         let i1_7: i64 = (*v1_10).value_.i;
                         let i2_7: i64 = (*v2_9).value_.i;
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_23 = ra_32;
                         (*io_23).value_.i = (i1_7 as u64).wrapping_add(i2_7 as u64) as i64;
                         (*io_23).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -1503,7 +1498,7 @@ impl Executor {
                                 }
                             }) != 0
                         {
-                            pc = pc.offset(1);
+                            (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                             let io_24 = ra_32;
                             (*io_24).value_.n = n1_6 + n2_6;
                             (*io_24).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -1533,7 +1528,7 @@ impl Executor {
                     {
                         let i1_8: i64 = (*v1_11).value_.i;
                         let i2_8: i64 = (*v2_10).value_.i;
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_25 = ra_33;
                         (*io_25).value_.i = (i1_8 as u64).wrapping_sub(i2_8 as u64) as i64;
                         (*io_25).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -1566,7 +1561,7 @@ impl Executor {
                                 }
                             }) != 0
                         {
-                            pc = pc.offset(1);
+                            (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                             let io_26 = ra_33;
                             (*io_26).value_.n = n1_7 - n2_7;
                             (*io_26).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -1597,7 +1592,7 @@ impl Executor {
                     {
                         let i1_9: i64 = (*v1_12).value_.i;
                         let i2_9: i64 = (*v2_11).value_.i;
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_27 = ra_34;
                         (*io_27).value_.i = ((i1_9 as u64).wrapping_mul(i2_9 as u64)) as i64;
                         (*io_27).tt_ = 3 | 0 << 4;
@@ -1630,7 +1625,7 @@ impl Executor {
                                 }
                             }) != 0
                         {
-                            pc = pc.offset(1);
+                            (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                             let io_28 = ra_34;
                             (*io_28).value_.n = n1_8 * n2_8;
                             (*io_28).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -1640,7 +1635,6 @@ impl Executor {
                     next!();
                 }
                 37 => {
-                    (*ci).u.savedpc = pc;
                     (*th).top.set((*ci).top);
                     let v1_13 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
@@ -1663,7 +1657,7 @@ impl Executor {
                     {
                         let i1_10: i64 = (*v1_13).value_.i;
                         let i2_10: i64 = (*v2_12).value_.i;
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_29 = ra_35;
                         (*io_29).value_.i = match luaV_mod(i1_10, i2_10) {
                             Some(v) => v,
@@ -1699,7 +1693,7 @@ impl Executor {
                                 }
                             }) != 0
                         {
-                            pc = pc.offset(1);
+                            (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                             let io_30 = ra_35;
                             (*io_30).value_.n = luaV_modf(n1_9, n2_9);
                             (*io_30).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -1750,7 +1744,7 @@ impl Executor {
                             }
                         }) != 0
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_31 = ra_36;
                         (*io_31).value_.n = if n2_10 == 2 as c_int as f64 {
                             n1_10 * n1_10
@@ -1804,7 +1798,7 @@ impl Executor {
                             }
                         }) != 0
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_32 = ra_37;
                         (*io_32).value_.n = n1_11 / n2_11;
                         (*io_32).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -1813,7 +1807,6 @@ impl Executor {
                     next!();
                 }
                 40 => {
-                    (*ci).u.savedpc = pc;
                     (*th).top.set((*ci).top);
                     let v1_16 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
@@ -1836,7 +1829,7 @@ impl Executor {
                     {
                         let i1_11: i64 = (*v1_16).value_.i;
                         let i2_11: i64 = (*v2_15).value_.i;
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_33 = ra_38;
                         (*io_33).value_.i = match luaV_idiv(i1_11, i2_11) {
                             Some(v) => v,
@@ -1872,7 +1865,7 @@ impl Executor {
                                 }
                             }) != 0
                         {
-                            pc = pc.offset(1);
+                            (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                             let io_34 = ra_38;
                             (*io_34).value_.n = (n1_12 / n2_12).floor();
                             (*io_34).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -1919,7 +1912,7 @@ impl Executor {
                             0
                         }) != 0
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_35 = ra_39;
                         (*io_35).value_.i = (i1_12 as u64 & i2_12 as u64) as i64;
                         (*io_35).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -1965,7 +1958,7 @@ impl Executor {
                             0
                         }) != 0
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_36 = ra_40;
                         (*io_36).value_.i = (i1_13 as u64 | i2_13 as u64) as i64;
                         (*io_36).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -2011,7 +2004,7 @@ impl Executor {
                             0
                         }) != 0
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_37 = ra_41;
                         (*io_37).value_.i = (i1_14 as u64 ^ i2_14 as u64) as i64;
                         (*io_37).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -2057,7 +2050,7 @@ impl Executor {
                             0
                         }) != 0
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_38 = ra_42;
                         (*io_38).value_.i = luaV_shiftl(
                             i1_15,
@@ -2106,7 +2099,7 @@ impl Executor {
                             0
                         }) != 0
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                         let io_39 = ra_43;
                         (*io_39).value_.i = luaV_shiftl(i1_16, i2_16);
                         (*io_39).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -2120,7 +2113,7 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    let pi: u32 = *pc.offset(-(2 as c_int as isize));
+                    let pi: u32 = *(*ci).u.savedpc.offset(-(2 as c_int as isize));
                     let rb_10 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2131,7 +2124,6 @@ impl Executor {
                         & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                         as c_int as TMS;
 
-                    (*ci).u.savedpc = pc;
                     (*th).top.set((*ci).top);
 
                     let val = luaT_trybinTM(th, ra_44.cast(), rb_10.cast(), tm)?;
@@ -2155,7 +2147,7 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    let pi_0: u32 = *pc.offset(-(2 as c_int as isize));
+                    let pi_0: u32 = *(*ci).u.savedpc.offset(-(2 as c_int as isize));
                     let imm_0: c_int = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                         & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                         as c_int
@@ -2168,7 +2160,6 @@ impl Executor {
                         & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                         as c_int;
 
-                    (*ci).u.savedpc = pc;
                     (*th).top.set((*ci).top);
 
                     let val = luaT_trybiniTM(th, ra_45.cast(), imm_0 as i64, flip, tm_0)?;
@@ -2192,7 +2183,7 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    let pi_1: u32 = *pc.offset(-(2 as c_int as isize));
+                    let pi_1: u32 = *(*ci).u.savedpc.offset(-(2 as c_int as isize));
                     let imm_1 = k.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2206,7 +2197,6 @@ impl Executor {
                         & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                         as c_int;
 
-                    (*ci).u.savedpc = pc;
                     (*th).top.set((*ci).top);
 
                     let val = luaT_trybinassocTM(th, ra_46.cast(), imm_1, flip_0, tm_1)?;
@@ -2256,7 +2246,6 @@ impl Executor {
                         (*io_41).value_.n = -nb_0;
                         (*io_41).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                     } else {
-                        (*ci).u.savedpc = pc;
                         (*th).top.set((*ci).top);
 
                         let val = luaT_trybinTM(th, rb_11.cast(), rb_11.cast(), TM_UNM)?;
@@ -2301,7 +2290,6 @@ impl Executor {
                         (*io_42).value_.i = (!(0 as c_int as u64) ^ ib_2 as u64) as i64;
                         (*io_42).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
-                        (*ci).u.savedpc = pc;
                         (*th).top.set((*ci).top);
 
                         let val = luaT_trybinTM(th, rb_12.cast(), rb_12.cast(), TM_BNOT)?;
@@ -2340,7 +2328,6 @@ impl Executor {
                     next!();
                 }
                 OP_LEN => {
-                    (*ci).u.savedpc = pc;
                     (*th).top.set((*ci).top);
 
                     let val = luaV_objlen(
@@ -2377,10 +2364,8 @@ impl Executor {
                         as c_int;
 
                     (*th).top.set(ra_51.offset(n_1 as isize));
-                    (*ci).u.savedpc = pc;
                     luaV_concat(th, n_1)?;
 
-                    (*ci).u.savedpc = pc;
                     (*th).hdr.global().gc.step();
 
                     base = (*ci).func.add(1);
@@ -2393,7 +2378,7 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    (*ci).u.savedpc = pc;
+
                     (*th).top.set((*ci).top);
 
                     if let Err(e) = luaF_close(th, ra_52) {
@@ -2409,13 +2394,13 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    (*ci).u.savedpc = pc;
+
                     (*th).top.set((*ci).top);
                     luaF_newtbcupval(th, ra_53)?;
                     next!();
                 }
                 56 => {
-                    pc = pc.offset(
+                    (*ci).u.savedpc = (*ci).u.savedpc.offset(
                         ((i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32)
                                 << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2439,7 +2424,7 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    (*ci).u.savedpc = pc;
+
                     (*th).top.set((*ci).top);
                     cond = luaV_equalobj(Some(th), ra_54.cast(), rb_14.cast())?.into();
                     base = (*ci).func.add(1);
@@ -2448,10 +2433,11 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     } else {
-                        let ni: u32 = *pc;
-                        pc = pc.offset(
+                        let ni: u32 = (*ci).u.savedpc.read();
+
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(
                             ((ni >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2488,7 +2474,6 @@ impl Executor {
                     {
                         cond_0 = LTnum::<A>(ra_55.cast(), rb_15.cast());
                     } else {
-                        (*ci).u.savedpc = pc;
                         (*th).top.set((*ci).top);
                         cond_0 = lessthanothers(th, ra_55.cast(), rb_15.cast())?;
                         base = (*ci).func.add(1);
@@ -2498,10 +2483,11 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     } else {
-                        let ni_0: u32 = *pc;
-                        pc = pc.offset(
+                        let ni_0: u32 = (*ci).u.savedpc.read();
+
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(
                             ((ni_0 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2538,7 +2524,6 @@ impl Executor {
                     {
                         cond_1 = LEnum::<A>(ra_56.cast(), rb_16.cast());
                     } else {
-                        (*ci).u.savedpc = pc;
                         (*th).top.set((*ci).top);
                         cond_1 = lessequalothers(th, ra_56.cast(), rb_16.cast())?;
                         base = (*ci).func.add(1);
@@ -2548,10 +2533,11 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     } else {
-                        let ni_1: u32 = *pc;
-                        pc = pc.offset(
+                        let ni_1: u32 = (*ci).u.savedpc.read();
+
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(
                             ((ni_1 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2585,10 +2571,11 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     } else {
-                        let ni_2: u32 = *pc;
-                        pc = pc.offset(
+                        let ni_2: u32 = (*ci).u.savedpc.read();
+
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(
                             ((ni_2 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2625,10 +2612,11 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     } else {
-                        let ni_3: u32 = *pc;
-                        pc = pc.offset(
+                        let ni_3: u32 = (*ci).u.savedpc.read();
+
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(
                             ((ni_3 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2665,7 +2653,7 @@ impl Executor {
                             >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int;
-                        (*ci).u.savedpc = pc;
+
                         (*th).top.set((*ci).top);
                         cond_4 = luaT_callorderiTM(th, ra_59.cast(), im_0, 0, isf, TM_LT)?;
                         base = (*ci).func.add(1);
@@ -2676,10 +2664,11 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     } else {
-                        let ni_4: u32 = *pc;
-                        pc = pc.offset(
+                        let ni_4: u32 = (*ci).u.savedpc.read();
+
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(
                             ((ni_4 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2717,7 +2706,7 @@ impl Executor {
                             >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int;
-                        (*ci).u.savedpc = pc;
+
                         (*th).top.set((*ci).top);
                         cond_5 = luaT_callorderiTM(th, ra_60.cast(), im_1, 0, isf_0, TM_LE)?;
                         base = (*ci).func.add(1);
@@ -2728,10 +2717,11 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     } else {
-                        let ni_5: u32 = *pc;
-                        pc = pc.offset(
+                        let ni_5: u32 = (*ci).u.savedpc.read();
+
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(
                             ((ni_5 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2769,7 +2759,7 @@ impl Executor {
                             >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int;
-                        (*ci).u.savedpc = pc;
+
                         (*th).top.set((*ci).top);
                         cond_6 = luaT_callorderiTM(th, ra_61.cast(), im_2, 1, isf_1, TM_LT)?;
                         base = (*ci).func.add(1);
@@ -2780,10 +2770,11 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     } else {
-                        let ni_6: u32 = *pc;
-                        pc = pc.offset(
+                        let ni_6: u32 = (*ci).u.savedpc.read();
+
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(
                             ((ni_6 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2821,7 +2812,7 @@ impl Executor {
                             >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int;
-                        (*ci).u.savedpc = pc;
+
                         (*th).top.set((*ci).top);
                         cond_7 = luaT_callorderiTM(th, ra_62.cast(), im_3, 1, isf_2, TM_LE)?;
                         base = (*ci).func.add(1);
@@ -2832,10 +2823,11 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     } else {
-                        let ni_7: u32 = *pc;
-                        pc = pc.offset(
+                        let ni_7: u32 = (*ci).u.savedpc.read();
+
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(
                             ((ni_7 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2865,10 +2857,11 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     } else {
-                        let ni_8: u32 = *pc;
-                        pc = pc.offset(
+                        let ni_8: u32 = (*ci).u.savedpc.read();
+
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(
                             ((ni_8 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2900,15 +2893,16 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     } else {
                         let io1_14 = ra_64;
                         let io2_14 = rb_18;
 
                         (*io1_14).value_ = (*io2_14).value_;
                         (*io1_14).tt_ = (*io2_14).tt_;
-                        let ni_9: u32 = *pc;
-                        pc = pc.offset(
+                        let ni_9: u32 = (*ci).u.savedpc.read();
+
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(
                             ((ni_9 >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -2939,7 +2933,6 @@ impl Executor {
                     if b_4 != 0 as c_int {
                         (*th).top.set(ra_65.offset(b_4 as isize));
                     }
-                    (*ci).u.savedpc = pc;
 
                     let newci = luaD_precall(th, ra_65, nresults).await?;
 
@@ -2975,7 +2968,7 @@ impl Executor {
                     } else {
                         b_5 = ((*th).top.get()).offset_from(ra_66) as c_int;
                     }
-                    (*ci).u.savedpc = pc;
+
                     if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0 {
                         luaF_closeupval(th, base);
                     }
@@ -3005,7 +2998,7 @@ impl Executor {
                     if n_3 < 0 as c_int {
                         n_3 = ((*th).top.get()).offset_from(ra_67) as c_int;
                     }
-                    (*ci).u.savedpc = pc;
+
                     if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0 {
                         (*ci).u2.nres = n_3;
                         if (*th).top.get() < (*ci).top {
@@ -3040,7 +3033,7 @@ impl Executor {
                                 as c_int as isize,
                         );
                         (*th).top.set(ra_68);
-                        (*ci).u.savedpc = pc;
+
                         luaD_poscall(th, ci, 0 as c_int)?;
                     } else {
                         let mut nres: c_int = 0;
@@ -3064,7 +3057,7 @@ impl Executor {
                                 as c_int as isize,
                         );
                         (*th).top.set(ra_69.offset(1 as c_int as isize));
-                        (*ci).u.savedpc = pc;
+
                         luaD_poscall(th, ci, 1 as c_int)?;
                     } else {
                         let mut nres_0: c_int = (*ci).nresults as c_int;
@@ -3114,7 +3107,8 @@ impl Executor {
                             let io_45 = ra_71.offset(3 as c_int as isize);
                             (*io_45).value_.i = idx;
                             (*io_45).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
-                            pc = pc.offset(
+
+                            (*ci).u.savedpc = (*ci).u.savedpc.offset(
                                 -((i >> 0 as c_int + 7 as c_int + 8 as c_int
                                     & !(!(0 as c_int as u32)
                                         << 8 as c_int + 8 as c_int + 1 as c_int)
@@ -3123,7 +3117,7 @@ impl Executor {
                             );
                         }
                     } else if floatforloop(ra_71) != 0 {
-                        pc = pc.offset(
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(
                             -((i >> 0 as c_int + 7 as c_int + 8 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)
                                     << 0 as c_int) as c_int as isize),
@@ -3137,10 +3131,11 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    (*ci).u.savedpc = pc;
+
                     (*th).top.set((*ci).top);
+
                     if forprep(th, ra_72)? != 0 {
-                        pc = pc.offset(
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(
                             ((i >> 0 as c_int + 7 as c_int + 8 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)
                                     << 0 as c_int) as c_int
@@ -3155,17 +3150,17 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    (*ci).u.savedpc = pc;
                     (*th).top.set((*ci).top);
                     luaF_newtbcupval(th, ra_73.offset(3 as c_int as isize))?;
-                    pc = pc.offset(
+                    (*ci).u.savedpc = (*ci).u.savedpc.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)
                                 << 0 as c_int) as c_int as isize,
                     );
-                    let fresh7 = pc;
-                    pc = pc.offset(1);
-                    i = *fresh7;
+
+                    i = (*ci).u.savedpc.read();
+                    (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
+
                     current_block = 13973394567113199817;
                 }
                 OP_TFORCALL => {
@@ -3197,14 +3192,14 @@ impl Executor {
                     last = last.wrapping_add(n_4 as c_uint);
                     if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0 {
                         last = last.wrapping_add(
-                            ((*pc >> 0 as c_int + 7 as c_int
+                            (((*ci).u.savedpc.read() >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
                                     << 0 as c_int) as c_int
                                 * (((1 as c_int) << 8 as c_int) - 1 as c_int + 1 as c_int))
                                 as c_uint,
                         );
-                        pc = pc.offset(1);
+                        (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                     }
 
                     if last > luaH_realasize(h) {
@@ -3243,11 +3238,9 @@ impl Executor {
                             & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)
                                 << 0 as c_int) as c_int as isize,
                     );
-                    (*ci).u.savedpc = pc;
                     (*th).top.set((*ci).top);
                     pushclosure(th, p, &(*cl).upvals, base, ra_77);
 
-                    (*ci).u.savedpc = pc;
                     (*th).top.set(ra_77.offset(1 as c_int as isize));
                     (*th).hdr.global().gc.step();
 
@@ -3266,14 +3259,12 @@ impl Executor {
                         & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                         as c_int
                         - 1 as c_int;
-                    (*ci).u.savedpc = pc;
                     (*th).top.set((*ci).top);
                     luaT_getvarargs(th, ci, ra_78, n_5)?;
                     base = (*ci).func.add(1);
                     next!();
                 }
                 81 => {
-                    (*ci).u.savedpc = pc;
                     luaT_adjustvarargs(
                         th,
                         (i >> 0 as c_int + 7 as c_int & !(!(0 as c_int as u32) << 8 as c_int) << 0)
@@ -3292,7 +3283,6 @@ impl Executor {
             }
             match current_block {
                 0 => {
-                    (*ci).u.savedpc = pc;
                     (*th).top.set((*ci).top);
 
                     let val = luaV_finishget(th, tab, &raw const key, true)?;
@@ -3326,7 +3316,6 @@ impl Executor {
                             .offset(4 as c_int as isize)
                             .offset(3 as c_int as isize),
                     );
-                    (*ci).u.savedpc = pc;
 
                     // Invoke iterator function.
                     {
@@ -3347,10 +3336,8 @@ impl Executor {
                     }
 
                     base = ((*ci).func).offset(1 as c_int as isize);
-
-                    let fresh8 = pc;
-                    pc = pc.offset(1);
-                    i = *fresh8;
+                    i = (*ci).u.savedpc.read();
+                    (*ci).u.savedpc = (*ci).u.savedpc.offset(1);
                 }
                 _ => {}
             }
@@ -3364,7 +3351,7 @@ impl Executor {
 
                 (*io1_16).value_ = (*io2_16).value_;
                 (*io1_16).tt_ = (*io2_16).tt_;
-                pc = pc.offset(
+                (*ci).u.savedpc = (*ci).u.savedpc.offset(
                     -((i >> 0 as c_int + 7 as c_int + 8 as c_int
                         & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)
                             << 0 as c_int) as c_int as isize),
