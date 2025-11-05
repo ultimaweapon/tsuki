@@ -653,7 +653,7 @@ pub unsafe fn luaV_lessequal<A>(
     };
 }
 
-#[inline(never)]
+#[inline(always)]
 pub unsafe fn luaV_equalobj<A>(
     L: Option<&Thread<A>>,
     t1: *const UnsafeValue<A>,
@@ -664,12 +664,7 @@ pub unsafe fn luaV_equalobj<A>(
         if (*t1).tt_ & 0xf != (*t2).tt_ & 0xf || (*t1).tt_ & 0xf != 3 {
             return Ok(false);
         } else {
-            let r = match (luaV_tointegerns(t1, F2Ieq), luaV_tointegerns(t2, F2Ieq)) {
-                (Some(i1), Some(i2)) => i1 == i2,
-                _ => false,
-            };
-
-            return Ok(r);
+            return Ok(eq_num(t1, t2));
         }
     }
 
@@ -778,6 +773,24 @@ pub unsafe fn luaV_equalobj<A>(
         _ => return Ok((*t1).value_.gc == (*t2).value_.gc),
     };
 
+    eq_mt(th, tm, t1, t2)
+}
+
+#[inline(never)]
+unsafe fn eq_num<A>(t1: *const UnsafeValue<A>, t2: *const UnsafeValue<A>) -> bool {
+    match (luaV_tointegerns(t1, F2Ieq), luaV_tointegerns(t2, F2Ieq)) {
+        (Some(i1), Some(i2)) => i1 == i2,
+        _ => false,
+    }
+}
+
+#[inline(never)]
+unsafe fn eq_mt<A>(
+    th: &Thread<A>,
+    tm: *const UnsafeValue<A>,
+    t1: *const UnsafeValue<A>,
+    t2: *const UnsafeValue<A>,
+) -> Result<bool, Box<dyn core::error::Error>> {
     if tm.is_null() {
         return Ok(false);
     }

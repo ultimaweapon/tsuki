@@ -210,6 +210,7 @@ impl<'a, A, T> Context<'a, A, T> {
     ///
     /// # Panics
     /// If either `lhs` or `rhs` was created from different [Lua](crate::Lua) instance.
+    #[inline(never)]
     pub fn is_value_eq(
         &self,
         lhs: impl Into<UnsafeValue<A>>,

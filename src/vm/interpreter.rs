@@ -1,9 +1,9 @@
 use super::{
-    F2Ieq, LEnum, LTnum, OP_ADDI, OP_CALL, OP_CLOSURE, OP_CONCAT, OP_GETTABLE, OP_GETTABUP, OP_LEN,
-    OP_LOADF, OP_LOADI, OP_MOVE, OP_NEWTABLE, OP_SETLIST, OP_SETTABLE, OP_TAILCALL, OP_TFORCALL,
-    floatforloop, forprep, lessequalothers, lessthanothers, luaV_concat, luaV_equalobj,
-    luaV_finishget, luaV_finishset, luaV_idiv, luaV_mod, luaV_modf, luaV_objlen, luaV_shiftl,
-    luaV_tointegerns, pushclosure,
+    F2Ieq, LEnum, LTnum, OP_ADDI, OP_CALL, OP_CLOSURE, OP_CONCAT, OP_EQ, OP_GETTABLE, OP_GETTABUP,
+    OP_LEN, OP_LOADF, OP_LOADI, OP_MOVE, OP_NEWTABLE, OP_SETLIST, OP_SETTABLE, OP_TAILCALL,
+    OP_TFORCALL, floatforloop, forprep, lessequalothers, lessthanothers, luaV_concat,
+    luaV_equalobj, luaV_finishget, luaV_finishset, luaV_idiv, luaV_mod, luaV_modf, luaV_objlen,
+    luaV_shiftl, luaV_tointegerns, pushclosure,
 };
 use crate::ldo::{luaD_call, luaD_poscall, luaD_precall, luaD_pretailcall};
 use crate::lfunc::{luaF_close, luaF_closeupval, luaF_newtbcupval};
@@ -2411,7 +2411,7 @@ impl Executor {
                     );
                     next!();
                 }
-                57 => {
+                OP_EQ => {
                     let ra_54 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
