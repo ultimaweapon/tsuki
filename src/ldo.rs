@@ -419,6 +419,12 @@ pub async unsafe fn luaD_pretailcall<D>(
                 }
                 (*ci).top = func.offset(1 as c_int as isize).offset(fsize as isize);
                 (*ci).pc = 0;
+
+                #[cfg(feature = "jit")]
+                unsafe {
+                    (*ci).jitted_pc = 0;
+                }
+
                 (*ci).callstatus =
                     ((*ci).callstatus as c_int | (1 as c_int) << 5 as c_int) as c_ushort;
                 (*L).top.set(func.offset(narg1 as isize));
@@ -484,6 +490,12 @@ pub async unsafe fn luaD_precall<D>(
                 );
                 (*L).ci.set(ci);
                 (*ci).pc = 0;
+
+                #[cfg(feature = "jit")]
+                unsafe {
+                    (*ci).jitted_pc = 0;
+                }
+
                 while narg < nfixparams {
                     let fresh2 = (*L).top.get();
                     (*L).top.add(1);

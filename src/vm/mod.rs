@@ -51,6 +51,8 @@ type c_long = i64;
 type c_ulong = u64;
 type c_longlong = i64;
 
+#[cfg(feature = "jit")]
+mod jit;
 mod opcode;
 
 unsafe fn l_strton<D>(obj: *const UnsafeValue<D>) -> Option<UnsafeValue<D>> {
@@ -1146,20 +1148,47 @@ pub async unsafe fn run<A>(
         let p = (*cl).p.get();
         let k = (*p).k;
         let code = core::slice::from_raw_parts((*p).code, (*p).sizecode as usize);
+        #[cfg(feature = "jit")]
+        let jitted = (*p)
+            .jitted
+            .get_or_init(move || self::jit::compile(th.hdr.global(), cl).into());
         let mut base = (*ci).func.add(1);
+        #[cfg(not(feature = "jit"))]
         let mut i = code[(*ci).pc];
         let mut tab = null_mut();
         let mut key = UnsafeValue::default();
 
-        (*ci).pc += 1;
+        #[cfg(not(feature = "jit"))]
+        unsafe {
+            (*ci).pc += 1;
+        }
 
         loop {
             let current_block: u64;
 
+            #[cfg(feature = "jit")]
+            let mut i = match jitted.get((*ci).jitted_pc) {
+                Some(crate::lobject::Jitted::Inst(v)) => {
+                    (*ci).pc += 1;
+                    (*ci).jitted_pc += 1;
+                    *v
+                }
+                Some(crate::lobject::Jitted::Func(_)) => todo!(),
+                None => {
+                    let i = code[(*ci).pc];
+                    (*ci).pc += 1;
+                    i
+                }
+            };
+
             macro_rules! next {
                 () => {
-                    i = code[(*ci).pc];
-                    (*ci).pc += 1;
+                    #[cfg(not(feature = "jit"))]
+                    unsafe {
+                        i = code[(*ci).pc];
+                        (*ci).pc += 1;
+                    }
+
                     continue;
                 };
             }

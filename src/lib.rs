@@ -320,6 +320,8 @@ pub struct Lua<A> {
     seed: u32,
     active_rust_call: Cell<usize>,
     modules_locked: Cell<bool>,
+    #[cfg(feature = "jit")]
+    jit: core::cell::RefCell<cranelift_frontend::FunctionBuilderContext>,
     associated_data: A,
     phantom: PhantomPinned,
 }
@@ -366,6 +368,8 @@ impl<A> Lua<A> {
             seed,
             active_rust_call: Cell::new(0),
             modules_locked: Cell::new(false),
+            #[cfg(feature = "jit")]
+            jit: Default::default(),
             associated_data,
             phantom: PhantomPinned,
         });

@@ -107,6 +107,8 @@ pub struct Proto<D> {
     pub lastlinedefined: c_int,
     pub k: *mut UnsafeValue<D>,
     pub code: *mut u32,
+    #[cfg(feature = "jit")]
+    pub jitted: core::cell::OnceCell<Box<[Jitted<D>]>>,
     pub p: *mut *mut Self,
     pub upvalues: *mut Upvaldesc<D>,
     pub lineinfo: *mut i8,
@@ -160,6 +162,12 @@ impl<D> Drop for Proto<D> {
             )
         };
     }
+}
+
+#[cfg(feature = "jit")]
+pub enum Jitted<A> {
+    Inst(u32),
+    Func(unsafe extern "C" fn(*const Thread<A>, *const *mut UpVal<A>)),
 }
 
 #[repr(C)]
