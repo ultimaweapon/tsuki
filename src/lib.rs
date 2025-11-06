@@ -1161,6 +1161,11 @@ impl RecursiveCall {
     }
 }
 
+/// Represents an error when Lua function contains invalid instruction.
+#[derive(Debug, Error)]
+#[error("invalid instruction")]
+pub struct BadInst;
+
 static NON_YIELDABLE_WAKER: RawWakerVTable = RawWakerVTable::new(
     |_| unimplemented!(),
     |_| unimplemented!(),
