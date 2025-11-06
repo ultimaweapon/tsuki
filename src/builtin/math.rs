@@ -84,8 +84,36 @@ pub fn floor<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
     Ok(r)
 }
 
+/// Implementation of [math.fmod](https://www.lua.org/manual/5.4/manual.html#pdf-math.fmod).
+pub fn fmod<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let x = cx.arg(1);
+    let y = cx.arg(2);
+
+    match (x.as_int(), y.as_int()) {
+        (Some(x), Some(d)) => {
+            if (d as u64).wrapping_add(1) <= 1 {
+                if d == 0 {
+                    return Err(y.error("zero"));
+                }
+
+                cx.push(0)?;
+            } else {
+                cx.push(x % d)?;
+            }
+        }
+        _ => {
+            let Float(x) = x.to_float()?;
+            let Float(y) = y.to_float()?;
+
+            cx.push(libm::fmod(x, y))?;
+        }
+    }
+
+    Ok(cx.into())
+}
+
 /// Implementation of [math.log](https://www.lua.org/manual/5.4/manual.html#pdf-math.log).
-pub fn log<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>> {
+pub fn log<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1).to_float()?;
 
     match cx.arg(2).to_nilable_float(false)? {

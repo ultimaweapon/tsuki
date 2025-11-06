@@ -55,33 +55,6 @@ unsafe fn math_ceil(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::E
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn math_fmod(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    if lua_isinteger(L, 1 as libc::c_int) != 0 && lua_isinteger(L, 2 as libc::c_int) != 0 {
-        let mut d: i64 = lua_tointegerx(L, 2 as libc::c_int, 0 as *mut libc::c_int);
-        if (d as u64).wrapping_add(1 as libc::c_uint as u64) <= 1 as libc::c_uint as u64 {
-            (((d != 0 as libc::c_int as i64) as libc::c_int != 0 as libc::c_int) as libc::c_int
-                as libc::c_long
-                != 0
-                || luaL_argerror(L, 2 as libc::c_int, "zero")? != 0) as libc::c_int;
-            lua_pushinteger(L, 0 as libc::c_int as i64);
-        } else {
-            lua_pushinteger(
-                L,
-                lua_tointegerx(L, 1 as libc::c_int, 0 as *mut libc::c_int) % d,
-            );
-        }
-    } else {
-        lua_pushnumber(
-            L,
-            fmod(
-                luaL_checknumber(L, 1 as libc::c_int)?,
-                luaL_checknumber(L, 2 as libc::c_int)?,
-            ),
-        );
-    }
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn math_sqrt(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     lua_pushnumber(L, sqrt(luaL_checknumber(L, 1 as libc::c_int)?));
     return Ok(1 as libc::c_int);
@@ -295,13 +268,6 @@ static mut mathlib: [luaL_Reg; 28] = [
         let mut init = luaL_Reg {
             name: b"tointeger\0" as *const u8 as *const libc::c_char,
             func: Some(math_toint),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"fmod\0" as *const u8 as *const libc::c_char,
-            func: Some(math_fmod),
         };
         init
     },

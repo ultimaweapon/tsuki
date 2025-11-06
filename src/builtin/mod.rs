@@ -117,6 +117,7 @@ impl<A> Module<A> for MathLib {
         m.set_str_key("cos", fp!(self::math::cos));
         m.set_str_key("deg", fp!(self::math::deg));
         m.set_str_key("floor", fp!(self::math::floor));
+        m.set_str_key("fmod", fp!(self::math::fmod));
         m.set_str_key("huge", f64::INFINITY);
         m.set_str_key("log", fp!(self::math::log));
         m.set_str_key("max", fp!(self::math::max));
