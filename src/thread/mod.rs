@@ -93,10 +93,6 @@ impl<A> Thread<A> {
         unsafe { (*ci).callstatus = 1 << 1 };
         unsafe { (*ci).func = (*th).top.get() };
         unsafe { addr_of_mut!((*ci).pc).write(0) };
-        #[cfg(feature = "jit")]
-        unsafe {
-            addr_of_mut!((*ci).jitted_pc).write(0)
-        };
         unsafe { (*ci).nresults = 0 };
         unsafe { (*th).top.write_nil() };
         unsafe { (*th).top.add(1) };

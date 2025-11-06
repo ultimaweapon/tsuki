@@ -16,18 +16,14 @@ harness = false
 
 [features]
 default = ["rand", "std"]
-jit = ["std", "dep:cranelift-codegen", "dep:cranelift-frontend", "dep:target-lexicon"]
 rand = ["dep:rand"]
 std = ["libm/arch", "tsuki-macros/std"]
 
 [dependencies]
-cranelift-codegen = { version = "0.125.3", optional = true }
-cranelift-frontend = { version = "0.125.3", optional = true }
 libc = "0.2.172"
 libm = { version = "0.2.15", default-features = false }
 memchr = { version = "2.7.6", features = ["alloc"], default-features = false }
 rand = { version = "0.9.1", features = ["thread_rng"], default-features = false, optional = true }
-target-lexicon = { version = "0.13.3", optional = true }
 thiserror = { version = "2.0.12", default-features = false }
 tsuki-macros = { version = "0.1.0", path = "macros" }
 

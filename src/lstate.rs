@@ -64,8 +64,6 @@ pub struct CallInfo<A> {
     pub u: C2RustUnnamed_3,
     pub u2: C2RustUnnamed,
     pub pc: usize,
-    #[cfg(feature = "jit")]
-    pub jitted_pc: usize,
     pub nresults: c_short,
     pub callstatus: c_ushort,
 }

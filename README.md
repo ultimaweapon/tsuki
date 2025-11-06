@@ -88,7 +88,6 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 
 - Complete Lua standard library.
 - Remove libc.
-- JIT using Cranelift.
 
 ## Breaking changes in 0.3
 
