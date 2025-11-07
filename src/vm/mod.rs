@@ -9,7 +9,7 @@
 pub use self::opcode::*;
 
 use crate::ldebug::{luaG_forerror, luaG_typeerror};
-use crate::ldo::{luaD_call, luaD_poscall, luaD_precall, luaD_pretailcall};
+use crate::ldo::{call_async_fp, call_fp, luaD_call, luaD_poscall, luaD_precall, luaD_pretailcall};
 use crate::lfunc::{
     luaF_close, luaF_closeupval, luaF_findupval, luaF_newLclosure, luaF_newtbcupval,
 };
@@ -4073,12 +4073,12 @@ pub async unsafe fn run<A>(
                     next!();
                 }
                 OP_CALL => {
-                    let ra_65 = base.offset(
+                    let ra = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    let b_4 = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
+                    let args = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                         & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                         as c_int;
                     let nresults = (i
@@ -4086,11 +4086,23 @@ pub async unsafe fn run<A>(
                         & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                         as c_int
                         - 1 as c_int;
-                    if b_4 != 0 as c_int {
-                        (*th).top.set(ra_65.offset(b_4 as isize));
+
+                    if args != 0 {
+                        (*th).top.set(ra.offset(args as isize));
                     }
 
-                    let newci = luaD_precall(th, ra_65, nresults).await?;
+                    // Fast path for Rust function.
+                    let newci = match (*ra).tt_ & 0x3f {
+                        0x02 => {
+                            call_fp(th, ra, nresults, (*ra).value_.f)?;
+                            null_mut()
+                        }
+                        0x22 => {
+                            call_async_fp(th, ra, nresults, (*ra).value_.a).await?;
+                            null_mut()
+                        }
+                        _ => luaD_precall(th, ra, nresults).await?,
+                    };
 
                     if !newci.is_null() {
                         ci = newci;
@@ -4102,7 +4114,7 @@ pub async unsafe fn run<A>(
                     next!();
                 }
                 OP_TAILCALL => {
-                    let ra_66 = base.offset(
+                    let ra = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
@@ -4110,7 +4122,6 @@ pub async unsafe fn run<A>(
                     let mut b_5: c_int = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                         & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                         as c_int;
-                    let mut n_2: c_int = 0;
                     let nparams1: c_int = (i
                         >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
                         & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -4120,19 +4131,28 @@ pub async unsafe fn run<A>(
                     } else {
                         0 as c_int
                     };
+
                     if b_5 != 0 as c_int {
-                        (*th).top.set(ra_66.offset(b_5 as isize));
+                        (*th).top.set(ra.offset(b_5 as isize));
                     } else {
-                        b_5 = ((*th).top.get()).offset_from(ra_66) as c_int;
+                        b_5 = ((*th).top.get()).offset_from(ra) as c_int;
                     }
 
                     if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0 {
                         luaF_closeupval(th, base);
                     }
-                    n_2 = luaD_pretailcall(th, ci, ra_66, b_5, delta).await?;
+
+                    // Fast path for Rust function.
+                    let n_2 = match (*ra).tt_ & 0x3f {
+                        0x02 => call_fp(th, ra, -1, (*ra).value_.f)?,
+                        0x22 => call_async_fp(th, ra, -1, (*ra).value_.a).await?,
+                        _ => luaD_pretailcall(th, ci, ra, b_5, delta).await?,
+                    };
+
                     if n_2 < 0 {
                         continue 'top;
                     }
+
                     (*ci).func = ((*ci).func).offset(-(delta as isize));
                     luaD_poscall(th, ci, n_2)?;
                     base = (*ci).func.add(1);

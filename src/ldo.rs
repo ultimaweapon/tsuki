@@ -301,70 +301,30 @@ pub unsafe fn luaD_poscall<A>(
     Ok(())
 }
 
-unsafe fn prepCallInfo<D>(
-    L: *const Thread<D>,
-    func: *mut StackValue<D>,
+#[inline(always)]
+unsafe fn prepCallInfo<A>(
+    L: *const Thread<A>,
+    func: *mut StackValue<A>,
     nret: c_int,
     mask: c_int,
-    top: *mut StackValue<D>,
-) -> *mut CallInfo<D> {
-    (*L).ci.set(if !((*(*L).ci.get()).next).is_null() {
-        (*(*L).ci.get()).next
-    } else {
-        luaE_extendCI(L)
-    });
-    let ci = (*L).ci.get();
+    top: *mut StackValue<A>,
+) -> *mut CallInfo<A> {
+    let mut ci = (*(*L).ci.get()).next;
+
+    if ci.is_null() {
+        ci = luaE_extendCI(L);
+    }
+
+    (*L).ci.set(ci);
+
     (*ci).func = func;
     (*ci).nresults = nret as c_short;
     (*ci).callstatus = mask as c_ushort;
     (*ci).top = top;
-    return ci;
+
+    ci
 }
 
-async unsafe fn precallC<A>(
-    L: &Thread<A>,
-    func: *mut StackValue<A>,
-    nresults: c_int,
-    f: Func<A>,
-) -> Result<c_int, Box<dyn Error>> {
-    // Set current CI.
-    let ci = prepCallInfo(L, func, nresults, 1 << 1, L.top.get());
-
-    L.ci.set(ci);
-
-    // Invoke Rust function.
-    let narg = L.top.get().offset_from_unsigned(func) - 1;
-    let cx = Context::new(L, Args::new(narg));
-    let cx = match f {
-        Func::NonYieldableFp(f) => {
-            let active = ActiveCall::new(L.hdr.global());
-
-            if active.get() >= 100 {
-                return Err("too many nested call into Rust functions".into());
-            }
-
-            f(cx)?
-        }
-        Func::AsyncFp(f) => {
-            AsyncInvoker {
-                g: L.hdr.global(),
-                f: f(cx),
-            }
-            .await?
-        }
-    };
-
-    // Get number of results.
-    let n = cx.results().try_into().unwrap();
-
-    drop(cx);
-
-    luaD_poscall(L, ci, n)?;
-
-    Ok(n)
-}
-
-#[inline(never)]
 pub async unsafe fn luaD_pretailcall<D>(
     L: *const Thread<D>,
     ci: *mut CallInfo<D>,
@@ -375,17 +335,16 @@ pub async unsafe fn luaD_pretailcall<D>(
     loop {
         match (*func).tt_ & 0x3f {
             38 => {
-                return precallC(
+                return call_fp(
                     &*L,
                     func,
                     -(1 as c_int),
-                    Func::NonYieldableFp((*((*func).value_.gc as *mut CClosure<D>)).f),
-                )
-                .await;
+                    (*((*func).value_.gc as *mut CClosure<D>)).f,
+                );
             }
-            2 => return precallC(&*L, func, -1, Func::NonYieldableFp((*func).value_.f)).await,
+            2 => return call_fp(&*L, func, -1, (*func).value_.f),
             18 | 50 => todo!(),
-            34 => return precallC(&*L, func, -1, Func::AsyncFp((*func).value_.a)).await,
+            34 => return call_async_fp(&*L, func, -1, (*func).value_.a).await,
             6 => {
                 let p = (*(*func).value_.gc.cast::<LuaFn<D>>()).p.get();
                 let fsize: c_int = (*p).maxstacksize as c_int;
@@ -440,24 +399,22 @@ pub async unsafe fn luaD_precall<D>(
     loop {
         match (*func).tt_ & 0x3f {
             38 => {
-                precallC(
+                call_fp(
                     &*L,
                     func,
                     nresults,
-                    Func::NonYieldableFp((*((*func).value_.gc as *mut CClosure<D>)).f),
-                )
-                .await?;
+                    (*((*func).value_.gc as *mut CClosure<D>)).f,
+                )?;
 
                 return Ok(null_mut());
             }
             2 => {
-                precallC(&*L, func, nresults, Func::NonYieldableFp((*func).value_.f)).await?;
-
+                call_fp(&*L, func, nresults, (*func).value_.f)?;
                 return Ok(null_mut());
             }
             18 | 50 => todo!(),
             34 => {
-                precallC(&*L, func, nresults, Func::AsyncFp((*func).value_.a)).await?;
+                call_async_fp(&*L, func, nresults, (*func).value_.a).await?;
                 return Ok(null_mut());
             }
             6 => {
@@ -626,14 +583,65 @@ pub unsafe fn luaD_protectedparser<D>(
     status
 }
 
-/// Encapsulates a function pointer.
-enum Func<A> {
-    NonYieldableFp(for<'a> fn(Context<'a, A, Args>) -> Result<Context<'a, A, Ret>, Box<dyn Error>>),
-    AsyncFp(
-        fn(
-            Context<A, Args>,
-        ) -> Pin<Box<dyn Future<Output = Result<Context<A, Ret>, Box<dyn Error>>> + '_>>,
-    ),
+#[inline(always)]
+pub unsafe fn call_fp<A>(
+    L: &Thread<A>,
+    func: *mut StackValue<A>,
+    nresults: c_int,
+    fp: fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>,
+) -> Result<c_int, Box<dyn Error>> {
+    // Check nested limit.
+    let active = ActiveCall::new(L.hdr.global());
+
+    if active.get() >= 100 {
+        return Err("too many nested call into Rust functions".into());
+    }
+
+    // Invoke.
+    let top = L.top.get();
+    let ci = prepCallInfo(L, func, nresults, 1 << 1, top);
+    let narg = top.offset_from_unsigned(func) - 1;
+    let cx = Context::new(L, Args::new(narg));
+    let cx = fp(cx)?;
+
+    // Get number of results.
+    let n = cx.results().try_into().unwrap();
+
+    drop(cx);
+
+    luaD_poscall(L, ci, n)?;
+
+    Ok(n)
+}
+
+#[inline(always)]
+pub async unsafe fn call_async_fp<A>(
+    L: &Thread<A>,
+    func: *mut StackValue<A>,
+    nresults: c_int,
+    fp: fn(
+        Context<A, Args>,
+    ) -> Pin<Box<dyn Future<Output = Result<Context<A, Ret>, Box<dyn Error>>> + '_>>,
+) -> Result<c_int, Box<dyn Error>> {
+    // Invoke.
+    let top = L.top.get();
+    let ci = prepCallInfo(L, func, nresults, 1 << 1, top);
+    let narg = top.offset_from_unsigned(func) - 1;
+    let cx = Context::new(L, Args::new(narg));
+    let cx = AsyncInvoker {
+        g: L.hdr.global(),
+        f: fp(cx),
+    }
+    .await?;
+
+    // Get number of results.
+    let n = cx.results().try_into().unwrap();
+
+    drop(cx);
+
+    luaD_poscall(L, ci, n)?;
+
+    Ok(n)
 }
 
 /// Implementation of [Future] to poll [Func::AsyncFp].

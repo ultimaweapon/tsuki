@@ -98,9 +98,10 @@ pub struct C2RustUnnamed_3 {
     pub nextraargs: c_int,
 }
 
-pub unsafe fn luaE_extendCI<D>(L: *const Thread<D>) -> *mut CallInfo<D> {
-    let mut ci = null_mut();
-    ci = luaM_malloc_((*L).hdr.global, ::core::mem::size_of::<CallInfo<D>>()) as *mut CallInfo<D>;
+#[inline(never)]
+pub unsafe fn luaE_extendCI<A>(L: *const Thread<A>) -> *mut CallInfo<A> {
+    let ci = luaM_malloc_((*L).hdr.global, size_of::<CallInfo<A>>()) as *mut CallInfo<A>;
+
     (*(*L).ci.get()).next = ci;
     (*ci).previous = (*L).ci.get();
     (*ci).next = null_mut();
