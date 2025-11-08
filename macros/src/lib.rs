@@ -1,18 +1,18 @@
 use proc_macro::TokenStream;
 use syn::{Error, ItemEnum, ItemImpl, parse_macro_input};
 
-mod class;
+mod attribute;
 mod derive;
 
 #[proc_macro_attribute]
 pub fn class(arg: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemImpl);
-    let mut args = self::class::Args::default();
+    let mut args = self::attribute::class::Args::default();
     let parser = syn::meta::parser(|m| args.parse(m));
 
     parse_macro_input!(arg with parser);
 
-    self::class::parse(item, args)
+    self::attribute::class::parse(item, args)
         .unwrap_or_else(Error::into_compile_error)
         .into()
 }
