@@ -253,7 +253,7 @@ pub fn ult<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
 fn pushnumint(d: Float) -> Number {
     // TODO: This does not seems right even on Lua implementation. Lua said MININTEGER always has an
     // exact representation as a float but it does not.
-    if d >= i64::MIN as f64 && d <= i64::MAX as f64 {
+    if d >= i64::MIN as f64 && d < -(i64::MIN as f64) {
         Number::Int(f64::from(d) as i64)
     } else {
         Number::Float(d)
