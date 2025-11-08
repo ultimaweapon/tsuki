@@ -910,7 +910,7 @@ impl<'a, A> Value<'a, A> {
     /// Constructs [Value] from [Arg].
     ///
     /// Returns [None] if argument `v` does not exists.
-    #[inline(always)]
+    #[inline]
     pub fn from_arg(v: &Arg<'_, 'a, A>) -> Option<Self> {
         let v = v.get_raw_or_null();
 
@@ -924,6 +924,16 @@ impl<'a, A> Value<'a, A> {
     #[inline(always)]
     pub const fn is_nil(&self) -> bool {
         matches!(self, Self::Nil)
+    }
+
+    /// Returns [Type] for this value.
+    #[inline(always)]
+    pub fn ty(&self) -> Type {
+        // SAFETY: Value has #[repr(u64)].
+        let t = unsafe { (self as *const Self as *const u64).read() };
+
+        // SAFETY: Low-order byte has the same value as Type.
+        unsafe { core::mem::transmute((t & 0xf) as u8) }
     }
 
     #[inline(never)]
@@ -1005,28 +1015,29 @@ pub struct AsyncFp<A>(
     ) -> Pin<Box<dyn Future<Output = Result<Context<A, Ret>, Box<dyn Error>>> + '_>>,
 );
 
-impl<D> AsyncFp<D> {
-    /// Construct a new [`AsyncFp`] from a function pointer.
+impl<A> AsyncFp<A> {
+    /// Construct a new [AsyncFp] from a function pointer.
     ///
-    /// [`fp`] macro is more convenience than this function.
+    /// [fp] macro is more convenience than this function.
+    #[inline(always)]
     pub const fn new(
         v: fn(
-            Context<D, Args>,
+            Context<A, Args>,
         )
-            -> Pin<Box<dyn Future<Output = Result<Context<D, Ret>, Box<dyn Error>>> + '_>>,
+            -> Pin<Box<dyn Future<Output = Result<Context<A, Ret>, Box<dyn Error>>> + '_>>,
     ) -> Self {
         Self(v)
     }
 }
 
-impl<D> Clone for AsyncFp<D> {
+impl<A> Clone for AsyncFp<A> {
     #[inline(always)]
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<D> Copy for AsyncFp<D> {}
+impl<A> Copy for AsyncFp<A> {}
 
 /// Unit struct to store any value in registry or collection.
 pub struct Dynamic;

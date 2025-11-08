@@ -1,17 +1,28 @@
 use core::fmt::{Display, Formatter};
 
 /// Type of Lua value.
+///
+/// [Display] implementation on this type produce the same value as `lua_typename`.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Type {
+    /// `nil`.
     Nil,
+    /// `boolean`.
     Boolean,
+    /// `function` that implemented by a function pointer.
     Fp,
+    /// `number`.
     Number,
+    /// `string`.
     String,
+    /// `table`.
     Table,
+    /// `function` that implemented in Lua or Rust closure.
     Fn,
+    /// `userdata`.
     UserData,
+    /// `thread`.
     Thread,
 }
 

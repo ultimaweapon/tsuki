@@ -48,6 +48,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 
 - Binary chunk is not supported.
 - Hook functions is not supported.
+- Light userdata is not supported.
 - Panic when memory allocation is failed without retry (same as Rust).
 - GC has only one mode and cannot control from outside.
 - Chunk name does not have a prefix (e.g. `@`).
@@ -112,6 +113,12 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - Float to string conversion does not truncate precision (Lua limit this to 14 digits by default).
 - Float literal no longer accept hexadecimal format.
 - U+000B VERTICAL TAB no longer considered as a whitespace.
+
+## Frequently Asked Questions
+
+### Can we have zero-based indexing?
+
+This requires too much changes to the language so the answer is no. See #16 for more details.
 
 ## License
 
