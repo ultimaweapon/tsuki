@@ -298,31 +298,8 @@ pub unsafe fn luaD_poscall<A>(
 
     moveresults(L, (*ci).func, nres, wanted)?;
     (*L).ci.set((*ci).previous);
+
     Ok(())
-}
-
-#[inline(always)]
-unsafe fn prepCallInfo<A>(
-    L: *const Thread<A>,
-    func: *mut StackValue<A>,
-    nret: c_int,
-    mask: c_int,
-    top: *mut StackValue<A>,
-) -> *mut CallInfo<A> {
-    let mut ci = (*(*L).ci.get()).next;
-
-    if ci.is_null() {
-        ci = luaE_extendCI(L);
-    }
-
-    (*L).ci.set(ci);
-
-    (*ci).func = func;
-    (*ci).nresults = nret as c_short;
-    (*ci).callstatus = mask as c_ushort;
-    (*ci).top = top;
-
-    ci
 }
 
 pub async unsafe fn luaD_pretailcall<D>(
@@ -432,7 +409,7 @@ pub async unsafe fn luaD_precall<D>(
                     func = ((*L).stack.get() as *mut c_char).offset(t__ as isize) as _;
                 }
 
-                ci = prepCallInfo(
+                ci = get_ci(
                     L,
                     func,
                     nresults,
@@ -583,7 +560,7 @@ pub unsafe fn luaD_protectedparser<D>(
     status
 }
 
-#[inline(always)]
+#[inline]
 pub unsafe fn call_fp<A>(
     L: &Thread<A>,
     func: *mut StackValue<A>,
@@ -599,7 +576,7 @@ pub unsafe fn call_fp<A>(
 
     // Invoke.
     let top = L.top.get();
-    let ci = prepCallInfo(L, func, nresults, 1 << 1, top);
+    let ci = get_ci(L, func, nresults, 1 << 1, top);
     let narg = top.offset_from_unsigned(func) - 1;
     let cx = Context::new(L, Args::new(narg));
     let cx = fp(cx)?;
@@ -614,7 +591,6 @@ pub unsafe fn call_fp<A>(
     Ok(n)
 }
 
-#[inline(always)]
 pub async unsafe fn call_async_fp<A>(
     L: &Thread<A>,
     func: *mut StackValue<A>,
@@ -625,7 +601,7 @@ pub async unsafe fn call_async_fp<A>(
 ) -> Result<c_int, Box<dyn Error>> {
     // Invoke.
     let top = L.top.get();
-    let ci = prepCallInfo(L, func, nresults, 1 << 1, top);
+    let ci = get_ci(L, func, nresults, 1 << 1, top);
     let narg = top.offset_from_unsigned(func) - 1;
     let cx = Context::new(L, Args::new(narg));
     let cx = AsyncInvoker {
@@ -642,6 +618,30 @@ pub async unsafe fn call_async_fp<A>(
     luaD_poscall(L, ci, n)?;
 
     Ok(n)
+}
+
+#[inline]
+unsafe fn get_ci<A>(
+    L: *const Thread<A>,
+    func: *mut StackValue<A>,
+    nret: c_int,
+    mask: c_int,
+    top: *mut StackValue<A>,
+) -> *mut CallInfo<A> {
+    let mut ci = (*(*L).ci.get()).next;
+
+    if ci.is_null() {
+        ci = luaE_extendCI(L);
+    }
+
+    (*L).ci.set(ci);
+
+    (*ci).func = func;
+    (*ci).nresults = nret as c_short;
+    (*ci).callstatus = mask as c_ushort;
+    (*ci).top = top;
+
+    ci
 }
 
 /// Implementation of [Future] to poll [Func::AsyncFp].

@@ -179,6 +179,15 @@ pub fn sin<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
     Ok(cx.into())
 }
 
+/// Implementation of [math.sqrt](https://www.lua.org/manual/5.4/manual.html#pdf-math.sqrt).
+pub fn sqrt<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let Float(arg) = cx.arg(1).to_float()?;
+
+    cx.push(arg.sqrt())?;
+
+    Ok(cx.into())
+}
+
 /// Implementation of [math.tan](https://www.lua.org/manual/5.4/manual.html#pdf-math.tan).
 pub fn tan<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1).to_float()?;
