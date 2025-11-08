@@ -68,6 +68,15 @@ pub fn deg<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
     Ok(cx.into())
 }
 
+/// Implementation of [math.exp](https://www.lua.org/manual/5.4/manual.html#pdf-math.exp).
+pub fn exp<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let Float(arg) = cx.arg(1).to_float()?;
+
+    cx.push(arg.exp())?;
+
+    Ok(cx.into())
+}
+
 /// Implementation of [math.floor](https://www.lua.org/manual/5.4/manual.html#pdf-math.floor).
 pub fn floor<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1);

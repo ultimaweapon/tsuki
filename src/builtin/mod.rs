@@ -116,6 +116,7 @@ impl<A> Module<A> for MathLib {
         m.set_str_key("atan", fp!(self::math::atan));
         m.set_str_key("cos", fp!(self::math::cos));
         m.set_str_key("deg", fp!(self::math::deg));
+        m.set_str_key("exp", fp!(self::math::exp));
         m.set_str_key("floor", fp!(self::math::floor));
         m.set_str_key("fmod", fp!(self::math::fmod));
         m.set_str_key("huge", f64::INFINITY);
