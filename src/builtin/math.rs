@@ -50,6 +50,22 @@ pub fn atan<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
     Ok(cx.into())
 }
 
+/// Implementation of [math.ceil](https://www.lua.org/manual/5.4/manual.html#pdf-math.ceil).
+pub fn ceil<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let arg = cx.arg(1);
+
+    match arg.as_int() {
+        Some(v) => cx.push(v)?,
+        None => {
+            let Float(arg) = arg.to_float()?;
+
+            cx.push(pushnumint(arg.ceil().into()))?;
+        }
+    }
+
+    Ok(cx.into())
+}
+
 /// Implementation of [math.cos](https://www.lua.org/manual/5.4/manual.html#pdf-math.cos).
 pub fn cos<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let arg = cx.arg(1).to_float()?;

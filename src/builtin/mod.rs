@@ -114,6 +114,7 @@ impl<A> Module<A> for MathLib {
         m.set_str_key("acos", fp!(self::math::acos));
         m.set_str_key("asin", fp!(self::math::asin));
         m.set_str_key("atan", fp!(self::math::atan));
+        m.set_str_key("ceil", fp!(self::math::ceil));
         m.set_str_key("cos", fp!(self::math::cos));
         m.set_str_key("deg", fp!(self::math::deg));
         m.set_str_key("exp", fp!(self::math::exp));
