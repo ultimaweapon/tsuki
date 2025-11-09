@@ -1095,10 +1095,7 @@ impl CallError {
         let mut chunk = None;
 
         while unsafe { ci != (*th).base_ci.get() } {
-            let mut ar = lua_Debug {
-                i_ci: ci,
-                ..Default::default()
-            };
+            let mut ar = lua_Debug::default();
 
             let func = unsafe { (*th).stack.get().add((*ci).func) };
             let cl = if unsafe {

@@ -114,11 +114,9 @@ pub unsafe fn luaL_argerror<D>(
             message: format!("bad argument #{arg}"),
             reason: reason.into(),
         });
-    } else {
-        ar.i_ci = ci;
     }
 
-    ar.namewhat = getfuncname(L, ar.i_ci, &mut ar.name);
+    ar.namewhat = getfuncname(L, ci, &mut ar.name);
 
     if ar.namewhat.is_null() {
         ar.namewhat = b"\0" as *const u8 as *const c_char;
@@ -142,7 +140,7 @@ pub unsafe fn luaL_argerror<D>(
 
     // Get name.
     let name = match ar.name.is_null() {
-        true => match pushglobalfuncname(L, ar.i_ci) {
+        true => match pushglobalfuncname(L, ci) {
             Ok(v) if v.is_empty() => b"?".into(),
             Ok(v) => Cow::Owned(v),
             Err(e) => return e,

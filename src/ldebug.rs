@@ -134,6 +134,7 @@ pub unsafe fn luaG_findlocal<D>(
 
 pub unsafe fn lua_getlocal<D>(
     L: *const Thread<D>,
+    ci: *mut CallInfo,
     ar: *const lua_Debug,
     n: c_int,
 ) -> *const c_char {
@@ -154,7 +155,7 @@ pub unsafe fn lua_getlocal<D>(
         }
     } else {
         let mut pos = null_mut();
-        name = luaG_findlocal(L, (*ar).i_ci, n, &mut pos);
+        name = luaG_findlocal(L, ci, n, &mut pos);
         if !name.is_null() {
             let io1 = (*L).top.get();
             let io2 = pos;
@@ -168,14 +169,10 @@ pub unsafe fn lua_getlocal<D>(
     return name;
 }
 
-pub unsafe fn lua_setlocal<D>(
-    L: *const Thread<D>,
-    ar: *const lua_Debug,
-    n: c_int,
-) -> *const c_char {
+pub unsafe fn lua_setlocal<A>(L: *const Thread<A>, ci: *mut CallInfo, n: c_int) -> *const c_char {
     let mut pos = null_mut();
     let mut name: *const c_char = 0 as *const c_char;
-    name = luaG_findlocal(L, (*ar).i_ci, n, &mut pos);
+    name = luaG_findlocal(L, ci, n, &mut pos);
     if !name.is_null() {
         let io1 = pos;
         let io2 = ((*L).top.get()).offset(-1);

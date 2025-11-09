@@ -30,7 +30,6 @@ pub struct lua_Debug {
     pub istailcall: c_char,
     pub ftransfer: usize,
     pub ntransfer: usize,
-    pub(crate) i_ci: *mut CallInfo,
 }
 
 impl Default for lua_Debug {
@@ -51,7 +50,6 @@ impl Default for lua_Debug {
             istailcall: 0,
             ftransfer: 0,
             ntransfer: 0,
-            i_ci: null_mut(),
         }
     }
 }
