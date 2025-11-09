@@ -3,9 +3,10 @@
 
 use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
 use crate::lmem::{luaM_free_, luaM_malloc_};
-use crate::{CallError, ChunkInfo, StackValue, Thread};
+use crate::{CallError, ChunkInfo, Thread};
 use alloc::boxed::Box;
 use core::ffi::c_char;
+use core::num::NonZero;
 use core::ptr::{null, null_mut};
 
 type c_uchar = u8;
@@ -14,7 +15,7 @@ type c_ushort = u16;
 type c_int = i32;
 
 #[repr(C)]
-pub struct lua_Debug<D> {
+pub struct lua_Debug {
     pub event: c_int,
     pub name: *const c_char,
     pub namewhat: *const c_char,
@@ -29,10 +30,10 @@ pub struct lua_Debug<D> {
     pub istailcall: c_char,
     pub ftransfer: usize,
     pub ntransfer: usize,
-    pub(crate) i_ci: *mut CallInfo<D>,
+    pub(crate) i_ci: *mut CallInfo,
 }
 
-impl<D> Default for lua_Debug<D> {
+impl Default for lua_Debug {
     #[inline(always)]
     fn default() -> Self {
         Self {
@@ -56,9 +57,9 @@ impl<D> Default for lua_Debug<D> {
 }
 
 #[repr(C)]
-pub struct CallInfo<A> {
+pub struct CallInfo {
     pub func: usize,
-    pub top: *mut StackValue<A>,
+    pub top: NonZero<usize>,
     pub previous: *mut Self,
     pub next: *mut Self,
     pub u: C2RustUnnamed_3,
@@ -91,8 +92,8 @@ pub struct C2RustUnnamed_3 {
 }
 
 #[inline(never)]
-pub unsafe fn luaE_extendCI<A>(L: *const Thread<A>) -> *mut CallInfo<A> {
-    let ci = luaM_malloc_((*L).hdr.global, size_of::<CallInfo<A>>()) as *mut CallInfo<A>;
+pub unsafe fn luaE_extendCI<A>(L: *const Thread<A>) -> *mut CallInfo {
+    let ci = luaM_malloc_((*L).hdr.global, size_of::<CallInfo>()) as *mut CallInfo;
 
     (*(*L).ci.get()).next = ci;
     (*ci).previous = (*L).ci.get();
@@ -118,7 +119,8 @@ pub unsafe fn luaE_shrinkCI<D>(L: *const Thread<D>) {
         (*ci).next = next2;
         (*L).nci.set((*L).nci.get().wrapping_sub(1));
 
-        luaM_free_(next.cast(), ::core::mem::size_of::<CallInfo<D>>());
+        luaM_free_(next.cast(), size_of::<CallInfo>());
+
         if next2.is_null() {
             break;
         }
@@ -138,9 +140,9 @@ pub unsafe fn lua_closethread<D>(L: &Thread<D>) -> Result<(), Box<CallError>> {
     let status = luaD_closeprotected(L, 1, Ok(()));
 
     (*L).top.set(((*L).stack.get()).offset(1 as c_int as isize));
-    (*ci).top = ((*L).top.get()).offset(20 as c_int as isize);
+    (*ci).top = NonZero::new(1).unwrap();
 
-    luaD_reallocstack(L, ((*ci).top).offset_from_unsigned((*L).stack.get()));
+    luaD_reallocstack(L, (*ci).top.get());
 
     return status;
 }

@@ -227,15 +227,6 @@ extern crate alloc;
 #[cfg(feature = "std")]
 extern crate std;
 
-#[inline(always)]
-unsafe fn api_incr_top<D>(th: *const Thread<D>) {
-    unsafe { (*th).top.add(1) };
-
-    if unsafe { (*th).top.get() > (*(*th).ci.get()).top } {
-        panic!("stack overflow");
-    }
-}
-
 /// Helper macro to construct [Fp] or [AsyncFp].
 #[macro_export]
 macro_rules! fp {

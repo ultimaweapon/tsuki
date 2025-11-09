@@ -62,7 +62,7 @@ unsafe fn findfield<A>(
 
 unsafe fn pushglobalfuncname<A>(
     L: *const Thread<A>,
-    ci: *mut CallInfo<A>,
+    ci: *mut CallInfo,
 ) -> Result<Vec<u8>, Box<dyn core::error::Error>> {
     // Search global table first so we don't found a global function in _G module.
     let mut names = Vec::with_capacity(2);

@@ -11,7 +11,7 @@ use crate::ltm::{
 use crate::table::luaH_setint;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, OpCode, luaP_opmodes, luaV_tointegerns};
-use crate::{Lua, LuaFn, Object, StackValue, Str, Table, Thread, api_incr_top};
+use crate::{Lua, LuaFn, Object, StackValue, Str, Table, Thread};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
@@ -25,7 +25,7 @@ type c_int = i32;
 type c_uint = u32;
 type c_long = i64;
 
-unsafe fn currentpc<D>(ci: *mut CallInfo<D>) -> c_int {
+unsafe fn currentpc(ci: *mut CallInfo) -> c_int {
     return (*ci).pc as c_int - 1;
 }
 
@@ -67,7 +67,7 @@ pub unsafe fn luaG_getfuncline<D>(f: *const Proto<D>, pc: c_int) -> c_int {
     };
 }
 
-unsafe fn settraps<D>(mut ci: *mut CallInfo<D>) {
+unsafe fn settraps(mut ci: *mut CallInfo) {
     while !ci.is_null() {
         if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
             ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut c_int, 1 as c_int);
@@ -76,11 +76,7 @@ unsafe fn settraps<D>(mut ci: *mut CallInfo<D>) {
     }
 }
 
-pub unsafe fn lua_getstack<D>(
-    L: *const Thread<D>,
-    mut level: c_int,
-    ar: &mut lua_Debug<D>,
-) -> c_int {
+pub unsafe fn lua_getstack<D>(L: *const Thread<D>, mut level: c_int, ar: &mut lua_Debug) -> c_int {
     let mut status: c_int = 0;
 
     if level < 0 as c_int {
@@ -116,7 +112,7 @@ unsafe fn upvalname<D>(p: *const Proto<D>, uv: usize) -> *const c_char {
 
 pub unsafe fn luaG_findlocal<D>(
     L: *const Thread<D>,
-    ci: *mut CallInfo<D>,
+    ci: *mut CallInfo,
     n: c_int,
     pos: *mut *mut StackValue<D>,
 ) -> *const c_char {
@@ -173,7 +169,7 @@ pub unsafe fn luaG_findlocal<D>(
 
 pub unsafe fn lua_getlocal<D>(
     L: *const Thread<D>,
-    ar: *const lua_Debug<D>,
+    ar: *const lua_Debug,
     n: c_int,
 ) -> *const c_char {
     let mut name: *const c_char = 0 as *const c_char;
@@ -200,7 +196,8 @@ pub unsafe fn lua_getlocal<D>(
 
             (*io1).value_ = (*io2).value_;
             (*io1).tt_ = (*io2).tt_;
-            api_incr_top(L);
+
+            unsafe { (*L).top.add(1) };
         }
     }
     return name;
@@ -208,7 +205,7 @@ pub unsafe fn lua_getlocal<D>(
 
 pub unsafe fn lua_setlocal<D>(
     L: *const Thread<D>,
-    ar: *const lua_Debug<D>,
+    ar: *const lua_Debug,
     n: c_int,
 ) -> *const c_char {
     let mut pos = null_mut();
@@ -225,7 +222,7 @@ pub unsafe fn lua_setlocal<D>(
     return name;
 }
 
-unsafe fn funcinfo<D>(ar: &mut lua_Debug<D>, cl: *const Object<D>) {
+unsafe fn funcinfo<D>(ar: &mut lua_Debug, cl: *const Object<D>) {
     if !(!cl.is_null() && (*cl).tt as c_int == 6 as c_int | (0 as c_int) << 4) {
         (*ar).source = None;
         (*ar).linedefined = -(1 as c_int);
@@ -256,7 +253,7 @@ unsafe fn nextline<D>(p: *const Proto<D>, currentline: c_int, pc: c_int) -> c_in
 unsafe fn collectvalidlines<D>(L: *const Thread<D>, f: *const Object<D>) {
     if !(!f.is_null() && (*f).tt as c_int == 6 as c_int | (0 as c_int) << 4) {
         (*(*L).top.get()).tt_ = (0 as c_int | (0 as c_int) << 4) as u8;
-        api_incr_top(L);
+        unsafe { (*L).top.add(1) };
     } else {
         let p = (*f.cast::<LuaFn<D>>()).p.get();
         let mut currentline: c_int = (*p).linedefined;
@@ -266,7 +263,7 @@ unsafe fn collectvalidlines<D>(L: *const Thread<D>, f: *const Object<D>) {
         (*io).value_.gc = t.cast();
         (*io).tt_ = (5 as c_int | (0 as c_int) << 4 as c_int | 1 << 6) as u8;
 
-        api_incr_top(L);
+        unsafe { (*L).top.add(1) };
 
         if !((*p).lineinfo).is_null() {
             let mut i: c_int = 0;
@@ -289,7 +286,7 @@ unsafe fn collectvalidlines<D>(L: *const Thread<D>, f: *const Object<D>) {
 
 unsafe fn getfuncname<A>(
     L: *const Thread<A>,
-    ci: *mut CallInfo<A>,
+    ci: *mut CallInfo,
     name: *mut *const c_char,
 ) -> *const c_char {
     if !ci.is_null() && (*ci).callstatus as c_int & (1 as c_int) << 5 as c_int == 0 {
@@ -302,9 +299,9 @@ unsafe fn getfuncname<A>(
 unsafe fn auxgetinfo<D>(
     L: *const Thread<D>,
     mut what: *const c_char,
-    ar: &mut lua_Debug<D>,
+    ar: &mut lua_Debug,
     f: *const Object<D>,
-    ci: *mut CallInfo<D>,
+    ci: *mut CallInfo,
 ) -> c_int {
     let mut status: c_int = 1 as c_int;
     while *what != 0 {
@@ -369,7 +366,7 @@ unsafe fn auxgetinfo<D>(
 pub unsafe fn lua_getinfo<D>(
     L: *const Thread<D>,
     mut what: *const c_char,
-    ar: &mut lua_Debug<D>,
+    ar: &mut lua_Debug,
 ) -> c_int {
     let mut status: c_int = 0;
     let mut ci = null_mut();
@@ -397,7 +394,8 @@ pub unsafe fn lua_getinfo<D>(
 
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;
-        api_incr_top(L);
+
+        unsafe { (*L).top.add(1) };
     }
     if !strchr(what, 'L' as i32).is_null() {
         collectvalidlines(L, cl);
@@ -698,7 +696,7 @@ unsafe fn funcnamefromcode<A>(
 
 unsafe fn funcnamefromcall<A>(
     L: *const Thread<A>,
-    ci: *mut CallInfo<A>,
+    ci: *mut CallInfo,
     name: *mut *const c_char,
 ) -> *const c_char {
     if (*ci).callstatus as c_int & (1 as c_int) << 3 as c_int != 0 {
@@ -721,12 +719,14 @@ unsafe fn funcnamefromcall<A>(
     };
 }
 
-unsafe fn instack<A>(th: &Thread<A>, ci: *mut CallInfo<A>, o: *const UnsafeValue<A>) -> c_int {
+unsafe fn instack<A>(th: &Thread<A>, ci: *mut CallInfo, o: *const UnsafeValue<A>) -> c_int {
     let mut pos: c_int = 0;
-    let base = th.stack.get().add((*ci).func).offset(1);
+    let stack = th.stack.get();
+    let base = stack.add((*ci).func).offset(1);
+    let end = stack.add((*ci).top.get());
 
     pos = 0 as c_int;
-    while base.offset(pos as isize) < (*ci).top {
+    while base.offset(pos as isize) < end {
         if o == base.offset(pos as isize).cast() {
             return pos;
         }
@@ -737,7 +737,7 @@ unsafe fn instack<A>(th: &Thread<A>, ci: *mut CallInfo<A>, o: *const UnsafeValue
 
 unsafe fn getupvalname<A>(
     th: &Thread<A>,
-    ci: *mut CallInfo<A>,
+    ci: *mut CallInfo,
     o: *const UnsafeValue<A>,
     name: *mut *const c_char,
 ) -> *const c_char {

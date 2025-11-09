@@ -18,6 +18,7 @@ use core::alloc::Layout;
 use core::cell::{Cell, UnsafeCell};
 use core::error::Error;
 use core::marker::PhantomPinned;
+use core::num::NonZero;
 use core::pin::pin;
 use core::ptr::{addr_of_mut, null, null_mut};
 use core::task::{Context, Poll, Waker};
@@ -38,13 +39,13 @@ pub struct Thread<A> {
     pub(crate) hdr: Object<A>,
     pub(crate) nci: Cell<u16>,
     pub(crate) top: StackPtr<A>,
-    pub(crate) ci: Cell<*mut CallInfo<A>>,
+    pub(crate) ci: Cell<*mut CallInfo>,
     pub(crate) stack_last: Cell<*mut StackValue<A>>,
     pub(crate) stack: Cell<*mut StackValue<A>>,
     pub(crate) openupval: Cell<*mut UpVal<A>>,
     pub(crate) tbclist: Cell<*mut StackValue<A>>,
     pub(crate) twups: Cell<*const Self>,
-    pub(crate) base_ci: UnsafeCell<CallInfo<A>>,
+    pub(crate) base_ci: UnsafeCell<CallInfo>,
     phantom: PhantomPinned,
 }
 
@@ -88,7 +89,7 @@ impl<A> Thread<A> {
         unsafe { (*ci).nresults = 0 };
         unsafe { (*th).top.write_nil() };
         unsafe { (*th).top.add(1) };
-        unsafe { (*ci).top = (*th).top.get() };
+        unsafe { addr_of_mut!((*ci).top).write(NonZero::new(1).unwrap()) };
         unsafe { (*th).ci.set(ci) };
 
         th
@@ -269,7 +270,7 @@ impl<D> Drop for Thread<D> {
 
             next = unsafe { (*ci).next };
 
-            unsafe { luaM_free_(ci.cast(), size_of::<CallInfo<D>>()) };
+            unsafe { luaM_free_(ci.cast(), size_of::<CallInfo>()) };
             self.nci.set(self.nci.get().wrapping_sub(1));
         }
 

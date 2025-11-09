@@ -1,14 +1,11 @@
 #![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::context::{Args, Context, Ret};
 use crate::ldo::luaD_growstack;
-use crate::lfunc::luaF_newCclosure;
 use crate::lobject::CClosure;
 use crate::ltm::luaT_typenames_;
 use crate::value::UnsafeValue;
-use crate::{LuaFn, Object, StackOverflow, StackValue, Thread, api_incr_top};
-use alloc::boxed::Box;
+use crate::{LuaFn, Object, StackOverflow, StackValue, Thread};
 use core::cmp::max;
 use core::ffi::c_char;
 
@@ -23,7 +20,7 @@ pub unsafe fn lua_checkstack<A>(
 ) -> Result<(), StackOverflow> {
     let ci = (*L).ci.get();
 
-    if (*L).top.get().add(need) <= (*ci).top {
+    if (*L).top.get().add(need) <= (*L).stack.get().add((*ci).top.get()) {
         Ok(())
     } else {
         growstack(L, max(need, reserve))
@@ -39,7 +36,13 @@ unsafe fn growstack<A>(L: *const Thread<A>, n: usize) -> Result<(), StackOverflo
         luaD_growstack(L, n)?;
     }
 
-    (*ci).top = (*L).top.get().add(n);
+    (*ci).top = (*L)
+        .top
+        .get()
+        .add(n)
+        .offset_from_unsigned((*L).stack.get())
+        .try_into()
+        .unwrap();
 
     Ok(())
 }
@@ -67,39 +70,6 @@ unsafe fn reverse<D>(mut from: *mut StackValue<D>, mut to: *mut StackValue<D>) {
 #[inline(always)]
 pub const fn lua_typename(t: c_int) -> &'static str {
     luaT_typenames_[(t + 1) as usize]
-}
-
-pub unsafe fn lua_pushcclosure<D>(
-    L: *const Thread<D>,
-    fn_0: for<'a> fn(
-        Context<'a, D, Args>,
-    ) -> Result<Context<'a, D, Ret>, Box<dyn core::error::Error>>,
-    mut n: c_int,
-) {
-    let cl = luaF_newCclosure((*L).hdr.global, n);
-
-    (*cl).f = fn_0;
-    (*L).top.sub(n.try_into().unwrap());
-
-    loop {
-        let fresh2 = n;
-        n = n - 1;
-        if !(fresh2 != 0) {
-            break;
-        }
-        let io1 = &raw mut *((*cl).upvalue).as_mut_ptr().offset(n as isize) as *mut UnsafeValue<D>;
-        let io2 = ((*L).top.get()).offset(n as isize);
-        (*io1).value_ = (*io2).value_;
-        (*io1).tt_ = (*io2).tt_;
-    }
-
-    let io_0 = (*L).top.get();
-    let x_ = cl;
-
-    (*io_0).value_.gc = x_.cast();
-    (*io_0).tt_ = (6 as c_int | (2 as c_int) << 4 as c_int | (1 as c_int) << 6 as c_int) as u8;
-
-    api_incr_top(L);
 }
 
 unsafe fn aux_upvalue<D>(

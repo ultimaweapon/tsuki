@@ -349,7 +349,7 @@ pub unsafe fn luaT_callorderiTM<A>(
 pub unsafe fn luaT_adjustvarargs<D>(
     L: *const Thread<D>,
     nfixparams: c_int,
-    ci: *mut CallInfo<D>,
+    ci: *mut CallInfo,
     p: *const Proto<D>,
 ) -> Result<(), Box<dyn core::error::Error>> {
     let actual: c_int = ((*L).top.get()).offset_from((*L).stack.get().add((*ci).func)) as c_int - 1;
@@ -386,7 +386,12 @@ pub unsafe fn luaT_adjustvarargs<D>(
     (*ci).func = f
         .offset((actual + 1) as isize)
         .offset_from_unsigned((*L).stack.get());
-    (*ci).top = ((*ci).top).offset((actual + 1 as c_int) as isize);
+    (*ci).top = (*ci)
+        .top
+        .get()
+        .strict_add_signed((actual + 1) as isize)
+        .try_into()
+        .unwrap();
 
     Ok(())
 }
@@ -394,7 +399,7 @@ pub unsafe fn luaT_adjustvarargs<D>(
 #[inline(always)]
 pub unsafe fn luaT_getvarargs<D>(
     L: *const Thread<D>,
-    ci: *mut CallInfo<D>,
+    ci: *mut CallInfo,
     mut where_0: *mut StackValue<D>,
     mut wanted: c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {

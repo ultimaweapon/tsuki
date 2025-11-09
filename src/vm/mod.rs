@@ -1139,7 +1139,7 @@ unsafe fn pushclosure<D>(
 
 pub async unsafe fn run<A>(
     th: &Thread<A>,
-    mut ci: *mut CallInfo<A>,
+    mut ci: *mut CallInfo,
 ) -> Result<(), Box<dyn core::error::Error>> {
     'top: loop {
         let cl = &*(*th.stack.get().add((*ci).func))
@@ -1590,7 +1590,8 @@ pub async unsafe fn run<A>(
                             }
                         }
                     } else {
-                        (*th).top.set((*ci).top);
+                        (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                         luaV_finishset(th, upval_0, rb_4, rc_2, slot_3)?;
 
                         base = th.stack.get().add((*ci).func + 1);
@@ -1654,7 +1655,8 @@ pub async unsafe fn run<A>(
                             }
                         }
                     } else {
-                        (*th).top.set((*ci).top);
+                        (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                         luaV_finishset(th, tab.cast(), key.cast(), val, slot)?;
 
                         base = th.stack.get().add((*ci).func + 1);
@@ -1729,7 +1731,9 @@ pub async unsafe fn run<A>(
 
                         (*io_2).value_.i = c_0 as i64;
                         (*io_2).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
-                        (*th).top.set((*ci).top);
+
+                        (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                         luaV_finishset(th, ra_15.cast(), &mut key_3, rc_4, slot_5)?;
 
                         base = th.stack.get().add((*ci).func + 1);
@@ -1794,7 +1798,8 @@ pub async unsafe fn run<A>(
                             }
                         }
                     } else {
-                        (*th).top.set((*ci).top);
+                        (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                         luaV_finishset(th, ra_16.cast(), rb_6, rc_5, slot_6)?;
 
                         base = th.stack.get().add((*ci).func + 1);
@@ -2143,7 +2148,7 @@ pub async unsafe fn run<A>(
                     next!();
                 }
                 25 => {
-                    (*th).top.set((*ci).top);
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
 
                     let v1_3 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
@@ -2315,7 +2320,8 @@ pub async unsafe fn run<A>(
                     next!();
                 }
                 28 => {
-                    (*th).top.set((*ci).top);
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                     let v1_6 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2753,7 +2759,8 @@ pub async unsafe fn run<A>(
                     next!();
                 }
                 37 => {
-                    (*th).top.set((*ci).top);
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                     let v1_13 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2925,7 +2932,8 @@ pub async unsafe fn run<A>(
                     next!();
                 }
                 40 => {
-                    (*th).top.set((*ci).top);
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                     let v1_16 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -3245,7 +3253,7 @@ pub async unsafe fn run<A>(
                         & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                         as c_int as TMS;
 
-                    (*th).top.set((*ci).top);
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
 
                     let val = luaT_trybinTM(th, ra.cast(), rb.cast(), tm)?;
 
@@ -3284,7 +3292,7 @@ pub async unsafe fn run<A>(
                         & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                         as c_int;
 
-                    (*th).top.set((*ci).top);
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
 
                     let val = luaT_trybiniTM(th, ra.cast(), imm_0 as i64, flip, tm_0)?;
 
@@ -3324,7 +3332,7 @@ pub async unsafe fn run<A>(
                         & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                         as c_int;
 
-                    (*th).top.set((*ci).top);
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
 
                     let val = luaT_trybinassocTM(th, ra.cast(), imm_1, flip_0, tm_1)?;
 
@@ -3373,7 +3381,7 @@ pub async unsafe fn run<A>(
                         (*io_41).value_.n = -nb_0;
                         (*io_41).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                     } else {
-                        (*th).top.set((*ci).top);
+                        (*th).top.set(th.stack.get().add((*ci).top.get()));
 
                         let val = luaT_trybinTM(th, rb_11.cast(), rb_11.cast(), TM_UNM)?;
 
@@ -3417,7 +3425,7 @@ pub async unsafe fn run<A>(
                         (*io_42).value_.i = (!(0 as c_int as u64) ^ ib_2 as u64) as i64;
                         (*io_42).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
-                        (*th).top.set((*ci).top);
+                        (*th).top.set(th.stack.get().add((*ci).top.get()));
 
                         let val = luaT_trybinTM(th, rb_12.cast(), rb_12.cast(), TM_BNOT)?;
 
@@ -3455,7 +3463,7 @@ pub async unsafe fn run<A>(
                     next!();
                 }
                 OP_LEN => {
-                    (*th).top.set((*ci).top);
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
 
                     let val = luaV_objlen(
                         th,
@@ -3506,7 +3514,7 @@ pub async unsafe fn run<A>(
                             as c_int as isize,
                     );
 
-                    (*th).top.set((*ci).top);
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
 
                     if let Err(e) = luaF_close(th, ra_52) {
                         return Err(e); // Requires unsized coercion.
@@ -3522,7 +3530,7 @@ pub async unsafe fn run<A>(
                             as c_int as isize,
                     );
 
-                    (*th).top.set((*ci).top);
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
                     luaF_newtbcupval(th, ra_53)?;
                     next!();
                 }
@@ -3552,7 +3560,8 @@ pub async unsafe fn run<A>(
                             as c_int as isize,
                     );
 
-                    (*th).top.set((*ci).top);
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                     cond = luaV_equalobj(Some(th), ra_54.cast(), rb_14.cast())?.into();
                     base = th.stack.get().add((*ci).func + 1);
 
@@ -3605,7 +3614,8 @@ pub async unsafe fn run<A>(
                     {
                         cond_0 = LTnum::<A>(ra_55.cast(), rb_15.cast());
                     } else {
-                        (*th).top.set((*ci).top);
+                        (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                         cond_0 = lessthanothers(th, ra_55.cast(), rb_15.cast())?;
                         base = th.stack.get().add((*ci).func + 1);
                     }
@@ -3658,7 +3668,8 @@ pub async unsafe fn run<A>(
                     {
                         cond_1 = LEnum::<A>(ra_56.cast(), rb_16.cast());
                     } else {
-                        (*th).top.set((*ci).top);
+                        (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                         cond_1 = lessequalothers(th, ra_56.cast(), rb_16.cast())?;
                         base = th.stack.get().add((*ci).func + 1);
                     }
@@ -3797,7 +3808,8 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int;
 
-                        (*th).top.set((*ci).top);
+                        (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                         cond_4 = luaT_callorderiTM(th, ra_59.cast(), im_0, 0, isf, TM_LT)?;
                         base = th.stack.get().add((*ci).func + 1);
                     }
@@ -3853,7 +3865,8 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int;
 
-                        (*th).top.set((*ci).top);
+                        (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                         cond_5 = luaT_callorderiTM(th, ra_60.cast(), im_1, 0, isf_0, TM_LE)?;
                         base = th.stack.get().add((*ci).func + 1);
                     }
@@ -3909,7 +3922,8 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int;
 
-                        (*th).top.set((*ci).top);
+                        (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                         cond_6 = luaT_callorderiTM(th, ra_61.cast(), im_2, 1, isf_1, TM_LT)?;
                         base = th.stack.get().add((*ci).func + 1);
                     }
@@ -3965,7 +3979,8 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int;
 
-                        (*th).top.set((*ci).top);
+                        (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                         cond_7 = luaT_callorderiTM(th, ra_62.cast(), im_3, 1, isf_2, TM_LE)?;
                         base = th.stack.get().add((*ci).func + 1);
                     }
@@ -4181,9 +4196,12 @@ pub async unsafe fn run<A>(
                     }
 
                     if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0 {
+                        let top = th.stack.get().add((*ci).top.get());
+
                         (*ci).u2.nres = n_3;
-                        if (*th).top.get() < (*ci).top {
-                            (*th).top.set((*ci).top);
+
+                        if (*th).top.get() < top {
+                            (*th).top.set(top);
                         }
 
                         if let Err(e) = luaF_close(th, base) {
@@ -4296,7 +4314,7 @@ pub async unsafe fn run<A>(
                             as c_int as isize,
                     );
 
-                    (*th).top.set((*ci).top);
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
 
                     if forprep(th, ra_72)? != 0 {
                         (*ci).pc = (*ci).pc.wrapping_add_signed(
@@ -4314,7 +4332,9 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    (*th).top.set((*ci).top);
+
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                     luaF_newtbcupval(th, ra_73.offset(3 as c_int as isize))?;
                     (*ci).pc = (*ci).pc.wrapping_add_signed(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int
@@ -4354,7 +4374,7 @@ pub async unsafe fn run<A>(
                     if n_4 == 0 as c_int {
                         n_4 = ((*th).top.get()).offset_from(ra_76) as c_int - 1 as c_int;
                     } else {
-                        (*th).top.set((*ci).top);
+                        (*th).top.set(th.stack.get().add((*ci).top.get()));
                     }
                     last = last.wrapping_add(n_4 as c_uint);
                     if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0 {
@@ -4411,7 +4431,9 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)
                                 << 0 as c_int) as c_int as isize,
                     );
-                    (*th).top.set((*ci).top);
+
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                     pushclosure(th, p, &cl.upvals, base, ra_77);
 
                     (*th).top.set(ra_77.offset(1 as c_int as isize));
@@ -4432,7 +4454,9 @@ pub async unsafe fn run<A>(
                         & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                         as c_int
                         - 1 as c_int;
-                    (*th).top.set((*ci).top);
+
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                     luaT_getvarargs(th, ci, ra_78, n_5)?;
                     base = th.stack.get().add((*ci).func + 1);
                     next!();
@@ -4456,7 +4480,7 @@ pub async unsafe fn run<A>(
             }
             match current_block {
                 0 => {
-                    (*th).top.set((*ci).top);
+                    (*th).top.set(th.stack.get().add((*ci).top.get()));
 
                     let val = luaV_finishget(th, tab, &raw const key, true)?;
 

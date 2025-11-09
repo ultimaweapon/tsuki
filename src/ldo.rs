@@ -31,7 +31,6 @@ type c_int = i32;
 type c_long = i64;
 
 unsafe fn relstack<D>(L: *const Thread<D>) {
-    let mut ci = null_mut();
     let mut up = null_mut();
 
     (*L).top
@@ -47,17 +46,9 @@ unsafe fn relstack<D>(L: *const Thread<D>) {
             .set(((*up).v.get()).byte_offset_from_unsigned((*L).stack.get()) as _);
         up = (*(*up).u.get()).open.next;
     }
-
-    ci = (*L).ci.get();
-
-    while !ci.is_null() {
-        (*ci).top = ((*ci).top).byte_offset_from_unsigned((*L).stack.get()) as _;
-        ci = (*ci).previous;
-    }
 }
 
 unsafe fn correctstack<D>(L: *const Thread<D>) {
-    let mut ci = null_mut();
     let mut up = null_mut();
 
     (*L).top
@@ -72,13 +63,6 @@ unsafe fn correctstack<D>(L: *const Thread<D>) {
             .v
             .set((((*L).stack.get()).byte_add((*up).v.get() as usize)).cast());
         up = (*(*up).u.get()).open.next;
-    }
-
-    ci = (*L).ci.get();
-
-    while !ci.is_null() {
-        (*ci).top = ((*L).stack.get()).byte_add((*ci).top as usize);
-        ci = (*ci).previous;
     }
 }
 
@@ -140,17 +124,16 @@ pub unsafe fn luaD_growstack<D>(L: *const Thread<D>, n: usize) -> Result<(), Sta
 
 unsafe fn stackinuse<D>(L: *const Thread<D>) -> usize {
     let mut res = 0;
-    let mut lim = (*L).top.get();
     let mut ci = (*L).ci.get();
 
     while !ci.is_null() {
-        if lim < (*ci).top {
-            lim = (*ci).top;
+        if res < (*ci).top.get() {
+            res = (*ci).top.get();
         }
         ci = (*ci).previous;
     }
 
-    res = lim.offset_from_unsigned((*L).stack.get()) + 1;
+    res += 1;
 
     if res < 20 {
         res = 20;
@@ -289,7 +272,7 @@ unsafe fn moveresults<A>(
 #[inline(always)]
 pub unsafe fn luaD_poscall<A>(
     L: &Thread<A>,
-    ci: *mut CallInfo<A>,
+    ci: *mut CallInfo,
     nres: c_int,
 ) -> Result<(), Box<dyn Error>> {
     let wanted: c_int = (*ci).nresults as c_int;
@@ -302,7 +285,7 @@ pub unsafe fn luaD_poscall<A>(
 
 pub async unsafe fn luaD_pretailcall<D>(
     L: *const Thread<D>,
-    ci: *mut CallInfo<D>,
+    ci: *mut CallInfo,
     mut func: *mut StackValue<D>,
     mut narg1: c_int,
     delta: c_int,
@@ -352,7 +335,11 @@ pub async unsafe fn luaD_pretailcall<D>(
                         (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     narg1 += 1;
                 }
-                (*ci).top = func.offset(1 as c_int as isize).offset(fsize as isize);
+
+                (*ci).top = ((*ci).func + 1)
+                    .strict_add_signed(fsize as isize)
+                    .try_into()
+                    .unwrap();
                 (*ci).pc = 0;
                 (*ci).callstatus =
                     ((*ci).callstatus as c_int | (1 as c_int) << 5 as c_int) as c_ushort;
@@ -371,7 +358,7 @@ pub async unsafe fn luaD_precall<D>(
     L: *const Thread<D>,
     mut func: *mut StackValue<D>,
     nresults: c_int,
-) -> Result<*mut CallInfo<D>, Box<dyn Error>> {
+) -> Result<*mut CallInfo, Box<dyn Error>> {
     loop {
         match (*func).tt_ & 0x3f {
             38 => {
@@ -435,19 +422,19 @@ pub async unsafe fn luaD_precall<D>(
 /// properly forwarded. See https://users.rust-lang.org/t/mystified-by-downcast-failure/52459 for
 /// more details.
 pub async unsafe fn luaD_call<A>(
-    L: &Thread<A>,
+    th: &Thread<A>,
     func: *mut StackValue<A>,
     nResults: c_int,
 ) -> Result<(), Box<CallError>> {
-    let old_top = func.byte_offset_from_unsigned((*L).stack.get());
-    let old_ci = (*L).ci.get();
-    let r = match luaD_precall(L, func, nResults).await {
+    let old_top = func.byte_offset_from_unsigned((*th).stack.get());
+    let old_ci = (*th).ci.get();
+    let r = match luaD_precall(th, func, nResults).await {
         Ok(ci) => match ci.is_null() {
             true => Ok(()),
             false => {
                 (*ci).callstatus = 1 << 2;
 
-                crate::vm::run(L, ci).await
+                crate::vm::run(th, ci).await
             }
         },
         Err(e) => Err(e),
@@ -455,18 +442,20 @@ pub async unsafe fn luaD_call<A>(
 
     match r {
         Ok(_) => {
-            if nResults <= -1 && (*(*L).ci.get()).top < (*L).top.get() {
-                (*(*L).ci.get()).top = (*L).top.get();
+            let l = th.top.get().offset_from_unsigned(th.stack.get());
+
+            if nResults <= -1 && (*(*th).ci.get()).top.get() < l {
+                (*(*th).ci.get()).top = l.try_into().unwrap();
             }
 
             Ok(())
         }
         Err(e) => {
-            let mut r = Err(CallError::new(L, e));
+            let mut r = Err(CallError::new(th, e));
 
-            (*L).ci.set(old_ci);
-            r = luaD_closeprotected(L, old_top, r);
-            (*L).top.set((*L).stack.get().byte_add(old_top));
+            (*th).ci.set(old_ci);
+            r = luaD_closeprotected(th, old_top, r);
+            (*th).top.set((*th).stack.get().byte_add(old_top));
 
             r
         }
@@ -622,7 +611,7 @@ unsafe fn get_ci<A>(
     nret: c_int,
     mask: c_int,
     top: *mut StackValue<A>,
-) -> *mut CallInfo<A> {
+) -> *mut CallInfo {
     let mut ci = (*(*L).ci.get()).next;
 
     if ci.is_null() {
@@ -634,7 +623,10 @@ unsafe fn get_ci<A>(
     (*ci).func = func.offset_from_unsigned((*L).stack.get());
     (*ci).nresults = nret as c_short;
     (*ci).callstatus = mask as c_ushort;
-    (*ci).top = top;
+    (*ci).top = top
+        .offset_from_unsigned((*L).stack.get())
+        .try_into()
+        .unwrap();
 
     ci
 }
