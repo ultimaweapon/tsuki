@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::ldebug::{lua_getinfo, lua_getstack};
+use crate::ldebug::{getfuncname, lua_getstack};
 use crate::lstate::{CallInfo, lua_Debug};
 use crate::value::UnsafeValue;
 use crate::vm::luaV_equalobj;
@@ -114,7 +114,12 @@ pub unsafe fn luaL_argerror<D>(
         });
     }
 
-    lua_getinfo(L, b"n\0" as *const u8 as *const c_char, &mut ar);
+    ar.namewhat = getfuncname(L, ar.i_ci, &mut ar.name);
+
+    if ar.namewhat.is_null() {
+        ar.namewhat = b"\0" as *const u8 as *const c_char;
+        ar.name = 0 as *const c_char;
+    }
 
     if strcmp(ar.namewhat, b"method\0" as *const u8 as *const c_char) == 0 as c_int {
         arg = match NonZero::new(arg.get() - 1) {

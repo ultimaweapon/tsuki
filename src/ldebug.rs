@@ -275,7 +275,7 @@ unsafe fn collectvalidlines<D>(L: *const Thread<D>, f: *const Object<D>) {
     }
 }
 
-unsafe fn getfuncname<A>(
+pub unsafe fn getfuncname<A>(
     L: *const Thread<A>,
     ci: *mut CallInfo,
     name: *mut *const c_char,
@@ -327,13 +327,6 @@ unsafe fn auxgetinfo<D>(
                 } else {
                     0 as c_int
                 }) as c_char;
-            }
-            b'n' => {
-                (*ar).namewhat = getfuncname(L, ci, &mut (*ar).name);
-                if ((*ar).namewhat).is_null() {
-                    (*ar).namewhat = b"\0" as *const u8 as *const c_char;
-                    (*ar).name = 0 as *const c_char;
-                }
             }
             b'r' => {
                 if ci.is_null() || (*ci).callstatus as c_int & (1 as c_int) << 8 == 0 {
