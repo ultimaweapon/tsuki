@@ -88,7 +88,7 @@ impl<A> Thread<A> {
         unsafe { (*ci).nresults = 0 };
         unsafe { (*th).top.write_nil() };
         unsafe { (*th).top.add(1) };
-        unsafe { (*ci).top = ((*th).top.get()).offset(20) };
+        unsafe { (*ci).top = (*th).top.get() };
         unsafe { (*th).ci.set(ci) };
 
         th

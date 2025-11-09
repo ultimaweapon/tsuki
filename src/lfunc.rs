@@ -268,7 +268,7 @@ pub unsafe fn luaF_close<A>(
     L: &Thread<A>,
     mut level: *mut StackValue<A>,
 ) -> Result<*mut StackValue<A>, Box<CallError>> {
-    let levelrel = (level as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
+    let levelrel = level.offset_from_unsigned((*L).stack.get());
 
     luaF_closeupval(L, level);
 
@@ -276,7 +276,7 @@ pub unsafe fn luaF_close<A>(
         let tbc = (*L).tbclist.get();
         poptbclist(L);
         callclosemethod(L, tbc)?;
-        level = ((*L).stack.get() as *mut c_char).offset(levelrel as isize) as *mut StackValue<A>;
+        level = (*L).stack.get().add(levelrel);
     }
 
     return Ok(level);
