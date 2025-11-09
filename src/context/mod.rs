@@ -804,8 +804,15 @@ impl<'a, A, T> Context<'a, A, T> {
         };
 
         // Convert negative index.
-        let ci = self.th.ci.get();
-        let top = unsafe { self.th.top.get().offset_from_unsigned((*ci).func) };
+        let th = self.th;
+        let stack = th.stack.get();
+        let ci = th.ci.get();
+        let top = unsafe {
+            self.th
+                .top
+                .get()
+                .offset_from_unsigned(stack.add((*ci).func))
+        };
         let f = match usize::try_from(f.get()) {
             Ok(v) => {
                 if v >= top {
@@ -822,7 +829,7 @@ impl<'a, A, T> Context<'a, A, T> {
 
         // Invoke.
         let rem = f - 1;
-        let f = unsafe { (*ci).func.add(f) };
+        let f = unsafe { stack.add((*ci).func + f) };
         let cx = Context {
             th: self.th,
             ret: Cell::new(0),
@@ -841,7 +848,8 @@ impl<'a, A, T> Context<'a, A, T> {
         }
 
         // Get number of results.
-        let ret = unsafe { (*ci).func.add(rem + 1) };
+        let stack = th.stack.get();
+        let ret = unsafe { stack.add((*ci).func + rem + 1) };
         let ret = unsafe { cx.th.top.get().offset_from_unsigned(ret) };
 
         cx.ret.set(ret);
@@ -864,8 +872,15 @@ impl<'a, A, T> Context<'a, A, T> {
         };
 
         // Convert negative index.
-        let ci = self.th.ci.get();
-        let top = unsafe { self.th.top.get().offset_from_unsigned((*ci).func) };
+        let th = self.th;
+        let stack = th.stack.get();
+        let ci = th.ci.get();
+        let top = unsafe {
+            self.th
+                .top
+                .get()
+                .offset_from_unsigned(stack.add((*ci).func))
+        };
         let off = match usize::try_from(i.get()) {
             Ok(v) => v,
             Err(_) => match top.saturating_sub(i.get().unsigned_abs()) {
@@ -934,9 +949,18 @@ impl<'a, D> Context<'a, D, Ret> {
             panic!("{i} is lower than the first result");
         }
 
+        unsafe { lua_checkstack(self.th, 1, 5)? };
+
         // Check if index valid.
-        let ci = self.th.ci.get();
-        let top = unsafe { self.th.top.get().offset_from_unsigned((*ci).func) };
+        let th = self.th;
+        let stack = th.stack.get();
+        let ci = th.ci.get();
+        let top = unsafe {
+            self.th
+                .top
+                .get()
+                .offset_from_unsigned(stack.add((*ci).func))
+        };
 
         if i.get() > top {
             panic!("{i} is not a valid stack index");
@@ -949,11 +973,9 @@ impl<'a, D> Context<'a, D, Ret> {
             panic!("attempt to push a value created from a different Lua");
         }
 
-        unsafe { lua_checkstack(self.th, 1, 5)? };
-
         // Insert the value.
-        let src = unsafe { (*ci).func.add(i.get()) };
-        let dst = unsafe { (*ci).func.add(i.get() + 1) };
+        let src = unsafe { stack.add((*ci).func + i.get()) };
+        let dst = unsafe { stack.add((*ci).func + i.get() + 1) };
 
         for i in (0..(top - i.get())).rev() {
             let src = unsafe { src.add(i) };

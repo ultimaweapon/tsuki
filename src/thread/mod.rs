@@ -83,7 +83,7 @@ impl<A> Thread<A> {
         unsafe { (*ci).previous = null_mut() };
         unsafe { (*ci).next = (*ci).previous };
         unsafe { (*ci).callstatus = 1 << 1 };
-        unsafe { (*ci).func = (*th).top.get() };
+        unsafe { addr_of_mut!((*ci).func).write(0) };
         unsafe { addr_of_mut!((*ci).pc).write(0) };
         unsafe { (*ci).nresults = 0 };
         unsafe { (*th).top.write_nil() };

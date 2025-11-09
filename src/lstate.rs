@@ -57,7 +57,7 @@ impl<D> Default for lua_Debug<D> {
 
 #[repr(C)]
 pub struct CallInfo<A> {
-    pub func: *mut StackValue<A>,
+    pub func: usize,
     pub top: *mut StackValue<A>,
     pub previous: *mut Self,
     pub next: *mut Self,
@@ -67,14 +67,6 @@ pub struct CallInfo<A> {
     pub nresults: c_short,
     pub callstatus: c_ushort,
 }
-
-impl<D> Clone for CallInfo<D> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<D> Copy for CallInfo<D> {}
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -140,7 +132,7 @@ pub unsafe fn lua_closethread<D>(L: &Thread<D>) -> Result<(), Box<CallError>> {
     let ci = (*L).ci.get();
 
     (*(*L).stack.get()).tt_ = 0 | 0 << 4;
-    (*ci).func = (*L).stack.get();
+    (*ci).func = 0;
     (*ci).callstatus = ((1 as c_int) << 1 as c_int) as c_ushort;
 
     let status = luaD_closeprotected(L, 1, Ok(()));

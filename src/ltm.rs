@@ -352,15 +352,12 @@ pub unsafe fn luaT_adjustvarargs<D>(
     ci: *mut CallInfo<D>,
     p: *const Proto<D>,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    let mut i: c_int = 0;
-    let actual: c_int = ((*L).top.get()).offset_from((*ci).func) as c_long as c_int - 1 as c_int;
+    let actual: c_int = ((*L).top.get()).offset_from((*L).stack.get().add((*ci).func)) as c_int - 1;
     let nextra: c_int = actual - nfixparams;
     (*ci).u.nextraargs = nextra;
 
-    if ((((*L).stack_last.get()).offset_from((*L).top.get()) as c_long
-        <= ((*p).maxstacksize as c_int + 1 as c_int) as c_long) as c_int
-        != 0) as c_int as c_long
-        != 0
+    if ((*L).stack_last.get()).offset_from((*L).top.get()) as c_long
+        <= ((*p).maxstacksize as c_int + 1) as c_long
     {
         luaD_growstack(L, usize::from((*p).maxstacksize) + 1)?;
     }
@@ -368,24 +365,29 @@ pub unsafe fn luaT_adjustvarargs<D>(
     let fresh0 = (*L).top.get();
     (*L).top.add(1);
     let io1 = fresh0;
-    let io2 = (*ci).func;
+    let io2 = (*L).stack.get().add((*ci).func);
 
     (*io1).value_ = (*io2).value_;
     (*io1).tt_ = (*io2).tt_;
-    i = 1 as c_int;
-    while i <= nfixparams {
+
+    let f = (*L).stack.get().add((*ci).func);
+
+    for i in 1..=nfixparams {
         let fresh1 = (*L).top.get();
         (*L).top.add(1);
         let io1_0 = fresh1;
-        let io2_0 = ((*ci).func).offset(i as isize);
+        let io2_0 = f.offset(i as isize);
 
         (*io1_0).value_ = (*io2_0).value_;
         (*io1_0).tt_ = (*io2_0).tt_;
-        (*((*ci).func).offset(i as isize)).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
-        i += 1;
+        (*f.offset(i as isize)).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
     }
-    (*ci).func = ((*ci).func).offset((actual + 1 as c_int) as isize);
+
+    (*ci).func = f
+        .offset((actual + 1) as isize)
+        .offset_from_unsigned((*L).stack.get());
     (*ci).top = ((*ci).top).offset((actual + 1 as c_int) as isize);
+
     Ok(())
 }
 
@@ -396,7 +398,6 @@ pub unsafe fn luaT_getvarargs<D>(
     mut where_0: *mut StackValue<D>,
     mut wanted: c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    let mut i: c_int = 0;
     let nextra: c_int = (*ci).u.nextraargs;
 
     if wanted < 0 as c_int {
@@ -410,10 +411,13 @@ pub unsafe fn luaT_getvarargs<D>(
         }
         (*L).top.set(where_0.offset(nextra as isize));
     }
-    i = 0 as c_int;
+
+    let f = (*L).stack.get().add((*ci).func);
+    let mut i = 0 as c_int;
+
     while i < wanted && i < nextra {
         let io1 = where_0.offset(i as isize);
-        let io2 = ((*ci).func).offset(-(nextra as isize)).offset(i as isize);
+        let io2 = f.offset(-(nextra as isize)).offset(i as isize);
 
         (*io1).value_ = (*io2).value_;
         (*io1).tt_ = (*io2).tt_;

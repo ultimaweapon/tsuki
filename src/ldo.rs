@@ -52,7 +52,6 @@ unsafe fn relstack<D>(L: *const Thread<D>) {
 
     while !ci.is_null() {
         (*ci).top = ((*ci).top).byte_offset_from_unsigned((*L).stack.get()) as _;
-        (*ci).func = ((*ci).func).byte_offset_from_unsigned((*L).stack.get()) as _;
         ci = (*ci).previous;
     }
 }
@@ -79,7 +78,6 @@ unsafe fn correctstack<D>(L: *const Thread<D>) {
 
     while !ci.is_null() {
         (*ci).top = ((*L).stack.get()).byte_add((*ci).top as usize);
-        (*ci).func = ((*L).stack.get()).byte_add((*ci).func as usize);
         ci = (*ci).previous;
     }
 }
@@ -296,7 +294,7 @@ pub unsafe fn luaD_poscall<A>(
 ) -> Result<(), Box<dyn Error>> {
     let wanted: c_int = (*ci).nresults as c_int;
 
-    moveresults(L, (*ci).func, nres, wanted)?;
+    moveresults(L, L.stack.get().add((*ci).func), nres, wanted)?;
     (*L).ci.set((*ci).previous);
 
     Ok(())
@@ -338,16 +336,17 @@ pub async unsafe fn luaD_pretailcall<D>(
                     func = ((*L).stack.get() as *mut c_char).offset(t__ as isize) as _;
                 }
 
-                (*ci).func = ((*ci).func).offset(-(delta as isize));
+                (*ci).func = (*ci).func.strict_sub_signed(delta as isize);
+
                 i = 0 as c_int;
                 while i < narg1 {
-                    let io1 = ((*ci).func).offset(i as isize);
+                    let io1 = (*L).stack.get().add((*ci).func + (i as usize));
                     let io2 = func.offset(i as isize);
                     (*io1).value_ = (*io2).value_;
                     (*io1).tt_ = (*io2).tt_;
                     i += 1;
                 }
-                func = (*ci).func;
+                func = (*L).stack.get().add((*ci).func);
                 while narg1 <= nfixparams {
                     (*func.offset(narg1 as isize)).tt_ =
                         (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -632,7 +631,7 @@ unsafe fn get_ci<A>(
 
     (*L).ci.set(ci);
 
-    (*ci).func = func;
+    (*ci).func = func.offset_from_unsigned((*L).stack.get());
     (*ci).nresults = nret as c_short;
     (*ci).callstatus = mask as c_ushort;
     (*ci).top = top;

@@ -5,7 +5,7 @@ use crate::ldebug::{lua_getinfo, lua_getstack};
 use crate::lstate::{CallInfo, lua_Debug};
 use crate::value::UnsafeValue;
 use crate::vm::luaV_equalobj;
-use crate::{Lua, Nil, Str, Table, Thread};
+use crate::{Nil, Str, Table, Thread};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
@@ -61,13 +61,13 @@ unsafe fn findfield<A>(
 }
 
 unsafe fn pushglobalfuncname<A>(
-    L: *const Lua<A>,
+    L: *const Thread<A>,
     ci: *mut CallInfo<A>,
 ) -> Result<Vec<u8>, Box<dyn core::error::Error>> {
     // Search global table first so we don't found a global function in _G module.
     let mut names = Vec::with_capacity(2);
-    let func = (*ci).func;
-    let g = (*L).global();
+    let func = (*L).stack.get().add((*ci).func);
+    let g = (*L).hdr.global().global();
 
     findfield(&mut names, g, g.into(), func.cast(), 1)?;
 
@@ -76,7 +76,7 @@ unsafe fn pushglobalfuncname<A>(
     }
 
     // Search function from all modules.
-    let t = (*L).modules();
+    let t = (*L).hdr.global().modules();
 
     findfield(&mut names, g, t.into(), func.cast(), 2)?;
 
@@ -133,7 +133,7 @@ pub unsafe fn luaL_argerror<D>(
 
     // Get name.
     let name = match ar.name.is_null() {
-        true => match pushglobalfuncname((*L).hdr.global, ar.i_ci) {
+        true => match pushglobalfuncname(L, ar.i_ci) {
             Ok(v) if v.is_empty() => b"?".into(),
             Ok(v) => Cow::Owned(v),
             Err(e) => return e,

@@ -823,7 +823,7 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
         if self.index.get() > self.cx.payload.0 {
             Err(unsafe { self.type_error(expect, null()) })
         } else {
-            Ok(unsafe { (*ci).func.add(self.index.get()).cast() })
+            Ok(unsafe { th.stack.get().add((*ci).func + self.index.get()).cast() })
         }
     }
 
@@ -835,7 +835,7 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
         if self.index.get() > self.cx.payload.0 {
             null_mut()
         } else {
-            unsafe { (*ci).func.add(self.index.get()).cast() }
+            unsafe { th.stack.get().add((*ci).func + self.index.get()).cast() }
         }
     }
 

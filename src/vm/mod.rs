@@ -1142,11 +1142,14 @@ pub async unsafe fn run<A>(
     mut ci: *mut CallInfo<A>,
 ) -> Result<(), Box<dyn core::error::Error>> {
     'top: loop {
-        let cl = &*(*(*ci).func).value_.gc.cast::<LuaFn<A>>();
+        let cl = &*(*th.stack.get().add((*ci).func))
+            .value_
+            .gc
+            .cast::<LuaFn<A>>();
         let p = (*cl).p.get();
         let k = (*p).k;
         let code = core::slice::from_raw_parts((*p).code, (*p).sizecode as usize);
-        let mut base = (*ci).func.add(1);
+        let mut base = th.stack.get().add((*ci).func + 1);
         let mut tab = null_mut();
         let mut key = UnsafeValue::default();
         let mut i = code
@@ -1590,7 +1593,7 @@ pub async unsafe fn run<A>(
                         (*th).top.set((*ci).top);
                         luaV_finishset(th, upval_0, rb_4, rc_2, slot_3)?;
 
-                        base = (*ci).func.add(1);
+                        base = th.stack.get().add((*ci).func + 1);
                     }
                     next!();
                 }
@@ -1654,7 +1657,7 @@ pub async unsafe fn run<A>(
                         (*th).top.set((*ci).top);
                         luaV_finishset(th, tab.cast(), key.cast(), val, slot)?;
 
-                        base = (*ci).func.add(1);
+                        base = th.stack.get().add((*ci).func + 1);
                     }
                     next!();
                 }
@@ -1729,7 +1732,7 @@ pub async unsafe fn run<A>(
                         (*th).top.set((*ci).top);
                         luaV_finishset(th, ra_15.cast(), &mut key_3, rc_4, slot_5)?;
 
-                        base = (*ci).func.add(1);
+                        base = th.stack.get().add((*ci).func + 1);
                     }
                     next!();
                 }
@@ -1794,7 +1797,7 @@ pub async unsafe fn run<A>(
                         (*th).top.set((*ci).top);
                         luaV_finishset(th, ra_16.cast(), rb_6, rc_5, slot_6)?;
 
-                        base = (*ci).func.add(1);
+                        base = th.stack.get().add((*ci).func + 1);
                     }
                     next!();
                 }
@@ -1843,7 +1846,7 @@ pub async unsafe fn run<A>(
                     (*th).top.set(ra_17.offset(1 as c_int as isize));
                     (*th).hdr.global().gc.step();
 
-                    base = (*ci).func.add(1);
+                    base = th.stack.get().add((*ci).func + 1);
 
                     next!();
                 }
@@ -3246,7 +3249,7 @@ pub async unsafe fn run<A>(
 
                     let val = luaT_trybinTM(th, ra.cast(), rb.cast(), tm)?;
 
-                    base = (*ci).func.add(1);
+                    base = th.stack.get().add((*ci).func + 1);
 
                     let result = base.offset(
                         (pi >> 0 as c_int + 7 as c_int
@@ -3285,7 +3288,7 @@ pub async unsafe fn run<A>(
 
                     let val = luaT_trybiniTM(th, ra.cast(), imm_0 as i64, flip, tm_0)?;
 
-                    base = (*ci).func.add(1);
+                    base = th.stack.get().add((*ci).func + 1);
 
                     let result = base.offset(
                         (pi >> 0 as c_int + 7 as c_int
@@ -3325,7 +3328,7 @@ pub async unsafe fn run<A>(
 
                     let val = luaT_trybinassocTM(th, ra.cast(), imm_1, flip_0, tm_1)?;
 
-                    base = (*ci).func.add(1);
+                    base = th.stack.get().add((*ci).func + 1);
 
                     let result = base.offset(
                         (pi >> 0 as c_int + 7 as c_int
@@ -3374,7 +3377,7 @@ pub async unsafe fn run<A>(
 
                         let val = luaT_trybinTM(th, rb_11.cast(), rb_11.cast(), TM_UNM)?;
 
-                        base = (*ci).func.add(1);
+                        base = th.stack.get().add((*ci).func + 1);
                         ra_47 = base.offset(
                             (i >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -3418,7 +3421,7 @@ pub async unsafe fn run<A>(
 
                         let val = luaT_trybinTM(th, rb_12.cast(), rb_12.cast(), TM_BNOT)?;
 
-                        base = (*ci).func.add(1);
+                        base = th.stack.get().add((*ci).func + 1);
                         ra_48 = base.offset(
                             (i >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -3464,7 +3467,7 @@ pub async unsafe fn run<A>(
                         .cast(),
                     )?;
 
-                    base = (*ci).func.add(1);
+                    base = th.stack.get().add((*ci).func + 1);
 
                     let ra = base.offset(
                         (i >> 0 as c_int + 7 as c_int
@@ -3492,7 +3495,7 @@ pub async unsafe fn run<A>(
 
                     (*th).hdr.global().gc.step();
 
-                    base = (*ci).func.add(1);
+                    base = th.stack.get().add((*ci).func + 1);
 
                     next!();
                 }
@@ -3509,7 +3512,7 @@ pub async unsafe fn run<A>(
                         return Err(e); // Requires unsized coercion.
                     }
 
-                    base = (*ci).func.add(1);
+                    base = th.stack.get().add((*ci).func + 1);
                     next!();
                 }
                 55 => {
@@ -3551,7 +3554,8 @@ pub async unsafe fn run<A>(
 
                     (*th).top.set((*ci).top);
                     cond = luaV_equalobj(Some(th), ra_54.cast(), rb_14.cast())?.into();
-                    base = (*ci).func.add(1);
+                    base = th.stack.get().add((*ci).func + 1);
+
                     if cond
                         != (i >> 0 as c_int + 7 as c_int + 8 as c_int
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
@@ -3603,7 +3607,7 @@ pub async unsafe fn run<A>(
                     } else {
                         (*th).top.set((*ci).top);
                         cond_0 = lessthanothers(th, ra_55.cast(), rb_15.cast())?;
-                        base = (*ci).func.add(1);
+                        base = th.stack.get().add((*ci).func + 1);
                     }
                     if cond_0
                         != (i >> 0 as c_int + 7 as c_int + 8 as c_int
@@ -3656,7 +3660,7 @@ pub async unsafe fn run<A>(
                     } else {
                         (*th).top.set((*ci).top);
                         cond_1 = lessequalothers(th, ra_56.cast(), rb_16.cast())?;
-                        base = (*ci).func.add(1);
+                        base = th.stack.get().add((*ci).func + 1);
                     }
                     if cond_1
                         != (i >> 0 as c_int + 7 as c_int + 8 as c_int
@@ -3697,7 +3701,7 @@ pub async unsafe fn run<A>(
                     );
                     let cond_2: c_int = luaV_equalobj(None, ra_57.cast(), rb_17)?.into();
 
-                    base = (*ci).func.add(1);
+                    base = th.stack.get().add((*ci).func + 1);
 
                     if cond_2
                         != (i >> 0 as c_int + 7 as c_int + 8 as c_int
@@ -3795,7 +3799,7 @@ pub async unsafe fn run<A>(
 
                         (*th).top.set((*ci).top);
                         cond_4 = luaT_callorderiTM(th, ra_59.cast(), im_0, 0, isf, TM_LT)?;
-                        base = (*ci).func.add(1);
+                        base = th.stack.get().add((*ci).func + 1);
                     }
 
                     if cond_4
@@ -3851,7 +3855,7 @@ pub async unsafe fn run<A>(
 
                         (*th).top.set((*ci).top);
                         cond_5 = luaT_callorderiTM(th, ra_60.cast(), im_1, 0, isf_0, TM_LE)?;
-                        base = (*ci).func.add(1);
+                        base = th.stack.get().add((*ci).func + 1);
                     }
 
                     if cond_5
@@ -3907,7 +3911,7 @@ pub async unsafe fn run<A>(
 
                         (*th).top.set((*ci).top);
                         cond_6 = luaT_callorderiTM(th, ra_61.cast(), im_2, 1, isf_1, TM_LT)?;
-                        base = (*ci).func.add(1);
+                        base = th.stack.get().add((*ci).func + 1);
                     }
 
                     if cond_6
@@ -3963,7 +3967,7 @@ pub async unsafe fn run<A>(
 
                         (*th).top.set((*ci).top);
                         cond_7 = luaT_callorderiTM(th, ra_62.cast(), im_3, 1, isf_2, TM_LE)?;
-                        base = (*ci).func.add(1);
+                        base = th.stack.get().add((*ci).func + 1);
                     }
 
                     if cond_7
@@ -4109,7 +4113,7 @@ pub async unsafe fn run<A>(
                         continue 'top;
                     }
 
-                    base = (*ci).func.add(1);
+                    base = th.stack.get().add((*ci).func + 1);
 
                     next!();
                 }
@@ -4153,9 +4157,9 @@ pub async unsafe fn run<A>(
                         continue 'top;
                     }
 
-                    (*ci).func = ((*ci).func).offset(-(delta as isize));
+                    (*ci).func = ((*ci).func).strict_sub_signed(delta as isize);
                     luaD_poscall(th, ci, n_2)?;
-                    base = (*ci).func.add(1);
+                    base = th.stack.get().add((*ci).func + 1);
                     break;
                 }
                 70 => {
@@ -4186,20 +4190,23 @@ pub async unsafe fn run<A>(
                             return Err(e); // Requires unsized coercion.
                         }
 
-                        base = ((*ci).func).offset(1 as c_int as isize);
+                        base = th.stack.get().add((*ci).func + 1);
                         ra_67 = base.offset(
                             (i >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                                 as c_int as isize,
                         );
                     }
+
                     if nparams1_0 != 0 {
-                        (*ci).func =
-                            ((*ci).func).offset(-(((*ci).u.nextraargs + nparams1_0) as isize));
+                        (*ci).func = (*ci)
+                            .func
+                            .strict_sub_signed(((*ci).u.nextraargs + nparams1_0) as isize);
                     }
+
                     (*th).top.set(ra_67.offset(n_3 as isize));
                     luaD_poscall(th, ci, n_3)?;
-                    base = (*ci).func.add(1);
+                    base = th.stack.get().add((*ci).func + 1);
                     break;
                 }
                 71 => {
@@ -4410,7 +4417,7 @@ pub async unsafe fn run<A>(
                     (*th).top.set(ra_77.offset(1 as c_int as isize));
                     (*th).hdr.global().gc.step();
 
-                    base = (*ci).func.add(1);
+                    base = th.stack.get().add((*ci).func + 1);
 
                     next!();
                 }
@@ -4427,7 +4434,7 @@ pub async unsafe fn run<A>(
                         - 1 as c_int;
                     (*th).top.set((*ci).top);
                     luaT_getvarargs(th, ci, ra_78, n_5)?;
-                    base = (*ci).func.add(1);
+                    base = th.stack.get().add((*ci).func + 1);
                     next!();
                 }
                 81 => {
@@ -4439,7 +4446,7 @@ pub async unsafe fn run<A>(
                         (*cl).p.get(),
                     )?;
 
-                    base = ((*ci).func).offset(1 as c_int as isize);
+                    base = th.stack.get().add((*ci).func + 1);
                     next!();
                 }
                 82 => {
@@ -4453,7 +4460,7 @@ pub async unsafe fn run<A>(
 
                     let val = luaV_finishget(th, tab, &raw const key, true)?;
 
-                    base = (*ci).func.add(1);
+                    base = th.stack.get().add((*ci).func + 1);
 
                     let ra = base.offset(
                         (i >> 0 as c_int + 7 as c_int
@@ -4499,7 +4506,7 @@ pub async unsafe fn run<A>(
                         }
                     }
 
-                    base = ((*ci).func).offset(1 as c_int as isize);
+                    base = th.stack.get().add((*ci).func + 1);
                     i = code
                         .get((*ci).pc)
                         .copied()
