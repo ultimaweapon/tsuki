@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::ldebug::{getfuncname, lua_getstack};
+use crate::ldebug::getfuncname;
 use crate::lstate::{CallInfo, lua_Debug};
 use crate::value::UnsafeValue;
 use crate::vm::luaV_equalobj;
@@ -106,12 +106,16 @@ pub unsafe fn luaL_argerror<D>(
     reason: impl Into<Box<dyn core::error::Error>>,
 ) -> Box<dyn core::error::Error> {
     let mut ar = lua_Debug::default();
+    let ci = (*L).ci.get();
 
-    if lua_getstack(L, 0 as c_int, &mut ar) == 0 {
+    if (*ci).previous.is_null() {
+        // This should be impossible.
         return Box::new(ArgError {
             message: format!("bad argument #{arg}"),
             reason: reason.into(),
         });
+    } else {
+        ar.i_ci = ci;
     }
 
     ar.namewhat = getfuncname(L, ar.i_ci, &mut ar.name);

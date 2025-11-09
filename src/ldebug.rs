@@ -67,30 +67,6 @@ pub unsafe fn luaG_getfuncline<D>(f: *const Proto<D>, pc: c_int) -> c_int {
     };
 }
 
-pub unsafe fn lua_getstack<D>(L: *const Thread<D>, mut level: c_int, ar: &mut lua_Debug) -> c_int {
-    let mut status: c_int = 0;
-
-    if level < 0 as c_int {
-        return 0 as c_int;
-    }
-
-    let mut ci = (*L).ci.get();
-
-    while level > 0 && ci != (*L).base_ci.get() {
-        level -= 1;
-        ci = (*ci).previous;
-    }
-
-    if level == 0 && ci != (*L).base_ci.get() {
-        status = 1 as c_int;
-        (*ar).i_ci = ci;
-    } else {
-        status = 0 as c_int;
-    }
-
-    return status;
-}
-
 unsafe fn upvalname<D>(p: *const Proto<D>, uv: usize) -> *const c_char {
     let s = (*((*p).upvalues).add(uv)).name;
 
@@ -878,26 +854,4 @@ pub unsafe fn luaG_ordererror<D>(
     } else {
         format!("attempt to compare {t1} with {t2}").into()
     }
-}
-
-unsafe fn changedline<D>(p: *const Proto<D>, oldpc: c_int, newpc: c_int) -> c_int {
-    if ((*p).lineinfo).is_null() {
-        return 0 as c_int;
-    }
-    if newpc - oldpc < 128 as c_int / 2 as c_int {
-        let mut delta: c_int = 0 as c_int;
-        let mut pc: c_int = oldpc;
-        loop {
-            pc += 1;
-            let lineinfo: c_int = *((*p).lineinfo).offset(pc as isize) as c_int;
-            if lineinfo == -(0x80 as c_int) {
-                break;
-            }
-            delta += lineinfo;
-            if pc == newpc {
-                return (delta != 0 as c_int) as c_int;
-            }
-        }
-    }
-    return (luaG_getfuncline(p, oldpc) != luaG_getfuncline(p, newpc)) as c_int;
 }
