@@ -62,11 +62,11 @@ pub struct CallInfo {
     pub top: NonZero<usize>,
     pub previous: *mut Self,
     pub next: *mut Self,
-    pub u: C2RustUnnamed_3,
     pub u2: C2RustUnnamed,
     pub pc: usize,
     pub nresults: c_short,
     pub callstatus: c_ushort,
+    pub nextraargs: c_int,
 }
 
 #[derive(Copy, Clone)]
@@ -84,13 +84,6 @@ pub struct C2RustUnnamed_0 {
     pub ntransfer: usize,
 }
 
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_3 {
-    pub trap: c_int,
-    pub nextraargs: c_int,
-}
-
 #[inline(never)]
 pub unsafe fn luaE_extendCI<A>(L: *const Thread<A>) -> *mut CallInfo {
     let ci = luaM_malloc_((*L).hdr.global, size_of::<CallInfo>()) as *mut CallInfo;
@@ -98,7 +91,6 @@ pub unsafe fn luaE_extendCI<A>(L: *const Thread<A>) -> *mut CallInfo {
     (*(*L).ci.get()).next = ci;
     (*ci).previous = (*L).ci.get();
     (*ci).next = null_mut();
-    ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut c_int, 0 as c_int);
     (*L).nci.set((*L).nci.get().wrapping_add(1));
 
     return ci;

@@ -4146,7 +4146,7 @@ pub async unsafe fn run<A>(
                         & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                         as c_int;
                     let delta: c_int = if nparams1 != 0 {
-                        (*ci).u.nextraargs + nparams1
+                        (*ci).nextraargs + nparams1
                     } else {
                         0 as c_int
                     };
@@ -4219,7 +4219,7 @@ pub async unsafe fn run<A>(
                     if nparams1_0 != 0 {
                         (*ci).func = (*ci)
                             .func
-                            .strict_sub_signed(((*ci).u.nextraargs + nparams1_0) as isize);
+                            .strict_sub_signed(((*ci).nextraargs + nparams1_0) as isize);
                     }
 
                     (*th).top.set(ra_67.offset(n_3 as isize));

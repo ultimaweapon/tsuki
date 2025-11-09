@@ -67,15 +67,6 @@ pub unsafe fn luaG_getfuncline<D>(f: *const Proto<D>, pc: c_int) -> c_int {
     };
 }
 
-unsafe fn settraps(mut ci: *mut CallInfo) {
-    while !ci.is_null() {
-        if (*ci).callstatus as c_int & (1 as c_int) << 1 as c_int == 0 {
-            ::core::ptr::write_volatile(&mut (*ci).u.trap as *mut c_int, 1 as c_int);
-        }
-        ci = (*ci).previous;
-    }
-}
-
 pub unsafe fn lua_getstack<D>(L: *const Thread<D>, mut level: c_int, ar: &mut lua_Debug) -> c_int {
     let mut status: c_int = 0;
 
@@ -124,7 +115,7 @@ pub unsafe fn luaG_findlocal<D>(
 
         if n < 0 as c_int {
             if (*(*(*f).value_.gc.cast::<LuaFn<D>>()).p.get()).is_vararg != 0 {
-                let nextra: c_int = (*ci).u.nextraargs;
+                let nextra: c_int = (*ci).nextraargs;
                 if n >= -nextra {
                     *pos = f.offset(-(nextra as isize)).offset(-((n + 1) as isize));
 

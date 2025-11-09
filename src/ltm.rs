@@ -354,7 +354,7 @@ pub unsafe fn luaT_adjustvarargs<D>(
 ) -> Result<(), Box<dyn core::error::Error>> {
     let actual: c_int = ((*L).top.get()).offset_from((*L).stack.get().add((*ci).func)) as c_int - 1;
     let nextra: c_int = actual - nfixparams;
-    (*ci).u.nextraargs = nextra;
+    (*ci).nextraargs = nextra;
 
     if ((*L).stack_last.get()).offset_from((*L).top.get()) as c_long
         <= ((*p).maxstacksize as c_int + 1) as c_long
@@ -403,7 +403,7 @@ pub unsafe fn luaT_getvarargs<D>(
     mut where_0: *mut StackValue<D>,
     mut wanted: c_int,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    let nextra: c_int = (*ci).u.nextraargs;
+    let nextra: c_int = (*ci).nextraargs;
 
     if wanted < 0 as c_int {
         wanted = nextra;
