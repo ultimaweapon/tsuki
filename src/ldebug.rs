@@ -2,25 +2,23 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::lfunc::luaF_getlocalname;
-use crate::lobject::{CClosure, Proto};
+use crate::lobject::Proto;
 use crate::lstate::{CallInfo, lua_Debug};
 use crate::ltm::{
     TM_BNOT, TM_CLOSE, TM_CONCAT, TM_EQ, TM_INDEX, TM_LE, TM_LEN, TM_LT, TM_NEWINDEX, TM_UNM, TMS,
     luaT_objtypename,
 };
-use crate::table::luaH_setint;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, OpCode, luaP_opmodes, luaV_tointegerns};
-use crate::{Lua, LuaFn, Object, StackValue, Str, Table, Thread};
+use crate::{Lua, LuaFn, Object, StackValue, Str, Thread};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
 use core::ffi::{CStr, c_char};
 use core::fmt::Display;
 use core::ptr::{null, null_mut};
-use libc::{strchr, strcmp};
+use libc::strcmp;
 
-type c_uchar = u8;
 type c_int = i32;
 type c_uint = u32;
 type c_long = i64;
@@ -189,14 +187,14 @@ pub unsafe fn lua_setlocal<D>(
     return name;
 }
 
-unsafe fn funcinfo<D>(ar: &mut lua_Debug, cl: *const Object<D>) {
+pub unsafe fn funcinfo<A>(ar: &mut lua_Debug, cl: *const Object<A>) {
     if !(!cl.is_null() && (*cl).tt as c_int == 6 as c_int | (0 as c_int) << 4) {
         (*ar).source = None;
         (*ar).linedefined = -(1 as c_int);
         (*ar).lastlinedefined = -(1 as c_int);
         (*ar).what = b"C\0" as *const u8 as *const c_char;
     } else {
-        let p = (*cl.cast::<LuaFn<D>>()).p.get();
+        let p = (*cl.cast::<LuaFn<A>>()).p.get();
 
         (*ar).source = Some((*p).chunk.clone());
         (*ar).linedefined = (*p).linedefined;
@@ -206,48 +204,6 @@ unsafe fn funcinfo<D>(ar: &mut lua_Debug, cl: *const Object<D>) {
         } else {
             b"Lua\0" as *const u8 as *const c_char
         };
-    }
-}
-
-unsafe fn nextline<D>(p: *const Proto<D>, currentline: c_int, pc: c_int) -> c_int {
-    if *((*p).lineinfo).offset(pc as isize) as c_int != -(0x80 as c_int) {
-        return currentline + *((*p).lineinfo).offset(pc as isize) as c_int;
-    } else {
-        return luaG_getfuncline(p, pc);
-    };
-}
-
-unsafe fn collectvalidlines<D>(L: *const Thread<D>, f: *const Object<D>) {
-    if !(!f.is_null() && (*f).tt as c_int == 6 as c_int | (0 as c_int) << 4) {
-        (*(*L).top.get()).tt_ = (0 as c_int | (0 as c_int) << 4) as u8;
-        unsafe { (*L).top.add(1) };
-    } else {
-        let p = (*f.cast::<LuaFn<D>>()).p.get();
-        let mut currentline: c_int = (*p).linedefined;
-        let t = Table::new((*L).hdr.global);
-        let io = (*L).top.get();
-
-        (*io).value_.gc = t.cast();
-        (*io).tt_ = (5 as c_int | (0 as c_int) << 4 as c_int | 1 << 6) as u8;
-
-        unsafe { (*L).top.add(1) };
-
-        if !((*p).lineinfo).is_null() {
-            let mut i: c_int = 0;
-            let mut v = UnsafeValue::default();
-            v.tt_ = (1 as c_int | (1 as c_int) << 4 as c_int) as u8;
-            if (*p).is_vararg == 0 {
-                i = 0 as c_int;
-            } else {
-                currentline = nextline(p, currentline, 0 as c_int);
-                i = 1 as c_int;
-            }
-            while i < (*p).sizelineinfo {
-                currentline = nextline(p, currentline, i);
-                luaH_setint(t, currentline as i64, &raw const v);
-                i += 1;
-            }
-        }
     }
 }
 
@@ -261,107 +217,6 @@ pub unsafe fn getfuncname<A>(
     } else {
         return 0 as *const c_char;
     };
-}
-
-unsafe fn auxgetinfo<D>(
-    L: *const Thread<D>,
-    mut what: *const c_char,
-    ar: &mut lua_Debug,
-    f: *const Object<D>,
-    ci: *mut CallInfo,
-) -> c_int {
-    let mut status: c_int = 1 as c_int;
-    while *what != 0 {
-        match *what as u8 {
-            b'S' => funcinfo(ar, f),
-            b'l' => {
-                (*ar).currentline = if !ci.is_null() && (*ci).callstatus & 1 << 1 == 0 {
-                    let f = (*L).stack.get().add((*ci).func);
-
-                    luaG_getfuncline((*(*f).value_.gc.cast::<LuaFn<D>>()).p.get(), currentpc(ci))
-                } else {
-                    -(1 as c_int)
-                };
-            }
-            b'u' => {
-                (*ar).nups = (if f.is_null() {
-                    0 as c_int
-                } else {
-                    (*(f as *mut CClosure<D>)).nupvalues as c_int
-                }) as c_uchar;
-                if !(!f.is_null() && (*f).tt as c_int == 6 as c_int | (0 as c_int) << 4 as c_int) {
-                    (*ar).isvararg = 1 as c_int as c_char;
-                    (*ar).nparams = 0 as c_int as c_uchar;
-                } else {
-                    (*ar).isvararg = (*(*f.cast::<LuaFn<D>>()).p.get()).is_vararg as c_char;
-                    (*ar).nparams = (*(*f.cast::<LuaFn<D>>()).p.get()).numparams;
-                }
-            }
-            b't' => {
-                (*ar).istailcall = (if !ci.is_null() {
-                    (*ci).callstatus as c_int & (1 as c_int) << 5 as c_int
-                } else {
-                    0 as c_int
-                }) as c_char;
-            }
-            b'r' => {
-                if ci.is_null() || (*ci).callstatus as c_int & (1 as c_int) << 8 == 0 {
-                    (*ar).ntransfer = 0;
-                    (*ar).ftransfer = (*ar).ntransfer;
-                } else {
-                    (*ar).ftransfer = (*ci).u2.transferinfo.ftransfer.into();
-                    (*ar).ntransfer = (*ci).u2.transferinfo.ntransfer;
-                }
-            }
-            b'L' | b'f' => {}
-            _ => {
-                status = 0 as c_int;
-            }
-        }
-        what = what.offset(1);
-    }
-    return status;
-}
-
-pub unsafe fn lua_getinfo<D>(
-    L: *const Thread<D>,
-    mut what: *const c_char,
-    ar: &mut lua_Debug,
-) -> c_int {
-    let mut status: c_int = 0;
-    let mut ci = null_mut();
-    let mut func = null_mut();
-
-    if *what as c_int == '>' as i32 {
-        ci = null_mut();
-        func = ((*L).top.get()).offset(-(1 as c_int as isize));
-        what = what.offset(1);
-        (*L).top.sub(1);
-    } else {
-        ci = (*ar).i_ci;
-        func = (*L).stack.get().add((*ci).func);
-    }
-
-    let cl = if (*func).tt_ == 6 | 0 << 4 | 1 << 6 || (*func).tt_ == 6 | 2 << 4 | 1 << 6 {
-        (*func).value_.gc
-    } else {
-        null()
-    };
-    status = auxgetinfo(L, what, ar, cl, ci);
-    if !strchr(what, 'f' as i32).is_null() {
-        let io1 = (*L).top.get();
-        let io2 = func;
-
-        (*io1).value_ = (*io2).value_;
-        (*io1).tt_ = (*io2).tt_;
-
-        unsafe { (*L).top.add(1) };
-    }
-    if !strchr(what, 'L' as i32).is_null() {
-        collectvalidlines(L, cl);
-    }
-
-    status
 }
 
 unsafe fn filterpc(pc: c_int, jmptarget: c_int) -> c_int {

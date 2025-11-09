@@ -160,7 +160,7 @@ pub use self::userdata::*;
 use self::collections::{BTreeMap, CollectionValue};
 use self::context::{Arg, Args, Context, Ret};
 use self::gc::{Gc, Object};
-use self::ldebug::lua_getinfo;
+use self::ldebug::{funcinfo, luaG_getfuncline};
 use self::ldo::luaD_protectedparser;
 use self::llex::{TK_WHILE, luaX_tokens};
 use self::lstate::lua_Debug;
@@ -1100,7 +1100,27 @@ impl CallError {
                 ..Default::default()
             };
 
-            unsafe { lua_getinfo(th, c"Sl".as_ptr(), &mut ar) };
+            let func = unsafe { (*th).stack.get().add((*ci).func) };
+            let cl = if unsafe {
+                (*func).tt_ == 6 | 0 << 4 | 1 << 6 || (*func).tt_ == 6 | 2 << 4 | 1 << 6
+            } {
+                unsafe { (*func).value_.gc }
+            } else {
+                null()
+            };
+
+            unsafe { funcinfo(&mut ar, cl) };
+
+            ar.currentline = if unsafe { !ci.is_null() && (*ci).callstatus & 1 << 1 == 0 } {
+                unsafe {
+                    luaG_getfuncline(
+                        (*(*func).value_.gc.cast::<LuaFn<A>>()).p.get(),
+                        ((*ci).pc - 1) as _,
+                    )
+                }
+            } else {
+                -1
+            };
 
             if let Some(v) = ar.source {
                 chunk = Some((v.name, u32::try_from(ar.currentline).unwrap()));
