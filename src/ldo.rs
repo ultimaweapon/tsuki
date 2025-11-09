@@ -432,7 +432,7 @@ pub async unsafe fn luaD_precall<D>(
     }
 }
 
-/// A call to this function should **never** use a try operator otherwise [`CallError`] will not
+/// A call to this function should **never** use a try operator otherwise [CallError] will not
 /// properly forwarded. See https://users.rust-lang.org/t/mystified-by-downcast-failure/52459 for
 /// more details.
 pub async unsafe fn luaD_call<A>(
@@ -442,7 +442,6 @@ pub async unsafe fn luaD_call<A>(
 ) -> Result<(), Box<CallError>> {
     let old_top = func.byte_offset_from_unsigned((*L).stack.get());
     let old_ci = (*L).ci.get();
-    let old_allowhooks = (*L).allowhook.get();
     let r = match luaD_precall(L, func, nResults).await {
         Ok(ci) => match ci.is_null() {
             true => Ok(()),
@@ -467,7 +466,6 @@ pub async unsafe fn luaD_call<A>(
             let mut r = Err(CallError::new(L, e));
 
             (*L).ci.set(old_ci);
-            (*L).allowhook.set(old_allowhooks);
             r = luaD_closeprotected(L, old_top, r);
             (*L).top.set((*L).stack.get().byte_add(old_top));
 
@@ -482,7 +480,6 @@ pub unsafe fn luaD_closeprotected<A>(
     mut status: Result<(), Box<CallError>>,
 ) -> Result<(), Box<CallError>> {
     let old_ci = (*L).ci.get();
-    let old_allowhooks: u8 = (*L).allowhook.get();
 
     loop {
         let e = match luaF_close(L, (*L).stack.get().byte_add(level)) {
@@ -493,7 +490,6 @@ pub unsafe fn luaD_closeprotected<A>(
         status = Err(e);
 
         (*L).ci.set(old_ci);
-        (*L).allowhook.set(old_allowhooks);
     }
 }
 
@@ -644,7 +640,7 @@ unsafe fn get_ci<A>(
     ci
 }
 
-/// Implementation of [Future] to poll [Func::AsyncFp].
+/// Implementation of [Future] to poll [AsyncFp](crate::AsyncFp).
 struct AsyncInvoker<'a, A> {
     g: &'a Lua<A>,
     f: Pin<Box<dyn Future<Output = Result<Context<'a, A, Ret>, Box<dyn Error>>> + 'a>>,

@@ -36,7 +36,6 @@ mod stack;
 #[repr(C)]
 pub struct Thread<A> {
     pub(crate) hdr: Object<A>,
-    pub(crate) allowhook: Cell<u8>,
     pub(crate) nci: Cell<u16>,
     pub(crate) top: StackPtr<A>,
     pub(crate) ci: Cell<*mut CallInfo<A>>,
@@ -46,9 +45,6 @@ pub struct Thread<A> {
     pub(crate) tbclist: Cell<*mut StackValue<A>>,
     pub(crate) twups: Cell<*const Self>,
     pub(crate) base_ci: UnsafeCell<CallInfo<A>>,
-    pub(crate) oldpc: Cell<i32>,
-    pub(crate) basehookcount: Cell<i32>,
-    pub(crate) hookcount: Cell<i32>,
     phantom: PhantomPinned,
 }
 
@@ -62,11 +58,7 @@ impl<A> Thread<A> {
         unsafe { addr_of_mut!((*th).ci).write(Cell::new(null_mut())) };
         unsafe { addr_of_mut!((*th).nci).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*th).twups).write(Cell::new(th)) };
-        unsafe { addr_of_mut!((*th).basehookcount).write(Cell::new(0)) };
-        unsafe { addr_of_mut!((*th).allowhook).write(Cell::new(1)) };
-        unsafe { addr_of_mut!((*th).hookcount).write(Cell::new(0)) };
         unsafe { addr_of_mut!((*th).openupval).write(Cell::new(null_mut())) };
-        unsafe { addr_of_mut!((*th).oldpc).write(Cell::new(0)) };
 
         // Allocate stack.
         let layout = Layout::array::<StackValue<A>>(2 * 20 + 5).unwrap();
@@ -202,7 +194,8 @@ impl<A> Thread<A> {
         f: &LuaFn<A>,
         args: impl Inputs<A>,
     ) -> Result<R, Box<dyn Error>> {
-        // Only allows from top-level.
+        // Only allows from top-level otherwise Lua stack can be corrupted when the future is
+        // suspend.
         if self.ci.get() != self.base_ci.get() {
             return Err("attempt to do async call within Rust frames".into());
         }

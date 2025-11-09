@@ -21,7 +21,6 @@ use core::ptr::{null, null_mut};
 use libc::{strchr, strcmp};
 
 type c_uchar = u8;
-type c_ushort = u16;
 type c_int = i32;
 type c_uint = u32;
 type c_long = i64;
@@ -82,10 +81,6 @@ unsafe fn settraps<D>(mut ci: *mut CallInfo<D>) {
         }
         ci = (*ci).previous;
     }
-}
-
-pub unsafe fn lua_gethookcount<D>(L: *const Thread<D>) -> c_int {
-    return (*L).basehookcount.get();
 }
 
 pub unsafe fn lua_getstack<D>(
