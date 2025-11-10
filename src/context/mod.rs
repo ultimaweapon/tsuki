@@ -52,7 +52,16 @@ impl<'a, A, T> Context<'a, A, T> {
         }
     }
 
-    /// Returns `true` if the calling thread is a main thread.
+    /// Returns [Thread] for this context.
+    ///
+    /// Note that you can't call any function on the returned [Thread]. Use [Self::call()] instead.
+    #[inline(always)]
+    pub fn thread(&self) -> &'a Thread<A> {
+        self.th
+    }
+
+    /// Returns `true` if this context is a main thread.
+    #[inline]
     pub fn is_main_thread(&self) -> bool {
         core::ptr::addr_eq(self.th, self.th.hdr.global().main())
     }
