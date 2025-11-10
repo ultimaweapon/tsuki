@@ -783,7 +783,56 @@ impl<'a, A, T> Context<'a, A, T> {
         f: impl Into<UnsafeValue<A>>,
         args: impl Inputs<A>,
     ) -> Result<R, Box<dyn core::error::Error>> {
-        self.th.call(f, args)
+        // Check if function created from the same Lua.
+        let th = self.th;
+        let f = f.into();
+
+        if unsafe { (f.tt_ & 1 << 6) != 0 && (*f.value_.gc).global != th.hdr.global } {
+            panic!("attempt to call a value created from a different Lua");
+        }
+
+        // Push function and its arguments.
+        let ot = unsafe { th.top.get().offset_from_unsigned(th.stack.get()) };
+        let nargs = args.len();
+
+        unsafe { lua_checkstack(th, 1 + nargs, 0)? };
+
+        unsafe { th.top.write(f) };
+        unsafe { th.top.add(1) };
+        unsafe { args.push_to(th) };
+
+        // Call.
+        {
+            let f = unsafe { th.top.get().sub(nargs + 1) };
+            let f = unsafe { pin!(luaD_call(th, f, R::N)) };
+            let w = unsafe { Waker::new(null(), &NON_YIELDABLE_WAKER) };
+
+            match f.poll(&mut core::task::Context::from_waker(&w)) {
+                Poll::Ready(Ok(_)) => (),
+                Poll::Ready(Err(e)) => return Err(e),
+                Poll::Pending => unreachable!(),
+            }
+        }
+
+        // Get number of results.
+        let n = match R::N {
+            -1 => unsafe {
+                let ot = th.stack.get().add(ot);
+                let v = th.top.get().offset_from_unsigned(ot);
+
+                th.top.set(ot);
+
+                v
+            },
+            0 => 0,
+            v => unsafe {
+                let v = v.try_into().unwrap();
+                th.top.sub(v);
+                v
+            },
+        };
+
+        Ok(unsafe { R::new(th, n) })
     }
 
     /// Call `f` with values above it as arguments.

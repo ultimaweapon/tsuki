@@ -118,6 +118,11 @@ impl<A> Thread<A> {
         f: impl Into<UnsafeValue<A>>,
         args: impl Inputs<A>,
     ) -> Result<R, Box<dyn Error>> {
+        // Only allows from top-level to prevent calling this function while async_call is active.
+        if self.ci.get() != self.base_ci.get() {
+            return Err("attempt to do a call while asynchronous call is active".into());
+        }
+
         // Check if function created from the same Lua.
         let f = f.into();
 
