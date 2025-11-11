@@ -5,7 +5,7 @@ use crate::ldo::luaD_call;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_tointeger, luaV_tonumber_};
 use crate::{
-    Float, Fp, LuaFn, NON_YIELDABLE_WAKER, Number, Ref, Str, Table, Type, UserData, Value,
+    Float, Fp, LuaFn, NON_YIELDABLE_WAKER, Number, Ref, Str, Table, Thread, Type, UserData, Value,
 };
 use alloc::boxed::Box;
 use alloc::format;
@@ -35,7 +35,7 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
 
     /// Check if this argument exists.
     ///
-    /// You can use [`Self::exists()`] if you want to return an error if this argument does not
+    /// You can use [Self::exists()] if you want to return an error if this argument does not
     /// exists.
     #[inline(always)]
     pub fn is_exists(&self) -> bool {
@@ -402,6 +402,18 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
         match unsafe { (*ud).downcast() } {
             Some(v) => Ok(Some(v)),
             None => Err(unsafe { self.type_error(expect, v) }),
+        }
+    }
+
+    /// Checks if this argument is a thread and return it.
+    #[inline(always)]
+    pub fn get_thread(&self) -> Result<&'a Thread<A>, Box<dyn core::error::Error>> {
+        let expect = lua_typename(8);
+        let v = self.get_raw(expect)?;
+
+        match unsafe { (*v).tt_ & 0xf } {
+            8 => Ok(unsafe { &*(*v).value_.gc.cast() }),
+            _ => Err(unsafe { self.type_error(expect, v) }),
         }
     }
 
