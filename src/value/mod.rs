@@ -1,7 +1,7 @@
 use crate::context::{Arg, Args, Context, Ret};
 use crate::{
     AsyncFp, Float, Fp, LuaFn, Nil, Number, Object, Ref, StackValue, Str, Table, Thread, UserData,
-    Value,
+    Value, YieldFp,
 };
 use alloc::boxed::Box;
 use core::error::Error;
@@ -71,9 +71,9 @@ impl<D> From<bool> for UnsafeValue<D> {
     }
 }
 
-impl<D> From<Fp<D>> for UnsafeValue<D> {
+impl<A> From<Fp<A>> for UnsafeValue<A> {
     #[inline(always)]
-    fn from(value: Fp<D>) -> Self {
+    fn from(value: Fp<A>) -> Self {
         Self {
             value_: UntaggedValue { f: value.0 },
             tt_: 2 | 0 << 4,
@@ -81,9 +81,19 @@ impl<D> From<Fp<D>> for UnsafeValue<D> {
     }
 }
 
-impl<D> From<AsyncFp<D>> for UnsafeValue<D> {
+impl<A> From<YieldFp<A>> for UnsafeValue<A> {
     #[inline(always)]
-    fn from(value: AsyncFp<D>) -> Self {
+    fn from(value: YieldFp<A>) -> Self {
+        Self {
+            value_: UntaggedValue { y: value.0 },
+            tt_: 2 | 1 << 4,
+        }
+    }
+}
+
+impl<A> From<AsyncFp<A>> for UnsafeValue<A> {
+    #[inline(always)]
+    fn from(value: AsyncFp<A>) -> Self {
         Self {
             value_: UntaggedValue { a: value.0 },
             tt_: 2 | 2 << 4,
@@ -345,6 +355,7 @@ impl<A> From<StackValue<A>> for UnsafeValue<A> {
 pub union UntaggedValue<A> {
     pub gc: *const Object<A>,
     pub f: fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>,
+    pub y: fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>,
     pub a: fn(
         Context<A, Args>,
     ) -> Pin<Box<dyn Future<Output = Result<Context<A, Ret>, Box<dyn Error>>> + '_>>,

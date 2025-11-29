@@ -681,7 +681,7 @@ pub unsafe fn luaV_equalobj<A>(
     let th = match (*t1).tt_ & 0x3f {
         0x00 | 0x01 | 0x11 => return Ok(true),
         0x02 => return Ok(core::ptr::fn_addr_eq((*t1).value_.f, (*t2).value_.f)),
-        0x12 => todo!(),
+        0x12 => return Ok(core::ptr::fn_addr_eq((*t1).value_.y, (*t2).value_.y)),
         0x22 => return Ok(core::ptr::fn_addr_eq((*t1).value_.a, (*t2).value_.a)),
         0x32 => todo!(),
         0x03 => return Ok((*t1).value_.i == (*t2).value_.i),

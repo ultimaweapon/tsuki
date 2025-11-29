@@ -50,6 +50,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - Hook functions is not supported.
 - Light userdata is not supported.
 - Panic when memory allocation is failed without retry (same as Rust).
+- Rust function cannot yield the values back to Lua in the middle.
 - GC has only one mode and cannot control from outside.
 - Chunk name does not have a prefix (e.g. `@`).
 - Second argument to `__close` metamethod always `nil`.
@@ -90,29 +91,9 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - Complete Lua standard library.
 - Remove libc.
 
-## Breaking changes in 0.3
+## Breaking changes in 0.4
 
-- `TryCall` has been removed and `Context::try_forward` was merged with `Context::forward`.
-- Return type of `Context::forward` has been changed.
-- `Arg::get_metatable` was renamed to `Arg::metatable`.
-- `Arg::as_str` has parameter to allow converting a number to string.
-- `Arg::to_str` and `Arg::to_nilable_str` now convert a number to string in-place.
-- `Arg::to_float` and `Arg::to_nilable_float` now return `Float` instead of `f64`.
-- `Number` No longer implement `PartialEq`.
-- `Value::Float` and `Number::Float` value is changed from `f64` to `Float`.
-- `Value::Fp` value is changed from `fn` to `Fp`.
-- `Value::AsyncFp` value is changed from `fn` to `AsyncFp`.
-- `Value::Bool` has been replaced with `Value::False` and `Value::True`.
-- `Thread::async_call` now accept only `LuaFn`.
-- `Module::Instance` was renamed to `Module::Inst`.
-- `StringLib` was renamed to `StrLib`.
-- `Table::contains_str_key` now requires `AsRef<str>` on the key. Use `Table::contains_bytes_key` if you want old requirements.
-- `Table::get_str_key` now requires `AsRef<str>` on the key. Use `Table::get_bytes_key` if you want old requirements.
-- `Ops` now a private type.
-- `Context` and its related types now live in `context` module.
-- Float to string conversion does not truncate precision (Lua limit this to 14 digits by default).
-- Float literal no longer accept hexadecimal format.
-- U+000B VERTICAL TAB no longer considered as a whitespace.
+- `YieldFp` added to `Value`.
 
 ## Frequently Asked Questions
 
