@@ -12,7 +12,7 @@ use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lzio::{Mbuffer, Zio};
 use crate::{
     CallError, ChunkInfo, Lua, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, StackOverflow,
-    StackValue, Thread,
+    StackValue, Thread, YIELDABLE_WAKER,
 };
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
@@ -292,18 +292,20 @@ pub async unsafe fn luaD_pretailcall<D>(
 ) -> Result<c_int, Box<dyn Error>> {
     loop {
         match (*func).tt_ & 0x3f {
-            38 => {
-                return call_fp(
-                    &*L,
+            0x02 => return call_fp(&*L, func, -1, (*func).value_.f),
+            0x12 => {
+                return YieldInvoker {
+                    th: &*L,
                     func,
-                    -(1 as c_int),
-                    (*((*func).value_.gc as *mut CClosure<D>)).f,
-                );
+                    nresults: -1,
+                    fp: (*func).value_.y,
+                    ci: null_mut(),
+                }
+                .await;
             }
-            2 => return call_fp(&*L, func, -1, (*func).value_.f),
-            18 | 50 => todo!(),
-            34 => return call_async_fp(&*L, func, -1, (*func).value_.a).await,
-            6 => {
+            0x22 => return call_async_fp(&*L, func, -1, (*func).value_.a).await,
+            0x32 => todo!(),
+            0x06 => {
                 let p = (*(*func).value_.gc.cast::<LuaFn<D>>()).p.get();
                 let fsize: c_int = (*p).maxstacksize as c_int;
                 let nfixparams: c_int = (*p).numparams as c_int;
@@ -346,6 +348,14 @@ pub async unsafe fn luaD_pretailcall<D>(
                 (*L).top.set(func.offset(narg1 as isize));
                 return Ok(-(1 as c_int));
             }
+            0x26 => {
+                return call_fp(
+                    &*L,
+                    func,
+                    -(1 as c_int),
+                    (*((*func).value_.gc as *mut CClosure<D>)).f,
+                );
+            }
             _ => {
                 func = tryfuncTM(L, func)?;
                 narg1 += 1;
@@ -361,38 +371,40 @@ pub async unsafe fn luaD_precall<D>(
 ) -> Result<*mut CallInfo, Box<dyn Error>> {
     loop {
         match (*func).tt_ & 0x3f {
-            38 => {
-                call_fp(
-                    &*L,
-                    func,
-                    nresults,
-                    (*((*func).value_.gc as *mut CClosure<D>)).f,
-                )?;
-
-                return Ok(null_mut());
-            }
-            2 => {
+            0x02 => {
                 call_fp(&*L, func, nresults, (*func).value_.f)?;
                 return Ok(null_mut());
             }
-            18 | 50 => todo!(),
-            34 => {
+            0x12 => {
+                YieldInvoker {
+                    th: &*L,
+                    func,
+                    nresults,
+                    fp: (*func).value_.y,
+                    ci: null_mut(),
+                }
+                .await?;
+
+                return Ok(null_mut());
+            }
+            0x22 => {
                 call_async_fp(&*L, func, nresults, (*func).value_.a).await?;
                 return Ok(null_mut());
             }
-            6 => {
+            0x32 => todo!(),
+            0x06 => {
                 let mut ci = null_mut();
                 let p = (*(*func).value_.gc.cast::<LuaFn<D>>()).p.get();
                 let mut narg = (*L).top.get().offset_from(func) as c_long as c_int - 1;
                 let nfixparams: c_int = (*p).numparams as c_int;
                 let fsize = usize::from((*p).maxstacksize);
 
-                if ((*L).stack_last.get()).offset_from_unsigned((*L).top.get()) <= fsize {
-                    let t__: isize =
-                        (func as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
+                if (*L).stack_last.get().offset_from_unsigned((*L).top.get()) <= fsize {
+                    let t__ = func.offset_from_unsigned((*L).stack.get());
 
                     luaD_growstack(L, fsize)?;
-                    func = ((*L).stack.get() as *mut c_char).offset(t__ as isize) as _;
+
+                    func = (*L).stack.get().add(t__);
                 }
 
                 ci = get_ci(
@@ -413,6 +425,16 @@ pub async unsafe fn luaD_precall<D>(
                 }
                 return Ok(ci);
             }
+            0x26 => {
+                call_fp(
+                    &*L,
+                    func,
+                    nresults,
+                    (*((*func).value_.gc as *mut CClosure<D>)).f,
+                )?;
+
+                return Ok(null_mut());
+            }
             _ => func = tryfuncTM(L, func)?,
         }
     }
@@ -422,10 +444,11 @@ pub async unsafe fn luaD_precall<D>(
 /// properly forwarded. See https://users.rust-lang.org/t/mystified-by-downcast-failure/52459 for
 /// more details.
 pub async unsafe fn luaD_call<A>(
-    th: &Thread<A>,
+    th: *const Thread<A>,
     func: *mut StackValue<A>,
     nResults: c_int,
 ) -> Result<(), Box<CallError>> {
+    let th = &*th;
     let old_top = func.byte_offset_from_unsigned((*th).stack.get());
     let old_ci = (*th).ci.get();
     let r = match luaD_precall(th, func, nResults).await {
@@ -657,6 +680,51 @@ impl<'a, A> Future for AsyncInvoker<'a, A> {
         }
 
         i.f.as_mut().poll(cx)
+    }
+}
+
+/// Implementation of [Future] to call [YieldFp](crate::YieldFp).
+struct YieldInvoker<'a, A> {
+    th: &'a Thread<A>,
+    func: *mut StackValue<A>,
+    nresults: c_int,
+    fp: fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>,
+    ci: *mut CallInfo,
+}
+
+impl<'a, A> Future for YieldInvoker<'a, A> {
+    type Output = Result<c_int, Box<dyn Error>>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
+        // Check if yieldable.
+        if !addr_eq(cx.waker().vtable(), &YIELDABLE_WAKER) {
+            return Poll::Ready(Err("attempt to yield fron non-yieldable context".into()));
+        }
+
+        // Check state.
+        match self.th.yielding.take() {
+            Some(n) => {
+                let n = n.try_into().unwrap();
+
+                unsafe { luaD_poscall(self.th, self.ci, n)? };
+
+                Poll::Ready(Ok(n))
+            }
+            None => {
+                // Invoke.
+                let top = self.th.top.get();
+                let ci = unsafe { get_ci(self.th, self.func, self.nresults, 1 << 1, top) };
+                let narg = unsafe { top.offset_from_unsigned(self.func) - 1 };
+                let cx = Context::new(self.th, Args::new(narg));
+                let cx = (self.fp)(cx)?;
+                let ret = cx.results();
+
+                self.th.yielding.set(Some(ret));
+                self.ci = ci;
+
+                Poll::Pending
+            }
+        }
     }
 }
 
