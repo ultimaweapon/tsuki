@@ -472,7 +472,7 @@ fn numarith(op: Ops, v1: Float, v2: Float) -> Float {
             if v2 == 2.0 {
                 v1 * v1
             } else {
-                v1.pow(v2)
+                v1.0.powf(v2.0).into()
             }
         }
         Ops::IntDiv => (v1 / v2).floor(),

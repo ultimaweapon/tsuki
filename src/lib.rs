@@ -203,7 +203,6 @@ mod lctype;
 mod ldebug;
 mod ldo;
 mod lfunc;
-mod libc;
 mod llex;
 mod lmem;
 mod lobject;

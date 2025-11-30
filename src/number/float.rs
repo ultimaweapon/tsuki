@@ -100,14 +100,6 @@ impl Float {
     pub fn atan2(self, x: Self) -> Self {
         Self(self.0.atan2(x.0))
     }
-
-    /// Raises a number to a floating point power.
-    ///
-    /// See [f64::powf()] for more details.
-    #[inline(always)]
-    pub fn pow(self, n: Self) -> Self {
-        Self(self.0.powf(n.0))
-    }
 }
 
 impl PartialEq<f64> for Float {
