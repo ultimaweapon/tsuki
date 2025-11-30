@@ -17,7 +17,7 @@ The VM to run Lua code is fully working almost exactly as vanilla Lua (see some 
 
 All public API of Tsuki should provide 100% safety as long as you don't use unsafe API incorrectly.
 
-Tsuki was not designed to run untrusted Lua script. Although you can limit what Lua script can do by not expose a function to it but there is no way to limit amount of memory or execution time used by Lua script. The meaning of this is Lua script can cause a panic due to out of memory or never return the control back to Rust with infinite loop.
+Tsuki was not designed to run untrusted Lua script. Although you can limit what Lua script can do by not expose a function to it but there is no way to limit amount of memory or execution time used by Lua script. The meaning of this is Lua script can cause a panic due to out of memory or never return the control back to Rust with infinite loop. It is also possible for Lua script to cause stack overflow on Rust.
 
 ## Performance
 
@@ -50,6 +50,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - Hook functions is not supported.
 - Light userdata is not supported.
 - Panic when memory allocation is failed without retry (same as Rust).
+- No recursion checks on a call to Rust function.
 - Rust function cannot yield the values back to Lua in the middle.
 - GC has only one mode and cannot control from outside.
 - Chunk name does not have a prefix (e.g. `@`).
@@ -98,6 +99,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 
 - `YieldFp` added to `Value`.
 - `string.format` now implemented in Rust with some breaking changes.
+- Remove recursion checks on a call to Rust function.
 
 ## Frequently Asked Questions
 
