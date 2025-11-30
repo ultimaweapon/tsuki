@@ -1,12 +1,14 @@
 //! Implementation of [string library](https://www.lua.org/manual/5.4/manual.html#6.4).
 use crate::context::{Arg, Args, Context, Ret};
-use crate::libc::snprintf;
-use crate::{Fp, LuaFn, Nil, Number, Str, Table, Type, Value};
+use crate::{Float, Fp, LuaFn, Nil, Number, Str, Table, Type, Value};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+use core::cmp::min;
+use core::fmt::Write;
 use core::num::NonZero;
+use core::ops::{Deref, DerefMut};
 use memchr::memchr;
 
 /// Implementation of `__add` metamethod for string.
@@ -83,260 +85,406 @@ pub fn format<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::
         .ok_or_else(|| arg.error("expect UTF-8 string"))?;
 
     // Parse format.
-    let mut buf = String::with_capacity(fmt.len() * 2);
+    let mut res = Vec::with_capacity(fmt.len() * 2);
+    let mut buf = FormatBuf::default();
     let mut iter = fmt.chars();
-    let mut form = Vec::with_capacity(32);
 
     while let Some(ch) = iter.next() {
         // Check if '%'.
         if ch != '%' {
-            buf.push(ch);
+            res.extend_from_slice(ch.encode_utf8(&mut [0; 4]).as_bytes());
             continue;
         }
 
-        // Check next character.
+        // Check if '%%.
+        let start = iter.as_str();
+        let mut len = 1;
         let mut ch = match iter.next() {
             Some('%') => {
-                buf.push('%');
+                res.push(b'%');
                 continue;
             }
-            v => v,
+            Some(v) => v,
+            None => return Err("invalid conversion '%' to 'format'".into()),
         };
 
-        // Check if argument exists. The reason we need to do it here is to match with Lua behavior.
+        // Parse flags.
+        let mut left = false;
+        let mut sign = Sign::Negative;
+        let mut alt = false;
+        let mut lz = false;
+
+        loop {
+            match ch {
+                '-' => left = true,
+                '+' => sign = Sign::Always,
+                ' ' => match sign {
+                    Sign::Always => (),
+                    Sign::SpaceIfPositive => (),
+                    Sign::Negative => sign = Sign::SpaceIfPositive,
+                },
+                '#' => alt = true,
+                '0' => lz = true,
+                _ => break,
+            };
+
+            ch = match iter.next() {
+                Some(v) => v,
+                None => return Err(format!("invalid conversion '%{start}' to 'format'").into()),
+            };
+
+            len += 1;
+        }
+
+        // Parse width. Lua does not support '*'.
+        let width = if ch.is_ascii_digit() {
+            // The value is never be '0' when we are here.
+            let mut v = (ch as u8) - b'0';
+
+            ch = match iter.next() {
+                Some(v) => v,
+                None => return Err(format!("invalid conversion '%{start}' to 'format'").into()),
+            };
+
+            len += 1;
+
+            // Lua limit 2 digits for width.
+            if ch.is_ascii_digit() {
+                v *= 10;
+                v += (ch as u8) - b'0';
+
+                ch = match iter.next() {
+                    Some(v) => v,
+                    None => return Err(format!("invalid conversion '%{start}' to 'format'").into()),
+                };
+
+                len += 1;
+            }
+
+            Some(NonZero::new(v).unwrap())
+        } else {
+            None
+        };
+
+        // Parse precision.
+        let precision = if ch == '.' {
+            ch = match iter.next() {
+                Some(v) => v,
+                None => return Err(format!("invalid conversion '%{start}' to 'format'").into()),
+            };
+
+            len += 1;
+
+            // Lua does not support '*'.
+            if ch.is_ascii_digit() {
+                let mut p = (ch as u8) - b'0';
+
+                ch = match iter.next() {
+                    Some(v) => v,
+                    None => return Err(format!("invalid conversion '%{start}' to 'format'").into()),
+                };
+
+                len += 1;
+
+                // Lua limit 2 digits for width.
+                if ch.is_ascii_digit() {
+                    p *= 10;
+                    p += (ch as u8) - b'0';
+
+                    ch = match iter.next() {
+                        Some(v) => v,
+                        None => {
+                            return Err(format!("invalid conversion '%{start}' to 'format'").into());
+                        }
+                    };
+
+                    len += 1;
+                }
+
+                Some(p.into())
+            } else {
+                Some(0)
+            }
+        } else {
+            None
+        };
+
+        // Check if argument exists.
         next += 1;
 
         if next > cx.args() {
             return Err(cx.arg(next).error("no value"));
         }
 
-        // Create null-terminated format.
-        form.clear();
-        form.push(b'%');
-
-        while let Some(v) = ch {
-            form.extend_from_slice(v.encode_utf8(&mut [0; 4]).as_bytes());
-
-            if form.len() >= (32 - 10) {
-                return Err("invalid format (too long)".into());
-            } else if v.is_ascii_digit() || v == '-' || v == '+' || v == '#' || v == ' ' || v == '.'
-            {
-                ch = iter.next();
-            } else {
-                break;
-            }
-        }
-
-        // Format.
+        // Parse format.
         let arg = cx.arg(next);
-        let mut flags = None::<&[u8]>;
-        let mut buff = [0u8; 418];
-        let mut nb = 0;
+        let fmt = &start[..len];
+
+        buf.clear();
 
         match ch {
-            Some('c') => unsafe {
-                checkformat(&form, b"-", false)?;
+            'c' if sign == Sign::Negative && !alt && !lz && precision.is_none() => {
+                buf.push(arg.to_int()? as u8);
+            }
+            'd' | 'i' if !alt => {
+                let n = arg.to_int()?;
+                let w = width.map(|v| v.get()).unwrap_or(0).into();
+                let lz = if left || w == 0 { false } else { lz };
 
-                form.push(0);
+                match precision {
+                    Some(p) if p == 0 && n == 0 => {
+                        // Produce empty data.
+                    }
+                    Some(p) => match sign {
+                        Sign::Always => {
+                            buf.push(if n >= 0 { b'+' } else { b'-' });
 
-                nb = snprintf(
-                    buff.as_mut_ptr().cast(),
-                    buff.len(),
-                    form.as_ptr().cast(),
-                    arg.to_int()? as i32, // Preserve Lua behavior.
-                );
-            },
-            Some('d') | Some('i') => flags = Some(b"-+0 "),
-            Some('u') => flags = Some(b"-0"),
-            Some('o') | Some('x') | Some('X') => flags = Some(b"-#0"),
-            Some('a') | Some('A') => unsafe {
-                checkformat(&form, b"-+#0 ", true)?;
+                            write!(buf, "{:01$}", n.unsigned_abs(), p).unwrap();
+                        }
+                        Sign::SpaceIfPositive => {
+                            buf.push(if n >= 0 { b' ' } else { b'-' });
 
-                form.push(0);
+                            write!(buf, "{:01$}", n.unsigned_abs(), p).unwrap();
+                        }
+                        Sign::Negative => {
+                            if n < 0 {
+                                buf.push(b'-');
+                            }
 
-                nb = snprintf(
-                    buff.as_mut_ptr().cast(),
-                    buff.len(),
-                    form.as_ptr().cast(),
-                    arg.to_float()?,
-                );
-            },
-            Some('f') | Some('e') | Some('E') | Some('g') | Some('G') => unsafe {
-                let n_0 = arg.to_float()?;
+                            write!(buf, "{:01$}", n.unsigned_abs(), p).unwrap();
+                        }
+                    },
+                    None => match (sign, lz) {
+                        (Sign::Always, true) => write!(buf, "{:+01$}", n, w).unwrap(),
+                        (Sign::Always, false) => write!(buf, "{:+}", n).unwrap(),
+                        (Sign::SpaceIfPositive, true) => match n >= 0 {
+                            true => write!(buf, " {:01$}", n, w).unwrap(),
+                            false => write!(buf, "{:01$}", n, w).unwrap(),
+                        },
+                        (Sign::SpaceIfPositive, false) => match n >= 0 {
+                            true => write!(buf, " {}", n).unwrap(),
+                            false => write!(buf, "{}", n).unwrap(),
+                        },
+                        (Sign::Negative, true) => write!(buf, "{:01$}", n, w).unwrap(),
+                        (Sign::Negative, false) => write!(buf, "{}", n).unwrap(),
+                    },
+                }
+            }
+            'u' if sign == Sign::Negative && !alt => {
+                let n = arg.to_int()? as u64;
+                let w = width.map(|v| v.get()).unwrap_or(0).into();
+                let lz = if left || w == 0 { false } else { lz };
 
-                checkformat(&form, b"-+#0 ", true)?;
-                form.push(0);
+                match precision {
+                    Some(p) if p == 0 && n == 0 => {
+                        // Produce empty data.
+                    }
+                    Some(p) => write!(buf, "{:01$}", n, p).unwrap(),
+                    None => match lz {
+                        true => write!(buf, "{:01$}", n, w).unwrap(),
+                        false => write!(buf, "{}", n).unwrap(),
+                    },
+                }
+            }
+            'o' if sign == Sign::Negative => {
+                let n = arg.to_int()? as u64;
+                let w = width.map(|v| v.get()).unwrap_or(0).into();
+                let lz = if left || w == 0 { false } else { lz };
 
-                nb = snprintf(
-                    buff.as_mut_ptr().cast(),
-                    buff.len(),
-                    form.as_ptr().cast(),
-                    n_0,
-                );
-            },
-            Some('p') => unsafe {
-                let mut p = arg.as_ptr();
-
-                checkformat(&form, b"-", false)?;
-
-                if p.is_null() {
-                    p = c"(null)".as_ptr().cast();
-                    form.pop();
-                    form.push(b's');
+                match precision {
+                    Some(p) if p == 0 && n == 0 => {
+                        if alt {
+                            buf.push(b'0');
+                        }
+                    }
+                    Some(p) => write!(buf, "{:01$o}", n, p).unwrap(),
+                    None => match lz {
+                        true => write!(buf, "{:01$o}", n, w).unwrap(),
+                        false => write!(buf, "{:o}", n).unwrap(),
+                    },
                 }
 
-                form.push(0);
+                if alt && buf[0] != b'0' {
+                    buf.insert(0, b'0');
+                }
+            }
+            'x' if sign == Sign::Negative => {
+                let n = arg.to_int()? as u64;
+                let w = width.map(|v| v.get()).unwrap_or(0).into();
+                let lz = if left || w == 0 { false } else { lz };
 
-                nb = snprintf(
-                    buff.as_mut_ptr().cast(),
-                    buff.len(),
-                    form.as_ptr().cast(),
-                    p,
-                );
-            },
-            Some('q') => {
-                if form.len() != 2 {
+                if n != 0 && alt {
+                    buf.extend_from_slice(b"0x");
+                }
+
+                match precision {
+                    Some(p) if p == 0 && n == 0 => {
+                        // Produce empty data.
+                    }
+                    Some(p) => write!(buf, "{:01$x}", n, p).unwrap(),
+                    None => match lz {
+                        true => write!(buf, "{:01$x}", n, w).unwrap(),
+                        false => write!(buf, "{:x}", n).unwrap(),
+                    },
+                }
+            }
+            'X' if sign == Sign::Negative => {
+                let n = arg.to_int()? as u64;
+                let w = width.map(|v| v.get()).unwrap_or(0).into();
+                let lz = if left || w == 0 { false } else { lz };
+
+                if n != 0 && alt {
+                    buf.extend_from_slice(b"0X");
+                }
+
+                match precision {
+                    Some(p) if p == 0 && n == 0 => {
+                        // Produce empty data.
+                    }
+                    Some(p) => write!(buf, "{:01$X}", n, p).unwrap(),
+                    None => match lz {
+                        true => write!(buf, "{:01$X}", n, w).unwrap(),
+                        false => write!(buf, "{:X}", n).unwrap(),
+                    },
+                }
+            }
+            'f' => {
+                let Float(n) = arg.to_float()?;
+                let p = precision.unwrap_or(6);
+                let w = width.map(|v| v.get()).unwrap_or(0).into();
+                let lz = if left || w == 0 { false } else { lz };
+
+                match (sign, lz) {
+                    (Sign::Always, true) => write!(buf, "{:+02$.1$}", n, p, w).unwrap(),
+                    (Sign::Always, false) => write!(buf, "{:+.1$}", n, p).unwrap(),
+                    (Sign::SpaceIfPositive, true) => {
+                        if n >= 0.0 {
+                            buf.push(b' ');
+                        }
+
+                        write!(buf, "{:02$.1$}", n, p, w).unwrap()
+                    }
+                    (Sign::SpaceIfPositive, false) => {
+                        if n >= 0.0 {
+                            buf.push(b' ');
+                        }
+
+                        write!(buf, "{:.1$}", n, p).unwrap()
+                    }
+                    (Sign::Negative, true) => write!(buf, "{:02$.1$}", n, p, w).unwrap(),
+                    (Sign::Negative, false) => write!(buf, "{:.1$}", n, p).unwrap(),
+                }
+
+                if alt {}
+            }
+            'p' if sign == Sign::Negative && !alt && !lz && precision.is_none() => {
+                let p = arg.as_ptr();
+
+                match p.is_null() {
+                    true => buf.extend_from_slice(b"(null)"),
+                    false => write!(buf, "{:p}", p).unwrap(),
+                }
+            }
+            'q' => {
+                if len != 1 {
                     return Err("specifier '%q' cannot have modifiers".into());
                 }
 
                 match arg.ty() {
-                    Some(Type::String) => unsafe {
+                    Some(Type::String) => {
                         let s = arg
                             .get_str()?
                             .as_str()
                             .ok_or_else(|| arg.error("specifier '%q' requires UTF-8 string"))?;
                         let mut iter = s.chars().peekable();
 
-                        buf.push('"');
+                        buf.push(b'"');
 
                         while let Some(ch) = iter.next() {
                             if ch == '"' || ch == '\\' || ch == '\n' {
-                                buf.push('\\');
-                                buf.push(ch);
+                                buf.push(b'\\');
+                                buf.extend_from_slice(ch.encode_utf8(&mut [0; 4]).as_bytes());
                             } else if ch.is_ascii_control() {
-                                let mut buff = [0; 10];
-                                let l = if iter.peek().is_none_or(|&b| !b.is_ascii_digit()) {
-                                    snprintf(
-                                        buff.as_mut_ptr().cast(),
-                                        10,
-                                        c"\\%d".as_ptr(),
-                                        ch as i32,
-                                    )
+                                if iter.peek().is_none_or(|&b| !b.is_ascii_digit()) {
+                                    write!(buf, "\\{}", ch as i32).unwrap();
                                 } else {
-                                    snprintf(
-                                        buff.as_mut_ptr().cast(),
-                                        10,
-                                        c"\\%03d".as_ptr(),
-                                        ch as i32,
-                                    )
-                                };
-
-                                buf.push_str(core::str::from_utf8(&buff[..(l as usize)]).unwrap());
+                                    write!(buf, "\\{:03}", ch as i32).unwrap();
+                                }
                             } else {
-                                buf.push(ch);
+                                buf.extend_from_slice(ch.encode_utf8(&mut [0; 4]).as_bytes());
                             }
                         }
 
-                        buf.push('"');
-                    },
-                    Some(Type::Number) => {
-                        nb = if arg.is_int() == Some(true) {
-                            let n = arg.to_int()?;
-                            let f = if n == i64::MIN {
-                                c"0x%llx".as_ptr()
-                            } else {
-                                c"%lld".as_ptr()
-                            };
-
-                            unsafe { snprintf(buff.as_mut_ptr().cast(), buff.len(), f, n) }
-                        } else {
-                            let n = arg.to_float()?;
-                            let f = if n == f64::INFINITY {
-                                c"1e9999".as_ptr()
-                            } else if n == -f64::INFINITY {
-                                c"-1e9999".as_ptr()
-                            } else if n != n {
-                                c"(0/0)".as_ptr()
-                            } else {
-                                c"%a".as_ptr()
-                            };
-
-                            unsafe { snprintf(buff.as_mut_ptr().cast(), buff.len(), f, n) }
-                        };
+                        buf.push(b'"');
                     }
+                    Some(Type::Number) => match arg.as_int() {
+                        Some(n) if n == i64::MIN => write!(buf, "{:#x}", n).unwrap(),
+                        Some(n) => write!(buf, "{}", n).unwrap(),
+                        None => {
+                            let Float(n) = arg.to_float()?;
+
+                            if n == f64::INFINITY {
+                                buf.extend_from_slice(b"1e9999");
+                            } else if n == -f64::INFINITY {
+                                buf.extend_from_slice(b"-1e9999");
+                            } else if n != n {
+                                buf.extend_from_slice(b"(0/0)");
+                            } else {
+                                write!(buf, "{}", n).unwrap();
+                            }
+                        }
+                    },
                     Some(Type::Nil) | Some(Type::Boolean) => {
                         // Use display() to honor metatable (if any).
                         let s = arg.display()?;
 
-                        buf.push_str(s.as_str().unwrap());
+                        buf.extend_from_slice(s.as_bytes());
                     }
                     _ => return Err(arg.error("value has no literal form")),
                 }
             }
-            Some('s') => unsafe {
+            's' if sign == Sign::Negative && !alt && !lz => {
                 let s = arg.display()?;
-                let v = s.as_str().unwrap();
+                let v = s.as_bytes();
 
-                if form.len() == 2 {
-                    buf.push_str(v);
-                } else if v.contains('\0') {
+                if len == 1 {
+                    buf.extend_from_slice(v);
+                } else if v.contains(&0) {
                     return Err(arg.error("string contains zeros"));
+                } else if let Some(p) = precision {
+                    let l = min(p, v.len());
+
+                    buf.extend_from_slice(&v[..l]);
                 } else {
-                    checkformat(&form, b"-", true)?;
+                    buf.extend_from_slice(v);
+                }
+            }
+            _ => return Err(format!("invalid conversion '%{fmt}' to 'format'").into()),
+        }
 
-                    form.push(0);
+        // Apply width.
+        match width {
+            Some(w) if buf.len() < w.get().into() => match left {
+                true => {
+                    res.extend_from_slice(&buf);
 
-                    if !form.contains(&b'.') && v.len() >= 100 {
-                        buf.push_str(v);
-                    } else {
-                        nb = snprintf(
-                            buff.as_mut_ptr().cast(),
-                            buff.len(),
-                            form.as_ptr().cast(),
-                            s.as_ptr(),
-                        );
+                    for _ in 0..(w.get() - 1) {
+                        res.push(b' ');
                     }
                 }
+                false => {
+                    for _ in 0..(w.get() - 1) {
+                        res.push(b' ');
+                    }
+
+                    res.extend_from_slice(&buf);
+                }
             },
-            _ => {
-                return Err(format!(
-                    "invalid conversion '{}' to 'format'",
-                    core::str::from_utf8(&form).unwrap()
-                )
-                .into());
-            }
+            _ => res.extend_from_slice(&buf),
         }
-
-        if let Some(flags) = flags {
-            let n = arg.to_int()?;
-
-            checkformat(&form, flags, true)?;
-
-            // Prefix format with ll.
-            let f = form.pop();
-
-            form.extend_from_slice(b"ll");
-
-            if let Some(v) = f {
-                form.push(v);
-            }
-
-            form.push(0);
-
-            nb = unsafe {
-                snprintf(
-                    buff.as_mut_ptr().cast(),
-                    buff.len(),
-                    form.as_ptr().cast(),
-                    n,
-                )
-            };
-        }
-
-        buf.push_str(core::str::from_utf8(&buff[..nb as usize]).unwrap());
     }
 
-    cx.push_str(buf)?;
+    cx.push_bytes(res)?;
 
     Ok(cx.into())
 }
@@ -724,55 +872,6 @@ fn nospecials(p: &[u8]) -> bool {
     }
 
     true
-}
-
-fn checkformat(
-    form: &[u8],
-    flags: &[u8],
-    precision: bool,
-) -> Result<(), Box<dyn core::error::Error>> {
-    let mut spec = form[1..].into_iter();
-    let mut b = spec.next().copied();
-
-    while let Some(v) = b {
-        if !flags.contains(&v) {
-            break;
-        }
-
-        b = spec.next().copied();
-    }
-
-    if let Some(v) = b.filter(|&b| b != b'0') {
-        if v.is_ascii_digit() {
-            b = spec.next().copied();
-
-            if b.is_some_and(|b| b.is_ascii_digit()) {
-                b = spec.next().copied();
-            }
-        }
-
-        if b.is_some_and(|b| b == b'.') && precision {
-            b = spec.next().copied();
-
-            if b.is_some_and(|b| b.is_ascii_digit()) {
-                b = spec.next().copied();
-
-                if b.is_some_and(|b| b.is_ascii_digit()) {
-                    b = spec.next().copied();
-                }
-            }
-        }
-    }
-
-    if b.is_none_or(|b| !b.is_ascii_alphabetic()) {
-        return Err(format!(
-            "invalid conversion specification: '{}'",
-            String::from_utf8_lossy(form)
-        )
-        .into());
-    }
-
-    Ok(())
 }
 
 // TODO: Find a better name.
@@ -1444,4 +1543,36 @@ enum Replacement<'a, A> {
     Str(&'a Str<A>),
     Table(&'a Table<A>),
     LuaFn(&'a LuaFn<A>),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Sign {
+    Always,
+    SpaceIfPositive,
+    Negative,
+}
+
+#[derive(Default)]
+struct FormatBuf(Vec<u8>);
+
+impl Deref for FormatBuf {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for FormatBuf {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Write for FormatBuf {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.0.extend_from_slice(s.as_bytes());
+
+        Ok(())
+    }
 }
