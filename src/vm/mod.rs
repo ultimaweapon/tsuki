@@ -2262,7 +2262,7 @@ pub async unsafe fn run<A>(
                         (*io_14).value_.n = if n2_3 == 2 as c_int as f64 {
                             n1_3 * n1_3
                         } else {
-                            n1_3.pow(n2_3)
+                            n1_3.0.powf(n2_3.0).into()
                         };
                         (*io_14).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                     }
@@ -2874,7 +2874,7 @@ pub async unsafe fn run<A>(
                         (*io_31).value_.n = if n2_10 == 2 as c_int as f64 {
                             n1_10 * n1_10
                         } else {
-                            n1_10.pow(n2_10)
+                            n1_10.0.powf(n2_10.0).into()
                         };
                         (*io_31).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                     }

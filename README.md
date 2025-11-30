@@ -100,6 +100,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - `YieldFp` added to `Value`.
 - `string.format` now implemented in Rust with some breaking changes.
 - Remove recursion checks on a call to Rust function.
+- Remove `Float::pow`.
 
 ## Frequently Asked Questions
 
