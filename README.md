@@ -1,7 +1,7 @@
 # Tsuki
 [![Crates.io Version](https://img.shields.io/crates/v/tsuki)](https://crates.io/crates/tsuki)
 
-Tsuki is a port of Lua 5.4 to Rust. This is a port, not binding; which mean all code are Rust and can be using without C compiler[^1]. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that this port was done **without** compatibility with the previous version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
+Tsuki is a port of Lua 5.4 to Rust. This is a port, not binding; which mean all code are Rust and can be using without C compiler. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that this port was done **without** compatibility with the previous version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
 
 > [!WARNING]
 > Tsuki currently in a pre-1.0 so prepare for a lot of breaking changes!
@@ -74,6 +74,9 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
   - Second argument accept only a UTF-8 string and will be empty when absent.
   - Third argument must be `nil` or `"t"`.
 - `string.format` requires UTF-8 string for both format string and format value.
+  - `a`, `A`, `e`, `E`, `g` and `G` format is not supported.
+  - `q` format will use decimal notation instead of hexadecimal exponent notation for floating point.
+  - Format have unlimited length.
 - `string.find` and `string.gsub` does not support class `z`.
 - Native module is not supported.
 - Environment variable `LUA_PATH` and `LUA_PATH_5_4` is ignored.
@@ -94,6 +97,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 ## Breaking changes in 0.4
 
 - `YieldFp` added to `Value`.
+- `string.format` now implemented in Rust with some breaking changes.
 
 ## Frequently Asked Questions
 
@@ -104,5 +108,3 @@ This requires too much changes to the language so the answer is no. See #16 for 
 ## License
 
 Same as Lua, which is MIT.
-
-[^1]: On Windows, a proxy to `sprintf` written in C++ is required at the moment. This proxy will be removed when we replace `sprintf` calls with Rust equivalent.

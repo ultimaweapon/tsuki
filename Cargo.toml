@@ -32,9 +32,6 @@ criterion = { version = "0.7.0", features = ["html_reports"] }
 mlua = { version = "0.11.3", features = ["async", "lua54", "vendored"] }
 tokio = { version = "1.47.1", features = ["rt", "time"] }
 
-[target.'cfg(windows)'.build-dependencies]
-cc = "1.2.35"
-
 [profile.bench]
 debug = "full"
 
