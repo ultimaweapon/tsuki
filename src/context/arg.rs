@@ -234,9 +234,10 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
         }
 
         match unsafe { (*v).tt_ & 0x3f } {
-            2 => unsafe { (*v).value_.f as *const u8 },
-            18 | 50 => todo!(),
-            34 => unsafe { (*v).value_.a as *const u8 },
+            0x02 => unsafe { (*v).value_.f as *const u8 },
+            0x12 => unsafe { (*v).value_.y as *const u8 },
+            0x22 => unsafe { (*v).value_.a as *const u8 },
+            0x32 => todo!(),
             7 => unsafe { (*(*v).value_.gc.cast::<UserData<A, ()>>()).ptr.cast() },
             _ => unsafe {
                 if (*v).tt_ & 1 << 6 != 0 {
@@ -768,9 +769,10 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
                 write!(buf, "{kind}: ").unwrap();
 
                 match v {
-                    2 => write!(buf, "{:p}", (*arg).value_.f).unwrap(),
-                    18 | 50 => todo!(),
-                    34 => write!(buf, "{:p}", (*arg).value_.a).unwrap(),
+                    0x02 => write!(buf, "{:p}", (*arg).value_.f).unwrap(),
+                    0x12 => write!(buf, "{:p}", (*arg).value_.y).unwrap(),
+                    0x22 => write!(buf, "{:p}", (*arg).value_.a).unwrap(),
+                    0x32 => todo!(),
                     4 => {
                         let v = (*arg).value_.gc.cast::<Str<A>>();
                         let v = (*v).as_bytes();

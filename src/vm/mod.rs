@@ -681,7 +681,7 @@ pub unsafe fn luaV_equalobj<A>(
     let th = match (*t1).tt_ & 0x3f {
         0x00 | 0x01 | 0x11 => return Ok(true),
         0x02 => return Ok(core::ptr::fn_addr_eq((*t1).value_.f, (*t2).value_.f)),
-        0x12 => todo!(),
+        0x12 => return Ok(core::ptr::fn_addr_eq((*t1).value_.y, (*t2).value_.y)),
         0x22 => return Ok(core::ptr::fn_addr_eq((*t1).value_.a, (*t2).value_.a)),
         0x32 => todo!(),
         0x03 => return Ok((*t1).value_.i == (*t2).value_.i),
@@ -2262,7 +2262,7 @@ pub async unsafe fn run<A>(
                         (*io_14).value_.n = if n2_3 == 2 as c_int as f64 {
                             n1_3 * n1_3
                         } else {
-                            n1_3.pow(n2_3)
+                            n1_3.0.powf(n2_3.0).into()
                         };
                         (*io_14).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                     }
@@ -2874,7 +2874,7 @@ pub async unsafe fn run<A>(
                         (*io_31).value_.n = if n2_10 == 2 as c_int as f64 {
                             n1_10 * n1_10
                         } else {
-                            n1_10.pow(n2_10)
+                            n1_10.0.powf(n2_10.0).into()
                         };
                         (*io_31).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                     }

@@ -44,6 +44,7 @@
 //! - [Nil]
 //! - [bool]
 //! - [Fp]
+//! - [YieldFp]
 //! - [AsyncFp]
 //! - [i8]
 //! - [i16]
@@ -202,7 +203,6 @@ mod lctype;
 mod ldebug;
 mod ldo;
 mod lfunc;
-mod libc;
 mod llex;
 mod lmem;
 mod lobject;
@@ -232,6 +232,9 @@ extern crate std;
 macro_rules! fp {
     ($f:path) => {
         $crate::Fp::new($f)
+    };
+    ($f:path as yield) => {
+        $crate::YieldFp::new($f)
     };
     ($f:path as async) => {{
         #[cfg(not(feature = "std"))]
@@ -309,7 +312,6 @@ pub struct Lua<A> {
     nilvalue: UnsafeCell<UnsafeValue<A>>,
     dummy_node: Node<A>,
     seed: u32,
-    active_rust_call: Cell<usize>,
     modules_locked: Cell<bool>,
     associated_data: A,
     phantom: PhantomPinned,
@@ -355,7 +357,6 @@ impl<A> Lua<A> {
                 },
             },
             seed,
-            active_rust_call: Cell::new(0),
             modules_locked: Cell::new(false),
             associated_data,
             phantom: PhantomPinned,
@@ -872,6 +873,8 @@ pub enum Value<'a, A> {
     True = 1 | 1 << 4,
     /// The value is `function` implemented in Rust.
     Fp(Fp<A>) = 2 | 0 << 4,
+    /// The value is `function` implemented in Rust to yield coroutine.
+    YieldFp(YieldFp<A>) = 2 | 1 << 4,
     /// The value is `function` implemented in Rust as async function.
     AsyncFp(AsyncFp<A>) = 2 | 2 << 4,
     /// The value is `integer`.
@@ -892,6 +895,7 @@ pub enum Value<'a, A> {
 
 // Make sure all fields live at offset 8.
 const _: () = assert!(align_of::<Fp<()>>() <= 8);
+const _: () = assert!(align_of::<YieldFp<()>>() <= 8);
 const _: () = assert!(align_of::<AsyncFp<()>>() <= 8);
 const _: () = assert!(align_of::<i64>() <= 8);
 const _: () = assert!(align_of::<Float>() <= 8);
@@ -980,15 +984,27 @@ impl<D> Clone for Fp<D> {
 
 impl<D> Copy for Fp<D> {}
 
-pub struct YieldFp<D>(fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>);
+/// Rust function to yield Lua values.
+#[repr(transparent)]
+pub struct YieldFp<A>(fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>);
 
-impl<D> Clone for YieldFp<D> {
+impl<A> YieldFp<A> {
+    /// Construct a new [YieldFp] from a function pointer.
+    ///
+    /// [fp] macro is more convenience than this function.
+    #[inline(always)]
+    pub const fn new(v: fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>) -> Self {
+        Self(v)
+    }
+}
+
+impl<A> Clone for YieldFp<A> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<D> Copy for YieldFp<D> {}
+impl<A> Copy for YieldFp<A> {}
 
 /// Asynchronous Rust function.
 ///
@@ -1186,6 +1202,13 @@ impl RecursiveCall {
 pub struct BadInst;
 
 static NON_YIELDABLE_WAKER: RawWakerVTable = RawWakerVTable::new(
+    |_| unimplemented!(),
+    |_| unimplemented!(),
+    |_| unimplemented!(),
+    |_| {},
+);
+
+static YIELDABLE_WAKER: RawWakerVTable = RawWakerVTable::new(
     |_| unimplemented!(),
     |_| unimplemented!(),
     |_| unimplemented!(),
