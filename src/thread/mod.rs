@@ -11,7 +11,10 @@ use crate::lmem::luaM_free_;
 use crate::lobject::UpVal;
 use crate::lstate::CallInfo;
 use crate::value::UnsafeValue;
-use crate::{CallError, Lua, LuaFn, NON_YIELDABLE_WAKER, Object, Value, YIELDABLE_WAKER};
+use crate::vm::luaV_finishget;
+use crate::{
+    CallError, Lua, LuaFn, NON_YIELDABLE_WAKER, Object, Table, Value, YIELDABLE_WAKER, luaH_get,
+};
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -372,6 +375,55 @@ impl<A> Thread<A> {
         };
 
         Ok(Resume::Finished(unsafe { R::new(self, n) }))
+    }
+
+    /// Index `t` with `k` and returns the result.
+    ///
+    /// This method honor `__index` metavalue.
+    ///
+    /// # Panics
+    /// If `t` or `k` was created from different [Lua] instance.
+    #[inline]
+    pub fn index(
+        &self,
+        t: impl Into<UnsafeValue<A>>,
+        k: impl Into<UnsafeValue<A>>,
+    ) -> Result<Value<'_, A>, Box<dyn core::error::Error>> {
+        // Check if table come from the same Lua.
+        let t = t.into();
+
+        if unsafe { (t.tt_ & 1 << 6 != 0) && (*t.value_.gc).global != self.hdr.global } {
+            panic!("attempt to index a value created from different Lua");
+        }
+
+        // Check if key come from the same Lua.
+        let k = k.into();
+
+        if unsafe { (k.tt_ & 1 << 6 != 0) && (*k.value_.gc).global != self.hdr.global } {
+            panic!("attempt to index a value with key created from different Lua");
+        }
+
+        // Try table.
+        let mut slot = null();
+        let ok = if !(t.tt_ == 5 | 0 << 4 | 1 << 6) {
+            false
+        } else {
+            let t = unsafe { t.value_.gc.cast::<Table<A>>() };
+
+            slot = unsafe { luaH_get(t, &k) };
+
+            unsafe { !((*slot).tt_ & 0xf == 0) }
+        };
+
+        // Get value.
+        if ok {
+            return Ok(unsafe { Value::from_unsafe(slot) });
+        }
+
+        // Try __index.
+        let v = unsafe { luaV_finishget(self, &t, &k, false)? };
+
+        Ok(unsafe { Value::from_unsafe(&v) })
     }
 }
 
