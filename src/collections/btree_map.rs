@@ -30,7 +30,12 @@ where
         let layout = Layout::new::<Self>();
         let o = unsafe { (*g).gc.alloc(14 | 1 << 4, layout).cast::<Self>() };
 
-        unsafe { addr_of_mut!((*o).hdr.ptr).write(o as *const dyn Collection) };
+        let o_obj_ptr = unsafe {
+            std::mem::transmute::<*const (dyn Collection + '_), *const (dyn Collection + 'static)>(
+                o,
+            )
+        };
+        unsafe { addr_of_mut!((*o).hdr.ptr).write(o_obj_ptr) };
         unsafe { addr_of_mut!((*o).items).write(RefCell::default()) };
 
         o
