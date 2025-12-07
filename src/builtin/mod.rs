@@ -221,6 +221,7 @@ impl<A> Module<A> for TableLib {
     fn open(self, lua: &Lua<A>) -> Result<Self::Inst<'_>, Box<dyn core::error::Error>> {
         let m = lua.create_table();
 
+        m.set_str_key("concat", fp!(self::table::concat));
         m.set_str_key("unpack", fp!(self::table::unpack));
 
         Ok(m)

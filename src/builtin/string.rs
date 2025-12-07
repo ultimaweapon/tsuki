@@ -1,6 +1,6 @@
 //! Implementation of [string library](https://www.lua.org/manual/5.4/manual.html#6.4).
 use crate::context::{Arg, Args, Context, Ret};
-use crate::{Float, Fp, LuaFn, Nil, Number, Str, Table, Type, Value};
+use crate::{Buffer, Float, Fp, LuaFn, Nil, Number, Str, Table, Type, Value};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -8,7 +8,6 @@ use alloc::vec::Vec;
 use core::cmp::min;
 use core::fmt::Write;
 use core::num::NonZero;
-use core::ops::{Deref, DerefMut};
 use memchr::memchr;
 
 /// Implementation of `__add` metamethod for string.
@@ -86,7 +85,7 @@ pub fn format<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::
 
     // Parse format.
     let mut res = Vec::with_capacity(fmt.len() * 2);
-    let mut buf = FormatBuf::default();
+    let mut buf = Buffer::default();
     let mut iter = fmt.chars();
 
     while let Some(ch) = iter.next() {
@@ -1550,29 +1549,4 @@ enum Sign {
     Always,
     SpaceIfPositive,
     Negative,
-}
-
-#[derive(Default)]
-struct FormatBuf(Vec<u8>);
-
-impl Deref for FormatBuf {
-    type Target = Vec<u8>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for FormatBuf {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl Write for FormatBuf {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.0.extend_from_slice(s.as_bytes());
-
-        Ok(())
-    }
 }

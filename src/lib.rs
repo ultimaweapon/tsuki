@@ -183,7 +183,7 @@ use core::error::Error;
 use core::fmt::{Display, Formatter};
 use core::marker::PhantomPinned;
 use core::mem::MaybeUninit;
-use core::ops::Deref;
+use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::ptr::null;
 use core::task::RawWakerVTable;
@@ -1088,6 +1088,48 @@ impl Ops {
             v if v == Self::Not as u8 => Some(Self::Not),
             _ => None,
         }
+    }
+}
+
+/// A wrapper of [Vec] to provide [core::fmt::Write].
+#[derive(Default)]
+struct Buffer(Vec<u8>);
+
+impl Deref for Buffer {
+    type Target = Vec<u8>;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Buffer {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl AsRef<[u8]> for Buffer {
+    #[inline(always)]
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl core::fmt::Write for Buffer {
+    #[inline]
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.0.extend_from_slice(s.as_bytes());
+        Ok(())
+    }
+}
+
+impl From<Buffer> for Vec<u8> {
+    #[inline(always)]
+    fn from(value: Buffer) -> Self {
+        value.0
     }
 }
 
