@@ -290,7 +290,7 @@ impl<A> Thread<A> {
     pub fn resume<'a, R: Outputs<'a, A>>(
         &'a self,
         args: impl Inputs<A>,
-    ) -> Result<Resume<'a, A, R>, Box<dyn Error>> {
+    ) -> Result<Coroutine<'a, A, R>, Box<dyn Error>> {
         // Get pending call.
         let top = unsafe { self.top.get().offset_from_unsigned(self.stack.get()) };
         let mut f = if top == 1 {
@@ -339,11 +339,20 @@ impl<A> Thread<A> {
             match f.as_mut().poll(&mut Context::from_waker(&w)) {
                 Poll::Ready(v) => v,
                 Poll::Pending => {
+                    // Take values from yield.
                     let yields = self.yielding.take().unwrap();
+                    let yields = unsafe {
+                        self.top.sub(yields);
+                        Outputs::new(self, yields)
+                    };
 
-                    unsafe { self.top.sub(yields) };
+                    // Reset stack.
+                    let ci = self.ci.get();
+                    let top = unsafe { self.stack.get().add((*ci).func + 1) };
 
-                    return Ok(Resume::Suspended(unsafe { Outputs::new(self, yields) }));
+                    unsafe { self.top.set(top) };
+
+                    return Ok(Coroutine::Suspended(yields));
                 }
             }
         };
@@ -374,7 +383,7 @@ impl<A> Thread<A> {
             },
         };
 
-        Ok(Resume::Finished(unsafe { R::new(self, n) }))
+        Ok(Coroutine::Finished(unsafe { R::new(self, n) }))
     }
 
     /// Index `t` with `k` and returns the result.
@@ -465,7 +474,7 @@ impl<D> Drop for Thread<D> {
 }
 
 /// Result of [Thread::resume()] or [Thread::async_resume()].
-pub enum Resume<'a, A, R> {
+pub enum Coroutine<'a, A, R> {
     Suspended(Vec<Value<'a, A>>),
     Finished(R),
 }

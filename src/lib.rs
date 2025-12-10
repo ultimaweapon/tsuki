@@ -159,7 +159,7 @@ pub use self::ty::*;
 pub use self::userdata::*;
 
 use self::collections::{BTreeMap, CollectionValue};
-use self::context::{Arg, Args, Context, Ret};
+use self::context::{Arg, Args, Context, Resume, Ret};
 use self::gc::{Gc, Object};
 use self::ldebug::{funcinfo, luaG_getfuncline};
 use self::ldo::luaD_protectedparser;
@@ -986,14 +986,14 @@ impl<D> Copy for Fp<D> {}
 
 /// Rust function to yield Lua values.
 #[repr(transparent)]
-pub struct YieldFp<A>(fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>);
+pub struct YieldFp<A>(fn(Yield<A>) -> Result<Context<A, Ret>, Box<dyn Error>>);
 
 impl<A> YieldFp<A> {
     /// Construct a new [YieldFp] from a function pointer.
     ///
     /// [fp] macro is more convenience than this function.
     #[inline(always)]
-    pub const fn new(v: fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>) -> Self {
+    pub const fn new(v: fn(Yield<A>) -> Result<Context<A, Ret>, Box<dyn Error>>) -> Self {
         Self(v)
     }
 }
@@ -1005,6 +1005,14 @@ impl<A> Clone for YieldFp<A> {
 }
 
 impl<A> Copy for YieldFp<A> {}
+
+/// Encapsulates a [Context] for [YieldFp].
+pub enum Yield<'a, A> {
+    /// Contains [Context] to yield coroutine.
+    Yield(Context<'a, A, Args>),
+    /// Contains [Context] to resume coroutine.
+    Resume(Context<'a, A, Resume>),
+}
 
 /// Asynchronous Rust function.
 ///
