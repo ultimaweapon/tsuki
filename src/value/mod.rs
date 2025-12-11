@@ -1,7 +1,7 @@
 use crate::context::{Arg, Args, Context, Ret};
 use crate::{
     AsyncFp, Float, Fp, LuaFn, Nil, Number, Object, Ref, StackValue, Str, Table, Thread, UserData,
-    Value, Yield, YieldFp,
+    Value, YieldFp,
 };
 use alloc::boxed::Box;
 use core::error::Error;
@@ -355,7 +355,7 @@ impl<A> From<StackValue<A>> for UnsafeValue<A> {
 pub union UntaggedValue<A> {
     pub gc: *const Object<A>,
     pub f: fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>,
-    pub y: fn(Yield<A>) -> Result<Context<A, Ret>, Box<dyn Error>>,
+    pub y: fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>,
     pub a: fn(
         Context<A, Args>,
     ) -> Pin<Box<dyn Future<Output = Result<Context<A, Ret>, Box<dyn Error>>> + '_>>,

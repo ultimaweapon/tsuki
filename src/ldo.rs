@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::context::{Args, Context, Resume, Ret};
+use crate::context::{Args, Context, Ret};
 use crate::ldebug::luaG_callerror;
 use crate::lfunc::{luaF_close, luaF_initupvals};
 use crate::lmem::{luaM_free_, luaM_saferealloc_};
@@ -12,7 +12,7 @@ use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lzio::{Mbuffer, Zio};
 use crate::{
     CallError, ChunkInfo, Lua, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, StackOverflow,
-    StackValue, Thread, YIELDABLE_WAKER, Yield,
+    StackValue, Thread, YIELDABLE_WAKER,
 };
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
@@ -665,7 +665,7 @@ struct YieldInvoker<'a, A> {
     th: &'a Thread<A>,
     func: *mut StackValue<A>,
     nresults: c_int,
-    fp: fn(Yield<A>) -> Result<Context<A, Ret>, Box<dyn Error>>,
+    fp: fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>,
     ci: *mut CallInfo,
 }
 
@@ -681,9 +681,7 @@ impl<'a, A> Future for YieldInvoker<'a, A> {
         // Check state.
         match self.th.yielding.take() {
             Some(n) => {
-                let cx = Context::new(self.th, Resume::new(n));
-                let cx = (self.fp)(Yield::Resume(cx))?;
-                let n = cx.results().try_into().unwrap();
+                let n = n.try_into().unwrap();
 
                 unsafe { luaD_poscall(self.th, self.ci, n)? };
 
@@ -695,7 +693,7 @@ impl<'a, A> Future for YieldInvoker<'a, A> {
                 let ci = unsafe { get_ci(self.th, self.func, self.nresults, 1 << 1, top) };
                 let narg = unsafe { top.offset_from_unsigned(self.func) - 1 };
                 let cx = Context::new(self.th, Args::new(narg));
-                let cx = (self.fp)(Yield::Yield(cx))?;
+                let cx = (self.fp)(cx)?;
                 let ret = cx.results();
 
                 self.th.yielding.set(Some(ret));

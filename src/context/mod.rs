@@ -9,8 +9,8 @@ use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_equalobj, luaV_finishget, luaV_lessthan, luaV_objlen, luaV_tointeger};
 use crate::{
     CallError, ChunkInfo, Inputs, LuaFn, NON_YIELDABLE_WAKER, Ops, Outputs, ParseError, Ref,
-    RegKey, RegValue, StackOverflow, Str, Table, Thread, Type, UserData, Value, luaH_get,
-    luaH_getint, luaH_getshortstr,
+    RegKey, RegValue, StackOverflow, Str, Table, Thread, Type, UserData, luaH_get, luaH_getint,
+    luaH_getshortstr,
 };
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
@@ -31,11 +31,11 @@ mod arg;
 /// the values back to Lua. It also provides methods to interact with Lua VM like
 /// [Self::create_table()].
 ///
-/// This type has 3 variants, which is indicated by `T` (either [Args], [Resume] or [Ret]). The
-/// method to get arguments will only available on [Args] variant. [Ret] variant is used to return
-/// the values back to Lua. [Args] and [Resume] variants can be converted to [Ret] variant using
-/// standard Rust [From] and [Into] or [Self::into_results()] (the former will returns all pushed
-/// values). There is no way to get [Args] or [Resume] variant back once you converted it.
+/// This type has 2 variants, which is indicated by `T` (either [Args] or [Ret]). The method to get
+/// arguments will only available on [Args] variant. [Ret] variant is used to return the values back
+/// to Lua. [Args] variants can be converted to [Ret] variant using standard Rust [From] and [Into]
+/// or [Self::into_results()] (the former will returns all pushed values). There is no way to get
+/// [Args] variant back once you converted it.
 pub struct Context<'a, A, T> {
     th: &'a Thread<A>,
     ret: Cell<usize>,
@@ -935,37 +935,6 @@ impl<'a, A> Context<'a, A, Args> {
     }
 }
 
-impl<'a, A> Context<'a, A, Resume> {
-    /// Returns number of resume arguments.
-    #[inline(always)]
-    pub fn args(&self) -> usize {
-        self.payload.0
-    }
-
-    /// Returns resume argument `n`.
-    ///
-    /// # Panics
-    /// If `n` is zero.
-    #[inline]
-    pub fn arg(&self, n: impl TryInto<NonZero<usize>>) -> Value<'a, A> {
-        // Check index.
-        let n = match n.try_into() {
-            Ok(v) => v,
-            Err(_) => panic!("zero is not a valid argument index"),
-        };
-
-        if n.get() > self.payload.0 {
-            return Value::Nil;
-        }
-
-        // Load value.
-        let ci = self.th.ci.get();
-        let v = unsafe { self.th.stack.get().add((*ci).func + n.get()) };
-
-        unsafe { Value::from_unsafe(v.cast()) }
-    }
-}
-
 impl<'a, A> Context<'a, A, Ret> {
     /// Insert `v` at `i` by shift all above values.
     ///
@@ -1073,31 +1042,10 @@ impl<'a, A> From<Context<'a, A, Args>> for Context<'a, A, Ret> {
     }
 }
 
-impl<'a, A> From<Context<'a, A, Resume>> for Context<'a, A, Ret> {
-    #[inline(always)]
-    fn from(value: Context<'a, A, Resume>) -> Self {
-        Self {
-            th: value.th,
-            ret: value.ret,
-            payload: Ret(value.payload.0),
-        }
-    }
-}
-
 /// Call arguments encapsulated in [Context].
 pub struct Args(usize);
 
 impl Args {
-    #[inline(always)]
-    pub(crate) fn new(v: usize) -> Self {
-        Self(v)
-    }
-}
-
-/// Resume values encapsulated in [Context].
-pub struct Resume(usize);
-
-impl Resume {
     #[inline(always)]
     pub(crate) fn new(v: usize) -> Self {
         Self(v)
