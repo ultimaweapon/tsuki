@@ -19,6 +19,7 @@ use alloc::boxed::Box;
 use core::alloc::Layout;
 use core::error::Error;
 use core::ffi::{c_char, c_void};
+use core::mem::transmute;
 use core::ops::Deref;
 use core::pin::Pin;
 use core::ptr::{addr_eq, null, null_mut};
@@ -649,14 +650,26 @@ impl<'a, A> Future for AsyncInvoker<'a, A> {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
         // Check if calling from async context.
-        if addr_eq(cx.waker().vtable(), &NON_YIELDABLE_WAKER) {
-            return Poll::Ready(Err(
-                "attempt to call async function fron non-async context".into()
-            ));
-        }
+        let w = cx.waker();
+        let vt = w.vtable();
 
-        // Poll.
-        self.f.as_mut().poll(cx)
+        if addr_eq(vt, &NON_YIELDABLE_WAKER) {
+            Poll::Ready(Err(
+                "attempt to call async function fron non-async context".into()
+            ))
+        } else if addr_eq(vt, &YIELDABLE_WAKER) {
+            let data = w.data();
+
+            if data.is_null() {
+                return Poll::Ready(Err(
+                    "attempt to call async function fron non-async context".into()
+                ));
+            }
+
+            self.f.as_mut().poll(unsafe { transmute(data) })
+        } else {
+            self.f.as_mut().poll(cx)
+        }
     }
 }
 

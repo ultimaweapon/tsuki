@@ -386,6 +386,108 @@ impl<A> Thread<A> {
         Ok(Coroutine::Finished(unsafe { R::new(self, n) }))
     }
 
+    /// Start of resume a function that was set with [Self::set_entry()].
+    ///
+    /// # Panics
+    /// If some of `args` was created from different [Lua] instance.
+    pub async fn async_resume<'a, R: Outputs<'a, A>>(
+        &'a self,
+        args: impl Inputs<A>,
+    ) -> Result<Coroutine<'a, A, R>, Box<dyn Error>> {
+        // Get pending call.
+        let top = unsafe { self.top.get().offset_from_unsigned(self.stack.get()) };
+        let f = if top == 1 {
+            return Err("attempt to resume a thread without entry point".into());
+        } else if self.ci.get() != self.base_ci.get() {
+            let f = match self.pending.try_borrow_mut() {
+                Ok(v) => v,
+                Err(_) => return Err(Box::new(ThreadBusy)), // Recursive call.
+            };
+
+            // Check if called while async call is active.
+            let f = match RefMut::filter_map(f, |v| v.as_mut()) {
+                Ok(v) => v,
+                Err(_) => return Err("attempt to resume a thread without entry point".into()),
+            };
+
+            // Push arguments.
+            let nargs = args.len();
+
+            unsafe { lua_checkstack(self, nargs, 0)? };
+            unsafe { args.push_to(self) };
+
+            self.yielding.set(Some(nargs));
+
+            f
+        } else {
+            // Push arguments.
+            let nargs = args.len();
+
+            unsafe { lua_checkstack(self, nargs, 0)? };
+            unsafe { args.push_to(self) };
+
+            // Start coroutine.
+            let f = unsafe { self.top.get().sub(nargs + 1) };
+            let f = unsafe { Box::pin(luaD_call(self, f, R::N)) };
+            let f = f as Pin<Box<dyn Future<Output = Result<(), Box<CallError>>>>>;
+            let p = self.pending.borrow_mut();
+
+            RefMut::map(p, move |v| v.insert(unsafe { transmute(f) }))
+        };
+
+        // Resume.
+        let r = Resume {
+            f,
+            y: &self.yielding,
+        }
+        .await;
+
+        match r {
+            Ok(Some(yields)) => {
+                // Take values from yield.
+                let yields = unsafe {
+                    self.top.sub(yields);
+                    Outputs::new(self, yields)
+                };
+
+                // Reset stack.
+                let ci = self.ci.get();
+                let top = unsafe { self.stack.get().add((*ci).func + 1) };
+
+                unsafe { self.top.set(top) };
+
+                return Ok(Coroutine::Suspended(yields));
+            }
+            r => {
+                *self.pending.borrow_mut() = None;
+
+                if let Err(e) = r {
+                    return Err(e);
+                }
+            }
+        }
+
+        // Get number of results.
+        let n = match R::N {
+            -1 => unsafe {
+                let ot = self.stack.get().add(1);
+                let v = self.top.get().offset_from_unsigned(ot);
+
+                self.top.set(ot);
+
+                v
+            },
+            0 => 0,
+            v => unsafe {
+                let v = v.try_into().unwrap();
+                self.top.sub(v);
+                v
+            },
+        };
+
+        Ok(Coroutine::Finished(unsafe { R::new(self, n) }))
+    }
+
     /// Index `t` with `k` and returns the result.
     ///
     /// This method honor `__index` metavalue.
@@ -436,7 +538,7 @@ impl<A> Thread<A> {
     }
 }
 
-impl<D> Drop for Thread<D> {
+impl<A> Drop for Thread<A> {
     #[inline(never)]
     fn drop(&mut self) {
         *self.pending.get_mut() = None;
@@ -464,7 +566,7 @@ impl<D> Drop for Thread<D> {
         }
 
         // Free stack.
-        let layout = Layout::array::<StackValue<D>>(unsafe {
+        let layout = Layout::array::<StackValue<A>>(unsafe {
             self.stack_last.get().offset_from_unsigned(self.stack.get()) + 5
         })
         .unwrap();
@@ -477,6 +579,31 @@ impl<D> Drop for Thread<D> {
 pub enum Coroutine<'a, A, R> {
     Suspended(Vec<Value<'a, A>>),
     Finished(R),
+}
+
+/// Implementation of [Future] to resume coroutine.
+struct Resume<'a> {
+    f: RefMut<'a, Pin<Box<dyn Future<Output = Result<(), Box<CallError>>>>>>,
+    y: &'a Cell<Option<usize>>,
+}
+
+impl<'a> Future for Resume<'a> {
+    type Output = Result<Option<usize>, Box<CallError>>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // Poll.
+        let w = unsafe { Waker::new(cx as *mut Context as *const (), &YIELDABLE_WAKER) };
+
+        if let Poll::Ready(r) = self.f.as_mut().poll(&mut Context::from_waker(&w)) {
+            return Poll::Ready(r.map(|_| None));
+        }
+
+        // Check if yield.
+        match self.y.take() {
+            Some(v) => Poll::Ready(Ok(Some(v))),
+            None => Poll::Pending,
+        }
+    }
 }
 
 /// Represents an error when attempt to use a thread that has active call.

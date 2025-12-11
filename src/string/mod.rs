@@ -149,11 +149,6 @@ impl<A> Str<A> {
         self.len <= Self::SHORT_LEN
     }
 
-    #[inline(always)]
-    pub(crate) fn as_ptr(&self) -> *const c_char {
-        self.contents.as_ptr()
-    }
-
     unsafe fn alloc(g: *const Lua<A>, l: usize, tag: u8, h: u32) -> *mut Self {
         let size = offset_of!(Self, contents) + l + 1;
         let align = align_of::<Self>();
