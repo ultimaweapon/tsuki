@@ -27,7 +27,7 @@ Tsuki is slower than Lua about 60%. The only possibility for Tsuki to be faster 
 
 ### Async
 
-A call to async function without any suspend on Tsuki is faster than mlua about 3.5x. For 1 suspend Tsuki it faster about 3x. For 8 suspend Tsuki is faster about 2x.
+A call to async function without any suspend on Tsuki is faster than mlua about 2.8x. For 1 suspend Tsuki it faster about 2.3x. For 8 suspend Tsuki is faster about 1.9x.
 
 ## Features
 

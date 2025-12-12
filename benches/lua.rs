@@ -62,6 +62,12 @@ fn async_call(c: &mut Criterion) {
             g.bench_with_input(BenchmarkId::new("tsuki", yc), yc, |b, &yc| {
                 b.iter(|| {
                     exec.block_on(&rt, async {
+                        tokio::task::spawn_local(async {
+                            loop {
+                                yield_now().await;
+                            }
+                        });
+
                         th.async_call::<()>(chunk.deref(), yc).await.unwrap()
                     })
                 });
@@ -106,6 +112,12 @@ fn async_call(c: &mut Criterion) {
             g.bench_with_input(BenchmarkId::new("mlua", yc), yc, |b, &yc| {
                 b.iter(|| {
                     exec.block_on(&rt, async {
+                        tokio::task::spawn_local(async {
+                            loop {
+                                yield_now().await;
+                            }
+                        });
+
                         chunk.call_async::<()>(yc).await.unwrap();
                     })
                 });
