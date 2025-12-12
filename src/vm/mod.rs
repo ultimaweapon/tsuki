@@ -22,8 +22,8 @@ use crate::ltm::{
 };
 use crate::value::UnsafeValue;
 use crate::{
-    ArithError, BadInst, ContentType, Float, LuaFn, NON_YIELDABLE_WAKER, Nil, StackValue, Str,
-    Table, Thread, UserData, luaH_finishset, luaH_get, luaH_getint, luaH_getn, luaH_getshortstr,
+    ArithError, ContentType, Float, LuaFn, NON_YIELDABLE_WAKER, Nil, StackValue, Str, Table,
+    Thread, UserData, luaH_finishset, luaH_get, luaH_getint, luaH_getn, luaH_getshortstr,
     luaH_getstr, luaH_realasize, luaH_resize, luaH_resizearray,
 };
 use alloc::boxed::Box;
@@ -1152,10 +1152,7 @@ pub async unsafe fn run<A>(
         let mut base = th.stack.get().add((*ci).func + 1);
         let mut tab = null_mut();
         let mut key = UnsafeValue::default();
-        let mut i = code
-            .get((*ci).pc)
-            .copied()
-            .ok_or_else(|| Box::new(BadInst))?;
+        let mut i = code[(*ci).pc];
 
         (*ci).pc += 1;
 
@@ -1164,10 +1161,7 @@ pub async unsafe fn run<A>(
 
             macro_rules! next {
                 () => {
-                    i = code
-                        .get((*ci).pc)
-                        .copied()
-                        .ok_or_else(|| Box::new(BadInst))?;
+                    i = code[(*ci).pc];
                     (*ci).pc += 1;
                     continue;
                 };
@@ -1229,10 +1223,7 @@ pub async unsafe fn run<A>(
                 }
                 OP_LOADKX => {
                     let ra = base.offset((i >> 0 + 7 & !(!(0u32) << 8) << 0) as isize);
-                    let rb = code
-                        .get((*ci).pc)
-                        .copied()
-                        .ok_or_else(|| Box::new(BadInst))?;
+                    let rb = code[(*ci).pc];
                     let rb = k.offset((rb >> 0 + 7 & !(!(0u32) << 8 + 8 + 1 + 8) << 0) as isize);
 
                     (*ci).pc += 1;
@@ -1300,11 +1291,8 @@ pub async unsafe fn run<A>(
                     let b_2: c_int = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                         & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                         as c_int;
-                    let uv = cl
-                        .upvals
-                        .get(b_2 as usize)
-                        .ok_or_else(|| Box::new(BadInst))?;
-                    let uv = (*uv.get()).v.get();
+                    let uv = cl.upvals[b_2 as usize].get();
+                    let uv = (*uv).v.get();
 
                     (*ra).tt_ = (*uv).tt_;
                     (*ra).value_ = (*uv).value_;
@@ -1317,11 +1305,7 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    let uv = cl
-                        .upvals
-                        .get((i >> 0 + 7 + 8 + 1 & !(!(0u32) << 8) << 0) as usize)
-                        .ok_or_else(|| Box::new(BadInst))?
-                        .get();
+                    let uv = cl.upvals[(i >> 0 + 7 + 8 + 1 & !(!(0u32) << 8) << 0) as usize].get();
                     let io1_3 = (*uv).v.get();
 
                     (*io1_3).value_ = (*ra).value_;
@@ -1345,11 +1329,7 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    let uv = cl
-                        .upvals
-                        .get((i >> 0 + 7 + 8 + 1 & !(!(0u32) << 8) << 0) as usize)
-                        .ok_or_else(|| Box::new(BadInst))?
-                        .get();
+                    let uv = cl.upvals[(i >> 0 + 7 + 8 + 1 & !(!(0u32) << 8) << 0) as usize].get();
                     let k = k.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int + 8 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1533,10 +1513,8 @@ pub async unsafe fn run<A>(
                 }
                 OP_SETTABUP => {
                     let mut slot_3 = null();
-                    let uv = cl
-                        .upvals
-                        .get((i >> 0 + 7 & !(!(0 as c_int as u32) << 8) << 0) as c_int as usize)
-                        .ok_or_else(|| Box::new(BadInst))?
+                    let uv = cl.upvals
+                        [(i >> 0 + 7 & !(!(0 as c_int as u32) << 8) << 0) as c_int as usize]
                         .get();
                     let upval_0 = (*uv).v.get();
                     let rb_4 = k.offset(
@@ -1663,7 +1641,7 @@ pub async unsafe fn run<A>(
                     }
                     next!();
                 }
-                17 => {
+                OP_SETI => {
                     let ra_15 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1825,10 +1803,7 @@ pub async unsafe fn run<A>(
                     }
 
                     if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0 {
-                        let i = code
-                            .get((*ci).pc)
-                            .copied()
-                            .ok_or_else(|| Box::new(BadInst))?;
+                        let i = code[(*ci).pc];
 
                         c_1 += (i >> 0 + 7 & !(!(0u32) << 8 + 8 + 1 + 8) << 0) as c_int
                             * (((1 as c_int) << 8) - 1 + 1);
@@ -3239,10 +3214,7 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    let pi = code
-                        .get((*ci).pc - 2)
-                        .copied()
-                        .ok_or_else(|| Box::new(BadInst))?;
+                    let pi = code[(*ci).pc - 2];
                     let rb = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -3276,10 +3248,7 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    let pi = code
-                        .get((*ci).pc - 2)
-                        .copied()
-                        .ok_or_else(|| Box::new(BadInst))?;
+                    let pi = code[(*ci).pc - 2];
                     let imm_0: c_int = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                         & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                         as c_int
@@ -3315,10 +3284,7 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    let pi = code
-                        .get((*ci).pc - 2)
-                        .copied()
-                        .ok_or_else(|| Box::new(BadInst))?;
+                    let pi = code[(*ci).pc - 2];
                     let imm_1 = k.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -3572,10 +3538,7 @@ pub async unsafe fn run<A>(
                     {
                         (*ci).pc += 1;
                     } else {
-                        let ni = code
-                            .get((*ci).pc)
-                            .copied()
-                            .ok_or_else(|| Box::new(BadInst))?;
+                        let ni = code[(*ci).pc];
 
                         (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
@@ -3626,10 +3589,7 @@ pub async unsafe fn run<A>(
                     {
                         (*ci).pc += 1;
                     } else {
-                        let ni = code
-                            .get((*ci).pc)
-                            .copied()
-                            .ok_or_else(|| Box::new(BadInst))?;
+                        let ni = code[(*ci).pc];
 
                         (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
@@ -3680,10 +3640,7 @@ pub async unsafe fn run<A>(
                     {
                         (*ci).pc += 1;
                     } else {
-                        let ni = code
-                            .get((*ci).pc)
-                            .copied()
-                            .ok_or_else(|| Box::new(BadInst))?;
+                        let ni = code[(*ci).pc];
 
                         (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
@@ -3721,10 +3678,7 @@ pub async unsafe fn run<A>(
                     {
                         (*ci).pc += 1;
                     } else {
-                        let ni = code
-                            .get((*ci).pc)
-                            .copied()
-                            .ok_or_else(|| Box::new(BadInst))?;
+                        let ni = code[(*ci).pc];
 
                         (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
@@ -3765,10 +3719,7 @@ pub async unsafe fn run<A>(
                     {
                         (*ci).pc += 1;
                     } else {
-                        let ni = code
-                            .get((*ci).pc)
-                            .copied()
-                            .ok_or_else(|| Box::new(BadInst))?;
+                        let ni = code[(*ci).pc];
 
                         (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
@@ -3821,10 +3772,7 @@ pub async unsafe fn run<A>(
                     {
                         (*ci).pc += 1;
                     } else {
-                        let ni = code
-                            .get((*ci).pc)
-                            .copied()
-                            .ok_or_else(|| Box::new(BadInst))?;
+                        let ni = code[(*ci).pc];
 
                         (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
@@ -3878,10 +3826,7 @@ pub async unsafe fn run<A>(
                     {
                         (*ci).pc += 1;
                     } else {
-                        let ni = code
-                            .get((*ci).pc)
-                            .copied()
-                            .ok_or_else(|| Box::new(BadInst))?;
+                        let ni = code[(*ci).pc];
 
                         (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
@@ -3935,10 +3880,7 @@ pub async unsafe fn run<A>(
                     {
                         (*ci).pc += 1;
                     } else {
-                        let ni = code
-                            .get((*ci).pc)
-                            .copied()
-                            .ok_or_else(|| Box::new(BadInst))?;
+                        let ni = code[(*ci).pc];
 
                         (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
@@ -3992,10 +3934,7 @@ pub async unsafe fn run<A>(
                     {
                         (*ci).pc += 1;
                     } else {
-                        let ni = code
-                            .get((*ci).pc)
-                            .copied()
-                            .ok_or_else(|| Box::new(BadInst))?;
+                        let ni = code[(*ci).pc];
 
                         (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
@@ -4029,10 +3968,7 @@ pub async unsafe fn run<A>(
                     {
                         (*ci).pc += 1;
                     } else {
-                        let ni = code
-                            .get((*ci).pc)
-                            .copied()
-                            .ok_or_else(|| Box::new(BadInst))?;
+                        let ni = code[(*ci).pc];
 
                         (*ci).pc = (*ci).pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
@@ -4068,10 +4004,7 @@ pub async unsafe fn run<A>(
                     {
                         (*ci).pc += 1;
                     } else {
-                        let ni = code
-                            .get((*ci).pc)
-                            .copied()
-                            .ok_or_else(|| Box::new(BadInst))?;
+                        let ni = code[(*ci).pc];
 
                         (*ra).tt_ = (*rb).tt_;
                         (*ra).value_ = (*rb).value_;
@@ -4342,10 +4275,7 @@ pub async unsafe fn run<A>(
                                 << 0 as c_int) as c_int as isize,
                     );
 
-                    i = code
-                        .get((*ci).pc)
-                        .copied()
-                        .ok_or_else(|| Box::new(BadInst))?;
+                    i = code[(*ci).pc];
                     (*ci).pc += 1;
 
                     current_block = 13973394567113199817;
@@ -4378,10 +4308,7 @@ pub async unsafe fn run<A>(
                     }
                     last = last.wrapping_add(n_4 as c_uint);
                     if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0 {
-                        let i = code
-                            .get((*ci).pc)
-                            .copied()
-                            .ok_or_else(|| Box::new(BadInst))?;
+                        let i = code[(*ci).pc];
 
                         (*ci).pc += 1;
 
@@ -4531,10 +4458,7 @@ pub async unsafe fn run<A>(
                     }
 
                     base = th.stack.get().add((*ci).func + 1);
-                    i = code
-                        .get((*ci).pc)
-                        .copied()
-                        .ok_or_else(|| Box::new(BadInst))?;
+                    i = code[(*ci).pc];
                     (*ci).pc += 1;
                 }
                 _ => {}
