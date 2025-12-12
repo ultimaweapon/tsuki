@@ -9,7 +9,10 @@
 pub use self::opcode::*;
 
 use crate::ldebug::{luaG_forerror, luaG_typeerror};
-use crate::ldo::{call_fp, luaD_call, luaD_poscall, luaD_precall, luaD_pretailcall, setup_lua_ci};
+use crate::ldo::{
+    call_fp, luaD_call, luaD_poscall, luaD_precall, luaD_pretailcall, setup_lua_ci,
+    setup_tailcall_ci,
+};
 use crate::lfunc::{
     luaF_close, luaF_closeupval, luaF_findupval, luaF_newLclosure, luaF_newtbcupval,
 };
@@ -4101,6 +4104,10 @@ pub async unsafe fn run<A>(
                     // Fast path for majority of the cases.
                     let n_2 = match (*ra).tt_ & 0x3f {
                         0x02 => call_fp(th, ra, -1, (*ra).value_.f)?,
+                        0x06 => match setup_tailcall_ci(th, ci, ra, b_5, delta) {
+                            Ok(_) => continue 'top,
+                            Err(e) => return Err(Box::new(e)),
+                        },
                         _ => luaD_pretailcall(th, ci, ra, b_5, delta).await?,
                     };
 

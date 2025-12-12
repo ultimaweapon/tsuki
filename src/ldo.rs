@@ -306,49 +306,10 @@ pub async unsafe fn luaD_pretailcall<D>(
             }
             0x22 => return call_async_fp(&*L, func, -1, (*func).value_.a).await,
             0x32 => todo!(),
-            0x06 => {
-                let p = (*(*func).value_.gc.cast::<LuaFn<D>>()).p.get();
-                let fsize: c_int = (*p).maxstacksize as c_int;
-                let nfixparams: c_int = (*p).numparams as c_int;
-                let mut i: c_int = 0;
-
-                if ((*L).stack_last.get()).offset_from((*L).top.get()) as c_long
-                    <= (fsize - delta) as c_long
-                {
-                    let t__: isize =
-                        (func as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
-
-                    luaD_growstack(L, (fsize - delta).try_into().unwrap())?;
-                    func = ((*L).stack.get() as *mut c_char).offset(t__ as isize) as _;
-                }
-
-                (*ci).func = (*ci).func.strict_sub_signed(delta as isize);
-
-                i = 0 as c_int;
-                while i < narg1 {
-                    let io1 = (*L).stack.get().add((*ci).func + (i as usize));
-                    let io2 = func.offset(i as isize);
-                    (*io1).value_ = (*io2).value_;
-                    (*io1).tt_ = (*io2).tt_;
-                    i += 1;
-                }
-                func = (*L).stack.get().add((*ci).func);
-                while narg1 <= nfixparams {
-                    (*func.offset(narg1 as isize)).tt_ =
-                        (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
-                    narg1 += 1;
-                }
-
-                (*ci).top = ((*ci).func + 1)
-                    .strict_add_signed(fsize as isize)
-                    .try_into()
-                    .unwrap();
-                (*ci).pc = 0;
-                (*ci).callstatus =
-                    ((*ci).callstatus as c_int | (1 as c_int) << 5 as c_int) as c_ushort;
-                (*L).top.set(func.offset(narg1 as isize));
-                return Ok(-(1 as c_int));
-            }
+            0x06 => match setup_tailcall_ci(L, ci, func, narg1, delta) {
+                Ok(_) => return Ok(-1),
+                Err(e) => return Err(Box::new(e)),
+            },
             0x26 => {
                 return call_fp(
                     &*L,
@@ -579,7 +540,54 @@ pub unsafe fn setup_lua_ci<A>(
     Ok(ci)
 }
 
-#[inline]
+#[inline(always)]
+pub unsafe fn setup_tailcall_ci<A>(
+    L: *const Thread<A>,
+    ci: *mut CallInfo,
+    mut func: *mut StackValue<A>,
+    mut narg1: c_int,
+    delta: c_int,
+) -> Result<(), StackOverflow> {
+    let p = (*(*func).value_.gc.cast::<LuaFn<A>>()).p.get();
+    let fsize: c_int = (*p).maxstacksize as c_int;
+    let nfixparams: c_int = (*p).numparams as c_int;
+    let mut i: c_int = 0;
+
+    if ((*L).stack_last.get()).offset_from((*L).top.get()) as c_long <= (fsize - delta) as c_long {
+        let t__: isize = (func as *mut c_char).offset_from((*L).stack.get() as *mut c_char);
+
+        luaD_growstack(L, (fsize - delta).try_into().unwrap())?;
+        func = ((*L).stack.get() as *mut c_char).offset(t__ as isize) as _;
+    }
+
+    (*ci).func = (*ci).func.strict_sub_signed(delta as isize);
+
+    i = 0 as c_int;
+    while i < narg1 {
+        let io1 = (*L).stack.get().add((*ci).func + (i as usize));
+        let io2 = func.offset(i as isize);
+        (*io1).value_ = (*io2).value_;
+        (*io1).tt_ = (*io2).tt_;
+        i += 1;
+    }
+    func = (*L).stack.get().add((*ci).func);
+    while narg1 <= nfixparams {
+        (*func.offset(narg1 as isize)).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
+        narg1 += 1;
+    }
+
+    (*ci).top = ((*ci).func + 1)
+        .strict_add_signed(fsize as isize)
+        .try_into()
+        .unwrap();
+    (*ci).pc = 0;
+    (*ci).callstatus = ((*ci).callstatus as c_int | (1 as c_int) << 5 as c_int) as c_ushort;
+    (*L).top.set(func.offset(narg1 as isize));
+
+    Ok(())
+}
+
+#[inline(always)]
 pub unsafe fn call_fp<A>(
     L: &Thread<A>,
     func: *mut StackValue<A>,
@@ -624,7 +632,7 @@ async unsafe fn call_async_fp<A>(
     Ok(n)
 }
 
-#[inline]
+#[inline(always)]
 unsafe fn get_ci<A>(
     L: *const Thread<A>,
     func: *const StackValue<A>,
