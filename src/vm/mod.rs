@@ -9,7 +9,7 @@
 pub use self::opcode::*;
 
 use crate::ldebug::{luaG_forerror, luaG_typeerror};
-use crate::ldo::{call_async_fp, call_fp, luaD_call, luaD_poscall, luaD_precall, luaD_pretailcall};
+use crate::ldo::{call_fp, luaD_call, luaD_poscall, luaD_precall, luaD_pretailcall, setup_lua_ci};
 use crate::lfunc::{
     luaF_close, luaF_closeupval, luaF_findupval, luaF_newLclosure, luaF_newtbcupval,
 };
@@ -4043,22 +4043,26 @@ pub async unsafe fn run<A>(
                         (*th).top.set(ra.offset(args as isize));
                     }
 
-                    // Fast path for Rust function.
-                    let newci = match (*ra).tt_ & 0x3f {
+                    // Fast path for majority of the cases.
+                    match (*ra).tt_ & 0x3f {
                         0x02 => {
                             call_fp(th, ra, nresults, (*ra).value_.f)?;
-                            null_mut()
                         }
-                        0x22 => {
-                            call_async_fp(th, ra, nresults, (*ra).value_.a).await?;
-                            null_mut()
-                        }
-                        _ => luaD_precall(th, ra, nresults).await?,
-                    };
+                        0x06 => match setup_lua_ci(th, ra, nresults) {
+                            Ok(v) => {
+                                ci = v;
+                                continue 'top;
+                            }
+                            Err(e) => return Err(Box::new(e)),
+                        },
+                        _ => {
+                            let newci = luaD_precall(th, ra, nresults).await?;
 
-                    if !newci.is_null() {
-                        ci = newci;
-                        continue 'top;
+                            if !newci.is_null() {
+                                ci = newci;
+                                continue 'top;
+                            }
+                        }
                     }
 
                     base = th.stack.get().add((*ci).func + 1);
@@ -4094,10 +4098,9 @@ pub async unsafe fn run<A>(
                         luaF_closeupval(th, base);
                     }
 
-                    // Fast path for Rust function.
+                    // Fast path for majority of the cases.
                     let n_2 = match (*ra).tt_ & 0x3f {
                         0x02 => call_fp(th, ra, -1, (*ra).value_.f)?,
-                        0x22 => call_async_fp(th, ra, -1, (*ra).value_.a).await?,
                         _ => luaD_pretailcall(th, ci, ra, b_5, delta).await?,
                     };
 

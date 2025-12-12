@@ -393,39 +393,10 @@ pub async unsafe fn luaD_precall<D>(
                 return Ok(null_mut());
             }
             0x32 => todo!(),
-            0x06 => {
-                let mut ci = null_mut();
-                let p = (*(*func).value_.gc.cast::<LuaFn<D>>()).p.get();
-                let mut narg = (*L).top.get().offset_from(func) as c_long as c_int - 1;
-                let nfixparams: c_int = (*p).numparams as c_int;
-                let fsize = usize::from((*p).maxstacksize);
-
-                if (*L).stack_last.get().offset_from_unsigned((*L).top.get()) <= fsize {
-                    let t__ = func.offset_from_unsigned((*L).stack.get());
-
-                    luaD_growstack(L, fsize)?;
-
-                    func = (*L).stack.get().add(t__);
-                }
-
-                ci = get_ci(
-                    L,
-                    func,
-                    nresults,
-                    0 as c_int,
-                    func.offset(1 as c_int as isize).offset(fsize as isize),
-                );
-                (*L).ci.set(ci);
-                (*ci).pc = 0;
-
-                while narg < nfixparams {
-                    let fresh2 = (*L).top.get();
-                    (*L).top.add(1);
-                    (*fresh2).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
-                    narg += 1;
-                }
-                return Ok(ci);
-            }
+            0x06 => match setup_lua_ci(L, func, nresults) {
+                Ok(v) => return Ok(v),
+                Err(e) => return Err(Box::new(e)),
+            },
             0x26 => {
                 call_fp(
                     &*L,
@@ -568,6 +539,46 @@ pub unsafe fn luaD_protectedparser<D>(
     status
 }
 
+#[inline(always)]
+pub unsafe fn setup_lua_ci<A>(
+    L: *const Thread<A>,
+    mut func: *const StackValue<A>,
+    nresults: c_int,
+) -> Result<*mut CallInfo, StackOverflow> {
+    let mut ci = null_mut();
+    let p = (*(*func).value_.gc.cast::<LuaFn<A>>()).p.get();
+    let mut narg = (*L).top.get().offset_from(func) as c_long as c_int - 1;
+    let nfixparams: c_int = (*p).numparams as c_int;
+    let fsize = usize::from((*p).maxstacksize);
+
+    if (*L).stack_last.get().offset_from_unsigned((*L).top.get()) <= fsize {
+        let t__ = func.offset_from_unsigned((*L).stack.get());
+
+        luaD_growstack(L, fsize)?;
+
+        func = (*L).stack.get().add(t__);
+    }
+
+    ci = get_ci(
+        L,
+        func,
+        nresults,
+        0 as c_int,
+        func.offset(1 as c_int as isize).offset(fsize as isize),
+    );
+    (*L).ci.set(ci);
+    (*ci).pc = 0;
+
+    while narg < nfixparams {
+        let fresh2 = (*L).top.get();
+        (*L).top.add(1);
+        (*fresh2).tt_ = (0 as c_int | (0 as c_int) << 4 as c_int) as u8;
+        narg += 1;
+    }
+
+    Ok(ci)
+}
+
 #[inline]
 pub unsafe fn call_fp<A>(
     L: &Thread<A>,
@@ -590,7 +601,7 @@ pub unsafe fn call_fp<A>(
     Ok(n)
 }
 
-pub async unsafe fn call_async_fp<A>(
+async unsafe fn call_async_fp<A>(
     L: &Thread<A>,
     func: *mut StackValue<A>,
     nresults: c_int,
@@ -616,10 +627,10 @@ pub async unsafe fn call_async_fp<A>(
 #[inline]
 unsafe fn get_ci<A>(
     L: *const Thread<A>,
-    func: *mut StackValue<A>,
+    func: *const StackValue<A>,
     nret: c_int,
     mask: c_int,
-    top: *mut StackValue<A>,
+    top: *const StackValue<A>,
 ) -> *mut CallInfo {
     let mut ci = (*(*L).ci.get()).next;
 
