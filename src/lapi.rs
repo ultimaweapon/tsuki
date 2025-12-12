@@ -2,15 +2,11 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::ldo::luaD_growstack;
-use crate::lobject::CClosure;
 use crate::ltm::luaT_typenames_;
-use crate::value::UnsafeValue;
-use crate::{LuaFn, Object, StackOverflow, StackValue, Thread};
+use crate::{StackOverflow, Thread};
 use core::cmp::max;
-use core::ffi::c_char;
 
 type c_int = i32;
-type c_uint = u32;
 
 #[inline(always)]
 pub unsafe fn lua_checkstack<A>(
@@ -47,72 +43,7 @@ unsafe fn growstack<A>(L: *const Thread<A>, n: usize) -> Result<(), StackOverflo
     Ok(())
 }
 
-unsafe fn reverse<D>(mut from: *mut StackValue<D>, mut to: *mut StackValue<D>) {
-    while from < to {
-        let mut temp = UnsafeValue::default();
-        let io1 = &raw mut temp;
-        let io2 = from;
-        (*io1).value_ = (*io2).value_;
-        (*io1).tt_ = (*io2).tt_;
-        let io1_0 = from;
-        let io2_0 = to;
-        (*io1_0).value_ = (*io2_0).value_;
-        (*io1_0).tt_ = (*io2_0).tt_;
-        let io1_1 = to;
-        let io2_1 = &raw mut temp;
-        (*io1_1).value_ = (*io2_1).value_;
-        (*io1_1).tt_ = (*io2_1).tt_;
-        from = from.offset(1);
-        to = to.offset(-1);
-    }
-}
-
 #[inline(always)]
 pub const fn lua_typename(t: c_int) -> &'static str {
     luaT_typenames_[(t + 1) as usize]
-}
-
-unsafe fn aux_upvalue<D>(
-    fi: *mut UnsafeValue<D>,
-    n: c_int,
-    val: *mut *mut UnsafeValue<D>,
-    owner: *mut *mut Object<D>,
-) -> *const c_char {
-    match (*fi).tt_ & 0x3f {
-        38 => {
-            let f = (*fi).value_.gc as *mut CClosure<D>;
-            if !((n as c_uint).wrapping_sub(1 as c_uint) < (*f).nupvalues as c_uint) {
-                return 0 as *const c_char;
-            }
-            *val = &mut *((*f).upvalue)
-                .as_mut_ptr()
-                .offset((n - 1 as c_int) as isize) as *mut UnsafeValue<D>;
-            if !owner.is_null() {
-                *owner = f.cast();
-            }
-            return b"\0" as *const u8 as *const c_char;
-        }
-        6 => {
-            let f_0 = (*fi).value_.gc as *mut LuaFn<D>;
-            let p = (*f_0).p.get();
-
-            if !((n as c_uint).wrapping_sub(1 as c_uint) < (*p).sizeupvalues as c_uint) {
-                return 0 as *const c_char;
-            }
-
-            *val = (*(*f_0).upvals[(n - 1) as usize].get()).v.get();
-
-            if !owner.is_null() {
-                *owner = (*f_0).upvals[(n - 1) as usize].get().cast();
-            }
-
-            let name = (*((*p).upvalues).offset((n - 1 as c_int) as isize)).name;
-            return if name.is_null() {
-                b"(no name)\0" as *const u8 as *const c_char
-            } else {
-                ((*name).contents).as_ptr() as *const c_char
-            };
-        }
-        _ => return 0 as *const c_char,
-    };
 }

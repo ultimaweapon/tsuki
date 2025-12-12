@@ -6,10 +6,10 @@ use crate::lapi::{lua_checkstack, lua_typename};
 use crate::ldo::luaD_call;
 use crate::lobject::luaO_arith;
 use crate::value::UnsafeValue;
-use crate::vm::{F2Ieq, luaV_equalobj, luaV_finishget, luaV_lessthan, luaV_objlen, luaV_tointeger};
+use crate::vm::{F2Ieq, luaV_equalobj, luaV_lessthan, luaV_objlen, luaV_tointeger};
 use crate::{
     CallError, ChunkInfo, Inputs, LuaFn, NON_YIELDABLE_WAKER, Ops, Outputs, ParseError, Ref,
-    RegKey, RegValue, StackOverflow, Str, Table, Thread, Type, UserData, luaH_get, luaH_getint,
+    RegKey, RegValue, StackOverflow, Str, Table, Thread, Type, UserData, luaH_get,
     luaH_getshortstr,
 };
 use alloc::borrow::Cow;
@@ -499,109 +499,6 @@ impl<'a, A, T> Context<'a, A, T> {
         }
 
         Ok(unsafe { Type::from_tt((*v).tt_) })
-    }
-
-    /// Push a value for `k` from `t` to the result of this call.
-    ///
-    /// This method honor `__index` metavalue.
-    ///
-    /// # Panics
-    /// If `t` or `k` come from different [Lua](crate::Lua) instance.
-    pub fn push_from_index(
-        &self,
-        t: impl Into<UnsafeValue<A>>,
-        k: impl Into<UnsafeValue<A>>,
-    ) -> Result<Type, Box<dyn core::error::Error>> {
-        unsafe { lua_checkstack(self.th, 1, 5)? };
-
-        // Check if table come from the same Lua.
-        let t = t.into();
-
-        if unsafe { (t.tt_ & 1 << 6 != 0) && (*t.value_.gc).global != self.th.hdr.global } {
-            panic!("attempt to push a value created from different Lua");
-        }
-
-        // Check if key come from the same Lua.
-        let mut k = k.into();
-
-        if unsafe { (k.tt_ & 1 << 6 != 0) && (*k.value_.gc).global != self.th.hdr.global } {
-            panic!("attempt to push a value created from different Lua");
-        }
-
-        // Try table.
-        let mut slot = null();
-        let ok = if !(t.tt_ == 5 | 0 << 4 | 1 << 6) {
-            false
-        } else {
-            let t = unsafe { t.value_.gc.cast::<Table<A>>() };
-
-            slot = unsafe { luaH_get(t, &k) };
-
-            unsafe { !((*slot).tt_ & 0xf == 0) }
-        };
-
-        // Get value.
-        let v = if ok {
-            unsafe { slot.read() }
-        } else {
-            // Try __index.
-            unsafe { luaV_finishget(self.th, &t, &mut k, false)? }
-        };
-
-        unsafe { self.th.top.write(v) };
-        unsafe { self.th.top.add(1) };
-        self.ret.set(self.ret.get() + 1);
-
-        Ok(Type::from_tt(v.tt_))
-    }
-
-    /// Push a value for `k` from `t` to the result of this call.
-    ///
-    /// This method honor `__index` metavalue.
-    ///
-    /// # Panics
-    /// If `t` come from different [Lua](crate::Lua) instance.
-    pub fn push_from_index_with_int(
-        &self,
-        t: impl Into<UnsafeValue<A>>,
-        k: i64,
-    ) -> Result<Type, Box<dyn core::error::Error>> {
-        unsafe { lua_checkstack(self.th, 1, 5)? };
-
-        // Check if table come from the same Lua.
-        let t = t.into();
-
-        if unsafe { (t.tt_ & 1 << 6 != 0) && (*t.value_.gc).global != self.th.hdr.global } {
-            panic!("attempt to push a value created from different Lua");
-        }
-
-        // Try table.
-        let mut slot = null();
-        let ok = if !(t.tt_ == 5 | 0 << 4 | 1 << 6) {
-            false
-        } else {
-            let t = unsafe { t.value_.gc.cast::<Table<A>>() };
-
-            slot = unsafe { luaH_getint(t, k) };
-
-            unsafe { !((*slot).tt_ & 0xf == 0) }
-        };
-
-        // Get value.
-        let v = if ok {
-            unsafe { slot.read() }
-        } else {
-            // Try __index.
-            let mut k = UnsafeValue::from(k);
-
-            unsafe { luaV_finishget(self.th, &t, &mut k, false)? }
-        };
-
-        unsafe { self.th.top.write(v) };
-        unsafe { self.th.top.add(1) };
-        self.ret.set(self.ret.get() + 1);
-
-        Ok(Type::from_tt(v.tt_))
     }
 
     /// Push the result of addition between `lhs` and `rhs`, returns the type of pushed value.

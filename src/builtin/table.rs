@@ -68,7 +68,9 @@ pub fn unpack<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::
 
     // Get value and push to results.
     for i in i..=e {
-        cx.push_from_index_with_int(&l, i)?;
+        let v = cx.thread().index(&l, i)?;
+
+        cx.push(v)?;
     }
 
     Ok(cx.into())
