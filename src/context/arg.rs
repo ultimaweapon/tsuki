@@ -123,15 +123,17 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
 
     /// Checks if this argument is an integer and return it.
     ///
-    /// This method will return [None] if this argument does not exists or not an integer.
+    /// This method will accept a string or float if `convert` is `true`.
     #[inline(always)]
-    pub fn as_int(&self) -> Option<i64> {
+    pub fn as_int(&self, convert: bool) -> Option<i64> {
         let v = self.get_raw_or_null();
 
         if v.is_null() {
             None
         } else if unsafe { (*v).tt_ == 3 | 0 << 4 } {
             Some(unsafe { (*v).value_.i })
+        } else if convert {
+            unsafe { luaV_tointeger(v, F2Ieq) }
         } else {
             None
         }
@@ -508,7 +510,7 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
         }
     }
 
-    /// Gets the argument and convert it to Lua floating-point.
+    /// Gets the argument and convert it to float.
     ///
     /// This has the same semantic as `luaL_checknumber`.
     #[inline(always)]
@@ -529,7 +531,7 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
         }
     }
 
-    /// Gets the argument and convert it to Lua floating-point.
+    /// Gets the argument and convert it to float.
     ///
     /// This method returns [`None`] in the following cases:
     ///

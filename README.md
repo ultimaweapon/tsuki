@@ -105,6 +105,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - `BadInst` has been removed.
 - `Context::push_from_index` and `Context::push_from_index_with_int` has been replaced with `Thread::index`.
 - `Str::as_str` has been renamed to `Str::as_utf8`.
+- `Arg::as_int` has additional parameter.
 - `string.format` now implemented in Rust with some breaking changes.
 - `string.rep` now have the same result limit as Lua.
 - Main thread has been removed.

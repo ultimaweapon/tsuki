@@ -418,7 +418,7 @@ pub fn format<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::
 
                         buf.push(b'"');
                     }
-                    Some(Type::Number) => match arg.as_int() {
+                    Some(Type::Number) => match arg.as_int(false) {
                         Some(n) if n == i64::MIN => write!(buf, "{:#x}", n).unwrap(),
                         Some(n) => write!(buf, "{}", n).unwrap(),
                         None => {

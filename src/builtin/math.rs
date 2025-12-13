@@ -8,7 +8,7 @@ use core::f64::consts::PI;
 pub fn abs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let arg = cx.arg(1);
 
-    match arg.as_int() {
+    match arg.as_int(false) {
         Some(mut n) => {
             if n < 0 {
                 n = 0u64.wrapping_sub(n as u64) as i64;
@@ -54,7 +54,7 @@ pub fn atan<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
 pub fn ceil<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let arg = cx.arg(1);
 
-    match arg.as_int() {
+    match arg.as_int(false) {
         Some(v) => cx.push(v)?,
         None => {
             let Float(arg) = arg.to_float()?;
@@ -114,7 +114,7 @@ pub fn fmod<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
     let x = cx.arg(1);
     let y = cx.arg(2);
 
-    match (x.as_int(), y.as_int()) {
+    match (x.as_int(false), y.as_int(false)) {
         (Some(x), Some(d)) => {
             if (d as u64).wrapping_add(1) <= 1 {
                 if d == 0 {
@@ -172,7 +172,7 @@ pub fn max<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::err
 pub fn modf<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1);
 
-    if let Some(v) = v.as_int() {
+    if let Some(v) = v.as_int(false) {
         cx.push(v)?;
         cx.push(0.0)?;
     } else {
