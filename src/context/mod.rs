@@ -58,12 +58,6 @@ impl<'a, A, T> Context<'a, A, T> {
         self.th
     }
 
-    /// Returns `true` if this context is a main thread.
-    #[inline]
-    pub fn is_main_thread(&self) -> bool {
-        core::ptr::addr_eq(self.th, self.th.hdr.global().main())
-    }
-
     /// Returns associated data that passed to [Lua::new()](crate::Lua::new()) or
     /// [Lua::with_seed()](crate::Lua::with_seed()).
     #[inline(always)]

@@ -22,7 +22,8 @@
 //!
 //!     // Run on main thread.
 //!     let chunk = lua.load("abc.lua", "return myfunc()").unwrap();
-//!     let result = lua.call(chunk, ()).unwrap();
+//!     let td = lua.create_thread();
+//!     let result = td.call(chunk, ()).unwrap();
 //!
 //!     match result {
 //!         Value::Str(v) => assert_eq!(v.as_str(), Some("Hello world!")),
@@ -369,15 +370,11 @@ impl<A> Lua<A> {
         unsafe { g.l_registry.get().write(UnsafeValue::from_obj(reg.cast())) };
         unsafe { luaH_resize(reg, 6, 0) };
 
-        // Create main thread.
-        let reg = unsafe { (*reg).array.get() };
-        let main = Thread::new(g.deref());
-
-        unsafe { reg.add(0).write(UnsafeValue::from_obj(main.cast())) };
-
         // Create LUA_RIDX_GLOBALS.
+        let reg = unsafe { (*reg).array.get() };
         let glb = unsafe { Table::new(g.deref()) };
 
+        unsafe { reg.add(0).write(false.into()) };
         unsafe { reg.add(1).write(UnsafeValue::from_obj(glb.cast())) };
 
         // Create table for metatables.
@@ -771,27 +768,6 @@ impl<A> Lua<A> {
         }
 
         Ok(f)
-    }
-
-    /// Call a function or callable value on main thread.
-    ///
-    /// See [`Thread::call()`] for more details.
-    #[inline(always)]
-    pub fn call<'a, R: Outputs<'a, A>>(
-        &'a self,
-        f: impl Into<UnsafeValue<A>>,
-        args: impl Inputs<A>,
-    ) -> Result<R, Box<dyn Error>> {
-        self.main().call(f, args)
-    }
-
-    #[inline(always)]
-    fn main(&self) -> &Thread<A> {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<A>>() };
-        let val = unsafe { (*reg).array.get().add(0) };
-        let val = unsafe { (*val).value_.gc.cast::<Thread<A>>() };
-
-        unsafe { &*val }
     }
 
     unsafe fn metatable(&self, o: *const UnsafeValue<A>) -> *const Table<A> {

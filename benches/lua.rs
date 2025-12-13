@@ -12,18 +12,16 @@ fn fannkuch_redux(c: &mut Criterion) {
 
     {
         let lua = tsuki::Lua::new(());
+        let td = lua.create_thread();
         let chunk = lua
             .load(tsuki::ChunkInfo::new("fannkuch-redux.lua"), &src)
             .unwrap();
-        let f: tsuki::Value<_> = lua.call(chunk, ()).unwrap();
-        let f = match f {
+        let f = match td.call(chunk, ()).unwrap() {
             tsuki::Value::LuaFn(v) => v,
             _ => unreachable!(),
         };
 
-        g.bench_function("tsuki", |b| {
-            b.iter(|| lua.call::<()>(f.deref(), 6).unwrap())
-        });
+        g.bench_function("tsuki", |b| b.iter(|| td.call::<()>(f.deref(), 6).unwrap()));
     }
 
     {
