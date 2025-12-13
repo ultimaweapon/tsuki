@@ -42,8 +42,8 @@ pub fn asin<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
 
 /// Implementation of [math.atan](https://www.lua.org/manual/5.4/manual.html#pdf-math.atan).
 pub fn atan<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
-    let y = cx.arg(1).to_float()?;
-    let x = cx.arg(2).to_nilable_float(false)?.unwrap_or(Float(1.0));
+    let Float(y) = cx.arg(1).to_float()?;
+    let Float(x) = cx.arg(2).to_nilable_float(false)?.unwrap_or(Float(1.0));
 
     cx.push(y.atan2(x))?;
 

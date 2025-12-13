@@ -92,14 +92,6 @@ impl Float {
     pub fn acos(self) -> Self {
         Self(self.0.acos())
     }
-
-    /// Computes the four quadrant arctangent of `self` (`y`) and `x` in radians.
-    ///
-    /// See [f64::atan2()] for more details.
-    #[inline(always)]
-    pub fn atan2(self, x: Self) -> Self {
-        Self(self.0.atan2(x.0))
-    }
 }
 
 impl PartialEq<f64> for Float {
