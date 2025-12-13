@@ -20,22 +20,6 @@ use std::ffi::{CStr, c_int};
 use std::format;
 use std::vec::Vec;
 
-pub const Knop: KOption = 10;
-pub const Kpadding: KOption = 8;
-pub const Kpaddalign: KOption = 9;
-pub const Kzstr: KOption = 7;
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Header {
-    pub L: *const Thread,
-    pub islittle: libc::c_int,
-    pub maxalign: libc::c_int,
-}
-
-pub const Kstring: KOption = 6;
-pub const Kchar: KOption = 5;
-
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed_0 {
@@ -43,12 +27,7 @@ pub union C2RustUnnamed_0 {
     pub little: libc::c_char,
 }
 
-pub const Kdouble: KOption = 4;
-pub const Knumber: KOption = 3;
-pub const Kfloat: KOption = 2;
-pub const Kint: KOption = 0;
 pub type KOption = libc::c_uint;
-pub const Kuint: KOption = 1;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -185,230 +164,6 @@ unsafe fn gmatch(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Erro
 static mut nativeendian: C2RustUnnamed_0 = C2RustUnnamed_0 {
     dummy: 1 as libc::c_int,
 };
-
-unsafe extern "C" fn digit(mut c: libc::c_int) -> libc::c_int {
-    return ('0' as i32 <= c && c <= '9' as i32) as libc::c_int;
-}
-
-unsafe extern "C" fn getnum(mut fmt: *mut *const libc::c_char, mut df: libc::c_int) -> libc::c_int {
-    if digit(**fmt as libc::c_int) == 0 {
-        return df;
-    } else {
-        let mut a: libc::c_int = 0 as libc::c_int;
-        loop {
-            let fresh20 = *fmt;
-            *fmt = (*fmt).offset(1);
-            a = a * 10 as libc::c_int + (*fresh20 as libc::c_int - '0' as i32);
-            if !(digit(**fmt as libc::c_int) != 0
-                && a <= ((if (::core::mem::size_of::<usize>() as libc::c_ulong)
-                    < ::core::mem::size_of::<libc::c_int>() as libc::c_ulong
-                {
-                    !(0 as libc::c_int as usize)
-                } else {
-                    2147483647 as libc::c_int as usize
-                }) as libc::c_int
-                    - 9 as libc::c_int)
-                    / 10 as libc::c_int)
-            {
-                break;
-            }
-        }
-        return a;
-    };
-}
-
-unsafe fn getnumlimit(
-    mut h: *mut Header,
-    mut fmt: *mut *const libc::c_char,
-    mut df: libc::c_int,
-) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut sz: libc::c_int = getnum(fmt, df);
-    if ((sz > 16 as libc::c_int || sz <= 0 as libc::c_int) as libc::c_int != 0 as libc::c_int)
-        as libc::c_int as libc::c_long
-        != 0
-    {
-        return luaL_error(
-            (*h).L,
-            format!("integral size ({}) out of limits [1,16]", sz),
-        );
-    }
-    return Ok(sz);
-}
-
-unsafe fn initheader(mut L: *const Thread, mut h: *mut Header) {
-    (*h).L = L;
-    (*h).islittle = nativeendian.little as libc::c_int;
-    (*h).maxalign = 1 as libc::c_int;
-}
-
-unsafe fn getoption(
-    mut h: *mut Header,
-    mut fmt: *mut *const libc::c_char,
-    mut size: *mut libc::c_int,
-) -> Result<KOption, Box<dyn std::error::Error>> {
-    let fresh21 = *fmt;
-    *fmt = (*fmt).offset(1);
-    let mut opt: libc::c_int = *fresh21 as libc::c_int;
-    *size = 0 as libc::c_int;
-    match opt {
-        98 => {
-            *size = ::core::mem::size_of::<libc::c_char>() as libc::c_ulong as libc::c_int;
-            return Ok(Kint);
-        }
-        66 => {
-            *size = ::core::mem::size_of::<libc::c_char>() as libc::c_ulong as libc::c_int;
-            return Ok(Kuint);
-        }
-        104 => {
-            *size = ::core::mem::size_of::<libc::c_short>() as libc::c_ulong as libc::c_int;
-            return Ok(Kint);
-        }
-        72 => {
-            *size = ::core::mem::size_of::<libc::c_short>() as libc::c_ulong as libc::c_int;
-            return Ok(Kuint);
-        }
-        108 => {
-            *size = ::core::mem::size_of::<libc::c_long>() as libc::c_ulong as libc::c_int;
-            return Ok(Kint);
-        }
-        76 => {
-            *size = ::core::mem::size_of::<libc::c_long>() as libc::c_ulong as libc::c_int;
-            return Ok(Kuint);
-        }
-        106 => {
-            *size = ::core::mem::size_of::<i64>() as libc::c_ulong as libc::c_int;
-            return Ok(Kint);
-        }
-        74 => {
-            *size = ::core::mem::size_of::<i64>() as libc::c_ulong as libc::c_int;
-            return Ok(Kuint);
-        }
-        84 => {
-            *size = ::core::mem::size_of::<usize>() as libc::c_ulong as libc::c_int;
-            return Ok(Kuint);
-        }
-        102 => {
-            *size = ::core::mem::size_of::<libc::c_float>() as libc::c_ulong as libc::c_int;
-            return Ok(Kfloat);
-        }
-        110 => {
-            *size = ::core::mem::size_of::<f64>() as libc::c_ulong as libc::c_int;
-            return Ok(Knumber);
-        }
-        100 => {
-            *size = ::core::mem::size_of::<libc::c_double>() as libc::c_ulong as libc::c_int;
-            return Ok(Kdouble);
-        }
-        105 => {
-            *size = getnumlimit(
-                h,
-                fmt,
-                ::core::mem::size_of::<libc::c_int>() as libc::c_ulong as libc::c_int,
-            )?;
-            return Ok(Kint);
-        }
-        73 => {
-            *size = getnumlimit(
-                h,
-                fmt,
-                ::core::mem::size_of::<libc::c_int>() as libc::c_ulong as libc::c_int,
-            )?;
-            return Ok(Kuint);
-        }
-        115 => {
-            *size = getnumlimit(
-                h,
-                fmt,
-                ::core::mem::size_of::<usize>() as libc::c_ulong as libc::c_int,
-            )?;
-            return Ok(Kstring);
-        }
-        99 => {
-            *size = getnum(fmt, -(1 as libc::c_int));
-            if ((*size == -(1 as libc::c_int)) as libc::c_int != 0 as libc::c_int) as libc::c_int
-                as libc::c_long
-                != 0
-            {
-                luaL_error((*h).L, "missing size for format option 'c'")?;
-            }
-            return Ok(Kchar);
-        }
-        122 => return Ok(Kzstr),
-        120 => {
-            *size = 1 as libc::c_int;
-            return Ok(Kpadding);
-        }
-        88 => return Ok(Kpaddalign),
-        32 => {}
-        60 => {
-            (*h).islittle = 1 as libc::c_int;
-        }
-        62 => {
-            (*h).islittle = 0 as libc::c_int;
-        }
-        61 => {
-            (*h).islittle = nativeendian.little as libc::c_int;
-        }
-        33 => {
-            let maxalign: libc::c_int = 8 as libc::c_ulong as libc::c_int;
-            (*h).maxalign = getnumlimit(h, fmt, maxalign)?;
-        }
-        _ => {
-            luaL_error(
-                (*h).L,
-                format!(
-                    "invalid format option '{}'",
-                    char::from_u32(opt as _).unwrap()
-                ),
-            )?;
-        }
-    }
-    return Ok(Knop);
-}
-
-unsafe fn getdetails(
-    mut h: *mut Header,
-    mut totalsize: usize,
-    mut fmt: *mut *const libc::c_char,
-    mut psize: *mut libc::c_int,
-    mut ntoalign: *mut libc::c_int,
-) -> Result<KOption, Box<dyn std::error::Error>> {
-    let mut opt: KOption = getoption(h, fmt, psize)?;
-    let mut align: libc::c_int = *psize;
-    if opt as libc::c_uint == Kpaddalign as libc::c_int as libc::c_uint {
-        if **fmt as libc::c_int == '\0' as i32
-            || getoption(h, fmt, &mut align)? as libc::c_uint
-                == Kchar as libc::c_int as libc::c_uint
-            || align == 0 as libc::c_int
-        {
-            luaL_argerror(
-                (*h).L,
-                1 as libc::c_int,
-                "invalid next option for option 'X'",
-            )?;
-        }
-    }
-    if align <= 1 as libc::c_int || opt as libc::c_uint == Kchar as libc::c_int as libc::c_uint {
-        *ntoalign = 0 as libc::c_int;
-    } else {
-        if align > (*h).maxalign {
-            align = (*h).maxalign;
-        }
-        if ((align & align - 1 as libc::c_int != 0 as libc::c_int) as libc::c_int
-            != 0 as libc::c_int) as libc::c_int as libc::c_long
-            != 0
-        {
-            luaL_argerror(
-                (*h).L,
-                1 as libc::c_int,
-                "format asks for alignment not power of 2",
-            )?;
-        }
-        *ntoalign = align - (totalsize & (align - 1 as libc::c_int) as usize) as libc::c_int
-            & align - 1 as libc::c_int;
-    }
-    return Ok(opt);
-}
 
 fn packint(
     mut b: &mut Vec<u8>,
@@ -632,46 +387,6 @@ unsafe fn str_pack(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Er
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn str_packsize(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut h: Header = Header {
-        L: 0 as *mut Thread,
-        islittle: 0,
-        maxalign: 0,
-    };
-    let mut fmt: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, 0 as *mut usize)?;
-    let mut totalsize: usize = 0 as libc::c_int as usize;
-    initheader(L, &mut h);
-    while *fmt as libc::c_int != '\0' as i32 {
-        let mut size: libc::c_int = 0;
-        let mut ntoalign: libc::c_int = 0;
-        let mut opt: KOption = getdetails(&mut h, totalsize, &mut fmt, &mut size, &mut ntoalign)?;
-        (((opt as libc::c_uint != Kstring as libc::c_int as libc::c_uint
-            && opt as libc::c_uint != Kzstr as libc::c_int as libc::c_uint)
-            as libc::c_int
-            != 0 as libc::c_int) as libc::c_int as libc::c_long
-            != 0
-            || luaL_argerror(L, 1 as libc::c_int, "variable-length format")? != 0)
-            as libc::c_int;
-        size += ntoalign;
-        (((totalsize
-            <= (if (::core::mem::size_of::<usize>() as libc::c_ulong)
-                < ::core::mem::size_of::<libc::c_int>() as libc::c_ulong
-            {
-                !(0 as libc::c_int as usize)
-            } else {
-                2147483647 as libc::c_int as usize
-            })
-            .wrapping_sub(size as usize)) as libc::c_int
-            != 0 as libc::c_int) as libc::c_int as libc::c_long
-            != 0
-            || luaL_argerror(L, 1 as libc::c_int, "format result too large")? != 0)
-            as libc::c_int;
-        totalsize = totalsize.wrapping_add(size as usize);
-    }
-    lua_pushinteger(L, totalsize as i64);
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn unpackint(
     mut L: *const Thread,
     mut str: *const libc::c_char,
@@ -889,13 +604,6 @@ static mut strlib: [luaL_Reg; 17] = [
         let mut init = luaL_Reg {
             name: b"pack\0" as *const u8 as *const libc::c_char,
             func: Some(str_pack),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"packsize\0" as *const u8 as *const libc::c_char,
-            func: Some(str_packsize),
         };
         init
     },

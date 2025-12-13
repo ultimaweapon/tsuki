@@ -6,7 +6,9 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::cmp::min;
+use core::ffi::{c_double, c_float, c_int, c_long, c_short};
 use core::fmt::Write;
+use core::iter::Peekable;
 use core::num::NonZero;
 use memchr::memchr;
 
@@ -584,6 +586,49 @@ pub fn lower<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
 /// Implementation of `__unm` metamethod for string.
 pub fn negate<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     arith(cx, "__unm", |cx, v, _| cx.push_neg(v).map(|_| ()))
+}
+
+/// Implementation of [string.packsize](https://www.lua.org/manual/5.4/manual.html#pdf-string.packsize).
+pub fn packsize<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    // Check if UTF-8.
+    let fmt = cx.arg(1);
+    let fmt = fmt
+        .to_str()?
+        .as_str()
+        .ok_or_else(|| fmt.error("expect UTF-8 string"))?;
+
+    // Parse.
+    let mut fmt = fmt.chars().take_while(|&c| c != '\0').peekable();
+    let mut h = Header::new();
+    let mut totalsize = 0;
+
+    while let Some(first) = fmt.next() {
+        let mut ntoalign = 0;
+        let mut size = match h.getdetails(totalsize, first, &mut fmt, &mut ntoalign)? {
+            Pack::Signed(v) => v,
+            Pack::Unsigned(v) => v,
+            Pack::Float(v) => v,
+            Pack::Double(v) => v,
+            Pack::Number(v) => v,
+            Pack::Char(v) => v,
+            Pack::Str(_) => return Err("variable-length format".into()),
+            Pack::Padding(v) => v,
+            Pack::PadAlign => 0,
+            Pack::Nop => 0,
+        };
+
+        size += ntoalign;
+
+        if totalsize > 2147483647usize.wrapping_sub(size) {
+            return Err("format result too large".into());
+        }
+
+        totalsize = totalsize.wrapping_add(size);
+    }
+
+    cx.push(totalsize as i64)?;
+
+    Ok(cx.into())
 }
 
 /// Implementation of `__pow` metamethod for string.
@@ -1549,4 +1594,151 @@ enum Sign {
     Always,
     SpaceIfPositive,
     Negative,
+}
+
+struct Header {
+    islittle: bool,
+    maxalign: usize,
+}
+
+impl Header {
+    fn new() -> Self {
+        Self {
+            islittle: cfg!(target_endian = "little"),
+            maxalign: 1,
+        }
+    }
+
+    fn getdetails<F: Iterator<Item = char>>(
+        &mut self,
+        totalsize: usize,
+        first: char,
+        fmt: &mut Peekable<F>,
+        ntoalign: &mut usize,
+    ) -> Result<Pack, Box<dyn core::error::Error>> {
+        let opt = self.getoption(first, fmt)?;
+        let mut align = match opt {
+            Pack::Signed(v) => v,
+            Pack::Unsigned(v) => v,
+            Pack::Float(v) => v,
+            Pack::Double(v) => v,
+            Pack::Number(v) => v,
+            Pack::Char(v) => v,
+            Pack::Str(v) => v.unwrap_or(0),
+            Pack::Padding(v) => v,
+            Pack::PadAlign => match fmt.next().map(|c| self.getoption(c, fmt)).transpose()? {
+                Some(Pack::Signed(v))
+                | Some(Pack::Unsigned(v))
+                | Some(Pack::Float(v))
+                | Some(Pack::Double(v))
+                | Some(Pack::Number(v))
+                | Some(Pack::Str(Some(v)))
+                | Some(Pack::Padding(v))
+                    if v != 0 =>
+                {
+                    v
+                }
+                _ => return Err("invalid next option for option 'X'".into()),
+            },
+            Pack::Nop => 0,
+        };
+
+        if align <= 1 || matches!(opt, Pack::Char(_)) {
+            *ntoalign = 0;
+        } else {
+            if align > self.maxalign {
+                align = self.maxalign;
+            }
+
+            if align & align - 1 != 0 {
+                return Err("format asks for alignment not power of 2".into());
+            }
+
+            *ntoalign = align - (totalsize & (align - 1)) & align - 1;
+        }
+
+        Ok(opt)
+    }
+
+    fn getoption<F: Iterator<Item = char>>(
+        &mut self,
+        opt: char,
+        fmt: &mut Peekable<F>,
+    ) -> Result<Pack, Box<dyn core::error::Error>> {
+        match opt {
+            'b' => return Ok(Pack::Signed(1)),
+            'B' => return Ok(Pack::Unsigned(1)),
+            'h' => return Ok(Pack::Signed(size_of::<c_short>())),
+            'H' => return Ok(Pack::Unsigned(size_of::<c_short>())),
+            'l' => return Ok(Pack::Signed(size_of::<c_long>())),
+            'L' => return Ok(Pack::Unsigned(size_of::<c_long>())),
+            'j' => return Ok(Pack::Signed(8)),
+            'J' => return Ok(Pack::Unsigned(8)),
+            'T' => return Ok(Pack::Unsigned(size_of::<usize>())),
+            'f' => return Ok(Pack::Float(size_of::<c_float>())),
+            'n' => return Ok(Pack::Number(size_of::<f64>())),
+            'd' => return Ok(Pack::Double(size_of::<c_double>())),
+            'i' => return Self::getnumlimit(fmt, size_of::<c_int>()).map(Pack::Signed),
+            'I' => return Self::getnumlimit(fmt, size_of::<c_int>()).map(Pack::Unsigned),
+            's' => return Self::getnumlimit(fmt, size_of::<usize>()).map(|v| Pack::Str(Some(v))),
+            'c' => match Self::getnum(fmt) {
+                Some(v) => return Ok(Pack::Char(v)),
+                None => return Err("missing size for format option 'c'".into()),
+            },
+            'z' => return Ok(Pack::Str(None)),
+            'x' => return Ok(Pack::Padding(1)),
+            'X' => return Ok(Pack::PadAlign),
+            ' ' => (),
+            '<' => self.islittle = true,
+            '>' => self.islittle = false,
+            '=' => self.islittle = cfg!(target_endian = "little"),
+            '!' => self.maxalign = Self::getnumlimit(fmt, size_of::<usize>())?,
+            _ => return Err(format!("invalid format option '{opt}'",).into()),
+        }
+
+        Ok(Pack::Nop)
+    }
+
+    fn getnumlimit<F: Iterator<Item = char>>(
+        fmt: &mut Peekable<F>,
+        df: usize,
+    ) -> Result<usize, Box<dyn core::error::Error>> {
+        let sz = Self::getnum(fmt).unwrap_or(df);
+
+        if sz > 16 || sz <= 0 {
+            return Err(format!("integral size ({sz}) out of limits [1,16]").into());
+        }
+
+        Ok(sz)
+    }
+
+    fn getnum<F: Iterator<Item = char>>(fmt: &mut Peekable<F>) -> Option<usize> {
+        let mut b = fmt.next_if(|b| b.is_ascii_digit())? as u8;
+        let mut a = 0;
+
+        loop {
+            a = a * 10 + usize::from(b - b'0');
+
+            b = match fmt.next_if(move |b| b.is_ascii_digit() && a <= (2147483647 - 9) / 10) {
+                Some(v) => v as u8,
+                None => break,
+            };
+        }
+
+        Some(a)
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Pack {
+    Signed(usize),
+    Unsigned(usize),
+    Float(usize),
+    Double(usize),
+    Number(usize),
+    Char(usize),
+    Str(Option<usize>),
+    Padding(usize),
+    PadAlign,
+    Nop,
 }

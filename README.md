@@ -80,6 +80,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
   - `q` format will use decimal notation instead of hexadecimal exponent notation for floating point.
   - Format have unlimited length.
 - `string.find` and `string.gsub` does not support class `z`.
+- `string.packsize` requires UTF-8 string for format string and always return non-argument error.
 - Native module is not supported.
 - Environment variable `LUA_PATH` and `LUA_PATH_5_4` is ignored.
 - `LUA_NOENV` in registry is ignored.
