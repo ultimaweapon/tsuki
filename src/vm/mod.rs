@@ -1155,17 +1155,18 @@ pub async unsafe fn run<A>(
         let mut base = th.stack.get().add((*ci).func + 1);
         let mut tab = null_mut();
         let mut key = UnsafeValue::default();
-        let mut i = code[(*ci).pc];
+        let mut pc = (*ci).pc;
+        let mut i = code[pc];
 
-        (*ci).pc += 1;
+        pc += 1;
 
         loop {
             let current_block: u64;
 
             macro_rules! next {
                 () => {
-                    i = code[(*ci).pc];
-                    (*ci).pc += 1;
+                    i = code[pc];
+                    pc += 1;
                     continue;
                 };
             }
@@ -1226,10 +1227,10 @@ pub async unsafe fn run<A>(
                 }
                 OP_LOADKX => {
                     let ra = base.offset((i >> 0 + 7 & !(!(0u32) << 8) << 0) as isize);
-                    let rb = code[(*ci).pc];
+                    let rb = code[pc];
                     let rb = k.offset((rb >> 0 + 7 & !(!(0u32) << 8 + 8 + 1 + 8) << 0) as isize);
 
-                    (*ci).pc += 1;
+                    pc += 1;
 
                     (*ra).tt_ = (*rb).tt_;
                     (*ra).value_ = (*rb).value_;
@@ -1252,7 +1253,7 @@ pub async unsafe fn run<A>(
                             as c_int as isize,
                     );
                     (*ra_5).tt_ = (1 as c_int | (0 as c_int) << 4 as c_int) as u8;
-                    (*ci).pc += 1;
+                    pc += 1;
                     next!();
                 }
                 OP_LOADTRUE => {
@@ -1572,6 +1573,7 @@ pub async unsafe fn run<A>(
                         }
                     } else {
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
+                        (*ci).pc = pc;
 
                         luaV_finishset(th, upval_0, rb_4, rc_2, slot_3)?;
 
@@ -1637,6 +1639,7 @@ pub async unsafe fn run<A>(
                         }
                     } else {
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
+                        (*ci).pc = pc;
 
                         luaV_finishset(th, tab.cast(), key.cast(), val, slot)?;
 
@@ -1714,6 +1717,7 @@ pub async unsafe fn run<A>(
                         (*io_2).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
 
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
+                        (*ci).pc = pc;
 
                         luaV_finishset(th, ra_15.cast(), &mut key_3, rc_4, slot_5)?;
 
@@ -1780,6 +1784,7 @@ pub async unsafe fn run<A>(
                         }
                     } else {
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
+                        (*ci).pc = pc;
 
                         luaV_finishset(th, ra_16.cast(), rb_6, rc_5, slot_6)?;
 
@@ -1806,13 +1811,13 @@ pub async unsafe fn run<A>(
                     }
 
                     if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0 {
-                        let i = code[(*ci).pc];
+                        let i = code[pc];
 
                         c_1 += (i >> 0 + 7 & !(!(0u32) << 8 + 8 + 1 + 8) << 0) as c_int
                             * (((1 as c_int) << 8) - 1 + 1);
                     }
 
-                    (*ci).pc += 1;
+                    pc += 1;
                     (*th).top.set(ra_17.offset(1 as c_int as isize));
 
                     // Create table.
@@ -1933,7 +1938,7 @@ pub async unsafe fn run<A>(
                         unreachable_unchecked();
                     }
 
-                    (*ci).pc += 1;
+                    pc += 1;
                     next!();
                 }
                 22 => {
@@ -1957,7 +1962,7 @@ pub async unsafe fn run<A>(
                     {
                         let i1: i64 = (*v1_0).value_.i;
                         let i2: i64 = (*v2).value_.i;
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_6 = ra_20;
 
                         (*io_6).value_.i = (i1 as u64).wrapping_add(i2 as u64) as i64;
@@ -1989,7 +1994,7 @@ pub async unsafe fn run<A>(
                                 }
                             }) != 0
                         {
-                            (*ci).pc += 1;
+                            pc += 1;
                             let io_7 = ra_20;
 
                             (*io_7).value_.n = n1 + n2;
@@ -2020,7 +2025,7 @@ pub async unsafe fn run<A>(
                     {
                         let i1_0: i64 = (*v1_1).value_.i;
                         let i2_0: i64 = (*v2_0).value_.i;
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_8 = ra_21;
 
                         (*io_8).value_.i = (i1_0 as u64).wrapping_sub(i2_0 as u64) as i64;
@@ -2052,7 +2057,7 @@ pub async unsafe fn run<A>(
                                 }
                             }) != 0
                         {
-                            (*ci).pc += 1;
+                            pc += 1;
                             let io_9 = ra_21;
 
                             (*io_9).value_.n = n1_0 - n2_0;
@@ -2083,7 +2088,7 @@ pub async unsafe fn run<A>(
                     {
                         let i1_1: i64 = (*v1_2).value_.i;
                         let i2_1: i64 = (*v2_1).value_.i;
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_10 = ra_22;
 
                         (*io_10).value_.i = (i1_1 as u64 * i2_1 as u64) as i64;
@@ -2115,7 +2120,7 @@ pub async unsafe fn run<A>(
                                 }
                             }) != 0
                         {
-                            (*ci).pc += 1;
+                            pc += 1;
                             let io_11 = ra_22;
 
                             (*io_11).value_.n = n1_1 * n2_1;
@@ -2148,12 +2153,15 @@ pub async unsafe fn run<A>(
                     {
                         let i1_2: i64 = (*v1_3).value_.i;
                         let i2_2: i64 = (*v2_2).value_.i;
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_12 = ra_23;
 
                         (*io_12).value_.i = match luaV_mod(i1_2, i2_2) {
                             Some(v) => v,
-                            None => return Err(Box::new(ArithError::ModZero)),
+                            None => {
+                                (*ci).pc = pc;
+                                return Err(Box::new(ArithError::ModZero));
+                            }
                         };
                         (*io_12).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
@@ -2183,7 +2191,7 @@ pub async unsafe fn run<A>(
                                 }
                             }) != 0
                         {
-                            (*ci).pc += 1;
+                            pc += 1;
                             let io_13 = ra_23;
 
                             (*io_13).value_.n = luaV_modf(n1_2, n2_2);
@@ -2235,7 +2243,7 @@ pub async unsafe fn run<A>(
                             }
                         }) != 0
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_14 = ra_24;
                         (*io_14).value_.n = if n2_3 == 2 as c_int as f64 {
                             n1_3 * n1_3
@@ -2289,7 +2297,7 @@ pub async unsafe fn run<A>(
                             }
                         }) != 0
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_15 = ra_25;
 
                         (*io_15).value_.n = n1_4 / n2_4;
@@ -2320,12 +2328,15 @@ pub async unsafe fn run<A>(
                     {
                         let i1_3: i64 = (*v1_6).value_.i;
                         let i2_3: i64 = (*v2_5).value_.i;
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_16 = ra_26;
 
                         (*io_16).value_.i = match luaV_idiv(i1_3, i2_3) {
                             Some(v) => v,
-                            None => return Err(Box::new(ArithError::DivZero)),
+                            None => {
+                                (*ci).pc = pc;
+                                return Err(Box::new(ArithError::DivZero));
+                            }
                         };
                         (*io_16).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
@@ -2355,7 +2366,7 @@ pub async unsafe fn run<A>(
                                 }
                             }) != 0
                         {
-                            (*ci).pc += 1;
+                            pc += 1;
                             let io_17 = ra_26;
                             (*io_17).value_.n = (n1_5 / n2_5).floor();
                             (*io_17).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -2392,7 +2403,7 @@ pub async unsafe fn run<A>(
                         0
                     } != 0
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_18 = ra_27;
                         (*io_18).value_.i = (i1_4 as u64 & i2_4 as u64) as i64;
                         (*io_18).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -2429,7 +2440,7 @@ pub async unsafe fn run<A>(
                         0
                     } != 0
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_19 = ra_28;
 
                         (*io_19).value_.i = (i1_5 as u64 | i2_5 as u64) as i64;
@@ -2467,7 +2478,7 @@ pub async unsafe fn run<A>(
                         0
                     } != 0
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_20 = ra_29;
                         (*io_20).value_.i = (i1_6 as u64 ^ i2_6 as u64) as i64;
                         (*io_20).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -2503,7 +2514,7 @@ pub async unsafe fn run<A>(
                         0
                     } != 0
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_21 = ra_30;
 
                         (*io_21).value_.i = luaV_shiftl(ib, -ic as i64);
@@ -2540,7 +2551,7 @@ pub async unsafe fn run<A>(
                         0
                     } != 0
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_22 = ra_31;
                         (*io_22).value_.i = luaV_shiftl(ic_0 as i64, ib_0);
                         (*io_22).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -2569,7 +2580,7 @@ pub async unsafe fn run<A>(
                     {
                         let i1_7: i64 = (*v1_10).value_.i;
                         let i2_7: i64 = (*v2_9).value_.i;
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_23 = ra_32;
                         (*io_23).value_.i = (i1_7 as u64).wrapping_add(i2_7 as u64) as i64;
                         (*io_23).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -2600,7 +2611,7 @@ pub async unsafe fn run<A>(
                                 }
                             }) != 0
                         {
-                            (*ci).pc += 1;
+                            pc += 1;
                             let io_24 = ra_32;
                             (*io_24).value_.n = n1_6 + n2_6;
                             (*io_24).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -2630,7 +2641,7 @@ pub async unsafe fn run<A>(
                     {
                         let i1_8: i64 = (*v1_11).value_.i;
                         let i2_8: i64 = (*v2_10).value_.i;
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_25 = ra_33;
                         (*io_25).value_.i = (i1_8 as u64).wrapping_sub(i2_8 as u64) as i64;
                         (*io_25).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -2663,7 +2674,7 @@ pub async unsafe fn run<A>(
                                 }
                             }) != 0
                         {
-                            (*ci).pc += 1;
+                            pc += 1;
                             let io_26 = ra_33;
                             (*io_26).value_.n = n1_7 - n2_7;
                             (*io_26).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -2694,7 +2705,7 @@ pub async unsafe fn run<A>(
                     {
                         let i1_9: i64 = (*v1_12).value_.i;
                         let i2_9: i64 = (*v2_11).value_.i;
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_27 = ra_34;
                         (*io_27).value_.i = ((i1_9 as u64).wrapping_mul(i2_9 as u64)) as i64;
                         (*io_27).tt_ = 3 | 0 << 4;
@@ -2727,7 +2738,7 @@ pub async unsafe fn run<A>(
                                 }
                             }) != 0
                         {
-                            (*ci).pc += 1;
+                            pc += 1;
                             let io_28 = ra_34;
                             (*io_28).value_.n = n1_8 * n2_8;
                             (*io_28).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -2760,11 +2771,14 @@ pub async unsafe fn run<A>(
                     {
                         let i1_10: i64 = (*v1_13).value_.i;
                         let i2_10: i64 = (*v2_12).value_.i;
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_29 = ra_35;
                         (*io_29).value_.i = match luaV_mod(i1_10, i2_10) {
                             Some(v) => v,
-                            None => return Err(Box::new(ArithError::ModZero)),
+                            None => {
+                                (*ci).pc = pc;
+                                return Err(Box::new(ArithError::ModZero));
+                            }
                         };
                         (*io_29).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
@@ -2796,7 +2810,7 @@ pub async unsafe fn run<A>(
                                 }
                             }) != 0
                         {
-                            (*ci).pc += 1;
+                            pc += 1;
                             let io_30 = ra_35;
                             (*io_30).value_.n = luaV_modf(n1_9, n2_9);
                             (*io_30).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -2847,7 +2861,7 @@ pub async unsafe fn run<A>(
                             }
                         }) != 0
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_31 = ra_36;
                         (*io_31).value_.n = if n2_10 == 2 as c_int as f64 {
                             n1_10 * n1_10
@@ -2901,7 +2915,7 @@ pub async unsafe fn run<A>(
                             }
                         }) != 0
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_32 = ra_37;
                         (*io_32).value_.n = n1_11 / n2_11;
                         (*io_32).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -2933,11 +2947,14 @@ pub async unsafe fn run<A>(
                     {
                         let i1_11: i64 = (*v1_16).value_.i;
                         let i2_11: i64 = (*v2_15).value_.i;
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_33 = ra_38;
                         (*io_33).value_.i = match luaV_idiv(i1_11, i2_11) {
                             Some(v) => v,
-                            None => return Err(Box::new(ArithError::DivZero)),
+                            None => {
+                                (*ci).pc = pc;
+                                return Err(Box::new(ArithError::DivZero));
+                            }
                         };
                         (*io_33).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
@@ -2969,7 +2986,7 @@ pub async unsafe fn run<A>(
                                 }
                             }) != 0
                         {
-                            (*ci).pc += 1;
+                            pc += 1;
                             let io_34 = ra_38;
                             (*io_34).value_.n = (n1_12 / n2_12).floor();
                             (*io_34).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
@@ -3016,7 +3033,7 @@ pub async unsafe fn run<A>(
                             0
                         }) != 0
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_35 = ra_39;
                         (*io_35).value_.i = (i1_12 as u64 & i2_12 as u64) as i64;
                         (*io_35).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -3062,7 +3079,7 @@ pub async unsafe fn run<A>(
                             0
                         }) != 0
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_36 = ra_40;
                         (*io_36).value_.i = (i1_13 as u64 | i2_13 as u64) as i64;
                         (*io_36).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -3108,7 +3125,7 @@ pub async unsafe fn run<A>(
                             0
                         }) != 0
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_37 = ra_41;
                         (*io_37).value_.i = (i1_14 as u64 ^ i2_14 as u64) as i64;
                         (*io_37).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -3154,7 +3171,7 @@ pub async unsafe fn run<A>(
                             0
                         }) != 0
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_38 = ra_42;
                         (*io_38).value_.i = luaV_shiftl(
                             i1_15,
@@ -3203,7 +3220,7 @@ pub async unsafe fn run<A>(
                             0
                         }) != 0
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                         let io_39 = ra_43;
                         (*io_39).value_.i = luaV_shiftl(i1_16, i2_16);
                         (*io_39).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
@@ -3217,7 +3234,7 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    let pi = code[(*ci).pc - 2];
+                    let pi = code[pc - 2];
                     let rb = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -3229,6 +3246,7 @@ pub async unsafe fn run<A>(
                         as c_int as TMS;
 
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
+                    (*ci).pc = pc;
 
                     let val = luaT_trybinTM(th, ra.cast(), rb.cast(), tm)?;
 
@@ -3251,7 +3269,7 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    let pi = code[(*ci).pc - 2];
+                    let pi = code[pc - 2];
                     let imm_0: c_int = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                         & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                         as c_int
@@ -3265,6 +3283,7 @@ pub async unsafe fn run<A>(
                         as c_int;
 
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
+                    (*ci).pc = pc;
 
                     let val = luaT_trybiniTM(th, ra.cast(), imm_0 as i64, flip, tm_0)?;
 
@@ -3287,7 +3306,7 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    let pi = code[(*ci).pc - 2];
+                    let pi = code[pc - 2];
                     let imm_1 = k.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -3302,6 +3321,7 @@ pub async unsafe fn run<A>(
                         as c_int;
 
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
+                    (*ci).pc = pc;
 
                     let val = luaT_trybinassocTM(th, ra.cast(), imm_1, flip_0, tm_1)?;
 
@@ -3351,6 +3371,7 @@ pub async unsafe fn run<A>(
                         (*io_41).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                     } else {
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
+                        (*ci).pc = pc;
 
                         let val = luaT_trybinTM(th, rb_11.cast(), rb_11.cast(), TM_UNM)?;
 
@@ -3395,6 +3416,7 @@ pub async unsafe fn run<A>(
                         (*io_42).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
+                        (*ci).pc = pc;
 
                         let val = luaT_trybinTM(th, rb_12.cast(), rb_12.cast(), TM_BNOT)?;
 
@@ -3433,6 +3455,7 @@ pub async unsafe fn run<A>(
                 }
                 OP_LEN => {
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
+                    (*ci).pc = pc;
 
                     let val = luaV_objlen(
                         th,
@@ -3468,6 +3491,8 @@ pub async unsafe fn run<A>(
                         as c_int;
 
                     (*th).top.set(ra_51.offset(n_1 as isize));
+                    (*ci).pc = pc;
+
                     luaV_concat(th, n_1)?;
 
                     (*th).hdr.global().gc.step();
@@ -3484,6 +3509,7 @@ pub async unsafe fn run<A>(
                     );
 
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
+                    (*ci).pc = pc;
 
                     if let Err(e) = luaF_close(th, ra_52) {
                         return Err(e); // Requires unsized coercion.
@@ -3500,11 +3526,14 @@ pub async unsafe fn run<A>(
                     );
 
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
+                    (*ci).pc = pc;
+
                     luaF_newtbcupval(th, ra_53)?;
+
                     next!();
                 }
                 56 => {
-                    (*ci).pc = (*ci).pc.wrapping_add_signed(
+                    pc = pc.wrapping_add_signed(
                         ((i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32)
                                 << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -3530,6 +3559,7 @@ pub async unsafe fn run<A>(
                     );
 
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
+                    (*ci).pc = pc;
 
                     cond = luaV_equalobj(Some(th), ra_54.cast(), rb_14.cast())?.into();
                     base = th.stack.get().add((*ci).func + 1);
@@ -3539,11 +3569,11 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                     } else {
-                        let ni = code[(*ci).pc];
+                        let ni = code[pc];
 
-                        (*ci).pc = (*ci).pc.wrapping_add_signed(
+                        pc = pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -3581,6 +3611,7 @@ pub async unsafe fn run<A>(
                         cond_0 = LTnum::<A>(ra_55.cast(), rb_15.cast());
                     } else {
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
+                        (*ci).pc = pc;
 
                         cond_0 = lessthanothers(th, ra_55.cast(), rb_15.cast())?;
                         base = th.stack.get().add((*ci).func + 1);
@@ -3590,11 +3621,11 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                     } else {
-                        let ni = code[(*ci).pc];
+                        let ni = code[pc];
 
-                        (*ci).pc = (*ci).pc.wrapping_add_signed(
+                        pc = pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -3632,6 +3663,7 @@ pub async unsafe fn run<A>(
                         cond_1 = LEnum::<A>(ra_56.cast(), rb_16.cast());
                     } else {
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
+                        (*ci).pc = pc;
 
                         cond_1 = lessequalothers(th, ra_56.cast(), rb_16.cast())?;
                         base = th.stack.get().add((*ci).func + 1);
@@ -3641,11 +3673,11 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                     } else {
-                        let ni = code[(*ci).pc];
+                        let ni = code[pc];
 
-                        (*ci).pc = (*ci).pc.wrapping_add_signed(
+                        pc = pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -3679,11 +3711,11 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                     } else {
-                        let ni = code[(*ci).pc];
+                        let ni = code[pc];
 
-                        (*ci).pc = (*ci).pc.wrapping_add_signed(
+                        pc = pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -3720,11 +3752,11 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                     } else {
-                        let ni = code[(*ci).pc];
+                        let ni = code[pc];
 
-                        (*ci).pc = (*ci).pc.wrapping_add_signed(
+                        pc = pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -3763,6 +3795,7 @@ pub async unsafe fn run<A>(
                             as c_int;
 
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
+                        (*ci).pc = pc;
 
                         cond_4 = luaT_callorderiTM(th, ra_59.cast(), im_0, 0, isf, TM_LT)?;
                         base = th.stack.get().add((*ci).func + 1);
@@ -3773,11 +3806,11 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                     } else {
-                        let ni = code[(*ci).pc];
+                        let ni = code[pc];
 
-                        (*ci).pc = (*ci).pc.wrapping_add_signed(
+                        pc = pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -3817,6 +3850,7 @@ pub async unsafe fn run<A>(
                             as c_int;
 
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
+                        (*ci).pc = pc;
 
                         cond_5 = luaT_callorderiTM(th, ra_60.cast(), im_1, 0, isf_0, TM_LE)?;
                         base = th.stack.get().add((*ci).func + 1);
@@ -3827,11 +3861,11 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                     } else {
-                        let ni = code[(*ci).pc];
+                        let ni = code[pc];
 
-                        (*ci).pc = (*ci).pc.wrapping_add_signed(
+                        pc = pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -3871,6 +3905,7 @@ pub async unsafe fn run<A>(
                             as c_int;
 
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
+                        (*ci).pc = pc;
 
                         cond_6 = luaT_callorderiTM(th, ra_61.cast(), im_2, 1, isf_1, TM_LT)?;
                         base = th.stack.get().add((*ci).func + 1);
@@ -3881,11 +3916,11 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                     } else {
-                        let ni = code[(*ci).pc];
+                        let ni = code[pc];
 
-                        (*ci).pc = (*ci).pc.wrapping_add_signed(
+                        pc = pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -3925,6 +3960,7 @@ pub async unsafe fn run<A>(
                             as c_int;
 
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
+                        (*ci).pc = pc;
 
                         cond_7 = luaT_callorderiTM(th, ra_62.cast(), im_3, 1, isf_2, TM_LE)?;
                         base = th.stack.get().add((*ci).func + 1);
@@ -3935,11 +3971,11 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                     } else {
-                        let ni = code[(*ci).pc];
+                        let ni = code[pc];
 
-                        (*ci).pc = (*ci).pc.wrapping_add_signed(
+                        pc = pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -3969,11 +4005,11 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                     } else {
-                        let ni = code[(*ci).pc];
+                        let ni = code[pc];
 
-                        (*ci).pc = (*ci).pc.wrapping_add_signed(
+                        pc = pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -4005,14 +4041,14 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 1 as c_int) << 0 as c_int)
                             as c_int
                     {
-                        (*ci).pc += 1;
+                        pc += 1;
                     } else {
-                        let ni = code[(*ci).pc];
+                        let ni = code[pc];
 
                         (*ra).tt_ = (*rb).tt_;
                         (*ra).value_ = (*rb).value_;
 
-                        (*ci).pc = (*ci).pc.wrapping_add_signed(
+                        pc = pc.wrapping_add_signed(
                             ((ni >> 0 as c_int + 7 as c_int
                                 & !(!(0 as c_int as u32)
                                     << 8 as c_int + 8 as c_int + 1 as c_int + 8 as c_int)
@@ -4045,6 +4081,8 @@ pub async unsafe fn run<A>(
                     if args != 0 {
                         (*th).top.set(ra.offset(args as isize));
                     }
+
+                    (*ci).pc = pc;
 
                     // Fast path for majority of the cases.
                     match (*ra).tt_ & 0x3f {
@@ -4101,6 +4139,8 @@ pub async unsafe fn run<A>(
                         luaF_closeupval(th, base);
                     }
 
+                    (*ci).pc = pc;
+
                     // Fast path for majority of the cases.
                     let n_2 = match (*ra).tt_ & 0x3f {
                         0x02 => call_fp(th, ra, -1, (*ra).value_.f)?,
@@ -4137,6 +4177,8 @@ pub async unsafe fn run<A>(
                     if n_3 < 0 as c_int {
                         n_3 = ((*th).top.get()).offset_from(ra_67) as c_int;
                     }
+
+                    (*ci).pc = pc;
 
                     if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0 {
                         let top = th.stack.get().add((*ci).top.get());
@@ -4233,7 +4275,7 @@ pub async unsafe fn run<A>(
                             (*io_45).value_.i = idx;
                             (*io_45).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
 
-                            (*ci).pc = (*ci).pc.wrapping_add_signed(
+                            pc = pc.wrapping_add_signed(
                                 -((i >> 0 as c_int + 7 as c_int + 8 as c_int
                                     & !(!(0 as c_int as u32)
                                         << 8 as c_int + 8 as c_int + 1 as c_int)
@@ -4242,7 +4284,7 @@ pub async unsafe fn run<A>(
                             );
                         }
                     } else if floatforloop(ra_71) != 0 {
-                        (*ci).pc = (*ci).pc.wrapping_add_signed(
+                        pc = pc.wrapping_add_signed(
                             -((i >> 0 as c_int + 7 as c_int + 8 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)
                                     << 0 as c_int) as c_int as isize),
@@ -4258,9 +4300,10 @@ pub async unsafe fn run<A>(
                     );
 
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
+                    (*ci).pc = pc;
 
                     if forprep(th, ra_72)? != 0 {
-                        (*ci).pc = (*ci).pc.wrapping_add_signed(
+                        pc = pc.wrapping_add_signed(
                             ((i >> 0 as c_int + 7 as c_int + 8 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)
                                     << 0 as c_int) as c_int
@@ -4277,16 +4320,17 @@ pub async unsafe fn run<A>(
                     );
 
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
+                    (*ci).pc = pc;
 
                     luaF_newtbcupval(th, ra_73.offset(3 as c_int as isize))?;
-                    (*ci).pc = (*ci).pc.wrapping_add_signed(
+                    pc = pc.wrapping_add_signed(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)
                                 << 0 as c_int) as c_int as isize,
                     );
 
-                    i = code[(*ci).pc];
-                    (*ci).pc += 1;
+                    i = code[pc];
+                    pc += 1;
 
                     current_block = 13973394567113199817;
                 }
@@ -4318,9 +4362,9 @@ pub async unsafe fn run<A>(
                     }
                     last = last.wrapping_add(n_4 as c_uint);
                     if (i & (1 as c_uint) << 0 as c_int + 7 as c_int + 8 as c_int) as c_int != 0 {
-                        let i = code[(*ci).pc];
+                        let i = code[pc];
 
-                        (*ci).pc += 1;
+                        pc += 1;
 
                         last = last.wrapping_add(
                             ((i >> 0 as c_int + 7 as c_int
@@ -4393,12 +4437,15 @@ pub async unsafe fn run<A>(
                         - 1 as c_int;
 
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
+                    (*ci).pc = pc;
 
                     luaT_getvarargs(th, ci, ra_78, n_5)?;
                     base = th.stack.get().add((*ci).func + 1);
                     next!();
                 }
                 81 => {
+                    (*ci).pc = pc;
+
                     luaT_adjustvarargs(
                         th,
                         (i >> 0 as c_int + 7 as c_int & !(!(0 as c_int as u32) << 8 as c_int) << 0)
@@ -4418,6 +4465,7 @@ pub async unsafe fn run<A>(
             match current_block {
                 0 => {
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
+                    (*ci).pc = pc;
 
                     let val = luaV_finishget(th, tab, &raw const key, true)?;
 
@@ -4448,6 +4496,7 @@ pub async unsafe fn run<A>(
                             .offset(4 as c_int as isize)
                             .offset(3 as c_int as isize),
                     );
+                    (*ci).pc = pc;
 
                     // Invoke iterator function.
                     {
@@ -4468,8 +4517,8 @@ pub async unsafe fn run<A>(
                     }
 
                     base = th.stack.get().add((*ci).func + 1);
-                    i = code[(*ci).pc];
-                    (*ci).pc += 1;
+                    i = code[pc];
+                    pc += 1;
                 }
                 _ => {}
             }
@@ -4484,7 +4533,7 @@ pub async unsafe fn run<A>(
                 (*io1_16).value_ = (*io2_16).value_;
                 (*io1_16).tt_ = (*io2_16).tt_;
 
-                (*ci).pc = (*ci).pc.wrapping_add_signed(
+                pc = pc.wrapping_add_signed(
                     -((i >> 0 as c_int + 7 as c_int + 8 as c_int
                         & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)
                             << 0 as c_int) as c_int as isize),

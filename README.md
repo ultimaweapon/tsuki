@@ -23,11 +23,11 @@ Tsuki was not designed to run untrusted Lua script. Although you can limit what 
 
 ### Interpreter
 
-Tsuki is slower than Lua about 60%. The only possibility for Tsuki to be faster than Lua with computed goto is JIT since computed goto does not available on Rust.
+Tsuki is slower than Lua about 50%. The only possibility for Tsuki to be faster than Lua with computed goto is JIT since computed goto does not available on Rust.
 
 ### Async
 
-A call to async function without any suspend on Tsuki is faster than mlua about 2.8x. For 1 suspend Tsuki it faster about 2.3x. For 8 suspend Tsuki is faster about 1.9x.
+A call to async function without any suspend on Tsuki is faster than mlua about 2.8x. For 1 suspend Tsuki it faster about 2.4x. For 8 suspend Tsuki is faster about 1.9x.
 
 ## Features
 
@@ -35,6 +35,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
   - [libc](https://crates.io/crates/libc) is required at the moment.
 - Support both synchronous and asynchronous.
 - Safe, ergonomic and low overhead API.
+- Efficient async call and coroutine suspend/resume.
 - Strongly typed registry.
 - Rust collections to store Lua values (e.g. [BTreeMap](https://doc.rust-lang.org/alloc/collections/btree_map/struct.BTreeMap.html)).
 - Any error propagated to the caller via Rust `Result` instead of a long jump.
