@@ -26,7 +26,7 @@
 //!     let result = td.call(chunk, ()).unwrap();
 //!
 //!     match result {
-//!         Value::Str(v) => assert_eq!(v.as_str(), Some("Hello world!")),
+//!         Value::Str(v) => assert_eq!(v.as_utf8(), Some("Hello world!")),
 //!         _ => todo!(),
 //!     }
 //! }

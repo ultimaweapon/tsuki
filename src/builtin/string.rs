@@ -82,7 +82,7 @@ pub fn format<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::
     let arg = cx.arg(next);
     let fmt = arg.to_str()?;
     let fmt = fmt
-        .as_str()
+        .as_utf8()
         .ok_or_else(|| arg.error("expect UTF-8 string"))?;
 
     // Parse format.
@@ -395,7 +395,7 @@ pub fn format<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::
                     Some(Type::String) => {
                         let s = arg
                             .get_str()?
-                            .as_str()
+                            .as_utf8()
                             .ok_or_else(|| arg.error("specifier '%q' requires UTF-8 string"))?;
                         let mut iter = s.chars().peekable();
 
@@ -594,7 +594,7 @@ pub fn packsize<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core
     let fmt = cx.arg(1);
     let fmt = fmt
         .to_str()?
-        .as_str()
+        .as_utf8()
         .ok_or_else(|| fmt.error("expect UTF-8 string"))?;
 
     // Parse.
@@ -672,7 +672,7 @@ pub fn rep<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
     // Build string.
     let len = n as usize * s.len() + (n - 1) as usize * lsep;
 
-    match (s.as_str(), sep.map(|v| v.as_str()).unwrap_or(Some(""))) {
+    match (s.as_utf8(), sep.map(|v| v.as_utf8()).unwrap_or(Some(""))) {
         (Some(s), Some(sep)) => {
             let mut b = String::with_capacity(len);
 

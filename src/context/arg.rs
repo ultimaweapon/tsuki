@@ -758,7 +758,7 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
                     .map(|v| (*v).value_.gc.cast::<Str<A>>())
                 {
                     Some(v) => (*v)
-                        .as_str()
+                        .as_utf8()
                         .ok_or_else(|| self.error("'__name' must be UTF-8 string"))?,
                     None => lua_typename(v.into()),
                 };

@@ -22,7 +22,7 @@ pub fn assert<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::
     if cx.args() > 1 {
         let a = cx.arg(2);
         let m = a.to_str()?;
-        let m = m.as_str().ok_or_else(|| a.error("expect UTF-8 string"))?;
+        let m = m.as_utf8().ok_or_else(|| a.error("expect UTF-8 string"))?;
 
         Err(m.into())
     } else {
@@ -37,7 +37,7 @@ pub fn error<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
     let arg = cx.arg(1);
     let msg = arg.to_str()?;
     let msg = msg
-        .as_str()
+        .as_utf8()
         .ok_or_else(|| arg.error("expect UTF-8 string"))?;
 
     if cx.args() > 1 {
@@ -85,7 +85,7 @@ pub fn load<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
     let a = cx.arg(2);
     let name = a.to_nilable_str(false)?;
     let name = match &name {
-        Some(v) => v.as_str().ok_or_else(|| a.error("expect UTF-8 string"))?,
+        Some(v) => v.as_utf8().ok_or_else(|| a.error("expect UTF-8 string"))?,
         None => "",
     };
 

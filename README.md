@@ -99,13 +99,14 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 
 ## Breaking changes in 0.4
 
-- `YieldFp` added to `Value`.
-- `string.format` now implemented in Rust with some breaking changes.
-- `string.rep` now have the same result limit as Lua.
+- `YieldFp` has been added to `Value`.
 - `Float::pow` has been removed.
 - `Float::atan2` has been removed.
 - `BadInst` has been removed.
 - `Context::push_from_index` and `Context::push_from_index_with_int` has been replaced with `Thread::index`.
+- `Str::as_str` has been renamed to `Str::as_utf8`.
+- `string.format` now implemented in Rust with some breaking changes.
+- `string.rep` now have the same result limit as Lua.
 - Main thread has been removed.
 - Recursion checks on a call to Rust function has been removed.
 

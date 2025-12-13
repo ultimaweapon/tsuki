@@ -297,7 +297,7 @@ impl<'a, A, T> Context<'a, A, T> {
                 4 => Some(unsafe { (*v).value_.gc.cast::<Str<A>>() }),
                 _ => None,
             })
-            .and_then(|v| unsafe { (*v).as_str() })
+            .and_then(|v| unsafe { (*v).as_utf8() })
             .map(|v| Cow::Owned(v.into()))
             .unwrap_or_else(move || Cow::Borrowed(lua_typename((v.tt_ & 0xf).into())))
     }

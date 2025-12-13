@@ -104,7 +104,7 @@ impl<A> Str<A> {
 
     /// Returns `true` if this string is UTF-8.
     ///
-    /// Use [Self::as_str()] instead if you want [str] from this string.
+    /// Use [Self::as_utf8()] instead if you want [str] from this string.
     #[inline(always)]
     pub fn is_utf8(&self) -> bool {
         match self.ty.get() {
@@ -121,7 +121,7 @@ impl<A> Str<A> {
 
     /// Returns [str] if this string is UTF-8.
     #[inline(always)]
-    pub fn as_str(&self) -> Option<&str> {
+    pub fn as_utf8(&self) -> Option<&str> {
         match self.is_utf8() {
             true => Some(unsafe { core::str::from_utf8_unchecked(self.as_bytes()) }),
             false => None,
