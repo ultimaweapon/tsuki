@@ -7,18 +7,18 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::lctype::luai_ctype_;
-use crate::lmem::luaM_saferealloc_;
 use crate::lobject::{luaO_hexavalue, luaO_str2num, luaO_utf8esc};
 use crate::lparser::Dyndata;
-use crate::lzio::{Mbuffer, ZIO};
+use crate::lzio::ZIO;
 use crate::table::{luaH_finishset, luaH_getstr};
 use crate::value::UnsafeValue;
 use crate::{ChunkInfo, Float, Lua, Node, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;
 use alloc::string::ToString;
+use alloc::vec::Vec;
 use core::convert::identity;
-use core::ffi::{CStr, c_char, c_void};
+use core::ffi::{CStr, c_char};
 use core::fmt::Display;
 use core::ops::Deref;
 use core::ptr::null_mut;
@@ -104,7 +104,7 @@ pub struct LexState<'a, D> {
     pub lookahead: Token<D>,
     pub g: &'a Lua<D>,
     pub z: *mut ZIO,
-    pub buff: *mut Mbuffer,
+    pub buf: Vec<c_char>,
     pub h: Ref<'a, Table<D>>,
     pub dyd: *mut Dyndata<D>,
     pub source: ChunkInfo,
@@ -153,21 +153,7 @@ pub const luaX_tokens: [&str; 37] = [
 ];
 
 unsafe fn save<D>(ls: *mut LexState<D>, c: c_int) {
-    let b: *mut Mbuffer = (*ls).buff;
-    if ((*b).n).wrapping_add(1 as c_int as usize) > (*b).buffsize {
-        let newsize = (*b).buffsize * 2 as c_int as usize;
-
-        (*b).buffer = luaM_saferealloc_(
-            (*b).buffer as *mut c_void,
-            ((*b).buffsize).wrapping_mul(::core::mem::size_of::<c_char>()),
-            newsize.wrapping_mul(::core::mem::size_of::<c_char>()),
-        ) as *mut c_char;
-
-        (*b).buffsize = newsize;
-    }
-    let fresh0 = (*b).n;
-    (*b).n = ((*b).n).wrapping_add(1);
-    *((*b).buffer).offset(fresh0 as isize) = c as c_char;
+    (*ls).buf.push(c as c_char);
 }
 
 pub unsafe fn luaX_token2str(token: c_int) -> Cow<'static, str> {
@@ -194,7 +180,7 @@ unsafe fn txtToken<D>(ls: *mut LexState<D>, token: c_int) -> Cow<'static, str> {
 
             format!(
                 "'{}'",
-                CStr::from_ptr((*(*ls).buff).buffer).to_string_lossy()
+                CStr::from_ptr((*(*ls).buf).as_ptr()).to_string_lossy()
             )
             .into()
         }
@@ -276,12 +262,6 @@ pub unsafe fn luaX_setinput<D>(ls: &mut LexState<D>, z: *mut ZIO, firstchar: c_i
     (*ls).linenumber = 1 as c_int;
     (*ls).lastline = 1 as c_int;
     (*ls).envn = Str::from_str((*ls).g, "_ENV").unwrap_or_else(identity);
-    (*(*ls).buff).buffer = luaM_saferealloc_(
-        (*(*ls).buff).buffer as *mut c_void,
-        ((*(*ls).buff).buffsize).wrapping_mul(::core::mem::size_of::<c_char>()),
-        32usize.wrapping_mul(::core::mem::size_of::<c_char>()),
-    ) as *mut c_char;
-    (*(*ls).buff).buffsize = 32 as c_int as usize;
 }
 
 unsafe fn check_next1<D>(ls: *mut LexState<D>, c: c_int) -> c_int {
@@ -379,7 +359,7 @@ unsafe fn read_numeral<D>(
     }
     save(ls, '\0' as i32);
 
-    obj = match luaO_str2num(CStr::from_ptr((*(*ls).buff).buffer).to_bytes()) {
+    obj = match luaO_str2num(CStr::from_ptr((*(*ls).buf).as_ptr()).to_bytes()) {
         Some(v) => v.into(),
         None => return Err(lexerror(ls, "malformed number", TK_FLT as c_int)),
     };
@@ -484,7 +464,7 @@ unsafe fn read_long_string<D>(
                 save(ls, '\n' as i32);
                 inclinenumber(ls);
                 if seminfo.is_null() {
-                    (*(*ls).buff).n = 0 as c_int as usize;
+                    (*ls).buf.clear();
                 }
             }
             _ => {
@@ -516,8 +496,8 @@ unsafe fn read_long_string<D>(
     if !seminfo.is_null() {
         (*seminfo).ts = luaX_newstring(
             ls,
-            ((*(*ls).buff).buffer).offset(sep as isize),
-            ((*(*ls).buff).n).wrapping_sub(2 as c_int as usize * sep),
+            ((*(*ls).buf).as_ptr()).offset(sep as isize),
+            ((*(*ls).buf).len()).wrapping_sub(2 * sep),
         );
     }
 
@@ -566,7 +546,7 @@ unsafe fn gethexa<D>(ls: *mut LexState<D>) -> Result<c_int, ParseError> {
 unsafe fn readhexaesc<D>(ls: *mut LexState<D>) -> Result<c_int, ParseError> {
     let mut r: c_int = gethexa(ls)?;
     r = (r << 4 as c_int) + gethexa(ls)?;
-    (*(*ls).buff).n = ((*(*ls).buff).n).wrapping_sub(2 as c_int as usize);
+    (*ls).buf.truncate((*ls).buf.len() - 2);
     return Ok(r);
 }
 
@@ -620,7 +600,7 @@ unsafe fn readutf8esc<D>(ls: *mut LexState<D>) -> Result<c_ulong, ParseError> {
     } else {
         -1
     };
-    (*(*ls).buff).n = ((*(*ls).buff).n).wrapping_sub(i as usize);
+    (*ls).buf.truncate((*ls).buf.len() - i as usize);
     return Ok(r);
 }
 
@@ -656,7 +636,7 @@ unsafe fn readdecesc<D>(ls: *mut LexState<D>) -> Result<c_int, ParseError> {
         i += 1;
     }
     esccheck(ls, (r <= 255 as c_int) as c_int, "decimal escape too large")?;
-    (*(*ls).buff).n = ((*(*ls).buff).n).wrapping_sub(i as usize);
+    (*ls).buf.truncate((*ls).buf.len() - i as usize);
     return Ok(r);
 }
 
@@ -742,7 +722,7 @@ unsafe fn read_string<D>(
                         continue;
                     }
                     122 => {
-                        (*(*ls).buff).n = ((*(*ls).buff).n).wrapping_sub(1 as c_int as usize);
+                        (*ls).buf.truncate((*ls).buf.len() - 1);
                         let fresh44 = (*(*ls).z).n;
                         (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
                         (*ls).current = if fresh44 > 0 as c_int as usize {
@@ -797,7 +777,7 @@ unsafe fn read_string<D>(
                     }
                     _ => {}
                 }
-                (*(*ls).buff).n = ((*(*ls).buff).n).wrapping_sub(1 as c_int as usize);
+                (*ls).buf.truncate((*ls).buf.len() - 1);
                 save(ls, c);
             }
             _ => {
@@ -826,14 +806,15 @@ unsafe fn read_string<D>(
     };
     (*seminfo).ts = luaX_newstring(
         ls,
-        ((*(*ls).buff).buffer).offset(1 as c_int as isize),
-        ((*(*ls).buff).n).wrapping_sub(2 as c_int as usize),
+        ((*(*ls).buf).as_ptr()).offset(1 as c_int as isize),
+        ((*(*ls).buf).len()).wrapping_sub(2 as c_int as usize),
     );
     Ok(())
 }
 
 unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_int, ParseError> {
-    (*(*ls).buff).n = 0 as c_int as usize;
+    (*ls).buf.clear();
+
     loop {
         let current_block_85: u64;
         match (*ls).current {
@@ -873,10 +854,14 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                 };
                 if (*ls).current == '[' as i32 {
                     let sep: usize = skip_sep(ls);
-                    (*(*ls).buff).n = 0 as c_int as usize;
+
+                    (*ls).buf.clear();
+
                     if sep >= 2 as c_int as usize {
                         read_long_string(ls, null_mut(), sep)?;
-                        (*(*ls).buff).n = 0 as c_int as usize;
+
+                        (*ls).buf.clear();
+
                         current_block_85 = 10512632378975961025;
                     } else {
                         current_block_85 = 3512920355445576850;
@@ -1075,7 +1060,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                         }
                     }
 
-                    let ts = luaX_newstring(ls, (*(*ls).buff).buffer, (*(*ls).buff).n);
+                    let ts = luaX_newstring(ls, (*(*ls).buf).as_ptr(), (*(*ls).buf).len());
 
                     (*seminfo).ts = ts;
 

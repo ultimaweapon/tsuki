@@ -4,12 +4,12 @@
 use crate::context::{Args, Context, Ret};
 use crate::ldebug::luaG_callerror;
 use crate::lfunc::{luaF_close, luaF_initupvals};
-use crate::lmem::{luaM_free_, luaM_saferealloc_};
+use crate::lmem::luaM_free_;
 use crate::lobject::CClosure;
 use crate::lparser::{C2RustUnnamed_9, Dyndata, Labeldesc, Labellist, Vardesc, luaY_parser};
 use crate::lstate::{CallInfo, luaE_extendCI, luaE_shrinkCI};
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
-use crate::lzio::{Mbuffer, Zio};
+use crate::lzio::Zio;
 use crate::{
     CallError, ChunkInfo, Lua, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, StackOverflow,
     StackValue, Thread, YIELDABLE_WAKER,
@@ -442,11 +442,6 @@ pub unsafe fn luaD_protectedparser<D>(
     mut z: Zio,
     info: ChunkInfo,
 ) -> Result<Ref<'_, LuaFn<D>>, ParseError> {
-    let mut buff = Mbuffer {
-        buffer: 0 as *mut c_char,
-        n: 0,
-        buffsize: 0,
-    };
     let mut dyd = Dyndata {
         actvar: C2RustUnnamed_9 {
             arr: null_mut(),
@@ -476,13 +471,11 @@ pub unsafe fn luaD_protectedparser<D>(
         -1
     };
 
-    let status = luaY_parser(g, &raw mut z, &raw mut buff, &raw mut dyd, info, c);
+    let status = luaY_parser(g, &raw mut z, &raw mut dyd, info, c);
 
     if let Ok(cl) = &status {
         luaF_initupvals(g, cl.deref());
     }
-
-    buff.buffer = luaM_saferealloc_(buff.buffer as *mut c_void, buff.buffsize, 0).cast();
 
     luaM_free_(
         dyd.actvar.arr as *mut c_void,

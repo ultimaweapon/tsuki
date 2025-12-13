@@ -26,7 +26,7 @@ use crate::llex::{
 };
 use crate::lmem::{luaM_growaux_, luaM_shrinkvector_};
 use crate::lobject::{AbsLineInfo, LocVar, Proto, Upvaldesc};
-use crate::lzio::{Mbuffer, ZIO};
+use crate::lzio::ZIO;
 use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_FORLOOP, OP_FORPREP, OP_GETUPVAL, OP_MOVE, OP_NEWTABLE,
@@ -2900,7 +2900,6 @@ unsafe fn mainfunc<D>(ls: &mut LexState<D>, fs: &mut FuncState<D>) -> Result<(),
 pub unsafe fn luaY_parser<D>(
     g: &Lua<D>,
     z: *mut ZIO,
-    buff: *mut Mbuffer,
     dyd: *mut Dyndata<D>,
     info: ChunkInfo,
     firstchar: c_int,
@@ -2925,7 +2924,7 @@ pub unsafe fn luaY_parser<D>(
         },
         g,
         z: 0 as *mut ZIO,
-        buff: 0 as *mut Mbuffer,
+        buf: Default::default(),
         h: Ref::new(Table::new(g)),
         dyd: null_mut(),
         source: info.clone(),
@@ -2944,7 +2943,6 @@ pub unsafe fn luaY_parser<D>(
         g.gc.barrier(&cl.hdr, (*cl).p.get().cast());
     }
 
-    lexstate.buff = buff;
     lexstate.dyd = dyd;
     (*dyd).label.n = 0 as c_int;
     (*dyd).gt.n = (*dyd).label.n;
