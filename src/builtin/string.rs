@@ -656,22 +656,21 @@ pub fn rep<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
         return Ok(cx.into());
     }
 
-    // Check total length.
+    // Check length.
     let s = cx.arg(1).to_str()?;
     let sep = cx.arg(3).to_nilable_str(false)?;
-    let sep = sep.as_ref();
-    let len = s.len();
     let lsep = sep.map(|v| v.len()).unwrap_or(0);
-    let len = match usize::try_from(n)
-        .ok()
-        .map(move |n| (len.checked_mul(n), lsep.checked_mul(n - 1)))
-        .and_then(|v| match v {
-            (Some(a), Some(b)) => a.checked_add(b),
-            _ => None,
-        }) {
-        Some(v) => v,
-        None => return Err("resulting string too large".into()),
-    };
+
+    if !s
+        .len()
+        .checked_add(lsep)
+        .is_some_and(move |v| v <= (0x7FFFFFFF / n) as usize)
+    {
+        return Err("resulting string too large".into());
+    }
+
+    // Build string.
+    let len = n as usize * s.len() + (n - 1) as usize * lsep;
 
     match (s.as_str(), sep.map(|v| v.as_str()).unwrap_or(Some(""))) {
         (Some(s), Some(sep)) => {
