@@ -133,9 +133,10 @@ fn run(file: &str, setup: impl FnOnce(&Lua<()>)) -> Result<(), Box<dyn std::erro
     setup(&lua);
 
     // Run.
+    let td = lua.create_thread();
     let chunk = lua.load(ChunkInfo::new(path.to_string_lossy().into_owned()), content)?;
 
-    lua.call::<()>(chunk, ())?;
+    td.call::<()>(chunk, ())?;
 
     Ok(())
 }

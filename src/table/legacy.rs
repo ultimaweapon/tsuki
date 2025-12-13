@@ -105,18 +105,23 @@ unsafe fn mainpositionTV<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *
                     as isize,
             ) as *mut Node<D>;
         }
-        2 => {
+        0x02 => {
             let f = (*key).value_.f;
+            let h = ((f as usize) & 0xffffffff) as u32;
 
             (*t).node
                 .get()
-                .offset((((f as usize) & 0xffffffff) as c_uint).wrapping_rem(
-                    (((1 as c_int) << (*t).lsizenode.get() as c_int) - 1 as c_int | 1 as c_int)
-                        as c_uint,
-                ) as isize)
+                .add(h.wrapping_rem((1 << (*t).lsizenode.get()) - 1 | 1) as usize)
         }
-        18 | 50 => todo!(),
-        34 => {
+        0x12 => {
+            let f = (*key).value_.y;
+            let h = ((f as usize) & 0xffffffff) as u32;
+
+            (*t).node
+                .get()
+                .add(h.wrapping_rem((1 << (*t).lsizenode.get()) - 1 | 1) as usize)
+        }
+        0x22 => {
             let f = (*key).value_.a;
 
             (*t).node
@@ -125,6 +130,7 @@ unsafe fn mainpositionTV<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *
                     (((1 as c_int) << (*t).lsizenode.get()) - 1 as c_int | 1 as c_int) as c_uint,
                 ) as isize)
         }
+        0x32 => todo!(),
         14 => {
             // Get hash.
             let o = (*key).value_.gc.cast::<RustId<D>>();
@@ -170,10 +176,10 @@ unsafe fn equalkey<D>(k1: *const UnsafeValue<D>, n2: *const Node<D>, deadok: c_i
         0 | 1 | 17 => 1,
         3 => ((*k1).value_.i == (*n2).u.key_val.i) as c_int,
         19 => ((*k1).value_.n == (*n2).u.key_val.n) as c_int,
-        2 => core::ptr::fn_addr_eq((*k1).value_.f, (*n2).u.key_val.f) as c_int,
-        18 => todo!(),
-        34 => core::ptr::fn_addr_eq((*k1).value_.a, (*n2).u.key_val.a) as c_int,
-        50 => todo!(),
+        0x02 => core::ptr::fn_addr_eq((*k1).value_.f, (*n2).u.key_val.f) as c_int,
+        0x12 => core::ptr::fn_addr_eq((*k1).value_.y, (*n2).u.key_val.y) as c_int,
+        0x22 => core::ptr::fn_addr_eq((*k1).value_.a, (*n2).u.key_val.a) as c_int,
+        0x32 => todo!(),
         0x44 => {
             let n2 = (*n2).u.key_val.gc.cast::<Str<D>>();
 

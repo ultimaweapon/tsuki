@@ -6,10 +6,10 @@ use crate::lapi::{lua_checkstack, lua_typename};
 use crate::ldo::luaD_call;
 use crate::lobject::luaO_arith;
 use crate::value::UnsafeValue;
-use crate::vm::{F2Ieq, luaV_equalobj, luaV_finishget, luaV_lessthan, luaV_objlen, luaV_tointeger};
+use crate::vm::{F2Ieq, luaV_equalobj, luaV_lessthan, luaV_objlen, luaV_tointeger};
 use crate::{
     CallError, ChunkInfo, Inputs, LuaFn, NON_YIELDABLE_WAKER, Ops, Outputs, ParseError, Ref,
-    RegKey, RegValue, StackOverflow, Str, Table, Thread, Type, UserData, luaH_get, luaH_getint,
+    RegKey, RegValue, StackOverflow, Str, Table, Thread, Type, UserData, luaH_get,
     luaH_getshortstr,
 };
 use alloc::borrow::Cow;
@@ -31,11 +31,11 @@ mod arg;
 /// the values back to Lua. It also provides methods to interact with Lua VM like
 /// [Self::create_table()].
 ///
-/// This type has two variants, which is indicated by `T` (either [Args] or [Ret]). The method
-/// to get arguments will only available on [Args] variant. [Ret] variant is used to return the
-/// values back to Lua. [Args] variant can be converted to [Ret] variant using standard Rust
-/// [From] and [Into] or [Self::into_results()] (the former will returns all pushed values).
-/// There is no way to get [Args] variant back once you converted it.
+/// This type has 2 variants, which is indicated by `T` (either [Args] or [Ret]). The method to get
+/// arguments will only available on [Args] variant. [Ret] variant is used to return the values back
+/// to Lua. [Args] variants can be converted to [Ret] variant using standard Rust [From] and [Into]
+/// or [Self::into_results()] (the former will returns all pushed values). There is no way to get
+/// [Args] variant back once you converted it.
 pub struct Context<'a, A, T> {
     th: &'a Thread<A>,
     ret: Cell<usize>,
@@ -53,17 +53,9 @@ impl<'a, A, T> Context<'a, A, T> {
     }
 
     /// Returns [Thread] for this context.
-    ///
-    /// Note that you can't call any function on the returned [Thread]. Use [Self::call()] instead.
     #[inline(always)]
     pub fn thread(&self) -> &'a Thread<A> {
         self.th
-    }
-
-    /// Returns `true` if this context is a main thread.
-    #[inline]
-    pub fn is_main_thread(&self) -> bool {
-        core::ptr::addr_eq(self.th, self.th.hdr.global().main())
     }
 
     /// Returns associated data that passed to [Lua::new()](crate::Lua::new()) or
@@ -305,7 +297,7 @@ impl<'a, A, T> Context<'a, A, T> {
                 4 => Some(unsafe { (*v).value_.gc.cast::<Str<A>>() }),
                 _ => None,
             })
-            .and_then(|v| unsafe { (*v).as_str() })
+            .and_then(|v| unsafe { (*v).as_utf8() })
             .map(|v| Cow::Owned(v.into()))
             .unwrap_or_else(move || Cow::Borrowed(lua_typename((v.tt_ & 0xf).into())))
     }
@@ -501,109 +493,6 @@ impl<'a, A, T> Context<'a, A, T> {
         }
 
         Ok(unsafe { Type::from_tt((*v).tt_) })
-    }
-
-    /// Push a value for `k` from `t` to the result of this call.
-    ///
-    /// This method honor `__index` metavalue.
-    ///
-    /// # Panics
-    /// If `t` or `k` come from different [Lua](crate::Lua) instance.
-    pub fn push_from_index(
-        &self,
-        t: impl Into<UnsafeValue<A>>,
-        k: impl Into<UnsafeValue<A>>,
-    ) -> Result<Type, Box<dyn core::error::Error>> {
-        unsafe { lua_checkstack(self.th, 1, 5)? };
-
-        // Check if table come from the same Lua.
-        let t = t.into();
-
-        if unsafe { (t.tt_ & 1 << 6 != 0) && (*t.value_.gc).global != self.th.hdr.global } {
-            panic!("attempt to push a value created from different Lua");
-        }
-
-        // Check if key come from the same Lua.
-        let mut k = k.into();
-
-        if unsafe { (k.tt_ & 1 << 6 != 0) && (*k.value_.gc).global != self.th.hdr.global } {
-            panic!("attempt to push a value created from different Lua");
-        }
-
-        // Try table.
-        let mut slot = null();
-        let ok = if !(t.tt_ == 5 | 0 << 4 | 1 << 6) {
-            false
-        } else {
-            let t = unsafe { t.value_.gc.cast::<Table<A>>() };
-
-            slot = unsafe { luaH_get(t, &k) };
-
-            unsafe { !((*slot).tt_ & 0xf == 0) }
-        };
-
-        // Get value.
-        let v = if ok {
-            unsafe { slot.read() }
-        } else {
-            // Try __index.
-            unsafe { luaV_finishget(self.th, &t, &mut k, false)? }
-        };
-
-        unsafe { self.th.top.write(v) };
-        unsafe { self.th.top.add(1) };
-        self.ret.set(self.ret.get() + 1);
-
-        Ok(Type::from_tt(v.tt_))
-    }
-
-    /// Push a value for `k` from `t` to the result of this call.
-    ///
-    /// This method honor `__index` metavalue.
-    ///
-    /// # Panics
-    /// If `t` come from different [Lua](crate::Lua) instance.
-    pub fn push_from_index_with_int(
-        &self,
-        t: impl Into<UnsafeValue<A>>,
-        k: i64,
-    ) -> Result<Type, Box<dyn core::error::Error>> {
-        unsafe { lua_checkstack(self.th, 1, 5)? };
-
-        // Check if table come from the same Lua.
-        let t = t.into();
-
-        if unsafe { (t.tt_ & 1 << 6 != 0) && (*t.value_.gc).global != self.th.hdr.global } {
-            panic!("attempt to push a value created from different Lua");
-        }
-
-        // Try table.
-        let mut slot = null();
-        let ok = if !(t.tt_ == 5 | 0 << 4 | 1 << 6) {
-            false
-        } else {
-            let t = unsafe { t.value_.gc.cast::<Table<A>>() };
-
-            slot = unsafe { luaH_getint(t, k) };
-
-            unsafe { !((*slot).tt_ & 0xf == 0) }
-        };
-
-        // Get value.
-        let v = if ok {
-            unsafe { slot.read() }
-        } else {
-            // Try __index.
-            let mut k = UnsafeValue::from(k);
-
-            unsafe { luaV_finishget(self.th, &t, &mut k, false)? }
-        };
-
-        unsafe { self.th.top.write(v) };
-        unsafe { self.th.top.add(1) };
-        self.ret.set(self.ret.get() + 1);
-
-        Ok(Type::from_tt(v.tt_))
     }
 
     /// Push the result of addition between `lhs` and `rhs`, returns the type of pushed value.
@@ -937,7 +826,7 @@ impl<'a, A> Context<'a, A, Args> {
     }
 }
 
-impl<'a, D> Context<'a, D, Ret> {
+impl<'a, A> Context<'a, A, Ret> {
     /// Insert `v` at `i` by shift all above values.
     ///
     /// # Panics
@@ -946,7 +835,7 @@ impl<'a, D> Context<'a, D, Ret> {
     pub fn insert(
         &self,
         i: impl TryInto<NonZero<usize>>,
-        v: impl Into<UnsafeValue<D>>,
+        v: impl Into<UnsafeValue<A>>,
     ) -> Result<(), StackOverflow> {
         // Check if index lower than the first result.
         let i = match i.try_into() {
@@ -1027,14 +916,15 @@ impl<'a, D> Context<'a, D, Ret> {
         self.ret.set(len);
     }
 
-    pub(crate) fn results(&self) -> usize {
+    #[inline]
+    pub(crate) fn results(self) -> usize {
         self.ret.get()
     }
 }
 
-impl<'a, D> From<Context<'a, D, Args>> for Context<'a, D, Ret> {
+impl<'a, A> From<Context<'a, A, Args>> for Context<'a, A, Ret> {
     #[inline(always)]
-    fn from(value: Context<'a, D, Args>) -> Self {
+    fn from(value: Context<'a, A, Args>) -> Self {
         Self {
             th: value.th,
             ret: value.ret,
@@ -1043,7 +933,7 @@ impl<'a, D> From<Context<'a, D, Args>> for Context<'a, D, Ret> {
     }
 }
 
-/// Call arguments encapsulated in [`Context`].
+/// Call arguments encapsulated in [Context].
 pub struct Args(usize);
 
 impl Args {
@@ -1053,5 +943,5 @@ impl Args {
     }
 }
 
-/// Call results encapsulated in [`Context`];
-pub struct Ret(usize);
+/// Call results encapsulated in [Context];
+pub struct Ret(usize); // The value is offset of the first result.

@@ -12,18 +12,16 @@ fn fannkuch_redux(c: &mut Criterion) {
 
     {
         let lua = tsuki::Lua::new(());
+        let td = lua.create_thread();
         let chunk = lua
             .load(tsuki::ChunkInfo::new("fannkuch-redux.lua"), &src)
             .unwrap();
-        let f: tsuki::Value<_> = lua.call(chunk, ()).unwrap();
-        let f = match f {
+        let f = match td.call(chunk, ()).unwrap() {
             tsuki::Value::LuaFn(v) => v,
             _ => unreachable!(),
         };
 
-        g.bench_function("tsuki", |b| {
-            b.iter(|| lua.call::<()>(f.deref(), 6).unwrap())
-        });
+        g.bench_function("tsuki", |b| b.iter(|| td.call::<()>(f.deref(), 6).unwrap()));
     }
 
     {
@@ -62,6 +60,12 @@ fn async_call(c: &mut Criterion) {
             g.bench_with_input(BenchmarkId::new("tsuki", yc), yc, |b, &yc| {
                 b.iter(|| {
                     exec.block_on(&rt, async {
+                        tokio::task::spawn_local(async {
+                            loop {
+                                yield_now().await;
+                            }
+                        });
+
                         th.async_call::<()>(chunk.deref(), yc).await.unwrap()
                     })
                 });
@@ -106,6 +110,12 @@ fn async_call(c: &mut Criterion) {
             g.bench_with_input(BenchmarkId::new("mlua", yc), yc, |b, &yc| {
                 b.iter(|| {
                     exec.block_on(&rt, async {
+                        tokio::task::spawn_local(async {
+                            loop {
+                                yield_now().await;
+                            }
+                        });
+
                         chunk.call_async::<()>(yc).await.unwrap();
                     })
                 });

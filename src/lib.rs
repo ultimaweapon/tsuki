@@ -22,10 +22,11 @@
 //!
 //!     // Run on main thread.
 //!     let chunk = lua.load("abc.lua", "return myfunc()").unwrap();
-//!     let result = lua.call(chunk, ()).unwrap();
+//!     let td = lua.create_thread();
+//!     let result = td.call(chunk, ()).unwrap();
 //!
 //!     match result {
-//!         Value::Str(v) => assert_eq!(v.as_str(), Some("Hello world!")),
+//!         Value::Str(v) => assert_eq!(v.as_utf8(), Some("Hello world!")),
 //!         _ => todo!(),
 //!     }
 //! }
@@ -44,6 +45,7 @@
 //! - [Nil]
 //! - [bool]
 //! - [Fp]
+//! - [YieldFp]
 //! - [AsyncFp]
 //! - [i8]
 //! - [i16]
@@ -182,7 +184,7 @@ use core::error::Error;
 use core::fmt::{Display, Formatter};
 use core::marker::PhantomPinned;
 use core::mem::MaybeUninit;
-use core::ops::Deref;
+use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::ptr::null;
 use core::task::RawWakerVTable;
@@ -202,7 +204,6 @@ mod lctype;
 mod ldebug;
 mod ldo;
 mod lfunc;
-mod libc;
 mod llex;
 mod lmem;
 mod lobject;
@@ -232,6 +233,9 @@ extern crate std;
 macro_rules! fp {
     ($f:path) => {
         $crate::Fp::new($f)
+    };
+    ($f:path as yield) => {
+        $crate::YieldFp::new($f)
     };
     ($f:path as async) => {{
         #[cfg(not(feature = "std"))]
@@ -309,7 +313,6 @@ pub struct Lua<A> {
     nilvalue: UnsafeCell<UnsafeValue<A>>,
     dummy_node: Node<A>,
     seed: u32,
-    active_rust_call: Cell<usize>,
     modules_locked: Cell<bool>,
     associated_data: A,
     phantom: PhantomPinned,
@@ -355,7 +358,6 @@ impl<A> Lua<A> {
                 },
             },
             seed,
-            active_rust_call: Cell::new(0),
             modules_locked: Cell::new(false),
             associated_data,
             phantom: PhantomPinned,
@@ -368,15 +370,11 @@ impl<A> Lua<A> {
         unsafe { g.l_registry.get().write(UnsafeValue::from_obj(reg.cast())) };
         unsafe { luaH_resize(reg, 6, 0) };
 
-        // Create main thread.
-        let reg = unsafe { (*reg).array.get() };
-        let main = Thread::new(g.deref());
-
-        unsafe { reg.add(0).write(UnsafeValue::from_obj(main.cast())) };
-
         // Create LUA_RIDX_GLOBALS.
+        let reg = unsafe { (*reg).array.get() };
         let glb = unsafe { Table::new(g.deref()) };
 
+        unsafe { reg.add(0).write(false.into()) };
         unsafe { reg.add(1).write(UnsafeValue::from_obj(glb.cast())) };
 
         // Create table for metatables.
@@ -772,27 +770,6 @@ impl<A> Lua<A> {
         Ok(f)
     }
 
-    /// Call a function or callable value on main thread.
-    ///
-    /// See [`Thread::call()`] for more details.
-    #[inline(always)]
-    pub fn call<'a, R: Outputs<'a, A>>(
-        &'a self,
-        f: impl Into<UnsafeValue<A>>,
-        args: impl Inputs<A>,
-    ) -> Result<R, Box<dyn Error>> {
-        self.main().call(f, args)
-    }
-
-    #[inline(always)]
-    fn main(&self) -> &Thread<A> {
-        let reg = unsafe { (*self.l_registry.get()).value_.gc.cast::<Table<A>>() };
-        let val = unsafe { (*reg).array.get().add(0) };
-        let val = unsafe { (*val).value_.gc.cast::<Thread<A>>() };
-
-        unsafe { &*val }
-    }
-
     unsafe fn metatable(&self, o: *const UnsafeValue<A>) -> *const Table<A> {
         match unsafe { (*o).tt_ & 0xf } {
             5 => unsafe { (*(*o).value_.gc.cast::<Table<A>>()).metatable.get() },
@@ -872,6 +849,8 @@ pub enum Value<'a, A> {
     True = 1 | 1 << 4,
     /// The value is `function` implemented in Rust.
     Fp(Fp<A>) = 2 | 0 << 4,
+    /// The value is `function` implemented in Rust to yield coroutine.
+    YieldFp(YieldFp<A>) = 2 | 1 << 4,
     /// The value is `function` implemented in Rust as async function.
     AsyncFp(AsyncFp<A>) = 2 | 2 << 4,
     /// The value is `integer`.
@@ -892,6 +871,7 @@ pub enum Value<'a, A> {
 
 // Make sure all fields live at offset 8.
 const _: () = assert!(align_of::<Fp<()>>() <= 8);
+const _: () = assert!(align_of::<YieldFp<()>>() <= 8);
 const _: () = assert!(align_of::<AsyncFp<()>>() <= 8);
 const _: () = assert!(align_of::<i64>() <= 8);
 const _: () = assert!(align_of::<Float>() <= 8);
@@ -961,34 +941,46 @@ pub struct Nil;
 #[repr(transparent)]
 pub struct Fp<A>(fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>);
 
-impl<D> Fp<D> {
+impl<A> Fp<A> {
     /// Construct a new [Fp] from a function pointer.
     ///
     /// [fp] macro is more convenience than this function.
     #[inline(always)]
-    pub const fn new(v: fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>) -> Self {
+    pub const fn new(v: fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>) -> Self {
         Self(v)
     }
 }
 
-impl<D> Clone for Fp<D> {
+impl<A> Clone for Fp<A> {
     #[inline(always)]
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<D> Copy for Fp<D> {}
+impl<A> Copy for Fp<A> {}
 
-pub struct YieldFp<D>(fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn Error>>);
+/// Rust function to yield Lua values.
+#[repr(transparent)]
+pub struct YieldFp<A>(fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>);
 
-impl<D> Clone for YieldFp<D> {
+impl<A> YieldFp<A> {
+    /// Construct a new [YieldFp] from a function pointer.
+    ///
+    /// [fp] macro is more convenience than this function.
+    #[inline(always)]
+    pub const fn new(v: fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>) -> Self {
+        Self(v)
+    }
+}
+
+impl<A> Clone for YieldFp<A> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<D> Copy for YieldFp<D> {}
+impl<A> Copy for YieldFp<A> {}
 
 /// Asynchronous Rust function.
 ///
@@ -1072,6 +1064,48 @@ impl Ops {
             v if v == Self::Not as u8 => Some(Self::Not),
             _ => None,
         }
+    }
+}
+
+/// A wrapper of [Vec] to provide [core::fmt::Write].
+#[derive(Default)]
+struct Buffer(Vec<u8>);
+
+impl Deref for Buffer {
+    type Target = Vec<u8>;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Buffer {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl AsRef<[u8]> for Buffer {
+    #[inline(always)]
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl core::fmt::Write for Buffer {
+    #[inline]
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.0.extend_from_slice(s.as_bytes());
+        Ok(())
+    }
+}
+
+impl From<Buffer> for Vec<u8> {
+    #[inline(always)]
+    fn from(value: Buffer) -> Self {
+        value.0
     }
 }
 
@@ -1180,12 +1214,14 @@ impl RecursiveCall {
     }
 }
 
-/// Represents an error when Lua function contains invalid instruction.
-#[derive(Debug, Error)]
-#[error("invalid instruction")]
-pub struct BadInst;
-
 static NON_YIELDABLE_WAKER: RawWakerVTable = RawWakerVTable::new(
+    |_| unimplemented!(),
+    |_| unimplemented!(),
+    |_| unimplemented!(),
+    |_| {},
+);
+
+static YIELDABLE_WAKER: RawWakerVTable = RawWakerVTable::new(
     |_| unimplemented!(),
     |_| unimplemented!(),
     |_| unimplemented!(),

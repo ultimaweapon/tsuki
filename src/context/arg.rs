@@ -123,15 +123,17 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
 
     /// Checks if this argument is an integer and return it.
     ///
-    /// This method will return [None] if this argument does not exists or not an integer.
+    /// This method will accept a string or float if `convert` is `true`.
     #[inline(always)]
-    pub fn as_int(&self) -> Option<i64> {
+    pub fn as_int(&self, convert: bool) -> Option<i64> {
         let v = self.get_raw_or_null();
 
         if v.is_null() {
             None
         } else if unsafe { (*v).tt_ == 3 | 0 << 4 } {
             Some(unsafe { (*v).value_.i })
+        } else if convert {
+            unsafe { luaV_tointeger(v, F2Ieq) }
         } else {
             None
         }
@@ -234,9 +236,10 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
         }
 
         match unsafe { (*v).tt_ & 0x3f } {
-            2 => unsafe { (*v).value_.f as *const u8 },
-            18 | 50 => todo!(),
-            34 => unsafe { (*v).value_.a as *const u8 },
+            0x02 => unsafe { (*v).value_.f as *const u8 },
+            0x12 => unsafe { (*v).value_.y as *const u8 },
+            0x22 => unsafe { (*v).value_.a as *const u8 },
+            0x32 => todo!(),
             7 => unsafe { (*(*v).value_.gc.cast::<UserData<A, ()>>()).ptr.cast() },
             _ => unsafe {
                 if (*v).tt_ & 1 << 6 != 0 {
@@ -507,7 +510,7 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
         }
     }
 
-    /// Gets the argument and convert it to Lua floating-point.
+    /// Gets the argument and convert it to float.
     ///
     /// This has the same semantic as `luaL_checknumber`.
     #[inline(always)]
@@ -528,7 +531,7 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
         }
     }
 
-    /// Gets the argument and convert it to Lua floating-point.
+    /// Gets the argument and convert it to float.
     ///
     /// This method returns [`None`] in the following cases:
     ///
@@ -757,7 +760,7 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
                     .map(|v| (*v).value_.gc.cast::<Str<A>>())
                 {
                     Some(v) => (*v)
-                        .as_str()
+                        .as_utf8()
                         .ok_or_else(|| self.error("'__name' must be UTF-8 string"))?,
                     None => lua_typename(v.into()),
                 };
@@ -768,9 +771,10 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
                 write!(buf, "{kind}: ").unwrap();
 
                 match v {
-                    2 => write!(buf, "{:p}", (*arg).value_.f).unwrap(),
-                    18 | 50 => todo!(),
-                    34 => write!(buf, "{:p}", (*arg).value_.a).unwrap(),
+                    0x02 => write!(buf, "{:p}", (*arg).value_.f).unwrap(),
+                    0x12 => write!(buf, "{:p}", (*arg).value_.y).unwrap(),
+                    0x22 => write!(buf, "{:p}", (*arg).value_.a).unwrap(),
+                    0x32 => todo!(),
                     4 => {
                         let v = (*arg).value_.gc.cast::<Str<A>>();
                         let v = (*v).as_bytes();

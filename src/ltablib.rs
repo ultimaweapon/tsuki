@@ -28,36 +28,6 @@ unsafe fn checkfield(L: *const Thread, key: *const libc::c_char, n: libc::c_int)
     (lua_rawget(L, -n) != 0 as libc::c_int) as libc::c_int
 }
 
-unsafe fn checktab(
-    L: *const Thread,
-    arg: libc::c_int,
-    what: libc::c_int,
-) -> Result<(), Box<dyn std::error::Error>> {
-    if lua_type(L, arg) != 5 as c_int {
-        let mut n: libc::c_int = 1 as libc::c_int;
-        if lua_getmetatable(L, arg) != 0
-            && (what & 1 as libc::c_int == 0 || {
-                n += 1;
-                checkfield(L, b"__index\0" as *const u8 as *const libc::c_char, n) != 0
-            })
-            && (what & 2 as libc::c_int == 0 || {
-                n += 1;
-                checkfield(L, b"__newindex\0" as *const u8 as *const libc::c_char, n) != 0
-            })
-            && (what & 4 as libc::c_int == 0 || {
-                n += 1;
-                checkfield(L, b"__len\0" as *const u8 as *const libc::c_char, n) != 0
-            })
-        {
-            lua_settop(L, -n - 1)?;
-        } else {
-            luaL_checktype(L, arg, 5)?;
-        }
-    }
-
-    Ok(())
-}
-
 unsafe fn tinsert(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut pos: i64 = 0;
     checktab(
@@ -164,63 +134,6 @@ unsafe fn tmove(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
         }
     }
     lua_pushvalue(L, tt);
-    return Ok(1 as libc::c_int);
-}
-
-unsafe fn addfield(
-    L: *const Thread,
-    b: &mut Vec<u8>,
-    i: i64,
-) -> Result<(), Box<dyn std::error::Error>> {
-    lua_geti(L, 1 as libc::c_int, i)?;
-    if ((lua_isstring(L, -(1 as libc::c_int)) == 0) as libc::c_int != 0 as libc::c_int)
-        as libc::c_int as libc::c_long
-        != 0
-    {
-        luaL_error(
-            L,
-            format_args!(
-                "invalid value ({}) at index {} in table for 'concat'",
-                lua_typename(lua_type(L, -1)),
-                i
-            ),
-        )?;
-    }
-
-    let mut l = 0;
-    let s = lua_tolstring(L, -1, &mut l);
-    b.extend_from_slice(std::slice::from_raw_parts(s.cast(), l));
-    lua_pop(L, 1)?;
-    Ok(())
-}
-
-unsafe fn tconcat(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    checktab(L, 1 as libc::c_int, 1 as libc::c_int | 4 as libc::c_int)?;
-    let mut last: i64 = luaL_len(L, 1 as libc::c_int)?;
-    let mut lsep: usize = 0;
-    let sep: *const libc::c_char = luaL_optlstring(
-        L,
-        2 as libc::c_int,
-        b"\0" as *const u8 as *const libc::c_char,
-        &mut lsep,
-    )?;
-    let sep = std::slice::from_raw_parts(sep.cast(), lsep);
-    let mut i: i64 = luaL_optinteger(L, 3 as libc::c_int, 1 as libc::c_int as i64)?;
-    let mut b = Vec::new();
-    last = luaL_optinteger(L, 4 as libc::c_int, last)?;
-
-    while i < last {
-        addfield(L, &mut b, i)?;
-        b.extend_from_slice(sep);
-        i += 1;
-    }
-
-    if i == last {
-        addfield(L, &mut b, i)?;
-    }
-
-    lua_pushlstring(L, b);
-
     return Ok(1 as libc::c_int);
 }
 
@@ -410,13 +323,6 @@ unsafe fn sort(L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
 }
 
 static mut tab_funcs: [luaL_Reg; 8] = [
-    {
-        let init = luaL_Reg {
-            name: b"concat\0" as *const u8 as *const libc::c_char,
-            func: Some(tconcat),
-        };
-        init
-    },
     {
         let init = luaL_Reg {
             name: b"insert\0" as *const u8 as *const libc::c_char,
