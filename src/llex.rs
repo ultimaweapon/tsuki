@@ -409,8 +409,8 @@ unsafe fn skip_sep<D>(ls: *mut LexState<D>) -> usize {
     };
 }
 
-unsafe fn read_long_string<D>(
-    ls: *mut LexState<D>,
+unsafe fn read_long_string<A>(
+    ls: *mut LexState<A>,
     ty: &str,
     sep: usize,
 ) -> Result<String, ParseError> {
@@ -795,11 +795,17 @@ unsafe fn read_string<D>(
     } else {
         -1
     };
-    (*seminfo).ts = luaX_newstring(
-        ls,
-        ((*(*ls).buf).as_ptr()).offset(1).cast(),
-        ((*(*ls).buf).len()).wrapping_sub(2 as c_int as usize),
-    );
+
+    // Check if UTF-8.
+    let l = (*ls).buf.len();
+    let s = &(&(*ls).buf)[1..(l - 1)];
+    let s = match core::str::from_utf8(s) {
+        Ok(v) => v,
+        Err(_) => return Err(lexerror(ls, "non-UTF-8 string", TK_STRING as c_int)),
+    };
+
+    (*seminfo).ts = luaX_newstring(ls, s.as_ptr().cast(), s.len());
+
     Ok(())
 }
 
