@@ -33,18 +33,6 @@ struct RanState {
     s: [libc::c_ulong; 4],
 }
 
-unsafe fn math_toint(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut valid: libc::c_int = 0;
-    let mut n: i64 = lua_tointegerx(L, 1 as libc::c_int, &mut valid);
-    if (valid != 0 as libc::c_int) as libc::c_int as libc::c_long != 0 {
-        lua_pushinteger(L, n);
-    } else {
-        luaL_checkany(L, 1 as libc::c_int)?;
-        lua_pushnil(L);
-    }
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn math_min(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     let mut n: libc::c_int = lua_gettop(L);
     let mut imin: libc::c_int = 1 as libc::c_int;
@@ -230,13 +218,6 @@ unsafe fn setrandfunc(mut L: *const Thread) -> Result<(), Box<dyn std::error::Er
 }
 
 static mut mathlib: [luaL_Reg; 28] = [
-    {
-        let mut init = luaL_Reg {
-            name: b"tointeger\0" as *const u8 as *const libc::c_char,
-            func: Some(math_toint),
-        };
-        init
-    },
     {
         let mut init = luaL_Reg {
             name: b"min\0" as *const u8 as *const libc::c_char,

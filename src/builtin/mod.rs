@@ -133,6 +133,7 @@ impl<A> Module<A> for MathLib {
         m.set_str_key("sin", fp!(self::math::sin));
         m.set_str_key("sqrt", fp!(self::math::sqrt));
         m.set_str_key("tan", fp!(self::math::tan));
+        m.set_str_key("tointeger", fp!(self::math::tointeger));
         m.set_str_key("type", fp!(self::math::r#type));
         m.set_str_key("ult", fp!(self::math::ult));
 

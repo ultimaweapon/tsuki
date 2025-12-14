@@ -222,6 +222,22 @@ pub fn tan<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
     Ok(cx.into())
 }
 
+/// Implementation of
+/// [math.tointeger](https://www.lua.org/manual/5.4/manual.html#pdf-math.tointeger).
+pub fn tointeger<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let n = cx.arg(1);
+
+    match n.as_int(true) {
+        Some(n) => cx.push(n)?,
+        None => {
+            n.exists()?;
+            cx.push(Nil)?;
+        }
+    }
+
+    Ok(cx.into())
+}
+
 /// Implementation of [math.type](https://www.lua.org/manual/5.4/manual.html#pdf-math.type).
 pub fn r#type<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1);

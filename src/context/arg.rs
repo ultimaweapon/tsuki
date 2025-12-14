@@ -123,7 +123,8 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
 
     /// Checks if this argument is an integer and return it.
     ///
-    /// This method will accept a string or float if `convert` is `true`.
+    /// This method will accept a string or float if `convert` is `true`. In this case this method
+    /// has the same semantic as `lua_tointegerx`.
     #[inline(always)]
     pub fn as_int(&self, convert: bool) -> Option<i64> {
         let v = self.get_raw_or_null();
