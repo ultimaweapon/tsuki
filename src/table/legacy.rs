@@ -17,6 +17,7 @@ use core::any::TypeId;
 use core::cell::Cell;
 use core::ffi::c_void;
 use core::hash::{Hash, Hasher};
+use core::marker::PhantomPinned;
 use core::ptr::{null, null_mut};
 use libm::frexp;
 
@@ -508,6 +509,7 @@ pub unsafe fn luaH_resize<D>(t: *const Table<D>, newasize: c_uint, nhsize: c_uin
         lastfree: Cell::new(null_mut()),
         metatable: Cell::new(null()),
         absent_key: UnsafeValue::default(),
+        pin: PhantomPinned,
     };
     let oldasize: c_uint = setlimittosize(t);
     let mut newarray = null_mut();

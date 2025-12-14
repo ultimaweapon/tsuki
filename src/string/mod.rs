@@ -7,6 +7,7 @@ use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::cell::Cell;
 use core::ffi::c_char;
+use core::marker::PhantomPinned;
 use core::mem::offset_of;
 use core::ptr::{addr_of_mut, null};
 
@@ -28,6 +29,7 @@ pub struct Str<A> {
     pub(crate) hash: Cell<u32>,
     pub(crate) hnext: Cell<*const Self>,
     pub(crate) contents: [c_char; 1],
+    pin: PhantomPinned,
 }
 
 impl<A> Str<A> {

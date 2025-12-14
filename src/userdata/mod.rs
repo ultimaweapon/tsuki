@@ -7,7 +7,7 @@ use crate::{Lua, Nil, Table, Value, luaH_getid};
 use core::alloc::Layout;
 use core::any::{Any, TypeId};
 use core::cell::Cell;
-use core::marker::PhantomData;
+use core::marker::{PhantomData, PhantomPinned};
 use core::mem::transmute;
 use core::ptr::{addr_of_mut, null};
 
@@ -32,6 +32,7 @@ pub struct UserData<A, T: ?Sized> {
     pub(crate) uv: UnsafeValue<A>,
     pub(crate) ptr: *const dyn Any,
     phantom: PhantomData<T>,
+    pin: PhantomPinned,
 }
 
 impl<A, T: Any> UserData<A, T> {

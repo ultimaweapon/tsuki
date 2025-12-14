@@ -3,6 +3,7 @@ use crate::value::UnsafeValue;
 use crate::{Object, Value};
 use alloc::boxed::Box;
 use core::cell::Cell;
+use core::marker::PhantomPinned;
 use core::num::NonZero;
 
 /// Lua function.
@@ -14,6 +15,7 @@ pub struct LuaFn<D> {
     pub(crate) hdr: Object<D>,
     pub(crate) p: Cell<*mut Proto<D>>,
     pub(crate) upvals: Box<[Cell<*mut UpVal<D>>]>,
+    pin: PhantomPinned,
 }
 
 impl<D> LuaFn<D> {

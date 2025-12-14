@@ -10,6 +10,7 @@ use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::cell::Cell;
 use core::convert::identity;
+use core::marker::PhantomPinned;
 use core::mem::zeroed;
 use core::ptr::{addr_of_mut, null, null_mut};
 use thiserror::Error;
@@ -33,6 +34,7 @@ pub struct Table<A> {
     pub(crate) lastfree: Cell<*mut Node<A>>,
     pub(crate) metatable: Cell<*const Self>,
     absent_key: UnsafeValue<A>,
+    pin: PhantomPinned,
 }
 
 impl<A> Table<A> {
