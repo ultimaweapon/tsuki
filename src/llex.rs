@@ -873,8 +873,10 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                     10512632378975961025 => {}
                     _ => {
                         while !((*ls).current == '\n' as i32 || (*ls).current == '\r' as i32)
-                            && (*ls).current != -(1 as c_int)
+                            && (*ls).current != -1
                         {
+                            (*ls).buf.push((*ls).current as u8);
+
                             let fresh60 = (*(*ls).z).n;
                             (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
                             (*ls).current = if fresh60 > 0 as c_int as usize {
@@ -884,6 +886,10 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                             } else {
                                 -1
                             };
+                        }
+
+                        if core::str::from_utf8((*ls).buf.drain(..).as_slice()).is_err() {
+                            return Err(lexerror(ls, "non-UTF-8 comment", 0));
                         }
                     }
                 }
