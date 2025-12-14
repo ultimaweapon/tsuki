@@ -84,14 +84,6 @@ impl Float {
     pub fn tan(self) -> Self {
         Self(self.0.tan())
     }
-
-    /// Computes the arccosine of a number.
-    ///
-    /// See [f64::acos()] for more details.
-    #[inline(always)]
-    pub fn acos(self) -> Self {
-        Self(self.0.acos())
-    }
 }
 
 impl PartialEq<f64> for Float {

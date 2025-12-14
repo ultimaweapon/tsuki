@@ -24,7 +24,7 @@ pub fn abs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
 
 /// Implementation of [math.acos](https://www.lua.org/manual/5.4/manual.html#pdf-math.acos).
 pub fn acos<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
-    let arg = cx.arg(1).to_float()?;
+    let Float(arg) = cx.arg(1).to_float()?;
 
     cx.push(arg.acos())?;
 
