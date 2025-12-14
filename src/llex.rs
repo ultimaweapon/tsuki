@@ -104,7 +104,7 @@ pub struct LexState<'a, D> {
     pub lookahead: Token<D>,
     pub g: &'a Lua<D>,
     pub z: *mut ZIO,
-    pub buf: Vec<c_char>,
+    pub buf: Vec<u8>,
     pub h: Ref<'a, Table<D>>,
     pub dyd: *mut Dyndata<D>,
     pub source: ChunkInfo,
@@ -153,7 +153,7 @@ pub const luaX_tokens: [&str; 37] = [
 ];
 
 unsafe fn save<D>(ls: *mut LexState<D>, c: c_int) {
-    (*ls).buf.push(c as c_char);
+    (*ls).buf.push(c as u8);
 }
 
 pub unsafe fn luaX_token2str(token: c_int) -> Cow<'static, str> {
@@ -180,7 +180,7 @@ unsafe fn txtToken<D>(ls: *mut LexState<D>, token: c_int) -> Cow<'static, str> {
 
             format!(
                 "'{}'",
-                CStr::from_ptr((*(*ls).buf).as_ptr()).to_string_lossy()
+                CStr::from_ptr((*(*ls).buf).as_ptr().cast()).to_string_lossy()
             )
             .into()
         }
@@ -359,7 +359,7 @@ unsafe fn read_numeral<D>(
     }
     save(ls, '\0' as i32);
 
-    obj = match luaO_str2num(CStr::from_ptr((*(*ls).buf).as_ptr()).to_bytes()) {
+    obj = match luaO_str2num(CStr::from_ptr((*(*ls).buf).as_ptr().cast()).to_bytes()) {
         Some(v) => v.into(),
         None => return Err(lexerror(ls, "malformed number", TK_FLT as c_int)),
     };
@@ -496,7 +496,7 @@ unsafe fn read_long_string<D>(
     if !seminfo.is_null() {
         (*seminfo).ts = luaX_newstring(
             ls,
-            ((*(*ls).buf).as_ptr()).offset(sep as isize),
+            ((*(*ls).buf).as_ptr()).offset(sep as isize).cast(),
             ((*(*ls).buf).len()).wrapping_sub(2 * sep),
         );
     }
@@ -806,7 +806,7 @@ unsafe fn read_string<D>(
     };
     (*seminfo).ts = luaX_newstring(
         ls,
-        ((*(*ls).buf).as_ptr()).offset(1 as c_int as isize),
+        ((*(*ls).buf).as_ptr()).offset(1).cast(),
         ((*(*ls).buf).len()).wrapping_sub(2 as c_int as usize),
     );
     Ok(())
@@ -1060,7 +1060,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                         }
                     }
 
-                    let ts = luaX_newstring(ls, (*(*ls).buf).as_ptr(), (*(*ls).buf).len());
+                    let ts = luaX_newstring(ls, (*(*ls).buf).as_ptr().cast(), (*(*ls).buf).len());
 
                     (*seminfo).ts = ts;
 
