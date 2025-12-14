@@ -3,9 +3,9 @@ use crate::context::{ArgNotFound, Args, Context, Ret};
 use crate::{Nil, Type, fp};
 use alloc::boxed::Box;
 use alloc::format;
-use alloc::string::{String, ToString};
+use alloc::string::ToString;
 use alloc::vec::Vec;
-use core::fmt::Write;
+use erdp::ErrorDisplay;
 
 /// Implementation of [assert](https://www.lua.org/manual/5.4/manual.html#pdf-assert) function.
 ///
@@ -162,8 +162,6 @@ pub fn pairs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
 
 /// Implementation of [pcall](https://www.lua.org/manual/5.4/manual.html#pdf-pcall).
 pub fn pcall<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
-    use core::error::Error;
-
     cx.arg(1).exists()?;
 
     // Invoke the function.
@@ -176,26 +174,14 @@ pub fn pcall<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
         }
     };
 
-    // Write first error.
-    let mut m = String::with_capacity(128);
-
-    if let Some((s, l)) = e.location() {
-        write!(m, "{s}:{l}: ").unwrap();
-    }
-
-    write!(m, "{e}").unwrap();
-
-    // Write nested errors.
-    let mut e = e.source();
-
-    while let Some(v) = e {
-        write!(m, " -> {v}").unwrap();
-        e = v.source();
-    }
-
     // Push results.
     cx.push(false)?;
-    cx.push_str(m)?;
+    cx.push_str(e.display().to_string())?;
+
+    if let Some((s, l)) = e.location() {
+        cx.push_str(s)?;
+        cx.push(l)?;
+    }
 
     Ok(cx)
 }

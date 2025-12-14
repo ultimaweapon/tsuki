@@ -77,6 +77,10 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
   - First argument accept only a string.
   - Second argument accept only a UTF-8 string and will be empty when absent.
   - Third argument must be `nil` or `"t"`.
+- `pcall` can produce up to 4 results on error and the message does not have a prefix.
+  - 3rd result is a chunk name.
+  - 4th result is a line number.
+  - 3rd and 4th results will be absent if the called function is a Rust function.
 - `string.format` requires UTF-8 string for both format string and format value.
   - `a`, `A`, `e`, `E`, `g` and `G` format is not supported.
   - `q` format will use decimal notation instead of hexadecimal exponent notation for floating point.
@@ -112,6 +116,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - `Str`, `Table`, `LuaFn` and `UserData` no longer implement `Unpin`.
 - `DynamicInputs::push_num` has been renamed to `DynamicInputs::push_float`.
 - `DynamicInputs::push_fp` now accept `Fp` instead of function pointer.
+- `pcall` now produce up to 4 results on error and the message does not have a prefix.
 - `string.format` now implemented in Rust with some breaking changes.
 - `string.rep` now have the same result limit as Lua.
 - Main thread has been removed.
