@@ -591,11 +591,11 @@ pub fn negate<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::
 /// Implementation of [string.packsize](https://www.lua.org/manual/5.4/manual.html#pdf-string.packsize).
 pub fn packsize<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     // Check if UTF-8.
-    let fmt = cx.arg(1);
-    let fmt = fmt
+    let arg = cx.arg(1);
+    let fmt = arg
         .to_str()?
         .as_utf8()
-        .ok_or_else(|| fmt.error("expect UTF-8 string"))?;
+        .ok_or_else(|| arg.error("expect UTF-8 string"))?;
 
     // Parse.
     let mut fmt = fmt.chars().take_while(|&c| c != '\0').peekable();
@@ -604,14 +604,17 @@ pub fn packsize<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core
 
     while let Some(first) = fmt.next() {
         let mut ntoalign = 0;
-        let mut size = match h.getdetails(totalsize, first, &mut fmt, &mut ntoalign)? {
+        let mut size = match h
+            .getdetails(totalsize, first, &mut fmt, &mut ntoalign)
+            .map_err(|e| arg.error(e))?
+        {
             Pack::Signed(v) => v,
             Pack::Unsigned(v) => v,
             Pack::Float(v) => v,
             Pack::Double(v) => v,
             Pack::Number(v) => v,
             Pack::Char(v) => v,
-            Pack::Str(_) => return Err("variable-length format".into()),
+            Pack::Str(_) => return Err(arg.error("variable-length format")),
             Pack::Padding(v) => v,
             Pack::PadAlign => 0,
             Pack::Nop => 0,
@@ -620,7 +623,7 @@ pub fn packsize<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core
         size += ntoalign;
 
         if totalsize > 2147483647usize.wrapping_sub(size) {
-            return Err("format result too large".into());
+            return Err(arg.error("format result too large"));
         }
 
         totalsize = totalsize.wrapping_add(size);

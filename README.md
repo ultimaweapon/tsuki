@@ -62,6 +62,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - Float to string conversion does not truncate precision (Lua limit to 14 digits by default).
 - Float literal does not accept hexadecimal format.
 - String literal must be a UTF-8 string.
+  - The result string can be non-UTF-8, only the literal need to be UTF-8.
 - Comment must be a UTF-8 string.
 - U+000B VERTICAL TAB is not considered as a whitespace.
 - C locale is ignored (once `libc` has been completely removed).
@@ -82,7 +83,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
   - `q` format will use decimal notation instead of hexadecimal exponent notation for floating point.
   - Format have unlimited length.
 - `string.find` and `string.gsub` does not support class `z`.
-- `string.packsize` requires UTF-8 string for format string and always return non-argument error.
+- `string.packsize` requires UTF-8 string for format string and format error always argument error.
 - Native module is not supported.
 - Environment variable `LUA_PATH` and `LUA_PATH_5_4` is ignored.
 - `LUA_NOENV` in registry is ignored.
