@@ -647,11 +647,19 @@ unsafe fn read_string<D>(
     } else {
         -1
     };
+
+    // Load string.
+    let mut off = 1;
+
     while (*ls).current != del {
         match (*ls).current {
             -1 => return Err(lexerror(ls, "unfinished string", TK_EOS as c_int)),
             10 | 13 => return Err(lexerror(ls, "unfinished string", TK_STRING as c_int)),
             92 => {
+                if core::str::from_utf8(&(&(*ls).buf)[off..]).is_err() {
+                    return Err(lexerror(ls, "non-UTF-8 string", TK_STRING as c_int));
+                }
+
                 let mut c: c_int = 0;
                 save(ls, (*ls).current);
                 let fresh42 = (*(*ls).z).n;
@@ -770,6 +778,8 @@ unsafe fn read_string<D>(
                 }
                 (*ls).buf.truncate((*ls).buf.len() - 1);
                 save(ls, c);
+
+                off = (*ls).buf.len();
             }
             _ => {
                 save(ls, (*ls).current);
@@ -785,6 +795,11 @@ unsafe fn read_string<D>(
             }
         }
     }
+
+    if core::str::from_utf8(&(&(*ls).buf)[off..]).is_err() {
+        return Err(lexerror(ls, "non-UTF-8 string", TK_STRING as c_int));
+    }
+
     save(ls, (*ls).current);
     let fresh52 = (*(*ls).z).n;
     (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -796,13 +811,9 @@ unsafe fn read_string<D>(
         -1
     };
 
-    // Check if UTF-8.
+    // Create string.
     let l = (*ls).buf.len();
     let s = &(&(*ls).buf)[1..(l - 1)];
-    let s = match core::str::from_utf8(s) {
-        Ok(v) => v,
-        Err(_) => return Err(lexerror(ls, "non-UTF-8 string", TK_STRING as c_int)),
-    };
 
     (*seminfo).ts = luaX_newstring(ls, s.as_ptr().cast(), s.len());
 
