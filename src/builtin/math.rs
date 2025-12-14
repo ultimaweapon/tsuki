@@ -168,6 +168,23 @@ pub fn max<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::err
     Ok(cx.into())
 }
 
+/// Implementation of [math.min](https://www.lua.org/manual/5.4/manual.html#pdf-math.min).
+pub fn min<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let mut r = cx.arg(1).exists()?;
+
+    for i in 2..=cx.args() {
+        let v = cx.arg(i);
+
+        if cx.is_value_lt(&v, &r)? {
+            r = v;
+        }
+    }
+
+    cx.push(r)?;
+
+    Ok(cx.into())
+}
+
 /// Implementation of [math.modf](https://www.lua.org/manual/5.4/manual.html#pdf-math.modf).
 pub fn modf<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let v = cx.arg(1);
