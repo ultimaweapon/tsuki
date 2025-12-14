@@ -18,63 +18,6 @@ unsafe extern "C" fn getco(mut L: *mut lua_State) -> *mut lua_State {
         ) != 0) as libc::c_int;
     return co;
 }
-unsafe extern "C" fn auxresume(
-    mut L: *mut lua_State,
-    mut co: *mut lua_State,
-    mut narg: libc::c_int,
-) -> libc::c_int {
-    let mut status: libc::c_int = 0;
-    let mut nres: libc::c_int = 0;
-    if ((lua_checkstack(co, narg) == 0) as libc::c_int != 0 as libc::c_int) as libc::c_int
-        as libc::c_long
-        != 0
-    {
-        lua_pushstring(
-            L,
-            b"too many arguments to resume\0" as *const u8 as *const libc::c_char,
-        );
-        return -(1 as libc::c_int);
-    }
-    lua_xmove(L, co, narg);
-    status = lua_resume(co, L, narg, &mut nres);
-    if ((status == 0 as libc::c_int || status == 1 as libc::c_int) as libc::c_int
-        != 0 as libc::c_int) as libc::c_int as libc::c_long
-        != 0
-    {
-        if ((lua_checkstack(L, nres + 1 as libc::c_int) == 0) as libc::c_int != 0 as libc::c_int)
-            as libc::c_int as libc::c_long
-            != 0
-        {
-            lua_settop(co, -nres - 1 as libc::c_int);
-            lua_pushstring(
-                L,
-                b"too many results to resume\0" as *const u8 as *const libc::c_char,
-            );
-            return -(1 as libc::c_int);
-        }
-        lua_xmove(co, L, nres);
-        return nres;
-    } else {
-        lua_xmove(co, L, 1 as libc::c_int);
-        return -(1 as libc::c_int);
-    };
-}
-unsafe extern "C" fn luaB_coresume(mut L: *mut lua_State) -> libc::c_int {
-    let mut co: *mut lua_State = getco(L);
-    let mut r: libc::c_int = 0;
-    r = auxresume(L, co, lua_gettop(L) - 1 as libc::c_int);
-    if ((r < 0 as libc::c_int) as libc::c_int != 0 as libc::c_int) as libc::c_int as libc::c_long
-        != 0
-    {
-        lua_pushboolean(L, 0 as libc::c_int);
-        lua_rotate(L, -(2 as libc::c_int), 1 as libc::c_int);
-        return 2 as libc::c_int;
-    } else {
-        lua_pushboolean(L, 1 as libc::c_int);
-        lua_rotate(L, -(r + 1 as libc::c_int), 1 as libc::c_int);
-        return r + 1 as libc::c_int;
-    };
-}
 unsafe extern "C" fn luaB_auxwrap(mut L: *mut lua_State) -> libc::c_int {
     let mut co: *mut lua_State = lua_tothread(
         L,
@@ -206,13 +149,6 @@ static mut co_funcs: [luaL_Reg; 9] = unsafe {
             let mut init = luaL_Reg {
                 name: b"create\0" as *const u8 as *const libc::c_char,
                 func: Some(luaB_cocreate as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
-            };
-            init
-        },
-        {
-            let mut init = luaL_Reg {
-                name: b"resume\0" as *const u8 as *const libc::c_char,
-                func: Some(luaB_coresume as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
             };
             init
         },

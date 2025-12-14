@@ -20,6 +20,7 @@ rand = ["dep:rand"]
 std = ["libm/arch", "tsuki-macros/std"]
 
 [dependencies]
+erdp = "0.2.0"
 libc = "0.2.172"
 libm = { version = "0.2.15", default-features = false }
 memchr = { version = "2.7.6", features = ["alloc"], default-features = false }

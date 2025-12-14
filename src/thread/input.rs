@@ -1,12 +1,13 @@
 use super::Thread;
-use crate::context::{Args, Context, Ret};
+use crate::context::Arg;
 use crate::value::UnsafeValue;
 use crate::{Fp, Nil, Object, Str, Table, Value};
-use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-/// Implementation of [`Inputs`] which size does not known at compile time.
+/// Implementation of [Inputs] which size does not known at compile time.
+///
+/// This struct is more efficient than a [Vec] of [Value] since it store [UnsafeValue] directly.
 ///
 /// The order of arguments is the same as push order (e.g. first argument pushed first).
 pub struct DynamicInputs<'a, A> {
@@ -15,8 +16,8 @@ pub struct DynamicInputs<'a, A> {
 }
 
 impl<'a, D> DynamicInputs<'a, D> {
-    /// Constructs a new, empty [`DynamicInputs`] with at least the specified capacity.
-    #[inline(always)]
+    /// Constructs a new, empty [DynamicInputs] with at least the specified capacity.
+    #[inline]
     pub fn with_capacity(cap: usize) -> Self {
         Self {
             list: Vec::with_capacity(cap),
@@ -25,48 +26,54 @@ impl<'a, D> DynamicInputs<'a, D> {
     }
 
     /// Push a `nil` value.
-    #[inline(always)]
+    #[inline]
     pub fn push_nil(&mut self) {
         self.list.push(UnsafeValue::from(Nil));
     }
 
     /// Push a `boolean` value.
-    #[inline(always)]
+    #[inline]
     pub fn push_bool(&mut self, v: bool) {
         self.list.push(UnsafeValue::from(v));
     }
 
     /// Push an `integer` value.
-    #[inline(always)]
+    #[inline]
     pub fn push_int(&mut self, v: i64) {
         self.list.push(UnsafeValue::from(v));
     }
 
     /// Push a `float` value.
-    #[inline(always)]
-    pub fn push_num(&mut self, v: f64) {
+    #[inline]
+    pub fn push_float(&mut self, v: f64) {
         self.list.push(UnsafeValue::from(v));
     }
 
     /// Push a `string` value.
-    #[inline(always)]
+    #[inline]
     pub fn push_str(&mut self, v: &'a Str<D>) {
         self.list.push(UnsafeValue::from(v));
     }
 
     /// Push a `table` value.
-    #[inline(always)]
+    #[inline]
     pub fn push_table(&mut self, v: &'a Table<D>) {
         self.list.push(UnsafeValue::from(v));
     }
 
     /// Push a Rust function.
-    #[inline(always)]
-    pub fn push_fp(
-        &mut self,
-        v: fn(Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core::error::Error>>,
-    ) {
-        self.list.push(UnsafeValue::from(Fp(v)));
+    #[inline]
+    pub fn push_fp(&mut self, v: Fp<D>) {
+        self.list.push(UnsafeValue::from(v));
+    }
+
+    /// Push argument passed to Rust function.
+    #[inline]
+    pub fn push_arg<'b>(&mut self, v: Arg<'a, 'b, D>)
+    where
+        'b: 'a,
+    {
+        self.list.push(v.into());
     }
 }
 

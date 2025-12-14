@@ -3,7 +3,7 @@ print "testing coroutines"
 local f
 
 local main, ismain = coroutine.running()
-assert(type(main) == "thread" and ismain)
+assert(type(main) == "thread" and not ismain)
 assert(not coroutine.resume(main))
 assert(not coroutine.isyieldable(main) and not coroutine.isyieldable())
 assert(not pcall(coroutine.yield))

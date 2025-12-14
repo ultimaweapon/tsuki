@@ -35,7 +35,6 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
   - [libc](https://crates.io/crates/libc) is required at the moment.
 - Support both synchronous and asynchronous.
 - Safe, ergonomic and low overhead API.
-- Efficient async call and coroutine suspend/resume.
 - Strongly typed registry.
 - Rust collections to store Lua values (e.g. [BTreeMap](https://doc.rust-lang.org/alloc/collections/btree_map/struct.BTreeMap.html)).
 - Any error propagated to the caller via Rust `Result` instead of a long jump.
@@ -111,6 +110,8 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - `Str::as_str` has been renamed to `Str::as_utf8`.
 - `Arg::as_int` has additional parameter.
 - `Str`, `Table`, `LuaFn` and `UserData` no longer implement `Unpin`.
+- `DynamicInputs::push_num` has been renamed to `DynamicInputs::push_float`.
+- `DynamicInputs::push_fp` now accept `Fp` instead of function pointer.
 - `string.format` now implemented in Rust with some breaking changes.
 - `string.rep` now have the same result limit as Lua.
 - Main thread has been removed.

@@ -13,7 +13,8 @@ use crate::lstate::CallInfo;
 use crate::value::UnsafeValue;
 use crate::vm::luaV_finishget;
 use crate::{
-    CallError, Lua, LuaFn, NON_YIELDABLE_WAKER, Object, Table, Value, YIELDABLE_WAKER, luaH_get,
+    CallError, Lua, LuaFn, NON_YIELDABLE_WAKER, Object, StackOverflow, Table, Value,
+    YIELDABLE_WAKER, luaH_get,
 };
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
@@ -535,6 +536,16 @@ impl<A> Thread<A> {
         let v = unsafe { luaV_finishget(self, &t, &k, false)? };
 
         Ok(unsafe { Value::from_unsafe(&v) })
+    }
+
+    /// Reserves capacity for at least `additional` more elements to be pushed.
+    ///
+    /// Usually you don't need this method unless you want to distinguished [StackOverflow] caused by too many arguments.
+    ///
+    /// This has the same semantic as `lua_checkstack`.
+    #[inline(always)]
+    pub fn reserve(&self, additional: usize) -> Result<(), StackOverflow> {
+        unsafe { lua_checkstack(self, additional, 0) }
     }
 }
 
