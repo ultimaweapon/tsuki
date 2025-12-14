@@ -61,7 +61,8 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - `__tostring` metamethod must return a UTF-8 string.
 - Float to string conversion does not truncate precision (Lua limit to 14 digits by default).
 - Float literal does not accept hexadecimal format.
-- Comment must be UTF-8 string.
+- String literal must be a UTF-8 string.
+- Comment must be a UTF-8 string.
 - U+000B VERTICAL TAB is not considered as a whitespace.
 - C locale is ignored (once `libc` has been completely removed).
 
@@ -111,6 +112,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - `string.rep` now have the same result limit as Lua.
 - Main thread has been removed.
 - Recursion checks on a call to Rust function has been removed.
+- String literal now required a UTF-8 string.
 - Comment now required a UTF-8 string.
 
 ## Frequently Asked Questions

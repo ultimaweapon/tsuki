@@ -15,13 +15,12 @@ use crate::value::UnsafeValue;
 use crate::{ChunkInfo, Float, Lua, Node, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::convert::identity;
 use core::ffi::{CStr, c_char};
 use core::fmt::Display;
 use core::ops::Deref;
-use core::ptr::null_mut;
 
 pub type RESERVED = c_uint;
 pub const TK_STRING: RESERVED = 292;
@@ -412,9 +411,9 @@ unsafe fn skip_sep<D>(ls: *mut LexState<D>) -> usize {
 
 unsafe fn read_long_string<D>(
     ls: *mut LexState<D>,
-    seminfo: *mut SemInfo<D>,
+    ty: &str,
     sep: usize,
-) -> Result<(), ParseError> {
+) -> Result<String, ParseError> {
     let line: c_int = (*ls).linenumber;
     save(ls, (*ls).current);
     let fresh20 = (*(*ls).z).n;
@@ -426,21 +425,20 @@ unsafe fn read_long_string<D>(
     } else {
         -1
     };
+
     if (*ls).current == '\n' as i32 || (*ls).current == '\r' as i32 {
         inclinenumber(ls);
     }
+
+    // Load string.
+    let mut off = sep;
+
     loop {
         match (*ls).current {
             -1 => {
-                let what = if !seminfo.is_null() {
-                    "string"
-                } else {
-                    "comment"
-                };
-
                 return Err(lexerror(
                     ls,
-                    format_args!("unfinished long {what} (starting at line {line})"),
+                    format_args!("unfinished long {ty} (starting at line {line})"),
                     TK_EOS as c_int,
                 ));
             }
@@ -458,50 +456,43 @@ unsafe fn read_long_string<D>(
                 } else {
                     -1
                 };
+
+                if core::str::from_utf8(&(&(*ls).buf)[off..]).is_err() {
+                    return Err(lexerror(ls, "non-UTF-8 string", 0));
+                }
+
                 break;
             }
             10 | 13 => {
+                if core::str::from_utf8(&(&(*ls).buf)[off..]).is_err() {
+                    return Err(lexerror(ls, "non-UTF-8 string", 0));
+                }
+
                 save(ls, '\n' as i32);
                 inclinenumber(ls);
-                if seminfo.is_null() {
-                    (*ls).buf.clear();
-                }
+
+                off = (*ls).buf.len();
             }
             _ => {
-                if !seminfo.is_null() {
-                    save(ls, (*ls).current);
-                    let fresh24 = (*(*ls).z).n;
-                    (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-                    (*ls).current = if fresh24 > 0 as c_int as usize {
-                        let fresh25 = (*(*ls).z).p;
-                        (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                        *fresh25 as c_uchar as c_int
-                    } else {
-                        -1
-                    };
+                save(ls, (*ls).current);
+
+                let fresh24 = (*(*ls).z).n;
+                (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
+                (*ls).current = if fresh24 > 0 as c_int as usize {
+                    let fresh25 = (*(*ls).z).p;
+                    (*(*ls).z).p = ((*(*ls).z).p).offset(1);
+                    *fresh25 as c_uchar as c_int
                 } else {
-                    let fresh26 = (*(*ls).z).n;
-                    (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
-                    (*ls).current = if fresh26 > 0 as c_int as usize {
-                        let fresh27 = (*(*ls).z).p;
-                        (*(*ls).z).p = ((*(*ls).z).p).offset(1);
-                        *fresh27 as c_uchar as c_int
-                    } else {
-                        -1
-                    };
-                }
+                    -1
+                };
             }
         }
     }
-    if !seminfo.is_null() {
-        (*seminfo).ts = luaX_newstring(
-            ls,
-            ((*(*ls).buf).as_ptr()).offset(sep as isize).cast(),
-            ((*(*ls).buf).len()).wrapping_sub(2 * sep),
-        );
-    }
 
-    Ok(())
+    // Get string.
+    let len = (*ls).buf.len().wrapping_sub(2 * sep);
+
+    Ok(core::str::from_utf8_unchecked(&(&(*ls).buf)[sep..(sep + len)]).into())
 }
 
 unsafe fn esccheck<D>(ls: *mut LexState<D>, c: c_int, msg: impl Display) -> Result<(), ParseError> {
@@ -819,7 +810,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
         let current_block_85: u64;
         match (*ls).current {
             10 | 13 => inclinenumber(ls),
-            32 | 12 | 9 | 11 => {
+            32 | 12 | 9 => {
                 let fresh54 = (*(*ls).z).n;
                 (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
                 (*ls).current = if fresh54 > 0 as c_int as usize {
@@ -855,17 +846,14 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                 if (*ls).current == '[' as i32 {
                     let sep: usize = skip_sep(ls);
 
-                    (*ls).buf.clear();
-
                     if sep >= 2 as c_int as usize {
-                        read_long_string(ls, null_mut(), sep)?;
-
-                        (*ls).buf.clear();
-
+                        read_long_string(ls, "comment", sep)?;
                         current_block_85 = 10512632378975961025;
                     } else {
                         current_block_85 = 3512920355445576850;
                     }
+
+                    (*ls).buf.clear();
                 } else {
                     current_block_85 = 3512920355445576850;
                 }
@@ -889,7 +877,7 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                         }
 
                         if core::str::from_utf8((*ls).buf.drain(..).as_slice()).is_err() {
-                            return Err(lexerror(ls, "non-UTF-8 comment", 0));
+                            return Err(lexerror(ls, "non-UTF-8 string", 0));
                         }
                     }
                 }
@@ -897,7 +885,10 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
             91 => {
                 let sep_0: usize = skip_sep(ls);
                 if sep_0 >= 2 as c_int as usize {
-                    read_long_string(ls, seminfo, sep_0)?;
+                    let s = read_long_string(ls, "string", sep_0)?;
+
+                    (*seminfo).ts = luaX_newstring(ls, s.as_ptr().cast(), s.len());
+
                     return Ok(TK_STRING as c_int);
                 } else if sep_0 == 0 as c_int as usize {
                     return Err(lexerror(
