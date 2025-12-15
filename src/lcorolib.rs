@@ -110,15 +110,6 @@ unsafe extern "C" fn luaB_costatus(mut L: *mut lua_State) -> libc::c_int {
     lua_pushstring(L, statname[auxstatus(L, co) as usize]);
     return 1 as libc::c_int;
 }
-unsafe extern "C" fn luaB_yieldable(mut L: *mut lua_State) -> libc::c_int {
-    let mut co: *mut lua_State = if lua_type(L, 1 as libc::c_int) == -(1 as libc::c_int) {
-        L
-    } else {
-        getco(L)
-    };
-    lua_pushboolean(L, lua_isyieldable(co));
-    return 1 as libc::c_int;
-}
 unsafe extern "C" fn luaB_close(mut L: *mut lua_State) -> libc::c_int {
     let mut co: *mut lua_State = getco(L);
     let mut status: libc::c_int = auxstatus(L, co);
@@ -170,13 +161,6 @@ static mut co_funcs: [luaL_Reg; 9] = unsafe {
             let mut init = luaL_Reg {
                 name: b"yield\0" as *const u8 as *const libc::c_char,
                 func: Some(luaB_yield as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
-            };
-            init
-        },
-        {
-            let mut init = luaL_Reg {
-                name: b"isyieldable\0" as *const u8 as *const libc::c_char,
-                func: Some(luaB_yieldable as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
             };
             init
         },

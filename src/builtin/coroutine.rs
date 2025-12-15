@@ -7,6 +7,22 @@ use alloc::vec::Vec;
 use erdp::ErrorDisplay;
 
 /// Implementation of
+/// [coroutine.isyieldable](https://www.lua.org/manual/5.4/manual.html#pdf-coroutine.isyieldable).
+///
+/// Note that our implementation does not accept any arguments.
+pub fn isyieldable<A>(
+    cx: Context<A, Args>,
+) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    if cx.arg(1).is_exists() {
+        return Err("arguments is not supported".into());
+    }
+
+    cx.push(cx.is_yieldable())?;
+
+    Ok(cx.into())
+}
+
+/// Implementation of
 /// [coroutine.resume](https://www.lua.org/manual/5.4/manual.html#pdf-coroutine.resume).
 pub fn resume<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let co = cx.arg(1).get_thread()?;

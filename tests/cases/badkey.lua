@@ -6,7 +6,6 @@ end)
 
 assert(not ok)
 assert(msg == 'key is nil')
-print(src)
 assert(src:sub(-10) == 'badkey.lua')
 assert(ln == 4)
 

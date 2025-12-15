@@ -21,7 +21,7 @@ use core::error::Error;
 use core::ffi::{c_char, c_void};
 use core::mem::transmute;
 use core::ops::Deref;
-use core::pin::Pin;
+use core::pin::{Pin, pin};
 use core::ptr::{addr_eq, null, null_mut};
 use core::task::Poll;
 
@@ -293,7 +293,7 @@ pub async unsafe fn luaD_pretailcall<D>(
 ) -> Result<c_int, Box<dyn Error>> {
     loop {
         match (*func).tt_ & 0x3f {
-            0x02 => return call_fp(&*L, func, -1, (*func).value_.f),
+            0x02 => return call_fp(&*L, func, -1, (*func).value_.f).await,
             0x12 => {
                 return YieldInvoker {
                     th: &*L,
@@ -316,7 +316,8 @@ pub async unsafe fn luaD_pretailcall<D>(
                     func,
                     -(1 as c_int),
                     (*((*func).value_.gc as *mut CClosure<D>)).f,
-                );
+                )
+                .await;
             }
             _ => {
                 func = tryfuncTM(L, func)?;
@@ -334,7 +335,7 @@ pub async unsafe fn luaD_precall<D>(
     loop {
         match (*func).tt_ & 0x3f {
             0x02 => {
-                call_fp(&*L, func, nresults, (*func).value_.f)?;
+                call_fp(&*L, func, nresults, (*func).value_.f).await?;
                 return Ok(null_mut());
             }
             0x12 => {
@@ -364,7 +365,8 @@ pub async unsafe fn luaD_precall<D>(
                     func,
                     nresults,
                     (*((*func).value_.gc as *mut CClosure<D>)).f,
-                )?;
+                )
+                .await?;
 
                 return Ok(null_mut());
             }
@@ -580,8 +582,7 @@ pub unsafe fn setup_tailcall_ci<A>(
     Ok(())
 }
 
-#[inline(always)]
-pub unsafe fn call_fp<A>(
+pub async unsafe fn call_fp<A>(
     L: &Thread<A>,
     func: *mut StackValue<A>,
     nresults: c_int,
@@ -591,7 +592,7 @@ pub unsafe fn call_fp<A>(
     let top = L.top.get();
     let ci = get_ci(L, func, nresults, 1 << 1, top);
     let narg = top.offset_from_unsigned(func) - 1;
-    let cx = Context::new(L, Args::new(narg));
+    let cx = Context::new(L, Args::new(narg)).await;
     let cx = fp(cx)?;
 
     // Get number of results.
@@ -614,7 +615,7 @@ async unsafe fn call_async_fp<A>(
     let top = L.top.get();
     let ci = get_ci(L, func, nresults, 1 << 1, top);
     let narg = top.offset_from_unsigned(func) - 1;
-    let cx = Context::new(L, Args::new(narg));
+    let cx = Context::new(L, Args::new(narg)).await;
     let cx = AsyncInvoker { f: fp(cx) }.await?;
 
     // Get number of results.
@@ -713,11 +714,20 @@ impl<'a, A> Future for YieldInvoker<'a, A> {
                 Poll::Ready(Ok(n))
             }
             None => {
-                // Invoke.
+                // Create context.
                 let top = self.th.top.get();
                 let ci = unsafe { get_ci(self.th, self.func, self.nresults, 1 << 1, top) };
                 let narg = unsafe { top.offset_from_unsigned(self.func) - 1 };
-                let cx = Context::new(self.th, Args::new(narg));
+                let cx = {
+                    let f = pin!(Context::new(self.th, Args::new(narg)));
+
+                    match f.poll(cx) {
+                        Poll::Ready(v) => v,
+                        Poll::Pending => unreachable!(),
+                    }
+                };
+
+                // Invoke.
                 let cx = (self.fp)(cx)?;
                 let ret = cx.results();
 

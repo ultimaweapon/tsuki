@@ -4023,7 +4023,7 @@ pub async unsafe fn run<A>(
                     }
                     next!();
                 }
-                67 => {
+                OP_TESTSET => {
                     let ra = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -4087,7 +4087,7 @@ pub async unsafe fn run<A>(
                     // Fast path for majority of the cases.
                     match (*ra).tt_ & 0x3f {
                         0x02 => {
-                            call_fp(th, ra, nresults, (*ra).value_.f)?;
+                            call_fp(th, ra, nresults, (*ra).value_.f).await?;
                         }
                         0x06 => match setup_lua_ci(th, ra, nresults) {
                             Ok(v) => {
@@ -4143,7 +4143,7 @@ pub async unsafe fn run<A>(
 
                     // Fast path for majority of the cases.
                     let n_2 = match (*ra).tt_ & 0x3f {
-                        0x02 => call_fp(th, ra, -1, (*ra).value_.f)?,
+                        0x02 => call_fp(th, ra, -1, (*ra).value_.f).await?,
                         0x06 => match setup_tailcall_ci(th, ci, ra, b_5, delta) {
                             Ok(_) => continue 'top,
                             Err(e) => return Err(Box::new(e)),
@@ -4160,7 +4160,7 @@ pub async unsafe fn run<A>(
                     base = th.stack.get().add((*ci).func + 1);
                     break;
                 }
-                70 => {
+                OP_RETURN => {
                     let mut ra_67 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)

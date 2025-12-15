@@ -41,7 +41,7 @@ pub fn error<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
         .ok_or_else(|| arg.error("expect UTF-8 string"))?;
 
     if cx.args() > 1 {
-        return Err("second argument of 'error' is not supported".into());
+        return Err("second argument is not supported".into());
     }
 
     Err(msg.into())
@@ -161,6 +161,12 @@ pub fn pairs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
 }
 
 /// Implementation of [pcall](https://www.lua.org/manual/5.4/manual.html#pdf-pcall).
+///
+/// Our implementation can produce up to 4 results on error and the message does not have a prefix:
+///
+/// - 3rd result is a chunk name.
+/// - 4th result is a line number.
+/// - 3rd and 4th results will be absent if the called function is a Rust function.
 pub fn pcall<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     cx.arg(1).exists()?;
 

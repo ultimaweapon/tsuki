@@ -70,6 +70,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 
 - No `_VERSION`, `collectgarbage`, `dofile`, `loadfile`, `warn`, `xpcall`, `string.dump` and debug library.
 - Second argument of `assert` accept only a UTF-8 string.
+- `coroutine.isyieldable` does not accept any arguments.
 - Arguments of `error`:
   - First argument accept only a UTF-8 string.
   - Second argument is not supported and it is always assume 1.
@@ -81,9 +82,9 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
   - 3rd result is a chunk name.
   - 4th result is a line number.
   - 3rd and 4th results will be absent if the called function is a Rust function.
-- `string.format` requires UTF-8 string for both format string and format value.
+- `string.format` requires format string to be UTF-8.
   - `a`, `A`, `e`, `E`, `g` and `G` format is not supported.
-  - `q` format will use decimal notation instead of hexadecimal exponent notation for floating point.
+  - `q` format requires string value to be UTF-8 and will use decimal notation instead of hexadecimal exponent notation for float.
   - Format have unlimited length.
 - `string.find` and `string.gsub` does not support class `z`.
 - `string.packsize` requires UTF-8 string for format string and format error always argument error.

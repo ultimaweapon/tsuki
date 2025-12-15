@@ -9,7 +9,7 @@ use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_equalobj, luaV_lessthan, luaV_objlen, luaV_tointeger};
 use crate::{
     CallError, ChunkInfo, Inputs, LuaFn, NON_YIELDABLE_WAKER, Ops, Outputs, ParseError, Ref,
-    RegKey, RegValue, StackOverflow, Str, Table, Thread, Type, UserData, luaH_get,
+    RegKey, RegValue, StackOverflow, Str, Table, Thread, Type, UserData, YIELDABLE_WAKER, luaH_get,
     luaH_getshortstr,
 };
 use alloc::borrow::Cow;
@@ -19,8 +19,8 @@ use core::any::Any;
 use core::cell::Cell;
 use core::convert::identity;
 use core::num::NonZero;
-use core::pin::pin;
-use core::ptr::null;
+use core::pin::{Pin, pin};
+use core::ptr::{addr_eq, null};
 use core::task::{Poll, Waker};
 
 mod arg;
@@ -40,16 +40,25 @@ pub struct Context<'a, A, T> {
     th: &'a Thread<A>,
     ret: Cell<usize>,
     payload: T,
+    yieldable: bool,
 }
 
 impl<'a, A, T> Context<'a, A, T> {
     #[inline(always)]
-    pub(crate) fn new(th: &'a Thread<A>, payload: T) -> Self {
-        Self {
-            th,
-            ret: Cell::new(0),
-            payload,
+    pub(crate) fn new(td: &'a Thread<A>, payload: T) -> impl Future<Output = Self>
+    where
+        T: Unpin,
+    {
+        New {
+            td,
+            payload: Some(payload),
         }
+    }
+
+    /// Returns `true` if [YieldFp](crate::YieldFp) can be called from parent frame.
+    #[inline(always)]
+    pub fn is_yieldable(&self) -> bool {
+        self.yieldable
     }
 
     /// Returns [Thread] for this context.
@@ -732,6 +741,7 @@ impl<'a, A, T> Context<'a, A, T> {
             th: self.th,
             ret: Cell::new(0),
             payload: Ret(rem),
+            yieldable: self.yieldable,
         };
 
         {
@@ -797,6 +807,7 @@ impl<'a, A, T> Context<'a, A, T> {
             th: self.th,
             ret: Cell::new(ret),
             payload: Ret(off - 1),
+            yieldable: self.yieldable,
         }
     }
 }
@@ -929,6 +940,7 @@ impl<'a, A> From<Context<'a, A, Args>> for Context<'a, A, Ret> {
             th: value.th,
             ret: value.ret,
             payload: Ret(value.payload.0),
+            yieldable: value.yieldable,
         }
     }
 }
@@ -945,3 +957,26 @@ impl Args {
 
 /// Call results encapsulated in [Context];
 pub struct Ret(usize); // The value is offset of the first result.
+
+/// Future of [Context::new()].
+struct New<'a, A, T> {
+    td: &'a Thread<A>,
+    payload: Option<T>,
+}
+
+impl<'a, A, T> Future for New<'a, A, T>
+where
+    T: Unpin,
+{
+    type Output = Context<'a, A, T>;
+
+    #[inline(always)]
+    fn poll(mut self: Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
+        Poll::Ready(Context {
+            th: self.td,
+            ret: Cell::new(0),
+            payload: self.payload.take().unwrap(),
+            yieldable: addr_eq(cx.waker().vtable(), &YIELDABLE_WAKER),
+        })
+    }
+}

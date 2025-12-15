@@ -76,6 +76,14 @@ pub fn find<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
 }
 
 /// Implementation of [string.format](https://www.lua.org/manual/5.4/manual.html#pdf-string.format).
+///
+/// The main differences from Lua is:
+///
+/// - First argument accept only a UTF-8 string.
+/// - `a`, `A`, `e`, `E`, `g` and `G` format is not supported.
+/// - `q` format requires string value to be UTF-8 and will use decimal notation instead of
+///   hexadecimal exponent notation for float.
+/// - Format have unlimited length.
 pub fn format<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     // Get format.
     let mut next = 1;
@@ -589,6 +597,8 @@ pub fn negate<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::
 }
 
 /// Implementation of [string.packsize](https://www.lua.org/manual/5.4/manual.html#pdf-string.packsize).
+///
+/// Note that first argumebnt must be UTF-8 and format error always report as argument error.
 pub fn packsize<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     // Check if UTF-8.
     let arg = cx.arg(1);
