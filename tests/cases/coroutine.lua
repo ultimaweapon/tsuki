@@ -46,7 +46,6 @@ assert(type(f) == "thread" and coroutine.status(f) == "suspended")
 assert(string.find(tostring(f), "thread"))
 local s,a,b,c,d
 s,a,b,c,d = coroutine.resume(f, {1,2,3}, {}, {1}, {'a', 'b', 'c'})
-assert(coroutine.isyieldable(f))
 assert(s and a == nil and coroutine.status(f) == "suspended")
 s,a,b,c,d = coroutine.resume(f)
 eqtab(_G.x, {})

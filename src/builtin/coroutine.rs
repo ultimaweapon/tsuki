@@ -78,6 +78,17 @@ pub fn running<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core:
     Ok(cx.into())
 }
 
+/// Implementation of
+/// [coroutine.status](https://www.lua.org/manual/5.4/manual.html#pdf-coroutine.status).
+pub fn status<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let co = cx.arg(1).get_thread()?;
+    let st = auxstatus(&cx, co);
+
+    cx.push_str(st.name())?;
+
+    Ok(cx.into())
+}
+
 fn auxresume<'a, A>(
     cx: &'a Context<A, Args>,
     co: &'a Thread<A>,
@@ -100,5 +111,40 @@ fn auxresume<'a, A>(
     match co.resume::<Vec<Value<A>>>(args)? {
         Coroutine::Suspended(v) => Ok(v),
         Coroutine::Finished(v) => Ok(v),
+    }
+}
+
+fn auxstatus<A>(cx: &Context<A, Args>, co: &Thread<A>) -> Status {
+    if cx.thread() == co {
+        Status::Running
+    } else if co.is_busy() {
+        if co.is_suspended() {
+            Status::Suspended
+        } else {
+            Status::Normal
+        }
+    } else if co.is_stack_empty() {
+        Status::Dead
+    } else {
+        Status::Suspended
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Status {
+    Running,
+    Dead,
+    Suspended,
+    Normal,
+}
+
+impl Status {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Running => "running",
+            Self::Dead => "dead",
+            Self::Suspended => "suspended",
+            Self::Normal => "normal",
+        }
     }
 }

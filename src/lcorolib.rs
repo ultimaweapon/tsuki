@@ -59,49 +59,6 @@ static mut statname: [*const libc::c_char; 4] = [
     b"suspended\0" as *const u8 as *const libc::c_char,
     b"normal\0" as *const u8 as *const libc::c_char,
 ];
-unsafe extern "C" fn auxstatus(mut L: *mut lua_State, mut co: *mut lua_State) -> libc::c_int {
-    if L == co {
-        return 0 as libc::c_int;
-    } else {
-        match lua_status(co) {
-            1 => return 2 as libc::c_int,
-            0 => {
-                let mut ar: lua_Debug = lua_Debug {
-                    event: 0,
-                    name: 0 as *const libc::c_char,
-                    namewhat: 0 as *const libc::c_char,
-                    what: 0 as *const libc::c_char,
-                    source: 0 as *const libc::c_char,
-                    srclen: 0,
-                    currentline: 0,
-                    linedefined: 0,
-                    lastlinedefined: 0,
-                    nups: 0,
-                    nparams: 0,
-                    isvararg: 0,
-                    istailcall: 0,
-                    ftransfer: 0,
-                    ntransfer: 0,
-                    short_src: [0; 60],
-                    i_ci: 0 as *mut CallInfo,
-                };
-                if lua_getstack(co, 0 as libc::c_int, &mut ar) != 0 {
-                    return 3 as libc::c_int;
-                } else if lua_gettop(co) == 0 as libc::c_int {
-                    return 1 as libc::c_int;
-                } else {
-                    return 2 as libc::c_int;
-                }
-            }
-            _ => return 1 as libc::c_int,
-        }
-    };
-}
-unsafe extern "C" fn luaB_costatus(mut L: *mut lua_State) -> libc::c_int {
-    let mut co: *mut lua_State = getco(L);
-    lua_pushstring(L, statname[auxstatus(L, co) as usize]);
-    return 1 as libc::c_int;
-}
 unsafe extern "C" fn luaB_close(mut L: *mut lua_State) -> libc::c_int {
     let mut co: *mut lua_State = getco(L);
     let mut status: libc::c_int = auxstatus(L, co);
@@ -128,13 +85,6 @@ unsafe extern "C" fn luaB_close(mut L: *mut lua_State) -> libc::c_int {
 }
 static mut co_funcs: [luaL_Reg; 9] = unsafe {
     [
-        {
-            let mut init = luaL_Reg {
-                name: b"status\0" as *const u8 as *const libc::c_char,
-                func: Some(luaB_costatus as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
-            };
-            init
-        },
         {
             let mut init = luaL_Reg {
                 name: b"wrap\0" as *const u8 as *const libc::c_char,

@@ -26,7 +26,7 @@ use core::marker::PhantomPinned;
 use core::mem::transmute;
 use core::num::NonZero;
 use core::pin::{Pin, pin};
-use core::ptr::{addr_of_mut, null, null_mut};
+use core::ptr::{addr_eq, addr_of_mut, null, null_mut};
 use core::task::{Context, Poll, Waker};
 use thiserror::Error;
 
@@ -104,6 +104,26 @@ impl<A> Thread<A> {
         unsafe { (*th).ci.set(ci) };
 
         th
+    }
+
+    /// Returns `true` if this thread has active calls.
+    #[inline(always)]
+    pub fn is_busy(&self) -> bool {
+        self.ci.get() != self.base_ci.get()
+    }
+
+    /// Returns `true` if this thread is suspended.
+    pub fn is_suspended(&self) -> bool {
+        match self.pending.try_borrow() {
+            Ok(v) => v.is_some(),
+            Err(_) => false, // Calling from resume().
+        }
+    }
+
+    /// Returns `true` if stack is empty.
+    #[inline(always)]
+    pub fn is_stack_empty(&self) -> bool {
+        unsafe { self.top.get().offset_from_unsigned(self.stack.get()) == 1 }
     }
 
     /// Sets entry point to be start by [Self::resume()] or [Self::async_resume()].
@@ -583,6 +603,13 @@ impl<A> Drop for Thread<A> {
         .unwrap();
 
         unsafe { alloc::alloc::dealloc(self.stack.get().cast(), layout) };
+    }
+}
+
+impl<A> PartialEq for Thread<A> {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        addr_eq(self, other)
     }
 }
 

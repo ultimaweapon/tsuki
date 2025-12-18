@@ -73,6 +73,7 @@ impl<A> Module<A> for CoroLib {
         m.set_str_key("isyieldable", fp!(self::coroutine::isyieldable));
         m.set_str_key("resume", fp!(self::coroutine::resume));
         m.set_str_key("running", fp!(self::coroutine::running));
+        m.set_str_key("status", fp!(self::coroutine::status));
 
         Ok(m)
     }
