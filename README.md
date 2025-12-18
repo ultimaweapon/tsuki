@@ -23,7 +23,7 @@ Tsuki was not designed to run untrusted Lua script. Although you can limit what 
 
 ### Interpreter
 
-Tsuki is slower than Lua about 50%. The only possibility for Tsuki to be faster than Lua with computed goto is JIT since computed goto does not available on Rust.
+Tsuki is slower than Lua about 40%. The only possibility for Tsuki to be faster than Lua with computed goto is JIT since computed goto does not available on Rust.
 
 ### Async
 
@@ -52,6 +52,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - Panic when memory allocation is failed without retry (same as Rust).
 - No recursion checks on a call to Rust function.
 - Rust function cannot yield the values back to Lua in the middle.
+- Function called by Rust function cannot yield.
 - GC has only one mode and cannot control from outside.
 - Chunk name does not have a prefix (e.g. `@`).
 - Second argument to `__close` metamethod always `nil`.

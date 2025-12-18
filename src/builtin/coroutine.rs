@@ -1,10 +1,29 @@
 //! Implementation of [coroutine library](https://www.lua.org/manual/5.4/manual.html#6.2).
 use crate::context::{Args, Context, Ret};
-use crate::{Coroutine, DynamicInputs, Thread, Value};
+use crate::{Coroutine, DynamicInputs, Thread, Type, Value};
 use alloc::boxed::Box;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use erdp::ErrorDisplay;
+
+/// Implementation of
+/// [coroutine.create](https://www.lua.org/manual/5.4/manual.html#pdf-coroutine.create).
+pub fn create<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    // Check if function.
+    let f = cx.arg(1);
+
+    if f.ty().is_none_or(|t| !matches!(t, Type::Fp | Type::Fn)) {
+        return Err(f.invalid_type("function"));
+    }
+
+    // Create thread.
+    let td = cx.create_thread();
+
+    td.set_entry(f)?;
+    cx.push(td)?;
+
+    Ok(cx.into())
+}
 
 /// Implementation of
 /// [coroutine.isyieldable](https://www.lua.org/manual/5.4/manual.html#pdf-coroutine.isyieldable).

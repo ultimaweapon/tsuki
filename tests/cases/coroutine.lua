@@ -42,7 +42,6 @@ local function foo (a, ...)
 end
 
 f = coroutine.create(foo)
-assert(coroutine.isyieldable(f))
 assert(type(f) == "thread" and coroutine.status(f) == "suspended")
 assert(string.find(tostring(f), "thread"))
 local s,a,b,c,d

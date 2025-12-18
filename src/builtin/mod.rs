@@ -69,6 +69,7 @@ impl<A> Module<A> for CoroLib {
     fn open(self, lua: &Lua<A>) -> Result<Self::Inst<'_>, Box<dyn core::error::Error>> {
         let m = lua.create_table();
 
+        m.set_str_key("create", fp!(self::coroutine::create));
         m.set_str_key("isyieldable", fp!(self::coroutine::isyieldable));
         m.set_str_key("resume", fp!(self::coroutine::resume));
         m.set_str_key("running", fp!(self::coroutine::running));

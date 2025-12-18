@@ -41,14 +41,6 @@ unsafe extern "C" fn luaB_auxwrap(mut L: *mut lua_State) -> libc::c_int {
     }
     return r;
 }
-unsafe extern "C" fn luaB_cocreate(mut L: *mut lua_State) -> libc::c_int {
-    let mut NL: *mut lua_State = 0 as *mut lua_State;
-    luaL_checktype(L, 1 as libc::c_int, 6 as libc::c_int);
-    NL = lua_newthread(L);
-    lua_pushvalue(L, 1 as libc::c_int);
-    lua_xmove(L, NL, 1 as libc::c_int);
-    return 1 as libc::c_int;
-}
 unsafe extern "C" fn luaB_cowrap(mut L: *mut lua_State) -> libc::c_int {
     luaB_cocreate(L);
     lua_pushcclosure(
@@ -136,13 +128,6 @@ unsafe extern "C" fn luaB_close(mut L: *mut lua_State) -> libc::c_int {
 }
 static mut co_funcs: [luaL_Reg; 9] = unsafe {
     [
-        {
-            let mut init = luaL_Reg {
-                name: b"create\0" as *const u8 as *const libc::c_char,
-                func: Some(luaB_cocreate as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
-            };
-            init
-        },
         {
             let mut init = luaL_Reg {
                 name: b"status\0" as *const u8 as *const libc::c_char,
