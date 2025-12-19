@@ -8,7 +8,7 @@ use crate::lmem::luaM_free_;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
-use crate::{ArithError, ChunkInfo, Float, Number, Ops, Str, Thread};
+use crate::{ArithError, ChunkInfo, Number, Ops, Str, Thread};
 use alloc::boxed::Box;
 use core::cell::{Cell, UnsafeCell};
 use core::ffi::{c_char, c_void};
@@ -462,7 +462,7 @@ fn intarith(op: Ops, v1: i64, v2: i64) -> Result<i64, ArithError> {
     Ok(r)
 }
 
-fn numarith(op: Ops, v1: Float, v2: Float) -> Float {
+fn numarith(op: Ops, v1: f64, v2: f64) -> f64 {
     match op {
         Ops::Add => v1 + v2,
         Ops::Sub => v1 - v2,
@@ -472,13 +472,13 @@ fn numarith(op: Ops, v1: Float, v2: Float) -> Float {
             if v2 == 2.0 {
                 v1 * v1
             } else {
-                v1.0.powf(v2.0).into()
+                v1.powf(v2).into()
             }
         }
         Ops::IntDiv => (v1 / v2).floor(),
         Ops::Neg => -v1,
         Ops::Mod => luaV_modf(v1, v2),
-        _ => Float::default(),
+        _ => 0.0,
     }
 }
 
@@ -517,11 +517,11 @@ pub unsafe fn luaO_rawarith<D>(
             }
         }
         Ops::NumDiv | Ops::Pow => {
-            let mut n1 = Float::default();
-            let mut n2 = Float::default();
+            let mut n1 = 0.0;
+            let mut n2 = 0.0;
 
             if (if (*p1).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
-                n1 = (*p1).value_.n;
+                n1 = (*p1).value_.n.into();
                 1 as c_int
             } else {
                 if (*p1).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
@@ -532,7 +532,7 @@ pub unsafe fn luaO_rawarith<D>(
                 }
             }) != 0
                 && (if (*p2).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
-                    n2 = (*p2).value_.n;
+                    n2 = (*p2).value_.n.into();
                     1 as c_int
                 } else {
                     if (*p2).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
@@ -549,13 +549,13 @@ pub unsafe fn luaO_rawarith<D>(
             }
         }
         op => {
-            let mut n1_0 = Float::default();
-            let mut n2_0 = Float::default();
+            let mut n1_0 = 0.0;
+            let mut n2_0 = 0.0;
 
             if (*p1).tt_ == 3 | 0 << 4 && (*p2).tt_ == 3 | 0 << 4 {
                 intarith(op, (*p1).value_.i, (*p2).value_.i).map(|v| Some(v.into()))
             } else if (if (*p1).tt_ == 3 | 1 << 4 {
-                n1_0 = (*p1).value_.n;
+                n1_0 = (*p1).value_.n.into();
                 1 as c_int
             } else {
                 if (*p1).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
@@ -566,7 +566,7 @@ pub unsafe fn luaO_rawarith<D>(
                 }
             }) != 0
                 && (if (*p2).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
-                    n2_0 = (*p2).value_.n;
+                    n2_0 = (*p2).value_.n.into();
                     1 as c_int
                 } else {
                     if (*p2).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {

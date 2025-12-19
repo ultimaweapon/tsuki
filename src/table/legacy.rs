@@ -629,7 +629,7 @@ unsafe fn luaH_newkey<D>(
     } else if (*key).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 {
         let f = (*key).value_.n;
 
-        match luaV_flttointeger(f, F2Ieq) {
+        match luaV_flttointeger(f.into(), F2Ieq) {
             Some(k) => {
                 aux = k.into();
                 key = &raw const aux;
@@ -810,7 +810,7 @@ pub unsafe fn luaH_get<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *co
         3 => return luaH_getint(t, (*key).value_.i),
         0 => return &raw const (*t).absent_key,
         19 => {
-            if let Some(k) = luaV_flttointeger((*key).value_.n, F2Ieq) {
+            if let Some(k) = luaV_flttointeger((*key).value_.n.into(), F2Ieq) {
                 return luaH_getint(t, k);
             }
         }

@@ -82,7 +82,7 @@ pub unsafe fn luaV_tonumber_<A>(obj: *const UnsafeValue<A>) -> Option<Float> {
 }
 
 #[inline(always)]
-pub fn luaV_flttointeger(n: Float, mode: F2Imod) -> Option<i64> {
+pub fn luaV_flttointeger(n: f64, mode: F2Imod) -> Option<i64> {
     let mut f = n.floor();
 
     if n != f {
@@ -102,7 +102,7 @@ pub fn luaV_flttointeger(n: Float, mode: F2Imod) -> Option<i64> {
 #[inline(always)]
 pub unsafe fn luaV_tointegerns<A>(obj: *const UnsafeValue<A>, mode: F2Imod) -> Option<i64> {
     if (*obj).tt_ == 3 | 1 << 4 {
-        luaV_flttointeger((*obj).value_.n, mode)
+        luaV_flttointeger((*obj).value_.n.into(), mode)
     } else if (*obj).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
         Some((*obj).value_.i)
     } else {
@@ -506,7 +506,7 @@ unsafe fn l_strcmp<D>(ts1: *const Str<D>, ts2: *const Str<D>) -> c_int {
 }
 
 #[inline(always)]
-unsafe fn LTintfloat(i: i64, f: Float) -> c_int {
+unsafe fn LTintfloat(i: i64, f: f64) -> c_int {
     if ((1 as c_int as u64) << 53 as c_int).wrapping_add(i as u64)
         <= 2 as c_int as u64 * ((1 as c_int as u64) << 53 as c_int)
     {
@@ -520,7 +520,7 @@ unsafe fn LTintfloat(i: i64, f: Float) -> c_int {
 }
 
 #[inline(always)]
-unsafe fn LEintfloat(i: i64, f: Float) -> c_int {
+unsafe fn LEintfloat(i: i64, f: f64) -> c_int {
     if ((1 as c_int as u64) << 53 as c_int).wrapping_add(i as u64)
         <= 2 as c_int as u64 * ((1 as c_int as u64) << 53 as c_int)
     {
@@ -534,7 +534,7 @@ unsafe fn LEintfloat(i: i64, f: Float) -> c_int {
 }
 
 #[inline(always)]
-unsafe fn LTfloatint(f: Float, i: i64) -> c_int {
+unsafe fn LTfloatint(f: f64, i: i64) -> c_int {
     if ((1 as c_int as u64) << 53 as c_int).wrapping_add(i as u64)
         <= 2 as c_int as u64 * ((1 as c_int as u64) << 53 as c_int)
     {
@@ -548,7 +548,7 @@ unsafe fn LTfloatint(f: Float, i: i64) -> c_int {
 }
 
 #[inline(always)]
-unsafe fn LEfloatint(f: Float, i: i64) -> c_int {
+unsafe fn LEfloatint(f: f64, i: i64) -> c_int {
     if ((1 as c_int as u64) << 53 as c_int).wrapping_add(i as u64)
         <= 2 as c_int as u64 * ((1 as c_int as u64) << 53 as c_int)
     {
@@ -568,7 +568,7 @@ unsafe fn LTnum<A>(l: *const UnsafeValue<A>, r: *const UnsafeValue<A>) -> c_int 
         if (*r).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
             return (li < (*r).value_.i) as c_int;
         } else {
-            return LTintfloat(li, (*r).value_.n);
+            return LTintfloat(li, (*r).value_.n.into());
         }
     } else {
         let lf = (*l).value_.n;
@@ -576,7 +576,7 @@ unsafe fn LTnum<A>(l: *const UnsafeValue<A>, r: *const UnsafeValue<A>) -> c_int 
         if (*r).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
             return (lf < (*r).value_.n) as c_int;
         } else {
-            return LTfloatint(lf, (*r).value_.i);
+            return LTfloatint(lf.into(), (*r).value_.i);
         }
     };
 }
@@ -588,7 +588,7 @@ unsafe fn LEnum<D>(l: *const UnsafeValue<D>, r: *const UnsafeValue<D>) -> c_int 
         if (*r).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
             return (li <= (*r).value_.i) as c_int;
         } else {
-            return LEintfloat(li, (*r).value_.n);
+            return LEintfloat(li, (*r).value_.n.into());
         }
     } else {
         let lf = (*l).value_.n;
@@ -596,7 +596,7 @@ unsafe fn LEnum<D>(l: *const UnsafeValue<D>, r: *const UnsafeValue<D>) -> c_int 
         if (*r).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
             return (lf <= (*r).value_.n) as c_int;
         } else {
-            return LEfloatint(lf, (*r).value_.i);
+            return LEfloatint(lf.into(), (*r).value_.i);
         }
     };
 }
@@ -1064,18 +1064,18 @@ pub fn luaV_mod(m: i64, n: i64) -> Option<i64> {
 }
 
 #[inline(always)]
-pub fn luaV_modf(m: Float, n: Float) -> Float {
-    let mut r = fmod(m.into(), n.into());
+pub fn luaV_modf(m: f64, n: f64) -> f64 {
+    let mut r = fmod(m, n);
 
     if if r > 0f64 {
         n < 0f64
     } else {
         r < 0f64 && n > 0f64
     } {
-        r += f64::from(n);
+        r += n;
     }
 
-    r.into()
+    r
 }
 
 #[inline(always)]
@@ -2165,11 +2165,11 @@ pub async unsafe fn run<A>(
                         };
                         (*io_12).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
-                        let mut n1_2 = Float::default();
-                        let mut n2_2 = Float::default();
+                        let mut n1_2 = 0.0;
+                        let mut n2_2 = 0.0;
 
                         if (if (*v1_3).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
-                            n1_2 = (*v1_3).value_.n;
+                            n1_2 = (*v1_3).value_.n.into();
                             1 as c_int
                         } else {
                             if (*v1_3).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
@@ -2180,7 +2180,7 @@ pub async unsafe fn run<A>(
                             }
                         }) != 0
                             && (if (*v2_2).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
-                                n2_2 = (*v2_2).value_.n;
+                                n2_2 = (*v2_2).value_.n.into();
                                 1 as c_int
                             } else {
                                 if (*v2_2).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
@@ -2194,7 +2194,7 @@ pub async unsafe fn run<A>(
                             pc += 1;
                             let io_13 = ra_23;
 
-                            (*io_13).value_.n = luaV_modf(n1_2, n2_2);
+                            (*io_13).value_.n = luaV_modf(n1_2, n2_2).into();
                             (*io_13).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                         }
                     }
@@ -2340,11 +2340,11 @@ pub async unsafe fn run<A>(
                         };
                         (*io_16).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
-                        let mut n1_5 = Float::default();
-                        let mut n2_5 = Float::default();
+                        let mut n1_5 = 0.0;
+                        let mut n2_5 = 0.0;
 
                         if (if (*v1_6).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
-                            n1_5 = (*v1_6).value_.n;
+                            n1_5 = (*v1_6).value_.n.into();
                             1 as c_int
                         } else {
                             if (*v1_6).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
@@ -2355,7 +2355,7 @@ pub async unsafe fn run<A>(
                             }
                         }) != 0
                             && (if (*v2_5).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
-                                n2_5 = (*v2_5).value_.n;
+                                n2_5 = (*v2_5).value_.n.into();
                                 1 as c_int
                             } else {
                                 if (*v2_5).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
@@ -2368,7 +2368,7 @@ pub async unsafe fn run<A>(
                         {
                             pc += 1;
                             let io_17 = ra_26;
-                            (*io_17).value_.n = (n1_5 / n2_5).floor();
+                            (*io_17).value_.n = (n1_5 / n2_5).floor().into();
                             (*io_17).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                         }
                     }
@@ -2782,11 +2782,11 @@ pub async unsafe fn run<A>(
                         };
                         (*io_29).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
-                        let mut n1_9 = Float::default();
-                        let mut n2_9 = Float::default();
+                        let mut n1_9 = 0.0;
+                        let mut n2_9 = 0.0;
 
                         if (if (*v1_13).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
-                            n1_9 = (*v1_13).value_.n;
+                            n1_9 = (*v1_13).value_.n.into();
                             1 as c_int
                         } else {
                             if (*v1_13).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
@@ -2798,7 +2798,7 @@ pub async unsafe fn run<A>(
                         }) != 0
                             && (if (*v2_12).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int
                             {
-                                n2_9 = (*v2_12).value_.n;
+                                n2_9 = (*v2_12).value_.n.into();
                                 1 as c_int
                             } else {
                                 if (*v2_12).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int
@@ -2812,7 +2812,7 @@ pub async unsafe fn run<A>(
                         {
                             pc += 1;
                             let io_30 = ra_35;
-                            (*io_30).value_.n = luaV_modf(n1_9, n2_9);
+                            (*io_30).value_.n = luaV_modf(n1_9, n2_9).into();
                             (*io_30).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                         }
                     }
@@ -2958,11 +2958,11 @@ pub async unsafe fn run<A>(
                         };
                         (*io_33).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
-                        let mut n1_12 = Float::default();
-                        let mut n2_12 = Float::default();
+                        let mut n1_12 = 0.0;
+                        let mut n2_12 = 0.0;
 
                         if (if (*v1_16).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
-                            n1_12 = (*v1_16).value_.n;
+                            n1_12 = (*v1_16).value_.n.into();
                             1 as c_int
                         } else {
                             if (*v1_16).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
@@ -2974,7 +2974,7 @@ pub async unsafe fn run<A>(
                         }) != 0
                             && (if (*v2_15).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int
                             {
-                                n2_12 = (*v2_15).value_.n;
+                                n2_12 = (*v2_15).value_.n.into();
                                 1 as c_int
                             } else {
                                 if (*v2_15).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int
@@ -2988,7 +2988,7 @@ pub async unsafe fn run<A>(
                         {
                             pc += 1;
                             let io_34 = ra_38;
-                            (*io_34).value_.n = (n1_12 / n2_12).floor();
+                            (*io_34).value_.n = (n1_12 / n2_12).floor().into();
                             (*io_34).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                         }
                     }

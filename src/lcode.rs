@@ -816,7 +816,7 @@ unsafe fn luaK_numberK<D>(
     (*io).value_.n = r;
     (*io).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
 
-    match luaV_flttointeger(r, F2Ieq) {
+    match luaV_flttointeger(r.into(), F2Ieq) {
         Some(ik) => {
             let nbm: c_int = 53 as c_int;
             let q: f64 = ldexp(1.0f64, -nbm + 1 as c_int);
@@ -897,7 +897,7 @@ unsafe fn luaK_float<D>(
     reg: c_int,
     f: Float,
 ) -> Result<(), ParseError> {
-    match luaV_flttointeger(f, F2Ieq).filter(|v| fitsBx(*v) != 0) {
+    match luaV_flttointeger(f.into(), F2Ieq).filter(|v| fitsBx(*v) != 0) {
         Some(fi) => codeAsBx(ls, fs, OP_LOADF, reg, fi as c_int)?,
         None => luaK_codek(ls, fs, reg, luaK_numberK(ls, fs, f)?)?,
     };
@@ -1564,7 +1564,7 @@ unsafe fn isSCnumber<D>(e: *mut expdesc<D>, pi: *mut c_int, isfloat: *mut c_int)
     if (*e).k as c_uint == VKINT as c_int as c_uint {
         i = (*e).u.ival;
     } else if (*e).k as c_uint == VKFLT as c_int as c_uint
-        && let Some(v) = luaV_flttointeger((*e).u.nval, F2Ieq)
+        && let Some(v) = luaV_flttointeger((*e).u.nval.into(), F2Ieq)
     {
         i = v;
         *isfloat = 1 as c_int;

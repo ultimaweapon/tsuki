@@ -16,7 +16,7 @@ pub fn abs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
 
             cx.push(n)?;
         }
-        None => cx.push(arg.to_float()?.abs())?,
+        None => cx.push(arg.to_float()?.0.abs())?,
     }
 
     Ok(cx.into())
@@ -68,7 +68,7 @@ pub fn ceil<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
 
 /// Implementation of [math.cos](https://www.lua.org/manual/5.4/manual.html#pdf-math.cos).
 pub fn cos<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
-    let arg = cx.arg(1).to_float()?;
+    let Float(arg) = cx.arg(1).to_float()?;
 
     cx.push(arg.cos())?;
 
@@ -102,7 +102,7 @@ pub fn floor<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
         r.truncate(1);
         r
     } else {
-        cx.push(pushnumint(v.to_float()?.floor()))?;
+        cx.push(pushnumint(v.to_float()?.0.floor()))?;
         cx.into()
     };
 
@@ -139,12 +139,12 @@ pub fn fmod<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
 
 /// Implementation of [math.log](https://www.lua.org/manual/5.4/manual.html#pdf-math.log).
 pub fn log<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
-    let v = cx.arg(1).to_float()?;
+    let Float(v) = cx.arg(1).to_float()?;
 
     match cx.arg(2).to_nilable_float(false)? {
         Some(Float(2.0)) => cx.push(v.log2())?,
         Some(Float(10.0)) => cx.push(v.log10())?,
-        Some(b) => cx.push(v.log(b))?,
+        Some(Float(b)) => cx.push(v.log(b))?,
         None => cx.push(libm::log(v.into()))?,
     }
 
@@ -193,11 +193,11 @@ pub fn modf<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
         cx.push(v)?;
         cx.push(0.0)?;
     } else {
-        let n = v.to_float()?;
+        let Float(n) = v.to_float()?;
         let ip = if n < 0.0 { n.ceil() } else { n.floor() };
 
         cx.push(pushnumint(ip))?;
-        cx.push(if n == ip { Float::default() } else { n - ip })?;
+        cx.push(if n == ip { 0.0 } else { n - ip })?;
     }
 
     Ok(cx.into())
@@ -214,7 +214,7 @@ pub fn rad<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
 
 /// Implementation of [math.sin](https://www.lua.org/manual/5.4/manual.html#pdf-math.sin).
 pub fn sin<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
-    let v = cx.arg(1).to_float()?;
+    let Float(v) = cx.arg(1).to_float()?;
 
     cx.push(v.sin())?;
 
@@ -232,7 +232,7 @@ pub fn sqrt<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
 
 /// Implementation of [math.tan](https://www.lua.org/manual/5.4/manual.html#pdf-math.tan).
 pub fn tan<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
-    let v = cx.arg(1).to_float()?;
+    let Float(v) = cx.arg(1).to_float()?;
 
     cx.push(v.tan())?;
 
@@ -283,12 +283,12 @@ pub fn ult<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
 }
 
 #[inline(always)]
-fn pushnumint(d: Float) -> Number {
+fn pushnumint(d: f64) -> Number {
     // TODO: This does not seems right even on Lua implementation. Lua said MININTEGER always has an
     // exact representation as a float but it does not.
     if d >= i64::MIN as f64 && d < -(i64::MIN as f64) {
         Number::Int(f64::from(d) as i64)
     } else {
-        Number::Float(d)
+        Number::Float(d.into())
     }
 }
