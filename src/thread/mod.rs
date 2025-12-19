@@ -315,7 +315,7 @@ impl<A> Thread<A> {
         // Get pending call.
         let top = unsafe { self.top.get().offset_from_unsigned(self.stack.get()) };
         let mut f = if top == 1 {
-            return Err("attempt to resume a thread without entry point".into());
+            return Err("cannot resume dead coroutine".into());
         } else if self.ci.get() != self.base_ci.get() {
             let f = match self.pending.try_borrow_mut() {
                 Ok(v) => v,
@@ -418,7 +418,7 @@ impl<A> Thread<A> {
         // Get pending call.
         let top = unsafe { self.top.get().offset_from_unsigned(self.stack.get()) };
         let f = if top == 1 {
-            return Err("attempt to resume a thread without entry point".into());
+            return Err("cannot resume dead coroutine".into());
         } else if self.ci.get() != self.base_ci.get() {
             let f = match self.pending.try_borrow_mut() {
                 Ok(v) => v,

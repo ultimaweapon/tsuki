@@ -50,9 +50,6 @@ unsafe extern "C" fn luaB_cowrap(mut L: *mut lua_State) -> libc::c_int {
     );
     return 1 as libc::c_int;
 }
-unsafe extern "C" fn luaB_yield(mut L: *mut lua_State) -> libc::c_int {
-    return lua_yieldk(L, lua_gettop(L), 0 as libc::c_int as lua_KContext, None);
-}
 static mut statname: [*const libc::c_char; 4] = [
     b"running\0" as *const u8 as *const libc::c_char,
     b"dead\0" as *const u8 as *const libc::c_char,
@@ -89,13 +86,6 @@ static mut co_funcs: [luaL_Reg; 9] = unsafe {
             let mut init = luaL_Reg {
                 name: b"wrap\0" as *const u8 as *const libc::c_char,
                 func: Some(luaB_cowrap as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
-            };
-            init
-        },
-        {
-            let mut init = luaL_Reg {
-                name: b"yield\0" as *const u8 as *const libc::c_char,
-                func: Some(luaB_yield as unsafe extern "C" fn(*mut lua_State) -> libc::c_int),
             };
             init
         },

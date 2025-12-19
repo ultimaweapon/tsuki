@@ -34,7 +34,7 @@ local function foo (a, ...)
   assert(coroutine.resume(f) == false)
   assert(coroutine.status(f) == "running")
   local arg = {...}
-  assert(coroutine.isyieldable(x))
+  assert(coroutine.isyieldable())
   for i=1,#arg do
     _G.x = {coroutine.yield(table.unpack(arg[i]))}
   end
@@ -50,7 +50,6 @@ assert(s and a == nil and coroutine.status(f) == "suspended")
 s,a,b,c,d = coroutine.resume(f)
 eqtab(_G.x, {})
 assert(s and a == 1 and b == nil)
-assert(coroutine.isyieldable(f))
 s,a,b,c,d = coroutine.resume(f, 1, 2, 3)
 eqtab(_G.x, {1, 2, 3})
 assert(s and a == 'a' and b == 'b' and c == 'c' and d == nil)

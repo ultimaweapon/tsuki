@@ -89,6 +89,12 @@ pub fn status<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::
     Ok(cx.into())
 }
 
+/// Implementation of
+/// [coroutine.yield](https://www.lua.org/manual/5.4/manual.html#pdf-coroutine.yield).
+pub fn r#yield<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    Ok(cx.into_results(1))
+}
+
 fn auxresume<'a, A>(
     cx: &'a Context<A, Args>,
     co: &'a Thread<A>,
