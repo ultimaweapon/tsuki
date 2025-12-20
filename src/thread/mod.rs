@@ -588,6 +588,36 @@ impl<A> Thread<A> {
         Ok(unsafe { Value::from_unsafe(&r) })
     }
 
+    /// Divide `lhs` with `rhs`.
+    ///
+    /// This method honor `__div` metavalue.
+    ///
+    /// # Panics
+    /// If either `lhs` or `rhs` was created frim different [Lua] instance.
+    #[inline]
+    pub fn div(
+        &self,
+        lhs: impl Into<UnsafeValue<A>>,
+        rhs: impl Into<UnsafeValue<A>>,
+    ) -> Result<Value<'_, A>, Box<dyn core::error::Error>> {
+        // Check operands.
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+
+        if unsafe { (lhs.tt_ & 1 << 6 != 0) && (*lhs.value_.gc).global != self.hdr.global } {
+            panic!("attempt to divide a value created from different Lua");
+        }
+
+        if unsafe { (rhs.tt_ & 1 << 6 != 0) && (*rhs.value_.gc).global != self.hdr.global } {
+            panic!("attempt to divide a value created from different Lua");
+        }
+
+        // Perform divide.
+        let r = unsafe { luaO_arith(self, Ops::NumDiv, &lhs, &rhs)? };
+
+        Ok(unsafe { Value::from_unsafe(&r) })
+    }
+
     /// Reserves capacity for at least `additional` more elements to be pushed.
     ///
     /// Usually you don't need this method unless you want to distinguished [StackOverflow] caused by too many arguments.

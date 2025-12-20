@@ -203,6 +203,7 @@ impl<A> Module<A> for StrLib {
         let mt = lua.create_table();
 
         mt.set_str_key("__add", fp!(self::string::add));
+        mt.set_str_key("__div", fp!(self::string::div));
         mt.set_str_key("__index", m.deref());
         mt.set_str_key("__mod", fp!(self::string::rem));
         mt.set_str_key("__mul", fp!(self::string::mul));

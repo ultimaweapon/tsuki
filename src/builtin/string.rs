@@ -68,6 +68,17 @@ pub fn char<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
     Ok(cx.into())
 }
 
+/// Implementation of `__div` metamethod for string.
+pub fn div<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    arith(cx, "__div", |cx, lhs, rhs| {
+        let r = cx.thread().div(lhs, rhs)?;
+
+        cx.push(r)?;
+
+        Ok(())
+    })
+}
+
 /// Implementation of [string.find](https://www.lua.org/manual/5.4/manual.html#pdf-string.find).
 ///
 /// Note that class `z` is not supported.

@@ -63,14 +63,6 @@ unsafe fn str_reverse(mut L: *const Thread) -> Result<c_int, Box<dyn std::error:
     return Ok(1 as libc::c_int);
 }
 
-unsafe fn arith_div(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    return arith(
-        L,
-        5 as libc::c_int,
-        b"__div\0" as *const u8 as *const libc::c_char,
-    );
-}
-
 unsafe fn arith_idiv(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return arith(
         L,
@@ -79,22 +71,13 @@ unsafe fn arith_idiv(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::
     );
 }
 
-static mut stringmetamethods: [luaL_Reg; 10] = [
-    {
-        let mut init = luaL_Reg {
-            name: b"__div\0" as *const u8 as *const libc::c_char,
-            func: Some(arith_div),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"__idiv\0" as *const u8 as *const libc::c_char,
-            func: Some(arith_idiv),
-        };
-        init
-    },
-];
+static mut stringmetamethods: [luaL_Reg; 10] = [{
+    let mut init = luaL_Reg {
+        name: b"__idiv\0" as *const u8 as *const libc::c_char,
+        func: Some(arith_idiv),
+    };
+    init
+}];
 
 unsafe fn str_match(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return str_find_aux(L, 0 as libc::c_int);
