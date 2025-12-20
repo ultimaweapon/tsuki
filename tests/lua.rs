@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::LazyLock;
 use tsuki::builtin::{BaseLib, CoroLib, IoLib, MathLib, StrLib, TableLib, Utf8Lib};
 use tsuki::context::{Args, Context, Ret};
-use tsuki::{CallError, ChunkInfo, Lua, fp};
+use tsuki::{CallError, Lua, fp};
 
 #[test]
 fn badkey() {
@@ -134,7 +134,7 @@ fn run(file: &str, setup: impl FnOnce(&Lua<()>)) -> Result<(), Box<dyn std::erro
 
     // Run.
     let td = lua.create_thread();
-    let chunk = lua.load(ChunkInfo::new(path.to_string_lossy().into_owned()), content)?;
+    let chunk = lua.load(path.to_string_lossy().into_owned(), content)?;
 
     td.call::<()>(chunk, ())?;
 

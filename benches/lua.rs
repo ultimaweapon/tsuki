@@ -13,9 +13,7 @@ fn fannkuch_redux(c: &mut Criterion) {
     {
         let lua = tsuki::Lua::new(());
         let td = lua.create_thread();
-        let chunk = lua
-            .load(tsuki::ChunkInfo::new("fannkuch-redux.lua"), &src)
-            .unwrap();
+        let chunk = lua.load("fannkuch-redux.lua", &src).unwrap();
         let f = match td.call(chunk, ()).unwrap() {
             tsuki::Value::LuaFn(v) => v,
             _ => unreachable!(),
@@ -41,12 +39,7 @@ fn async_call(c: &mut Criterion) {
     {
         let lua = tsuki::Lua::new(());
         let th = lua.create_thread();
-        let chunk = lua
-            .load(
-                tsuki::ChunkInfo::new("async-call.lua"),
-                "return asyncfn(...)",
-            )
-            .unwrap();
+        let chunk = lua.load("async-call.lua", "return asyncfn(...)").unwrap();
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()

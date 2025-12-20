@@ -11,11 +11,13 @@ use crate::lstate::{CallInfo, luaE_extendCI, luaE_shrinkCI};
 use crate::ltm::{TM_CALL, luaT_gettmbyobj};
 use crate::lzio::Zio;
 use crate::{
-    CallError, ChunkInfo, Lua, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, StackOverflow,
-    StackValue, Thread, YIELDABLE_WAKER,
+    CallError, Lua, LuaFn, NON_YIELDABLE_WAKER, ParseError, Ref, StackOverflow, StackValue, Thread,
+    YIELDABLE_WAKER,
 };
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
+use alloc::rc::Rc;
+use alloc::string::String;
 use core::alloc::Layout;
 use core::error::Error;
 use core::ffi::{c_char, c_void};
@@ -442,7 +444,7 @@ pub unsafe fn luaD_closeprotected<A>(
 pub unsafe fn luaD_protectedparser<D>(
     g: &Lua<D>,
     mut z: Zio,
-    info: ChunkInfo,
+    name: Rc<String>,
 ) -> Result<Ref<'_, LuaFn<D>>, ParseError> {
     let mut dyd = Dyndata {
         actvar: C2RustUnnamed_9 {
@@ -473,7 +475,7 @@ pub unsafe fn luaD_protectedparser<D>(
         -1
     };
 
-    let status = luaY_parser(g, &raw mut z, &raw mut dyd, info, c);
+    let status = luaY_parser(g, &raw mut z, &raw mut dyd, name, c);
 
     if let Ok(cl) = &status {
         luaF_initupvals(g, cl.deref());

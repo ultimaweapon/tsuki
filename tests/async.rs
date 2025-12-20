@@ -3,7 +3,7 @@ use core::time::Duration;
 use tokio::task::{JoinSet, LocalSet};
 use tsuki::builtin::{BaseLib, CoroLib, IoLib, MathLib, StrLib, TableLib, Utf8Lib};
 use tsuki::context::{Args, Context, Ret};
-use tsuki::{ChunkInfo, Lua, LuaFn, RegKey, fp};
+use tsuki::{Lua, LuaFn, RegKey, fp};
 
 #[test]
 fn async_call() {
@@ -13,7 +13,7 @@ fn async_call() {
         .unwrap();
     let exec = LocalSet::new();
     let lua = Lua::new(());
-    let chunk = lua.load(ChunkInfo::new("async.lua"), "sleep()").unwrap();
+    let chunk = lua.load("async.lua", "sleep()").unwrap();
 
     lua.use_module(None, true, BaseLib).unwrap();
     lua.use_module(None, true, CoroLib).unwrap();

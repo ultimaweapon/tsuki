@@ -6,9 +6,11 @@ use crate::ldo::luaD_call;
 use crate::lobject::{AbsLineInfo, CClosure, Proto, UpVal};
 use crate::ltm::{TM_CLOSE, luaT_gettmbyobj};
 use crate::value::UnsafeValue;
-use crate::{CallError, ChunkInfo, Lua, LuaFn, NON_YIELDABLE_WAKER, StackValue, Thread};
+use crate::{CallError, Lua, LuaFn, NON_YIELDABLE_WAKER, StackValue, Thread};
 use alloc::boxed::Box;
 use alloc::format;
+use alloc::rc::Rc;
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::cell::Cell;
@@ -283,7 +285,7 @@ pub unsafe fn luaF_close<A>(
     return Ok(level);
 }
 
-pub unsafe fn luaF_newproto<D>(g: *const Lua<D>, chunk: ChunkInfo) -> *mut Proto<D> {
+pub unsafe fn luaF_newproto<D>(g: *const Lua<D>, chunk: Rc<String>) -> *mut Proto<D> {
     let layout = Layout::new::<Proto<D>>();
     let f = (*g).gc.alloc(10 | 0 << 4, layout).cast::<Proto<D>>();
 

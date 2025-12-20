@@ -3,8 +3,10 @@
 
 use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
 use crate::lmem::{luaM_free_, luaM_malloc_};
-use crate::{CallError, ChunkInfo, Thread};
+use crate::{CallError, Thread};
 use alloc::boxed::Box;
+use alloc::rc::Rc;
+use alloc::string::String;
 use core::ffi::c_char;
 use core::num::NonZero;
 use core::ptr::{null, null_mut};
@@ -20,7 +22,7 @@ pub struct lua_Debug {
     pub name: *const c_char,
     pub namewhat: *const c_char,
     pub what: *const c_char,
-    pub source: Option<ChunkInfo>,
+    pub chunk: Option<Rc<String>>,
     pub currentline: c_int,
     pub linedefined: c_int,
     pub lastlinedefined: c_int,
@@ -40,7 +42,7 @@ impl Default for lua_Debug {
             name: null(),
             namewhat: null(),
             what: null(),
-            source: None,
+            chunk: None,
             currentline: 0,
             linedefined: 0,
             lastlinedefined: 0,

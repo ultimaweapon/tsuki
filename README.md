@@ -110,6 +110,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - `YieldFp` has been added to `Value`.
 - `Float` methods has been removed.
 - `BadInst` has been removed.
+- `ChunkInfo` was replaced with `String`.
 - `Context::push_from_index` and `Context::push_from_index_with_int` has been replaced with `Thread::index`.
 - `Str::as_str` has been renamed to `Str::as_utf8`.
 - `Arg::as_int` has additional parameter.

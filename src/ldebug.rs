@@ -186,14 +186,14 @@ pub unsafe fn lua_setlocal<A>(L: *const Thread<A>, ci: *mut CallInfo, n: c_int) 
 
 pub unsafe fn funcinfo<A>(ar: &mut lua_Debug, cl: *const Object<A>) {
     if !(!cl.is_null() && (*cl).tt as c_int == 6 as c_int | (0 as c_int) << 4) {
-        (*ar).source = None;
+        ar.chunk = None;
         (*ar).linedefined = -(1 as c_int);
         (*ar).lastlinedefined = -(1 as c_int);
         (*ar).what = b"C\0" as *const u8 as *const c_char;
     } else {
         let p = (*cl.cast::<LuaFn<A>>()).p.get();
 
-        (*ar).source = Some((*p).chunk.clone());
+        ar.chunk = Some((*p).chunk.clone());
         (*ar).linedefined = (*p).linedefined;
         (*ar).lastlinedefined = (*p).lastlinedefined;
         (*ar).what = if (*ar).linedefined == 0 as c_int {

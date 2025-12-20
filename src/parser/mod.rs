@@ -1,41 +1,8 @@
-use alloc::borrow::{Cow, ToOwned};
+use alloc::borrow::Cow;
 use alloc::string::String;
 use core::error::Error;
 use core::ffi::c_int;
 use core::fmt::{Display, Formatter};
-
-/// Contains information for Lua chunk.
-#[derive(Clone)]
-pub struct ChunkInfo {
-    pub(crate) name: String,
-}
-
-impl ChunkInfo {
-    pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into() }
-    }
-
-    /// Returns name of the chunk.
-    #[inline(always)]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-}
-
-impl From<&str> for ChunkInfo {
-    fn from(value: &str) -> Self {
-        Self {
-            name: value.to_owned(),
-        }
-    }
-}
-
-impl From<String> for ChunkInfo {
-    #[inline(always)]
-    fn from(value: String) -> Self {
-        Self { name: value }
-    }
-}
 
 /// Represents an error when failed to parse Lua source.
 #[derive(Debug)]

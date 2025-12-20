@@ -8,12 +8,12 @@ use crate::lobject::luaO_arith;
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_equalobj, luaV_lessthan, luaV_objlen, luaV_tointeger};
 use crate::{
-    CallError, ChunkInfo, Inputs, LuaFn, NON_YIELDABLE_WAKER, Ops, Outputs, ParseError, Ref,
-    RegKey, RegValue, StackOverflow, Str, Table, Thread, Type, UserData, YIELDABLE_WAKER, luaH_get,
-    luaH_getshortstr,
+    CallError, Inputs, LuaFn, NON_YIELDABLE_WAKER, Ops, Outputs, ParseError, Ref, RegKey, RegValue,
+    StackOverflow, Str, Table, Thread, Type, UserData, YIELDABLE_WAKER, luaH_get, luaH_getshortstr,
 };
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::any::Any;
 use core::cell::Cell;
@@ -173,13 +173,15 @@ impl<'a, A, T> Context<'a, A, T> {
     }
 
     /// Load a Lua chunk.
+    ///
+    /// See [Lua::load()](crate::Lua::load()) for more information.
     #[inline(always)]
     pub fn load(
         &self,
-        info: impl Into<ChunkInfo>,
+        name: impl Into<String>,
         chunk: impl AsRef<[u8]>,
     ) -> Result<Ref<'a, LuaFn<A>>, ParseError> {
-        self.th.hdr.global().load(info, chunk)
+        self.th.hdr.global().load(name, chunk)
     }
 
     /// Returns length of `v`.

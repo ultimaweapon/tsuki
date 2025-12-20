@@ -729,7 +729,7 @@ impl<A> Lua<A> {
     /// Load a Lua chunk.
     pub fn load(
         &self,
-        info: impl Into<ChunkInfo>,
+        name: impl Into<String>,
         chunk: impl AsRef<[u8]>,
     ) -> Result<Ref<'_, LuaFn<A>>, ParseError> {
         let chunk = chunk.as_ref();
@@ -739,7 +739,7 @@ impl<A> Lua<A> {
         };
 
         // Load.
-        let f = unsafe { luaD_protectedparser(self, z, info.into())? };
+        let f = unsafe { luaD_protectedparser(self, z, name.into().into())? };
 
         if !(*f).upvals.is_empty() {
             let gt = unsafe {
@@ -1112,7 +1112,7 @@ impl From<Buffer> for Vec<u8> {
 /// Represents an error when [`Fp`] or [`AsyncFp`] return an error.
 #[derive(Debug)]
 pub struct CallError {
-    chunk: Option<(String, u32)>,
+    chunk: Option<(Rc<String>, u32)>,
     reason: Box<dyn Error>,
 }
 
@@ -1153,8 +1153,8 @@ impl CallError {
                 -1
             };
 
-            if let Some(v) = ar.source {
-                chunk = Some((v.name, u32::try_from(ar.currentline).unwrap()));
+            if let Some(v) = ar.chunk {
+                chunk = Some((v, u32::try_from(ar.currentline).unwrap()));
                 break;
             }
 

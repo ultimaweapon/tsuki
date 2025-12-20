@@ -12,9 +12,10 @@ use crate::lparser::Dyndata;
 use crate::lzio::ZIO;
 use crate::table::{luaH_finishset, luaH_getstr};
 use crate::value::UnsafeValue;
-use crate::{ChunkInfo, Float, Lua, Node, ParseError, Ref, Str, Table};
+use crate::{Float, Lua, Node, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;
+use alloc::rc::Rc;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::convert::identity;
@@ -106,7 +107,7 @@ pub struct LexState<'a, D> {
     pub buf: Vec<u8>,
     pub h: Ref<'a, Table<D>>,
     pub dyd: *mut Dyndata<D>,
-    pub source: ChunkInfo,
+    pub chunk: Rc<String>,
     pub envn: *const Str<D>,
     pub level: usize,
 }

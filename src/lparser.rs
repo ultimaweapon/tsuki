@@ -32,9 +32,10 @@ use crate::vm::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_FORLOOP, OP_FORPREP, OP_GETUPVAL, OP_MOVE, OP_NEWTABLE,
     OP_TAILCALL, OP_TBC, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_VARARG, OP_VARARGPREP, OpCode,
 };
-use crate::{ChunkInfo, Float, Lua, LuaFn, ParseError, Ref, Str, Table};
+use crate::{Float, Lua, LuaFn, ParseError, Ref, Str, Table};
 use alloc::borrow::Cow;
 use alloc::format;
+use alloc::rc::Rc;
 use alloc::string::String;
 use core::convert::identity;
 use core::ffi::{c_char, c_void};
@@ -1100,7 +1101,7 @@ unsafe fn addprototype<A>(
         }
     }
 
-    let clp = luaF_newproto(g, ChunkInfo::new(""));
+    let clp = luaF_newproto(g, (*ls).chunk.clone());
     let fresh14 = (*fs).np;
     (*fs).np = (*fs).np + 1;
     let ref mut fresh15 = *((*f).p).offset(fresh14 as isize);
@@ -1156,7 +1157,6 @@ unsafe fn open_func<A>(ls: *mut LexState<A>, fs: *mut FuncState<A>, bl: *mut Blo
     (*fs).firstlocal = (*(*ls).dyd).actvar.n;
     (*fs).firstlabel = (*(*ls).dyd).label.n;
     (*fs).bl = 0 as *mut BlockCnt;
-    (*f).chunk = (*ls).source.clone();
     (*f).maxstacksize = 2 as c_int as u8;
     enterblock(ls, fs, bl, 0 as c_int as u8);
 }
@@ -2901,7 +2901,7 @@ pub unsafe fn luaY_parser<D>(
     g: &Lua<D>,
     z: *mut ZIO,
     dyd: *mut Dyndata<D>,
-    info: ChunkInfo,
+    name: Rc<String>,
     firstchar: c_int,
 ) -> Result<Ref<'_, LuaFn<D>>, ParseError> {
     let mut funcstate = FuncState::default();
@@ -2927,12 +2927,12 @@ pub unsafe fn luaY_parser<D>(
         buf: Default::default(),
         h: Ref::new(Table::new(g)),
         dyd: null_mut(),
-        source: info.clone(),
+        chunk: name.clone(),
         envn: null(),
         level: 0,
     };
 
-    (*cl).p.set(luaF_newproto(g, info));
+    (*cl).p.set(luaF_newproto(g, name));
     funcstate.f = (*cl).p.get();
 
     if (*cl).hdr.marked.get() as c_int & (1 as c_int) << 5 as c_int != 0

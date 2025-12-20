@@ -8,8 +8,10 @@ use crate::lmem::luaM_free_;
 use crate::ltm::{TM_ADD, TMS, luaT_trybinTM};
 use crate::value::UnsafeValue;
 use crate::vm::{F2Ieq, luaV_idiv, luaV_mod, luaV_modf, luaV_shiftl, luaV_tointegerns};
-use crate::{ArithError, ChunkInfo, Number, Ops, Str, Thread};
+use crate::{ArithError, Number, Ops, Str, Thread};
 use alloc::boxed::Box;
+use alloc::rc::Rc;
+use alloc::string::String;
 use core::cell::{Cell, UnsafeCell};
 use core::ffi::{c_char, c_void};
 
@@ -112,7 +114,7 @@ pub struct Proto<D> {
     pub lineinfo: *mut i8,
     pub abslineinfo: *mut AbsLineInfo,
     pub locvars: *mut LocVar<D>,
-    pub chunk: ChunkInfo,
+    pub chunk: Rc<String>,
 }
 
 impl<D> Drop for Proto<D> {
