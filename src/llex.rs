@@ -301,10 +301,7 @@ unsafe fn check_next2<D>(ls: *mut LexState<D>, set: *const c_char) -> c_int {
     };
 }
 
-unsafe fn read_numeral<D>(
-    ls: *mut LexState<D>,
-    seminfo: *mut SemInfo<D>,
-) -> Result<c_int, ParseError> {
+unsafe fn read_numeral<D>(ls: *mut LexState<D>) -> Result<Token<D>, ParseError> {
     let mut obj = UnsafeValue::<D>::default();
     let mut expo: *const c_char = b"Ee\0" as *const u8 as *const c_char;
     let first: c_int = (*ls).current;
@@ -365,12 +362,16 @@ unsafe fn read_numeral<D>(
     };
 
     if obj.tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
-        (*seminfo).i = obj.value_.i;
-        return Ok(TK_INT as c_int);
+        Ok(Token {
+            token: TK_INT as c_int,
+            seminfo: SemInfo { i: obj.value_.i },
+        })
     } else {
-        (*seminfo).r = obj.value_.n;
-        return Ok(TK_FLT as c_int);
-    };
+        Ok(Token {
+            token: TK_FLT as c_int,
+            seminfo: SemInfo { r: obj.value_.n },
+        })
+    }
 }
 
 unsafe fn skip_sep<D>(ls: *mut LexState<D>) -> usize {
@@ -632,11 +633,7 @@ unsafe fn readdecesc<D>(ls: *mut LexState<D>) -> Result<c_int, ParseError> {
     return Ok(r);
 }
 
-unsafe fn read_string<D>(
-    ls: *mut LexState<D>,
-    del: c_int,
-    seminfo: *mut SemInfo<D>,
-) -> Result<(), ParseError> {
+unsafe fn read_string<D>(ls: *mut LexState<D>, del: c_int) -> Result<*const Str<D>, ParseError> {
     let mut current_block: u64;
     save(ls, (*ls).current);
     let fresh40 = (*(*ls).z).n;
@@ -816,12 +813,10 @@ unsafe fn read_string<D>(
     let l = (*ls).buf.len();
     let s = &(&(*ls).buf)[1..(l - 1)];
 
-    (*seminfo).ts = luaX_newstring(ls, s.as_ptr().cast(), s.len());
-
-    Ok(())
+    Ok(luaX_newstring(ls, s.as_ptr().cast(), s.len()))
 }
 
-unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_int, ParseError> {
+unsafe fn llex<D>(ls: *mut LexState<D>) -> Result<Token<D>, ParseError> {
     (*ls).buf.clear();
 
     loop {
@@ -850,7 +845,10 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                     -1
                 };
                 if (*ls).current != '-' as i32 {
-                    return Ok('-' as i32);
+                    return Ok(Token {
+                        token: '-' as i32,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 }
                 let fresh58 = (*(*ls).z).n;
                 (*(*ls).z).n = ((*(*ls).z).n).wrapping_sub(1);
@@ -905,9 +903,12 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                 if sep_0 >= 2 as c_int as usize {
                     let s = read_long_string(ls, "string", sep_0)?;
 
-                    (*seminfo).ts = luaX_newstring(ls, s.as_ptr().cast(), s.len());
-
-                    return Ok(TK_STRING as c_int);
+                    return Ok(Token {
+                        token: TK_STRING as c_int,
+                        seminfo: SemInfo {
+                            ts: luaX_newstring(ls, s.as_ptr().cast(), s.len()),
+                        },
+                    });
                 } else if sep_0 == 0 as c_int as usize {
                     return Err(lexerror(
                         ls,
@@ -915,7 +916,10 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                         TK_STRING as c_int,
                     ));
                 }
-                return Ok('[' as i32);
+                return Ok(Token {
+                    token: '[' as i32,
+                    seminfo: SemInfo { i: 0 },
+                });
             }
             61 => {
                 let fresh62 = (*(*ls).z).n;
@@ -928,9 +932,15 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                     -1
                 };
                 if check_next1(ls, '=' as i32) != 0 {
-                    return Ok(TK_EQ as c_int);
+                    return Ok(Token {
+                        token: TK_EQ as c_int,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 } else {
-                    return Ok('=' as i32);
+                    return Ok(Token {
+                        token: '=' as i32,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 }
             }
             60 => {
@@ -944,11 +954,20 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                     -1
                 };
                 if check_next1(ls, '=' as i32) != 0 {
-                    return Ok(TK_LE as c_int);
+                    return Ok(Token {
+                        token: TK_LE as c_int,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 } else if check_next1(ls, '<' as i32) != 0 {
-                    return Ok(TK_SHL as c_int);
+                    return Ok(Token {
+                        token: TK_SHL as c_int,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 } else {
-                    return Ok('<' as i32);
+                    return Ok(Token {
+                        token: '<' as i32,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 }
             }
             62 => {
@@ -962,11 +981,20 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                     -1
                 };
                 if check_next1(ls, '=' as i32) != 0 {
-                    return Ok(TK_GE as c_int);
+                    return Ok(Token {
+                        token: TK_GE as c_int,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 } else if check_next1(ls, '>' as i32) != 0 {
-                    return Ok(TK_SHR as c_int);
+                    return Ok(Token {
+                        token: TK_SHR as c_int,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 } else {
-                    return Ok('>' as i32);
+                    return Ok(Token {
+                        token: '>' as i32,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 }
             }
             47 => {
@@ -980,9 +1008,15 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                     -1
                 };
                 if check_next1(ls, '/' as i32) != 0 {
-                    return Ok(TK_IDIV as c_int);
+                    return Ok(Token {
+                        token: TK_IDIV as c_int,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 } else {
-                    return Ok('/' as i32);
+                    return Ok(Token {
+                        token: '/' as i32,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 }
             }
             126 => {
@@ -996,9 +1030,15 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                     -1
                 };
                 if check_next1(ls, '=' as i32) != 0 {
-                    return Ok(TK_NE as c_int);
+                    return Ok(Token {
+                        token: TK_NE as c_int,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 } else {
-                    return Ok('~' as i32);
+                    return Ok(Token {
+                        token: '~' as i32,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 }
             }
             58 => {
@@ -1012,14 +1052,24 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                     -1
                 };
                 if check_next1(ls, ':' as i32) != 0 {
-                    return Ok(TK_DBCOLON as c_int);
+                    return Ok(Token {
+                        token: TK_DBCOLON as c_int,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 } else {
-                    return Ok(':' as i32);
+                    return Ok(Token {
+                        token: ':' as i32,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 }
             }
             34 | 39 => {
-                read_string(ls, (*ls).current, seminfo)?;
-                return Ok(TK_STRING as c_int);
+                let ts = read_string(ls, (*ls).current)?;
+
+                return Ok(Token {
+                    token: TK_STRING as c_int,
+                    seminfo: SemInfo { ts },
+                });
             }
             46 => {
                 save(ls, (*ls).current);
@@ -1034,23 +1084,37 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                 };
                 if check_next1(ls, '.' as i32) != 0 {
                     if check_next1(ls, '.' as i32) != 0 {
-                        return Ok(TK_DOTS as c_int);
+                        return Ok(Token {
+                            token: TK_DOTS as c_int,
+                            seminfo: SemInfo { i: 0 },
+                        });
                     } else {
-                        return Ok(TK_CONCAT as c_int);
+                        return Ok(Token {
+                            token: TK_CONCAT as c_int,
+                            seminfo: SemInfo { i: 0 },
+                        });
                     }
                 } else if luai_ctype_[((*ls).current + 1 as c_int) as usize] as c_int
                     & (1 as c_int) << 1 as c_int
                     == 0
                 {
-                    return Ok('.' as i32);
+                    return Ok(Token {
+                        token: '.' as i32,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 } else {
-                    return read_numeral(ls, seminfo);
+                    return read_numeral(ls);
                 }
             }
             48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 => {
-                return read_numeral(ls, seminfo);
+                return read_numeral(ls);
             }
-            -1 => return Ok(TK_EOS as c_int),
+            -1 => {
+                return Ok(Token {
+                    token: TK_EOS as c_int,
+                    seminfo: SemInfo { i: 0 },
+                });
+            }
             _ => {
                 if luai_ctype_[((*ls).current + 1 as c_int) as usize] as c_int
                     & (1 as c_int) << 0 as c_int
@@ -1075,20 +1139,23 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                         }
                     }
 
-                    let ts = luaX_newstring(ls, (*(*ls).buf).as_ptr().cast(), (*(*ls).buf).len());
-
-                    (*seminfo).ts = ts;
-
                     // Check if reserved word.
+                    let ts = luaX_newstring(ls, (*(*ls).buf).as_ptr().cast(), (*(*ls).buf).len());
                     let v = (*ls)
                         .g
                         .tokens()
                         .get_raw_unchecked(UnsafeValue::from_obj(ts.cast()));
 
                     if ((*v).tt_ & 0x3F) == (3 | 0 << 4) {
-                        return Ok((*v).value_.i as c_int - 1 + (255 + 1));
+                        return Ok(Token {
+                            token: (*v).value_.i as c_int - 1 + (255 + 1),
+                            seminfo: SemInfo { ts },
+                        });
                     } else {
-                        return Ok(TK_NAME as c_int);
+                        return Ok(Token {
+                            token: TK_NAME as c_int,
+                            seminfo: SemInfo { ts },
+                        });
                     }
                 } else {
                     let c: c_int = (*ls).current;
@@ -1101,7 +1168,11 @@ unsafe fn llex<D>(ls: *mut LexState<D>, seminfo: *mut SemInfo<D>) -> Result<c_in
                     } else {
                         -1
                     };
-                    return Ok(c);
+
+                    return Ok(Token {
+                        token: c,
+                        seminfo: SemInfo { i: 0 },
+                    });
                 }
             }
         }
@@ -1114,12 +1185,12 @@ pub unsafe fn luaX_next<D>(ls: *mut LexState<D>) -> Result<(), ParseError> {
         (*ls).t = (*ls).lookahead;
         (*ls).lookahead.token = TK_EOS as c_int;
     } else {
-        (*ls).t.token = llex(ls, &mut (*ls).t.seminfo)?;
+        (*ls).t = llex(ls)?;
     };
     Ok(())
 }
 
 pub unsafe fn luaX_lookahead<D>(ls: *mut LexState<D>) -> Result<c_int, ParseError> {
-    (*ls).lookahead.token = llex(ls, &mut (*ls).lookahead.seminfo)?;
+    (*ls).lookahead = llex(ls)?;
     return Ok((*ls).lookahead.token);
 }
