@@ -83,6 +83,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
   - 3rd result is a chunk name.
   - 4th result is a line number.
   - 3rd and 4th results will be absent if the called function is a Rust function.
+- `coroutine.resume` can produce up to 4 results on error the same as `pcall`.
 - `string.format` requires format string to be UTF-8.
   - `a`, `A`, `e`, `E`, `g` and `G` format is not supported.
   - `q` format requires string value to be UTF-8 and will use decimal notation instead of hexadecimal exponent notation for float.

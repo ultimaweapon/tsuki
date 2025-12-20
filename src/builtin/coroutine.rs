@@ -1,6 +1,6 @@
 //! Implementation of [coroutine library](https://www.lua.org/manual/5.4/manual.html#6.2).
 use crate::context::{Args, Context, Ret};
-use crate::{Coroutine, DynamicInputs, Thread, Type, Value};
+use crate::{CallError, Coroutine, DynamicInputs, Thread, Type, Value};
 use alloc::boxed::Box;
 use alloc::string::ToString;
 use alloc::vec::Vec;
@@ -63,6 +63,13 @@ pub fn resume<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::
         Err(e) => {
             cx.push(false)?;
             cx.push_str(e.display().to_string())?;
+
+            if let Ok(e) = e.downcast::<CallError>() {
+                if let Some((s, l)) = e.location() {
+                    cx.push_str(s)?;
+                    cx.push(l)?;
+                }
+            }
         }
     }
 
