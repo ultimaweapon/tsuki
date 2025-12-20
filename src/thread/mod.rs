@@ -8,12 +8,12 @@ use crate::lapi::lua_checkstack;
 use crate::ldo::luaD_call;
 use crate::lfunc::luaF_closeupval;
 use crate::lmem::luaM_free_;
-use crate::lobject::UpVal;
+use crate::lobject::{UpVal, luaO_arith};
 use crate::lstate::CallInfo;
 use crate::value::UnsafeValue;
 use crate::vm::luaV_finishget;
 use crate::{
-    CallError, Lua, LuaFn, NON_YIELDABLE_WAKER, Object, StackOverflow, Table, Value,
+    CallError, Lua, LuaFn, NON_YIELDABLE_WAKER, Object, Ops, StackOverflow, Table, Value,
     YIELDABLE_WAKER, luaH_get,
 };
 use alloc::alloc::handle_alloc_error;
@@ -556,6 +556,36 @@ impl<A> Thread<A> {
         let v = unsafe { luaV_finishget(self, &t, &k, false)? };
 
         Ok(unsafe { Value::from_unsafe(&v) })
+    }
+
+    /// Multiply `lhs` with `rhs`.
+    ///
+    /// This method honor `__mul` metavalue.
+    ///
+    /// # Panics
+    /// If either `lhs` or `rhs` was created frim different [Lua] instance.
+    #[inline]
+    pub fn mul(
+        &self,
+        lhs: impl Into<UnsafeValue<A>>,
+        rhs: impl Into<UnsafeValue<A>>,
+    ) -> Result<Value<'_, A>, Box<dyn core::error::Error>> {
+        // Check operands.
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+
+        if unsafe { (lhs.tt_ & 1 << 6 != 0) && (*lhs.value_.gc).global != self.hdr.global } {
+            panic!("attempt to multiply on a value created from different Lua");
+        }
+
+        if unsafe { (rhs.tt_ & 1 << 6 != 0) && (*rhs.value_.gc).global != self.hdr.global } {
+            panic!("attempt to multiply on a value created from different Lua");
+        }
+
+        // Perform multiply.
+        let r = unsafe { luaO_arith(self, Ops::Mul, &lhs, &rhs)? };
+
+        Ok(unsafe { Value::from_unsafe(&r) })
     }
 
     /// Reserves capacity for at least `additional` more elements to be pushed.

@@ -591,6 +591,17 @@ pub fn lower<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
     Ok(cx.into())
 }
 
+/// Implementation of `__mul` metamethod for string.
+pub fn mul<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    arith(cx, "__mul", |cx, lhs, rhs| {
+        let r = cx.thread().mul(lhs, rhs)?;
+
+        cx.push(r)?;
+
+        Ok(())
+    })
+}
+
 /// Implementation of `__unm` metamethod for string.
 pub fn negate<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     arith(cx, "__unm", |cx, v, _| cx.push_neg(v).map(|_| ()))
@@ -761,11 +772,11 @@ pub fn upper<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
     Ok(cx.into())
 }
 
-fn arith<'a, D>(
-    cx: Context<'a, D, Args>,
+fn arith<'a, A>(
+    cx: Context<'a, A, Args>,
     mt: &str,
-    f: impl FnOnce(&Context<'a, D, Args>, Number, Number) -> Result<(), Box<dyn core::error::Error>>,
-) -> Result<Context<'a, D, Ret>, Box<dyn core::error::Error>> {
+    f: impl FnOnce(&Context<'a, A, Args>, Number, Number) -> Result<(), Box<dyn core::error::Error>>,
+) -> Result<Context<'a, A, Ret>, Box<dyn core::error::Error>> {
     // Get first operand.
     let lhs = cx.arg(1);
     let lhs = match tonum(&lhs) {
