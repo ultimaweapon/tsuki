@@ -1658,8 +1658,14 @@ unsafe fn constfolding<D>(
         (*e1).k = VKINT;
         (*e1).u.ival = res.value_.i;
     } else {
+        let Float(n) = res.value_.n;
+
+        if n.is_nan() || n == 0.0 {
+            return Ok(0);
+        }
+
         (*e1).k = VKFLT;
-        (*e1).u.nval = res.value_.n;
+        (*e1).u.nval = n.into();
     }
 
     return Ok(1 as c_int);
