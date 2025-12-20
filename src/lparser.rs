@@ -127,11 +127,11 @@ impl<D> Copy for Vardesc<D> {}
 
 #[repr(C)]
 pub struct C2RustUnnamed_10<D> {
-    pub value_: UntaggedValue<D>,
     pub tt_: u8,
     pub kind: u8,
     pub ridx: u8,
     pub pidx: c_short,
+    pub value_: UntaggedValue<D>,
     pub name: *const Str<D>,
 }
 
