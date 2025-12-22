@@ -726,6 +726,18 @@ impl<A> Lua<A> {
         unsafe { Ref::new(BTreeMap::new(self)) }
     }
 
+    /// Deserialize [Value] from Serde deserializer.
+    ///
+    /// This method can only deserialize a value from self-describing formats.
+    #[cfg(feature = "serde")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
+    pub fn deserialize_value<'de, D: serde::Deserializer<'de>>(
+        &self,
+        deserializer: D,
+    ) -> Result<Value<'_, A>, D::Error> {
+        deserializer.deserialize_any(self::value::serde::ValueVisitor::new(self))
+    }
+
     /// Load a Lua chunk.
     pub fn load(
         &self,

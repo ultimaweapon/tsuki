@@ -9,6 +9,9 @@ use core::mem::{ManuallyDrop, transmute, zeroed};
 use core::pin::Pin;
 use core::ptr::addr_of;
 
+#[cfg(feature = "serde")]
+pub mod serde;
+
 /// The outside **must** never be able to construct or have the value of this type.
 ///
 /// Do not change layout of this type or add a new field to it since there are other structs that

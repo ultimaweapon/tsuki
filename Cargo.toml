@@ -17,6 +17,7 @@ harness = false
 [features]
 default = ["rand", "std"]
 rand = ["dep:rand"]
+serde = ["dep:serde"]
 std = ["libm/arch", "tsuki-macros/std"]
 
 [dependencies]
@@ -25,6 +26,7 @@ libc = "0.2.172"
 libm = { version = "0.2.15", default-features = false }
 memchr = { version = "2.7.6", features = ["alloc"], default-features = false }
 rand = { version = "0.9.1", features = ["thread_rng"], default-features = false, optional = true }
+serde = { version = "1.0.228", default-features = false, optional = true }
 thiserror = { version = "2.0.12", default-features = false }
 tsuki-macros = { version = "=0.1.3", path = "macros" }
 

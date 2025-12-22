@@ -172,6 +172,18 @@ impl<'a, A, T> Context<'a, A, T> {
         unsafe { Ref::new(BTreeMap::new(self.th.hdr.global())) }
     }
 
+    /// Deserialize [Value](crate::Value) from Serde deserializer.
+    ///
+    /// This method can only deserialize a value from self-describing formats.
+    #[cfg(feature = "serde")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
+    pub fn deserialize_value<'de, D: serde::Deserializer<'de>>(
+        &self,
+        deserializer: D,
+    ) -> Result<crate::Value<'a, A>, D::Error> {
+        deserializer.deserialize_any(crate::value::serde::ValueVisitor::new(self.th.hdr.global()))
+    }
+
     /// Load a Lua chunk.
     ///
     /// See [Lua::load()](crate::Lua::load()) for more information.
