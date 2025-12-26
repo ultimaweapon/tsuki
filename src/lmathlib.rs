@@ -182,13 +182,6 @@ static mut randfuncs: [luaL_Reg; 3] = [
         };
         init
     },
-    {
-        let mut init = luaL_Reg {
-            name: 0 as *const libc::c_char,
-            func: None,
-        };
-        init
-    },
 ];
 
 unsafe fn setrandfunc(mut L: *const Thread) -> Result<(), Box<dyn std::error::Error>> {

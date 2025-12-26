@@ -64,7 +64,7 @@
 //! - Reference to [UserData]
 //! - Reference to [Thread]
 //! - [Ref]
-//! - [Value]
+//! - [Value] or a reference to it
 //! - [Arg] or a reference to it
 //!
 //! The value will be converted to corresponding Lua value. Tsuki does not expose [UnsafeValue] by
@@ -917,6 +917,14 @@ impl<'a, A> Value<'a, A> {
 
         // SAFETY: Low-order byte has the same value as Type.
         unsafe { core::mem::transmute((t & 0xf) as u8) }
+    }
+
+    /// Returns `false` if this value is either [Value::Nil] or [Value::False] otherwise `true`.
+    ///
+    /// This has the same semantic as `lua_toboolean`.
+    #[inline(always)]
+    pub const fn to_bool(&self) -> bool {
+        !matches!(self, Self::Nil | Self::False)
     }
 
     #[inline(never)]

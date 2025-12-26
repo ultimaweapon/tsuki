@@ -11,9 +11,9 @@ use crate::lmem::luaM_free_;
 use crate::lobject::{UpVal, luaO_arith};
 use crate::lstate::CallInfo;
 use crate::value::UnsafeValue;
-use crate::vm::luaV_finishget;
+use crate::vm::{luaV_finishget, luaV_finishset};
 use crate::{
-    CallError, Lua, LuaFn, NON_YIELDABLE_WAKER, Object, Ops, StackOverflow, Table, Value,
+    CallError, Lua, LuaFn, NON_YIELDABLE_WAKER, Object, Ops, Ref, StackOverflow, Table, Value,
     YIELDABLE_WAKER, luaH_get,
 };
 use alloc::alloc::handle_alloc_error;
@@ -38,9 +38,6 @@ mod stack;
 ///
 /// Use [Lua::create_thread()] or [Context::create_thread()](crate::Context::create_thread()) to
 /// create the value of this type.
-///
-/// You can also use [Lua::call()] to call any Lua function without creating a new thread. You only
-/// need to create a new thread when you need to call into async function.
 #[repr(C)]
 pub struct Thread<A> {
     pub(crate) hdr: Object<A>,
@@ -552,8 +549,12 @@ impl<A> Thread<A> {
             return Ok(unsafe { Value::from_unsafe(slot) });
         }
 
-        // Try __index.
+        // Try __index. We need a strong reference for t here since luaV_finishget can call into
+        // user function. k will be passed to the function to we don't need to a reference for it.
+        let r = unsafe { Ref::<Object<A>>::from_unsafe(&t) };
         let v = unsafe { luaV_finishget(self, &t, &k, false)? };
+
+        drop(r);
 
         Ok(unsafe { Value::from_unsafe(&v) })
     }
@@ -593,7 +594,7 @@ impl<A> Thread<A> {
     /// This method honor `__div` metavalue.
     ///
     /// # Panics
-    /// If either `lhs` or `rhs` was created frim different [Lua] instance.
+    /// If either `lhs` or `rhs` was created from different [Lua] instance.
     #[inline]
     pub fn div(
         &self,
@@ -616,6 +617,66 @@ impl<A> Thread<A> {
         let r = unsafe { luaO_arith(self, Ops::NumDiv, &lhs, &rhs)? };
 
         Ok(unsafe { Value::from_unsafe(&r) })
+    }
+
+    /// Inserts a key-value pair into `t`.
+    ///
+    /// This method honor `__newindex` metavalue.
+    ///
+    /// # Panics
+    /// If either `t`, `k` or `v` was created from different [Lua] instance.
+    pub fn set(
+        &self,
+        t: impl Into<UnsafeValue<A>>,
+        k: impl Into<UnsafeValue<A>>,
+        v: impl Into<UnsafeValue<A>>,
+    ) -> Result<(), Box<dyn core::error::Error>> {
+        // Check arguments.
+        let t = t.into();
+        let k = k.into();
+        let v = v.into();
+
+        if unsafe { (t.tt_ & 1 << 6 != 0) && (*t.value_.gc).global != self.hdr.global } {
+            panic!("attempt to divide a value created from different Lua");
+        }
+
+        if unsafe { (k.tt_ & 1 << 6 != 0) && (*k.value_.gc).global != self.hdr.global } {
+            panic!("attempt to divide a value created from different Lua");
+        }
+
+        if unsafe { (v.tt_ & 1 << 6 != 0) && (*v.value_.gc).global != self.hdr.global } {
+            panic!("attempt to divide a value created from different Lua");
+        }
+
+        // Get slot.
+        let s = match t.tt_ & 0xf {
+            5 => unsafe { luaH_get(t.value_.gc.cast(), &k) },
+            _ => null(),
+        };
+
+        if unsafe { !s.is_null() && (*s).tt_ & 0xf != 0 } {
+            let t = unsafe { t.value_.gc };
+            let s = s.cast_mut();
+
+            unsafe { (*s).tt_ = v.tt_ };
+            unsafe { (*s).value_ = v.value_ };
+
+            if unsafe { (v.tt_ & 1 << 6 != 0) && ((*t).marked.get() & 1 << 5 != 0) } {
+                if unsafe { (*v.value_.gc).marked.is_white() } {
+                    unsafe { self.hdr.global().gc.barrier_back(t) };
+                }
+            }
+        } else {
+            // luaV_finishset can call into user function to we need a strong reference for t here.
+            // k and v will be passed to the function to we don't need one for them.
+            let r = unsafe { Ref::<Object<A>>::from_unsafe(&t) };
+
+            unsafe { luaV_finishset(self, &t, &k, &v, s)? };
+
+            drop(r);
+        }
+
+        Ok(())
     }
 
     /// Reserves capacity for at least `additional` more elements to be pushed.

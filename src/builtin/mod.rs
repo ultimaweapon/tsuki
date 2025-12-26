@@ -218,6 +218,8 @@ impl<A> Module<A> for StrLib {
 }
 
 /// [Module] implementation for [table library](https://www.lua.org/manual/5.4/manual.html#6.6).
+///
+/// Note that `sort` only available with `rand` feature.
 pub struct TableLib;
 
 impl<A> Module<A> for TableLib {
@@ -232,6 +234,8 @@ impl<A> Module<A> for TableLib {
         let m = lua.create_table();
 
         m.set_str_key("concat", fp!(self::table::concat));
+        #[cfg(feature = "rand")]
+        m.set_str_key("sort", fp!(self::table::sort));
         m.set_str_key("unpack", fp!(self::table::unpack));
 
         Ok(m)

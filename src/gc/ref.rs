@@ -1,4 +1,5 @@
 use super::Object;
+use crate::value::UnsafeValue;
 use core::marker::PhantomData;
 use core::ops::Deref;
 
@@ -44,6 +45,15 @@ impl<'a, T> Ref<'a, T> {
         Self {
             obj: o,
             phantom: PhantomData,
+        }
+    }
+
+    #[inline(always)]
+    pub(crate) unsafe fn from_unsafe<A>(v: *const UnsafeValue<A>) -> Option<Self> {
+        if (*v).tt_ & 1 << 6 != 0 {
+            Some(Self::new((*v).value_.gc.cast()))
+        } else {
+            None
         }
     }
 

@@ -37,7 +37,7 @@ local function checksyntax (prog, extra, token, line)
 end
 
 -- test error message with no extra info
-assert(doit("error('hi', 0)") == "second argument of 'error' is not supported")
+assert(doit("error('hi', 0)") == "second argument is not supported")
 
 -- test common errors/errors that crashed in the past
 assert(doit("table.unpack({}, 1, n=2^30)"))

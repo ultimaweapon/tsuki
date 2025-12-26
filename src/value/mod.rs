@@ -308,6 +308,20 @@ impl<'a, D> From<Ref<'a, Thread<D>>> for UnsafeValue<D> {
     }
 }
 
+impl<'a, A> From<&Value<'a, A>> for UnsafeValue<A> {
+    #[inline(always)]
+    fn from(value: &Value<'a, A>) -> Self {
+        let v = value as *const Value<'a, A> as *const u64;
+        let t = unsafe { v.read() as u8 };
+        let v = unsafe { v.add(1).cast::<UntaggedValue<A>>() };
+
+        Self {
+            tt_: t,
+            value_: unsafe { v.read() },
+        }
+    }
+}
+
 impl<'a, A> From<Value<'a, A>> for UnsafeValue<A> {
     #[inline(never)]
     fn from(value: Value<'a, A>) -> Self {
