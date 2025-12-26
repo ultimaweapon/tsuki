@@ -274,13 +274,6 @@ impl<'a, 'de, A> Visitor<'de> for KeyVisitor<'a, A> {
     {
         Ok(Value::Str(self.0.create_bytes(v)))
     }
-
-    fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_any(self)
-    }
 }
 
 /// Implementation of [DeserializeSeed] to deserialize table key.
