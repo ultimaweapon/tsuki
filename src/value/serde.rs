@@ -69,6 +69,21 @@ impl<'a, 'de, A> Visitor<'de> for ValueVisitor<'a, A> {
     }
 
     #[inline]
+    fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        // Some deserializer use visit_u64 for positive integer so we need this.
+        match v.try_into() {
+            Ok(v) => self.visit_i64(v),
+            Err(_) => Err(serde::de::Error::invalid_value(
+                Unexpected::Unsigned(v),
+                &self,
+            )),
+        }
+    }
+
+    #[inline]
     fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
@@ -231,6 +246,21 @@ impl<'a, 'de, A> Visitor<'de> for KeyVisitor<'a, A> {
         E: serde::de::Error,
     {
         self.visit_i64(v.into())
+    }
+
+    #[inline]
+    fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        // Some deserializer use visit_u64 for positive integer so we need this.
+        match v.try_into() {
+            Ok(v) => self.visit_i64(v),
+            Err(_) => Err(serde::de::Error::invalid_value(
+                Unexpected::Unsigned(v),
+                &self,
+            )),
+        }
     }
 
     fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
