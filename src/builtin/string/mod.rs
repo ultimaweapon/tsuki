@@ -739,6 +739,18 @@ pub fn rep<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
     Ok(cx.into())
 }
 
+/// Implementation of
+/// [string.reverse](https://www.lua.org/manual/5.4/manual.html#pdf-string.reverse).
+pub fn reverse<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let mut s = cx.arg(1).to_str()?.as_bytes().to_vec();
+
+    s.reverse();
+
+    cx.push_bytes(s)?;
+
+    Ok(cx.into())
+}
+
 /// Implementation of [string.sub](https://www.lua.org/manual/5.4/manual.html#pdf-string.sub).
 pub fn sub<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let s = cx.arg(1).to_str()?;

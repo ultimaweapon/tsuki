@@ -1220,9 +1220,11 @@ impl Display for CallError {
 /// Represents an error when arithmetic operation fails.
 #[derive(Debug, Error)]
 pub enum ArithError {
+    /// Lua code attempt to modulo by zero.
     #[error("attempt to perform 'n%0'")]
     ModZero,
 
+    /// Lua code attempt to divide by zero.
     #[error("attempt to divide by zero")]
     DivZero,
 }

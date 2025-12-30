@@ -52,17 +52,6 @@ unsafe fn posrelatI(mut pos: i64, mut len: usize) -> usize {
     };
 }
 
-unsafe fn str_reverse(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
-    let mut l: usize = 0;
-    let mut s: *const libc::c_char = luaL_checklstring(L, 1 as libc::c_int, &mut l)?;
-    let mut s = std::slice::from_raw_parts(s.cast(), l).to_vec();
-
-    s.reverse();
-    lua_pushlstring(L, s);
-
-    return Ok(1 as libc::c_int);
-}
-
 unsafe fn arith_idiv(mut L: *const Thread) -> Result<c_int, Box<dyn std::error::Error>> {
     return arith(
         L,
@@ -558,13 +547,6 @@ static mut strlib: [luaL_Reg; 17] = [
         let mut init = luaL_Reg {
             name: b"match\0" as *const u8 as *const libc::c_char,
             func: Some(str_match),
-        };
-        init
-    },
-    {
-        let mut init = luaL_Reg {
-            name: b"reverse\0" as *const u8 as *const libc::c_char,
-            func: Some(str_reverse),
         };
         init
     },
