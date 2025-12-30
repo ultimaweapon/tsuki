@@ -488,12 +488,12 @@ pub fn format<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::
                 true => {
                     res.extend_from_slice(&buf);
 
-                    for _ in 0..(w.get() - 1) {
+                    for _ in 0..(usize::from(w.get()) - buf.len()) {
                         res.push(b' ');
                     }
                 }
                 false => {
-                    for _ in 0..(w.get() - 1) {
+                    for _ in 0..(usize::from(w.get()) - buf.len()) {
                         res.push(b' ');
                     }
 
