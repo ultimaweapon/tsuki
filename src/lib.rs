@@ -237,12 +237,27 @@ macro_rules! fp {
     ($f:path as yield) => {
         $crate::YieldFp::new($f)
     };
-    ($f:path as async) => {{
-        #[cfg(not(feature = "std"))]
-        use ::alloc::boxed::Box;
+    ($f:path as async) => {
+        $crate::async_fp!($f)
+    };
+}
 
-        $crate::AsyncFp::new(|cx| Box::pin($f(cx)))
-    }};
+#[cfg(feature = "std")]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! async_fp {
+    ($f:path) => {
+        $crate::AsyncFp::new(|cx| ::std::boxed::Box::pin($f(cx)))
+    };
+}
+
+#[cfg(not(feature = "std"))]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! async_fp {
+    ($f:path) => {
+        $crate::AsyncFp::new(|cx| ::alloc::boxed::Box::pin($f(cx)))
+    };
 }
 
 /// Generate [core::str::FromStr] implementation for enum to parse Lua
