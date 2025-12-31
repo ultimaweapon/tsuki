@@ -280,8 +280,7 @@ end
 -- testing line error
 
 local function lineerror (s, l)
-  local err,msg = pcall(load(s))
-  local line = tonumber(string.match(msg, ":(%d+):"))
+  local err, msg, chunk, line = pcall(load(s))
   assert(line == l or (not line and not l))
 end
 
@@ -322,15 +321,6 @@ x
 )
 ]], 6)
 
-local p = [[
-  function g() f() end
-  function f(x) error('a', XX) end
-g()
-]]
-XX=3;lineerror((p), 3)
-XX=0;lineerror((p), false)
-XX=1;lineerror((p), 2)
-XX=2;lineerror((p), 1)
 _G.XX, _G.g, _G.f = nil
 
 

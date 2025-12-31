@@ -1121,7 +1121,7 @@ impl<'a> MatchState<'a> {
             ep_0 = Self::classend(p)?;
 
             if !self.singlematch(off, p, ep_0) {
-                if p[ep_0] == b'*' || p[ep_0] == b'?' || p[ep_0] == b'-' {
+                if p.get(ep_0).is_some_and(|b| matches!(b, b'*' | b'?' | b'-')) {
                     p = &p[(ep_0 + 1)..];
                 } else {
                     current_block = 6476622998065200121;
