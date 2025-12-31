@@ -602,6 +602,11 @@ pub fn lower<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
     Ok(cx.into())
 }
 
+/// Implementation of [string.match](https://www.lua.org/manual/5.4/manual.html#pdf-string.match).
+pub fn r#match<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    str_find_aux(cx, false)
+}
+
 /// Implementation of `__mul` metamethod for string.
 pub fn mul<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     arith(cx, "__mul", |cx, lhs, rhs| {
