@@ -213,13 +213,13 @@ pub unsafe fn luaX_newstring<D>(
 ) -> *const Str<D> {
     (*ls).g.gc.step();
 
-    // Create string.
+    // TODO: Find a better way.
     let str = core::slice::from_raw_parts(str.cast(), l);
     let mut ts = Str::from_bytes((*ls).g, str).unwrap_or_else(identity);
     let o = luaH_getstr((*ls).h.deref(), ts);
 
     if !((*o).tt_ as c_int & 0xf as c_int == 0 as c_int) {
-        ts = (*(o as *mut Node<D>)).u.key_val.gc as *mut Str<D>;
+        ts = (*(o as *mut Node<D>)).key_val.gc as *mut Str<D>;
     } else {
         let stv = UnsafeValue::from_obj(ts.cast());
 

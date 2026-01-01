@@ -383,25 +383,19 @@ impl<A> Gc<A> {
         }
         n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node<A>;
         while n < limit {
-            if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
+            if (*n).tt_ & 0xf == 0 {
                 Self::clear_key(n);
                 self.debt.update(|v| v.saturating_sub_unsigned(1));
             } else {
                 let mut marked = false;
 
-                if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0
-                    && (*(*n).u.key_val.gc).marked.get() as c_int
-                        & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                        != 0
-                {
-                    self.mark((*n).u.key_val.gc);
+                if (*n).key_tt & 1 << 6 != 0 && (*(*n).key_val.gc).marked.is_white() {
+                    self.mark((*n).key_val.gc);
                     marked = true;
                 }
 
-                if (*n).i_val.tt_ & 1 << 6 != 0
-                    && (*(*n).i_val.value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
-                {
-                    self.mark((*n).i_val.value_.gc);
+                if (*n).tt_ & 1 << 6 != 0 && (*(*n).value_.gc).marked.is_white() {
+                    self.mark((*n).value_.gc);
                     marked = true;
                 }
 
@@ -423,19 +417,19 @@ impl<A> Gc<A> {
         n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node<A>;
 
         while n < limit {
-            if (*n).i_val.tt_ & 0xf == 0 {
+            if (*n).tt_ & 0xf == 0 {
                 Self::clear_key(n);
                 self.debt.update(|v| v.saturating_sub_unsigned(1));
             } else {
-                if (*n).u.key_tt & 1 << 6 != 0 && (*(*n).u.key_val.gc).marked.is_white() {
-                    self.mark((*n).u.key_val.gc);
+                if (*n).key_tt & 1 << 6 != 0 && (*(*n).key_val.gc).marked.is_white() {
+                    self.mark((*n).key_val.gc);
                 } else {
                     self.debt.update(|v| v.saturating_sub_unsigned(1));
                 }
 
                 if hasclears == 0
-                    && self.is_cleared(if (*n).i_val.tt_ & 1 << 6 != 0 {
-                        (*n).i_val.value_.gc
+                    && self.is_cleared(if (*n).tt_ & 1 << 6 != 0 {
+                        (*n).value_.gc
                     } else {
                         null()
                     })
@@ -489,29 +483,25 @@ impl<A> Gc<A> {
             } else {
                 ((*h).node.get()).offset(i as isize) as *mut Node<A>
             };
-            if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
+
+            if (*n).tt_ & 0xf == 0 {
                 Self::clear_key(n);
                 self.debt.update(|v| v.saturating_sub_unsigned(1));
-            } else if self.is_cleared(
-                if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0 {
-                    (*n).u.key_val.gc
-                } else {
-                    null()
-                },
-            ) {
+            } else if self.is_cleared(if (*n).key_tt & 1 << 6 != 0 {
+                (*n).key_val.gc
+            } else {
+                null()
+            }) {
                 hasclears = 1 as c_int;
-                if (*n).i_val.tt_ as c_int & (1 as c_int) << 6 as c_int != 0
-                    && (*(*n).i_val.value_.gc).marked.get() as c_int
-                        & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                        != 0
-                {
+
+                if (*n).tt_ & 1 << 6 != 0 && (*(*n).value_.gc).marked.is_white() {
                     hasww = 1 as c_int;
                 }
 
                 self.debt.update(|v| v.saturating_sub_unsigned(1));
-            } else if (*n).i_val.tt_ & 1 << 6 != 0 && (*(*n).i_val.value_.gc).marked.is_white() {
+            } else if (*n).tt_ & 1 << 6 != 0 && (*(*n).value_.gc).marked.is_white() {
                 marked = true;
-                self.mark((*n).i_val.value_.gc);
+                self.mark((*n).value_.gc);
             } else {
                 self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
@@ -861,16 +851,15 @@ impl<A> Gc<A> {
             self.debt.update(|v| v.saturating_sub_unsigned(1));
 
             while n < limit {
-                if self.is_cleared(
-                    if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0 {
-                        (*n).u.key_val.gc
-                    } else {
-                        0 as *mut Object<A>
-                    },
-                ) {
-                    (*n).i_val.tt_ = (0 as c_int | (1 as c_int) << 4 as c_int) as u8;
+                if self.is_cleared(if (*n).key_tt & 1 << 6 != 0 {
+                    (*n).key_val.gc
+                } else {
+                    null()
+                }) {
+                    (*n).tt_ = 0 | 1 << 4;
                 }
-                if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
+
+                if (*n).tt_ & 0xf == 0 {
                     Self::clear_key(n);
                 }
 
@@ -915,16 +904,15 @@ impl<A> Gc<A> {
             n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node<A>;
 
             while n < limit {
-                if self.is_cleared(
-                    if (*n).i_val.tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {
-                        (*n).i_val.value_.gc
-                    } else {
-                        null()
-                    },
-                ) {
-                    (*n).i_val.tt_ = (0 as c_int | (1 as c_int) << 4 as c_int) as u8;
+                if self.is_cleared(if (*n).tt_ & 1 << 6 != 0 {
+                    (*n).value_.gc
+                } else {
+                    null()
+                }) {
+                    (*n).tt_ = 0 | 1 << 4;
                 }
-                if (*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int {
+
+                if (*n).tt_ & 0xf == 0 {
                     Self::clear_key(n);
                 }
 
@@ -938,8 +926,8 @@ impl<A> Gc<A> {
     }
 
     unsafe fn clear_key(n: *mut Node<A>) {
-        if (*n).u.key_tt as c_int & (1 as c_int) << 6 as c_int != 0 {
-            (*n).u.key_tt = 11;
+        if (*n).key_tt & 1 << 6 != 0 {
+            (*n).key_tt = 11;
         }
     }
 

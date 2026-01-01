@@ -158,31 +158,30 @@ unsafe fn mainpositionTV<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *
 }
 
 unsafe fn mainpositionfromnode<D>(t: *const Table<D>, nd: *mut Node<D>) -> *mut Node<D> {
-    let mut key = UnsafeValue::default();
-    let io_ = &raw mut key;
-    let n_ = nd;
-    (*io_).value_ = (*n_).u.key_val;
-    (*io_).tt_ = (*n_).u.key_tt;
+    let mut key = UnsafeValue {
+        tt_: (*nd).key_tt,
+        value_: (*nd).key_val,
+    };
+
     return mainpositionTV(t, &mut key);
 }
 
 unsafe fn equalkey<D>(k1: *const UnsafeValue<D>, n2: *const Node<D>, deadok: c_int) -> c_int {
-    if (*k1).tt_ != (*n2).u.key_tt
-        && !(deadok != 0 && (*n2).u.key_tt == 11 && (*k1).tt_ & 1 << 6 != 0)
+    if (*k1).tt_ != (*n2).key_tt && !(deadok != 0 && (*n2).key_tt == 11 && (*k1).tt_ & 1 << 6 != 0)
     {
         return 0 as c_int;
     }
 
-    match (*n2).u.key_tt {
+    match (*n2).key_tt {
         0 | 1 | 17 => 1,
-        3 => ((*k1).value_.i == (*n2).u.key_val.i) as c_int,
-        19 => ((*k1).value_.n == (*n2).u.key_val.n) as c_int,
-        0x02 => core::ptr::fn_addr_eq((*k1).value_.f, (*n2).u.key_val.f) as c_int,
-        0x12 => core::ptr::fn_addr_eq((*k1).value_.y, (*n2).u.key_val.y) as c_int,
-        0x22 => core::ptr::fn_addr_eq((*k1).value_.a, (*n2).u.key_val.a) as c_int,
+        3 => ((*k1).value_.i == (*n2).key_val.i) as c_int,
+        19 => ((*k1).value_.n == (*n2).key_val.n) as c_int,
+        0x02 => core::ptr::fn_addr_eq((*k1).value_.f, (*n2).key_val.f) as c_int,
+        0x12 => core::ptr::fn_addr_eq((*k1).value_.y, (*n2).key_val.y) as c_int,
+        0x22 => core::ptr::fn_addr_eq((*k1).value_.a, (*n2).key_val.a) as c_int,
         0x32 => todo!(),
         0x44 => {
-            let n2 = (*n2).u.key_val.gc.cast::<Str<D>>();
+            let n2 = (*n2).key_val.gc.cast::<Str<D>>();
 
             if (*n2).is_short() {
                 ((*k1).value_.gc.cast() == n2) as c_int
@@ -190,7 +189,7 @@ unsafe fn equalkey<D>(k1: *const UnsafeValue<D>, n2: *const Node<D>, deadok: c_i
                 luaS_eqlngstr((*k1).value_.gc.cast(), n2).into()
             }
         }
-        _ => ((*k1).value_.gc == (*n2).u.key_val.gc) as c_int,
+        _ => ((*k1).value_.gc == (*n2).key_val.gc) as c_int,
     }
 }
 
@@ -234,9 +233,9 @@ unsafe fn getgeneric<A>(
     let mut n = mainpositionTV(t, key);
     loop {
         if equalkey::<A>(key, n, deadok) != 0 {
-            return &raw const (*n).i_val;
+            return n.cast();
         } else {
-            let nx: c_int = (*n).u.next;
+            let nx: c_int = (*n).next;
             if nx == 0 as c_int {
                 return &raw const (*t).absent_key;
             }
@@ -391,9 +390,10 @@ unsafe fn numusehash<D>(t: *const Table<D>, nums: *mut c_uint, pna: *mut c_uint)
             break;
         }
         let n = ((*t).node.get()).offset(i as isize) as *mut Node<D>;
-        if !((*n).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int) {
-            if (*n).u.key_tt as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
-                ause += countint::<D>((*n).u.key_val.i, nums);
+
+        if !((*n).tt_ & 0xf == 0) {
+            if (*n).key_tt == 3 | 0 << 4 {
+                ause += countint::<D>((*n).key_val.i, nums);
             }
             totaluse += 1;
         }
@@ -451,9 +451,11 @@ unsafe fn setnodevector<D>(t: *const Table<D>, mut size: c_uint) {
         i = 0 as c_int;
         while i < size as c_int {
             let n = ((*t).node.get()).offset(i as isize) as *mut Node<D>;
-            (*n).u.next = 0 as c_int;
-            (*n).u.key_tt = 0 as c_int as u8;
-            (*n).i_val.tt_ = (0 as c_int | (1 as c_int) << 4 as c_int) as u8;
+
+            (*n).next = 0;
+            (*n).key_tt = 0;
+            (*n).tt_ = 0 | 1 << 4;
+
             i += 1;
         }
         (*t).lsizenode.set(lsize as u8);
@@ -469,15 +471,16 @@ unsafe fn reinsert<D>(ot: *const Table<D>, t: *const Table<D>) {
 
     while j < size {
         let old = ((*ot).node.get()).offset(j as isize) as *mut Node<D>;
-        if !((*old).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int) {
+
+        if !((*old).tt_ & 0xf == 0) {
             let mut k = UnsafeValue::default();
             let io_ = &raw mut k;
             let n_ = old;
-            (*io_).value_ = (*n_).u.key_val;
-            (*io_).tt_ = (*n_).u.key_tt;
+            (*io_).value_ = (*n_).key_val;
+            (*io_).tt_ = (*n_).key_tt;
 
             // Key already valid so this should never fails.
-            luaH_set(t, &raw const k, &raw const (*old).i_val).unwrap();
+            luaH_set(t, &raw const k, old.cast()).unwrap();
         }
         j += 1;
     }
@@ -607,7 +610,7 @@ unsafe fn getfreepos<D>(t: *const Table<D>) -> *mut Node<D> {
         while (*t).lastfree.get() > (*t).node.get() {
             (*t).lastfree.set(((*t).lastfree.get()).offset(-1));
 
-            if (*(*t).lastfree.get()).u.key_tt as c_int == 0 as c_int {
+            if (*(*t).lastfree.get()).key_tt == 0 {
                 return (*t).lastfree.get();
             }
         }
@@ -648,7 +651,7 @@ unsafe fn luaH_newkey<D>(
 
     mp = mainpositionTV(t, key);
 
-    if !((*mp).i_val.tt_ as c_int & 0xf as c_int == 0 as c_int) || ((*t).lastfree.get()).is_null() {
+    if !((*mp).tt_ & 0xf == 0) || (*t).lastfree.get().is_null() {
         let mut othern = null_mut();
         let f_0 = getfreepos(t);
         if f_0.is_null() {
@@ -658,29 +661,31 @@ unsafe fn luaH_newkey<D>(
         }
         othern = mainpositionfromnode(t, mp);
         if othern != mp {
-            while othern.offset((*othern).u.next as isize) != mp {
-                othern = othern.offset((*othern).u.next as isize);
+            while othern.offset((*othern).next as isize) != mp {
+                othern = othern.offset((*othern).next as isize);
             }
-            (*othern).u.next = f_0.offset_from(othern) as c_long as c_int;
+
+            (*othern).next = f_0.offset_from(othern) as c_long as c_int;
             *f_0 = *mp;
-            if (*mp).u.next != 0 as c_int {
-                (*f_0).u.next += mp.offset_from(f_0) as c_long as c_int;
-                (*mp).u.next = 0 as c_int;
+
+            if (*mp).next != 0 {
+                (*f_0).next += mp.offset_from(f_0) as c_long as c_int;
+                (*mp).next = 0;
             }
-            (*mp).i_val.tt_ = (0 as c_int | (1 as c_int) << 4 as c_int) as u8;
+
+            (*mp).tt_ = 0 | 1 << 4;
         } else {
-            if (*mp).u.next != 0 as c_int {
-                (*f_0).u.next =
-                    mp.offset((*mp).u.next as isize).offset_from(f_0) as c_long as c_int;
+            if (*mp).next != 0 {
+                (*f_0).next = mp.offset((*mp).next as isize).offset_from(f_0) as c_long as c_int;
             }
-            (*mp).u.next = f_0.offset_from(mp) as c_long as c_int;
+
+            (*mp).next = f_0.offset_from(mp) as c_long as c_int;
             mp = f_0;
         }
     }
-    let n_ = mp;
-    let io_ = key;
-    (*n_).u.key_val = (*io_).value_;
-    (*n_).u.key_tt = (*io_).tt_;
+
+    (*mp).key_tt = (*key).tt_;
+    (*mp).key_val = (*key).value_;
 
     if (*key).tt_ as c_int & (1 as c_int) << 6 as c_int != 0 {
         if (*t).hdr.marked.get() as c_int & (1 as c_int) << 5 as c_int != 0
@@ -692,10 +697,9 @@ unsafe fn luaH_newkey<D>(
         }
     }
 
-    let io1 = &raw mut (*mp).i_val;
-    let io2 = value;
-    (*io1).value_ = (*io2).value_;
-    (*io1).tt_ = (*io2).tt_;
+    (*mp).tt_ = (*value).tt_;
+    (*mp).value_ = (*value).value_;
+
     Ok(())
 }
 
@@ -723,10 +727,10 @@ unsafe fn luaH_searchint<A>(t: *const Table<A>, key: i64) -> *const UnsafeValue<
     let mut n = hashint(t, key);
 
     loop {
-        if (*n).u.key_tt == 3 | 0 << 4 && (*n).u.key_val.i == key {
-            return &raw const (*n).i_val;
+        if (*n).key_tt == 3 | 0 << 4 && (*n).key_val.i == key {
+            return n.cast();
         } else {
-            let nx = (*n).u.next;
+            let nx = (*n).next;
 
             if nx == 0 {
                 break;
@@ -745,10 +749,11 @@ pub unsafe fn luaH_getshortstr<A>(t: *const Table<A>, key: *const Str<A>) -> *co
         ((*t).node.get()).offset(((*key).hash.get() & ((1 << (*t).lsizenode.get()) - 1)) as isize);
 
     loop {
-        if (*n).u.key_tt == 4 | 0 << 4 | 1 << 6 && (*n).u.key_val.gc.cast() == key {
-            return &mut (*n).i_val;
+        if (*n).key_tt == 4 | 0 << 4 | 1 << 6 && (*n).key_val.gc.cast() == key {
+            return n.cast();
         } else {
-            let nx: c_int = (*n).u.next;
+            let nx = (*n).next;
+
             if nx == 0 as c_int {
                 return &raw const (*t).absent_key;
             }
@@ -784,14 +789,14 @@ pub unsafe fn luaH_getid<A>(t: *const Table<A>, k: &TypeId) -> *const UnsafeValu
 
     loop {
         // Check key.
-        if (*n).u.key_tt == 14 | 0 << 4 | 1 << 6
-            && (*(*n).u.key_val.gc.cast::<RustId<A>>()).value() == k
+        if (*n).key_tt == 14 | 0 << 4 | 1 << 6
+            && (*(*n).key_val.gc.cast::<RustId<A>>()).value() == k
         {
-            return &raw const (*n).i_val;
+            return n.cast();
         }
 
         // Get next node.
-        let nx = (*n).u.next;
+        let nx = (*n).next;
 
         if nx == 0 {
             break;

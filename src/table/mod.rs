@@ -463,13 +463,20 @@ impl<A> Table<A> {
         while i < (1 << self.lsizenode.get()) {
             let n = unsafe { self.node.get().add(i.try_into().unwrap()) };
 
-            if unsafe { !((*n).i_val.tt_ & 0xf == 0) } {
-                let key = UnsafeValue {
-                    value_: unsafe { (*n).u.key_val },
-                    tt_: unsafe { (*n).u.key_tt },
+            if unsafe { !((*n).tt_ & 0xf == 0) } {
+                // Copy key.
+                let k = UnsafeValue {
+                    tt_: unsafe { (*n).key_tt },
+                    value_: unsafe { (*n).key_val },
                 };
 
-                return Ok(unsafe { Some([key, (*n).i_val]) });
+                // Copy value.
+                let v = UnsafeValue {
+                    tt_: unsafe { (*n).tt_ },
+                    value_: unsafe { (*n).value_ },
+                };
+
+                return Ok(Some([k, v]));
             }
 
             i = i + 1;

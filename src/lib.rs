@@ -364,13 +364,11 @@ impl<A> Lua<A> {
             l_registry: UnsafeCell::new(Nil.into()),
             nilvalue: UnsafeCell::new(Nil.into()),
             dummy_node: Node {
-                u: NodeKey {
-                    value_: UntaggedValue { gc: null() },
-                    tt_: 0 | 1 << 4,
-                    key_tt: 0 | 0 << 4,
-                    next: 0,
-                    key_val: UntaggedValue { gc: null() },
-                },
+                tt_: 0 | 1 << 4,
+                key_tt: 0 | 0 << 4,
+                value_: UntaggedValue { i: 0 },
+                next: 0,
+                key_val: UntaggedValue { i: 0 },
             },
             seed,
             modules_locked: Cell::new(false),
