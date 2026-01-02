@@ -195,6 +195,7 @@ impl<A> Module<A> for StrLib {
         m.set_str_key("len", fp!(self::string::len));
         m.set_str_key("lower", fp!(self::string::lower));
         m.set_str_key("match", fp!(self::string::r#match));
+        m.set_str_key("pack", fp!(self::string::pack));
         m.set_str_key("packsize", fp!(self::string::packsize));
         m.set_str_key("rep", fp!(self::string::rep));
         m.set_str_key("reverse", fp!(self::string::reverse));

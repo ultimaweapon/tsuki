@@ -12,6 +12,8 @@ use core::iter::Peekable;
 use core::num::NonZero;
 use memchr::memchr;
 
+mod pack;
+
 /// Implementation of `__add` metamethod for string.
 pub fn add<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     arith(cx, "__add", |cx, lhs, rhs| {
@@ -621,6 +623,154 @@ pub fn mul<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
 /// Implementation of `__unm` metamethod for string.
 pub fn negate<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     arith(cx, "__unm", |cx, v, _| cx.push_neg(v).map(|_| ()))
+}
+
+/// Implementation of [string.pack](https://www.lua.org/manual/5.4/manual.html#pdf-string.pack).
+pub fn pack<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    // Check if UTF-8.
+    let arg = cx.arg(1);
+    let fmt = arg
+        .to_str()?
+        .as_utf8()
+        .ok_or_else(|| arg.error("expect UTF-8 string"))?;
+
+    // Parse.
+    let mut fmt = fmt.chars().take_while(|&c| c != '\0').peekable();
+    let mut h = Header::new();
+    let mut next = 1;
+    let mut totalsize = 0;
+    let mut b = Vec::new();
+
+    while let Some(first) = fmt.next() {
+        // Parse format.
+        let mut ntoalign = 0;
+        let opt = h
+            .getdetails(totalsize, first, &mut fmt, &mut ntoalign)
+            .map_err(|e| arg.error(e))?;
+
+        for _ in 0..ntoalign {
+            b.push(0);
+        }
+
+        next += 1;
+
+        // Process.
+        let arg = cx.arg(next);
+
+        totalsize += ntoalign;
+        totalsize += match opt {
+            Pack::Signed(size) => {
+                let n = arg.to_int()?;
+
+                if size < size_of::<i64>() {
+                    let lim = 1i64 << size * 8 - 1;
+
+                    if !(-lim <= n && n < lim) {
+                        return Err(arg.error("integer overflow"));
+                    }
+                }
+
+                self::pack::packint(&mut b, n as u64, h.islittle, size, n < 0);
+
+                size
+            }
+            Pack::Unsigned(size) => {
+                let n = arg.to_int()?;
+
+                if size < size_of::<i64>() {
+                    if !((n as u64) < 1u64 << size * 8) {
+                        return Err(arg.error("unsigned overflow"));
+                    }
+                }
+
+                self::pack::packint(&mut b, n as u64, h.islittle, size, false);
+
+                size
+            }
+            Pack::Float(size) => {
+                let f = arg.to_float()?.0 as c_float;
+
+                self::pack::copywithendian(&mut b, f.to_ne_bytes(), h.islittle);
+
+                size
+            }
+            Pack::Double(size) => {
+                let f = arg.to_float()?.0 as c_double;
+
+                self::pack::copywithendian(&mut b, f.to_ne_bytes(), h.islittle);
+
+                size
+            }
+            Pack::Number(size) => {
+                let Float(f) = arg.to_float()?;
+
+                self::pack::copywithendian(&mut b, f.to_ne_bytes(), h.islittle);
+
+                size
+            }
+            Pack::Char(size) => {
+                let s = arg.to_str()?;
+                let len = s.len();
+
+                if len > size {
+                    return Err(arg.error("string longer than given size"));
+                }
+
+                b.extend_from_slice(s.as_bytes());
+
+                for _ in len..size {
+                    b.push(0);
+                }
+
+                size
+            }
+            Pack::Str(Some(size)) => {
+                let s = arg.to_str()?;
+                let len = s.len();
+
+                if !(size >= size_of::<usize>() || len < (1usize) << size * 8) {
+                    return Err(arg.error("string length does not fit in given size"));
+                }
+
+                self::pack::packint(&mut b, len as u64, h.islittle, size, false);
+
+                b.extend_from_slice(s.as_bytes());
+
+                size + len
+            }
+            Pack::Str(None) => {
+                let s = arg.to_str()?;
+                let len = s.len();
+                let s = s.as_bytes();
+
+                if memchr(0, s).is_some() {
+                    return Err(arg.error("string contains zeros"));
+                }
+
+                b.extend_from_slice(s);
+                b.push(0);
+
+                len + 1
+            }
+            Pack::Padding(size) => {
+                for _ in 0..size {
+                    b.push(0);
+                }
+
+                next -= 1;
+
+                size
+            }
+            Pack::PadAlign | Pack::Nop => {
+                next -= 1;
+                0
+            }
+        };
+    }
+
+    cx.push_bytes(b)?;
+
+    Ok(cx.into())
 }
 
 /// Implementation of [string.packsize](https://www.lua.org/manual/5.4/manual.html#pdf-string.packsize).
