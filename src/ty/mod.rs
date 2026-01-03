@@ -28,10 +28,11 @@ pub enum Type {
 
 impl Type {
     /// # Panics
-    /// If `v` is upvalue, proto or invalid.
+    /// If `v` is non-public type or invalid.
+    #[inline(always)]
     pub(crate) const fn from_tt(v: u8) -> Self {
-        // TODO: Verify if this optimized away since the value of each variant is the same. If not
-        // we need to transmute.
+        // The match will optimized away since the value of each variant is the same. The generated
+        // code is it will compare if the value greater than 8.
         match v & 0xf {
             0 => Self::Nil,
             1 => Self::Boolean,
@@ -42,6 +43,14 @@ impl Type {
             6 => Self::Fn,
             7 => Self::UserData,
             8 => Self::Thread,
+            v => Self::invalid_tt(v),
+        }
+    }
+
+    #[cold]
+    #[inline(never)]
+    const fn invalid_tt(v: u8) -> ! {
+        match v {
             9 => panic!("upvalue cannot expose to external"),
             10 => panic!("function prototype cannot expose to external"),
             _ => panic!("unknown type"),
@@ -50,6 +59,7 @@ impl Type {
 }
 
 impl Display for Type {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         let v = match self {
             Self::Nil => "nil",
