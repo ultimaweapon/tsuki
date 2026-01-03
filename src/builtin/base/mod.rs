@@ -197,11 +197,29 @@ pub fn pcall<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 pub fn print<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     use std::io::Write;
+    use std::println;
+
+    // Fast path for zero or one argument.
+    let mut args = match cx.args() {
+        0 => {
+            println!();
+
+            return Ok(cx.into());
+        }
+        1 => {
+            let v = cx.arg(1).display()?;
+            let mut s = std::io::stdout().lock();
+
+            s.write_all(v.as_bytes())?;
+            writeln!(s)?;
+
+            return Ok(cx.into());
+        }
+        n => Vec::with_capacity(n),
+    };
 
     // We can't print while converting the arguments to string since it can call into arbitrary
     // function, which may lock stdout.
-    let mut args = Vec::with_capacity(cx.args());
-
     for i in 1..=cx.args() {
         args.push(cx.arg(i).display()?);
     }
