@@ -1142,7 +1142,7 @@ impl From<Buffer> for Vec<u8> {
     }
 }
 
-/// Represents an error when [`Fp`] or [`AsyncFp`] return an error.
+/// Contains information how [Fp], [AsyncFp] or [YieldFp] fails.
 #[derive(Debug)]
 pub struct CallError {
     chunk: Option<(Rc<String>, u32)>,
@@ -1200,6 +1200,11 @@ impl CallError {
     /// Returns chunk name and line number if this error triggered from Lua.
     pub fn location(&self) -> Option<(&str, u32)> {
         self.chunk.as_ref().map(|(n, l)| (n.as_str(), *l))
+    }
+
+    /// Returns error that was originate from [Fp], [AsyncFp] or [YieldFp].
+    pub fn reason(&self) -> &dyn Error {
+        self.reason.deref()
     }
 }
 

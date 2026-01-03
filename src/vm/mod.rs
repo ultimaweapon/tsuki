@@ -4086,9 +4086,10 @@ pub async unsafe fn run<A>(
 
                     // Fast path for majority of the cases.
                     match (*ra).tt_ & 0x3f {
-                        0x02 => {
-                            call_fp(th, ra, nresults, (*ra).value_.f).await?;
-                        }
+                        0x02 => match call_fp(th, ra, nresults, (*ra).value_.f).await {
+                            Ok(_) => (),
+                            Err(e) => return Err(e),
+                        },
                         0x06 => match setup_lua_ci(th, ra, nresults) {
                             Ok(v) => {
                                 ci = v;
@@ -4097,7 +4098,10 @@ pub async unsafe fn run<A>(
                             Err(e) => return Err(Box::new(e)),
                         },
                         _ => {
-                            let newci = luaD_precall(th, ra, nresults).await?;
+                            let newci = match luaD_precall(th, ra, nresults).await {
+                                Ok(v) => v,
+                                Err(e) => return Err(e),
+                            };
 
                             if !newci.is_null() {
                                 ci = newci;
@@ -4143,12 +4147,18 @@ pub async unsafe fn run<A>(
 
                     // Fast path for majority of the cases.
                     let n_2 = match (*ra).tt_ & 0x3f {
-                        0x02 => call_fp(th, ra, -1, (*ra).value_.f).await?,
+                        0x02 => match call_fp(th, ra, -1, (*ra).value_.f).await {
+                            Ok(v) => v,
+                            Err(e) => return Err(e),
+                        },
                         0x06 => match setup_tailcall_ci(th, ci, ra, b_5, delta) {
                             Ok(_) => continue 'top,
                             Err(e) => return Err(Box::new(e)),
                         },
-                        _ => luaD_pretailcall(th, ci, ra, b_5, delta).await?,
+                        _ => match luaD_pretailcall(th, ci, ra, b_5, delta).await {
+                            Ok(v) => v,
+                            Err(e) => return Err(e),
+                        },
                     };
 
                     if n_2 < 0 {

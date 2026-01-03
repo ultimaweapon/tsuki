@@ -336,41 +336,45 @@ pub async unsafe fn luaD_precall<D>(
 ) -> Result<*mut CallInfo, Box<dyn Error>> {
     loop {
         match (*func).tt_ & 0x3f {
-            0x02 => {
-                call_fp(&*L, func, nresults, (*func).value_.f).await?;
-                return Ok(null_mut());
-            }
+            0x02 => match call_fp(&*L, func, nresults, (*func).value_.f).await {
+                Ok(_) => return Ok(null_mut()),
+                Err(e) => return Err(e),
+            },
             0x12 => {
-                YieldInvoker {
+                let f = YieldInvoker {
                     th: &*L,
                     func,
                     nresults,
                     fp: (*func).value_.y,
                     ci: null_mut(),
-                }
-                .await?;
+                };
 
-                return Ok(null_mut());
+                match f.await {
+                    Ok(_) => return Ok(null_mut()),
+                    Err(e) => return Err(e),
+                }
             }
-            0x22 => {
-                call_async_fp(&*L, func, nresults, (*func).value_.a).await?;
-                return Ok(null_mut());
-            }
+            0x22 => match call_async_fp(&*L, func, nresults, (*func).value_.a).await {
+                Ok(_) => return Ok(null_mut()),
+                Err(e) => return Err(e),
+            },
             0x32 => todo!(),
             0x06 => match setup_lua_ci(L, func, nresults) {
                 Ok(v) => return Ok(v),
                 Err(e) => return Err(Box::new(e)),
             },
             0x26 => {
-                call_fp(
+                match call_fp(
                     &*L,
                     func,
                     nresults,
                     (*((*func).value_.gc as *mut CClosure<D>)).f,
                 )
-                .await?;
-
-                return Ok(null_mut());
+                .await
+                {
+                    Ok(_) => return Ok(null_mut()),
+                    Err(e) => return Err(e),
+                }
             }
             _ => func = tryfuncTM(L, func)?,
         }
@@ -595,7 +599,10 @@ pub async unsafe fn call_fp<A>(
     let ci = get_ci(L, func, nresults, 1 << 1, top);
     let narg = top.offset_from_unsigned(func) - 1;
     let cx = Context::new(L, Args::new(narg)).await;
-    let cx = fp(cx)?;
+    let cx = match fp(cx) {
+        Ok(v) => v,
+        Err(e) => return Err(e),
+    };
 
     // Get number of results.
     let n = cx.results().try_into().unwrap();
@@ -618,7 +625,11 @@ async unsafe fn call_async_fp<A>(
     let ci = get_ci(L, func, nresults, 1 << 1, top);
     let narg = top.offset_from_unsigned(func) - 1;
     let cx = Context::new(L, Args::new(narg)).await;
-    let cx = AsyncInvoker { f: fp(cx) }.await?;
+    let f = AsyncInvoker { f: fp(cx) };
+    let cx = match f.await {
+        Ok(v) => v,
+        Err(e) => return Err(e),
+    };
 
     // Get number of results.
     let n = cx.results().try_into().unwrap();
@@ -730,8 +741,10 @@ impl<'a, A> Future for YieldInvoker<'a, A> {
                 };
 
                 // Invoke.
-                let cx = (self.fp)(cx)?;
-                let ret = cx.results();
+                let ret = match (self.fp)(cx) {
+                    Ok(v) => v.results(),
+                    Err(e) => return Poll::Ready(Err(e)),
+                };
 
                 self.th.yielding.set(Some(ret));
                 self.ci = ci;
