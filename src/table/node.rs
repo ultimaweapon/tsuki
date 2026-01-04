@@ -5,15 +5,15 @@ use core::ffi::c_int;
 pub(crate) struct Node<A> {
     pub tt_: u8,
     pub key_tt: u8,
-    pub value_: UntaggedValue<A>,
     pub next: c_int,
+    pub value_: UntaggedValue<A>,
     pub key_val: UntaggedValue<A>,
 }
 
-impl<D> Clone for Node<D> {
+impl<A> Clone for Node<A> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<D> Copy for Node<D> {}
+impl<A> Copy for Node<A> {}

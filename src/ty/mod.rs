@@ -53,6 +53,9 @@ impl Type {
         match v {
             9 => panic!("upvalue cannot expose to external"),
             10 => panic!("function prototype cannot expose to external"),
+            11 => panic!("table dead key cannot expose to external"),
+            14 => panic!("value with Rust type cannot expose to external"),
+            15 => panic!("sweep mark cannot expose to external"),
             _ => panic!("unknown type"),
         }
     }
