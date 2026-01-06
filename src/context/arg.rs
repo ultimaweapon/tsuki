@@ -273,7 +273,7 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
     /// behavior.
     #[inline(always)]
     pub fn get_str(&self) -> Result<&'a Str<A>, Box<dyn core::error::Error>> {
-        let expect = lua_typename(4);
+        let expect = Type::String;
         let v = self.get_raw(expect)?;
 
         match unsafe { (*v).tt_ & 0xf } {
@@ -284,7 +284,7 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
 
     /// Checks if this argument is a string and return it.
     ///
-    /// This method returns [`None`] in the following cases:
+    /// This method returns [None] in the following cases:
     ///
     /// - This argument is `nil`.
     /// - This argument does not exists and `required` is `false`.
@@ -573,10 +573,12 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
     /// This has the same semantic as `luaL_checklstring`, which mean it will convert the argument
     /// **in-place** if it is a number.
     ///
+    /// You can use [Self::to_utf8()] if you want Rust [str] instead of Lua [Str].
+    ///
     /// This method will trigger GC if new string is allocated.
     #[inline(always)]
     pub fn to_str(&self) -> Result<&'a Str<A>, Box<dyn core::error::Error>> {
-        let expect = lua_typename(4);
+        let expect = Type::String;
         let v = self.get_raw(expect)?;
 
         match unsafe { (*v).tt_ & 0xf } {
@@ -595,6 +597,8 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
     ///
     /// This has the same semantic as `luaL_checklstring`, which mean it will convert the argument
     /// **in-place** if it is a number.
+    ///
+    /// You can use [Self::to_nilable_utf8()] if you want Rust [str] instead of Lua [Str].
     ///
     /// This method will trigger GC if new string is allocated.
     #[inline(always)]
@@ -644,6 +648,40 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
         }
 
         r
+    }
+
+    /// Checks if this argument is a UTF-8 string or number and return it as string.
+    ///
+    /// This has the same semantic as `luaL_checklstring`, which mean it will convert the argument
+    /// **in-place** if it is a number.
+    ///
+    /// This method will trigger GC if new string is allocated.
+    #[inline(always)]
+    pub fn to_utf8(&self) -> Result<&'a str, Box<dyn core::error::Error>> {
+        self.to_str()?
+            .as_utf8()
+            .ok_or_else(|| self.error("expect UTF-8 string"))
+    }
+
+    /// Checks if this argument is a UTF-8 string or number and return it as string.
+    ///
+    /// This method returns [None] in the following cases:
+    ///
+    /// - This argument is `nil`.
+    /// - This argument does not exists and `required` is `false`.
+    ///
+    /// This has the same semantic as `luaL_checklstring`, which mean it will convert the argument
+    /// **in-place** if it is a number.
+    ///
+    /// This method will trigger GC if new string is allocated.
+    #[inline(always)]
+    pub fn to_nilable_utf8(
+        &self,
+        required: bool,
+    ) -> Result<Option<&'a str>, Box<dyn core::error::Error>> {
+        self.to_nilable_str(required)?
+            .map(|s| s.as_utf8().ok_or_else(|| self.error("expect UTF-8 string")))
+            .transpose()
     }
 
     /// Gets the argument and convert it to Lua string suitable for display.
