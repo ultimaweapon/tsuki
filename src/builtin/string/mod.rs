@@ -687,26 +687,26 @@ pub fn pack<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
 
                 size
             }
-            Pack::Float(size) => {
+            Pack::Float => {
                 let f = arg.to_float()?.0 as c_float;
 
-                self::pack::copywithendian(&mut b, f.to_ne_bytes(), h.islittle);
+                self::pack::extend_with_endian(&mut b, f.to_ne_bytes(), h.islittle);
 
-                size
+                size_of::<c_float>()
             }
-            Pack::Double(size) => {
+            Pack::Double => {
                 let f = arg.to_float()?.0 as c_double;
 
-                self::pack::copywithendian(&mut b, f.to_ne_bytes(), h.islittle);
+                self::pack::extend_with_endian(&mut b, f.to_ne_bytes(), h.islittle);
 
-                size
+                size_of::<c_double>()
             }
-            Pack::Number(size) => {
+            Pack::Number => {
                 let Float(f) = arg.to_float()?;
 
-                self::pack::copywithendian(&mut b, f.to_ne_bytes(), h.islittle);
+                self::pack::extend_with_endian(&mut b, f.to_ne_bytes(), h.islittle);
 
-                size
+                size_of::<f64>()
             }
             Pack::Char(size) => {
                 let s = arg.to_str()?;
@@ -797,9 +797,9 @@ pub fn packsize<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core
         {
             Pack::Signed(v) => v,
             Pack::Unsigned(v) => v,
-            Pack::Float(v) => v,
-            Pack::Double(v) => v,
-            Pack::Number(v) => v,
+            Pack::Float => size_of::<c_float>(),
+            Pack::Double => size_of::<c_double>(),
+            Pack::Number => size_of::<f64>(),
             Pack::Char(v) => v,
             Pack::Str(_) => return Err(arg.error("variable-length format")),
             Pack::Padding(v) => v,
@@ -934,6 +934,143 @@ pub fn subtract<D>(cx: Context<D, Args>) -> Result<Context<D, Ret>, Box<dyn core
     arith(cx, "__sub", |cx, lhs, rhs| {
         cx.push_sub(lhs, rhs).map(|_| ())
     })
+}
+
+/// Implementation of [string.unpack](https://www.lua.org/manual/5.4/manual.html#pdf-string.unpack).
+pub fn unpack<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let fmt = cx.arg(1).to_utf8()?;
+    let arg = cx.arg(2);
+    let data = arg.to_str()?.as_bytes();
+    let pos = cx.arg(3);
+    let ld = data.len();
+    let mut pos = match posrelatI(pos.to_nilable_int(false)?.unwrap_or(1), ld as i64).get() - 1 {
+        v if v > (ld as u64) => return Err(pos.error("initial position out of string")),
+        v => v as usize,
+    };
+
+    // Parse.
+    let mut fmt = fmt.chars().take_while(|&c| c != '\0').peekable();
+    let mut h = Header::new();
+
+    while let Some(first) = fmt.next() {
+        let mut ntoalign = 0;
+        let opt = h.getdetails(pos, first, &mut fmt, &mut ntoalign)?;
+
+        pos += ntoalign;
+        pos += match opt {
+            Pack::Signed(size) => {
+                let res = data
+                    .get(pos..(pos + size))
+                    .ok_or_else(|| "data string too short".into())
+                    .and_then(|v| self::pack::unpackint(v, h.islittle, true))
+                    .map_err(|e| arg.error(e))?;
+
+                cx.push(res)?;
+
+                size
+            }
+            Pack::Unsigned(size) => {
+                let res = data
+                    .get(pos..(pos + size))
+                    .ok_or_else(|| "data string too short".into())
+                    .and_then(|v| self::pack::unpackint(v, h.islittle, false))
+                    .map_err(|e| arg.error(e))?;
+
+                cx.push(res)?;
+
+                size
+            }
+            Pack::Float => {
+                let mut data: [u8; size_of::<c_float>()] = data
+                    .get(pos..(pos + size_of::<c_float>()))
+                    .ok_or_else(|| arg.error("data string too short"))?
+                    .try_into()
+                    .unwrap();
+
+                if h.islittle != cfg!(target_endian = "little") {
+                    data.reverse();
+                }
+
+                cx.push(c_float::from_ne_bytes(data))?;
+
+                size_of::<c_float>()
+            }
+            Pack::Number => {
+                let mut data: [u8; size_of::<f64>()] = data
+                    .get(pos..(pos + size_of::<f64>()))
+                    .ok_or_else(|| arg.error("data string too short"))?
+                    .try_into()
+                    .unwrap();
+
+                if h.islittle != cfg!(target_endian = "little") {
+                    data.reverse();
+                }
+
+                cx.push(f64::from_ne_bytes(data))?;
+
+                size_of::<f64>()
+            }
+            Pack::Double => {
+                let mut data: [u8; size_of::<c_double>()] = data
+                    .get(pos..(pos + size_of::<c_double>()))
+                    .ok_or_else(|| arg.error("data string too short"))?
+                    .try_into()
+                    .unwrap();
+
+                if h.islittle != cfg!(target_endian = "little") {
+                    data.reverse();
+                }
+
+                cx.push(c_double::from_ne_bytes(data))?;
+
+                size_of::<c_double>()
+            }
+            Pack::Char(size) => {
+                let data = data
+                    .get(pos..(pos + size))
+                    .ok_or_else(|| arg.error("data string too short"))?;
+
+                cx.push_bytes(data)?;
+
+                size
+            }
+            Pack::Str(Some(size)) => {
+                let len = data
+                    .get(pos..(pos + size))
+                    .ok_or_else(|| "data string too short".into())
+                    .and_then(|v| self::pack::unpackint(v, h.islittle, false))
+                    .map_err(|e| arg.error(e))? as usize;
+                let data = data
+                    .get((pos + size)..)
+                    .and_then(move |v| v.get(..len))
+                    .ok_or_else(|| arg.error("data string too short"))?;
+
+                cx.push_bytes(data)?;
+
+                size + len
+            }
+            Pack::Str(None) => {
+                let data = data
+                    .get(pos..)
+                    .ok_or_else(|| "data string too short".into())
+                    .and_then(|v| match memchr(0, v) {
+                        Some(i) => Ok(unsafe { v.get_unchecked(..i) }),
+                        None => Err("unfinished string for format 'z'".into()),
+                    })
+                    .map_err(|e: Box<dyn core::error::Error>| arg.error(e))?;
+
+                cx.push_bytes(data)?;
+
+                data.len() + 1
+            }
+            Pack::Padding(size) => size,
+            Pack::PadAlign | Pack::Nop => 0,
+        };
+    }
+
+    cx.push((pos + 1) as i64)?;
+
+    Ok(cx.into())
 }
 
 /// Implementation of [string.upper](https://www.lua.org/manual/5.4/manual.html#pdf-string.upper).
@@ -1821,24 +1958,24 @@ impl Header {
         let mut align = match opt {
             Pack::Signed(v) => v,
             Pack::Unsigned(v) => v,
-            Pack::Float(v) => v,
-            Pack::Double(v) => v,
-            Pack::Number(v) => v,
+            Pack::Float => size_of::<c_float>(),
+            Pack::Double => size_of::<c_double>(),
+            Pack::Number => size_of::<f64>(),
             Pack::Char(v) => v,
             Pack::Str(v) => v.unwrap_or(0),
             Pack::Padding(v) => v,
             Pack::PadAlign => match fmt.next().map(|c| self.getoption(c, fmt)).transpose()? {
                 Some(Pack::Signed(v))
                 | Some(Pack::Unsigned(v))
-                | Some(Pack::Float(v))
-                | Some(Pack::Double(v))
-                | Some(Pack::Number(v))
                 | Some(Pack::Str(Some(v)))
                 | Some(Pack::Padding(v))
                     if v != 0 =>
                 {
                     v
                 }
+                Some(Pack::Float) => size_of::<c_float>(),
+                Some(Pack::Double) => size_of::<c_double>(),
+                Some(Pack::Number) => size_of::<f64>(),
                 _ => return Err("invalid next option for option 'X'".into()),
             },
             Pack::Nop => 0,
@@ -1876,9 +2013,9 @@ impl Header {
             'j' => return Ok(Pack::Signed(8)),
             'J' => return Ok(Pack::Unsigned(8)),
             'T' => return Ok(Pack::Unsigned(size_of::<usize>())),
-            'f' => return Ok(Pack::Float(size_of::<c_float>())),
-            'n' => return Ok(Pack::Number(size_of::<f64>())),
-            'd' => return Ok(Pack::Double(size_of::<c_double>())),
+            'f' => return Ok(Pack::Float),
+            'n' => return Ok(Pack::Number),
+            'd' => return Ok(Pack::Double),
             'i' => return Self::getnumlimit(fmt, size_of::<c_int>()).map(Pack::Signed),
             'I' => return Self::getnumlimit(fmt, size_of::<c_int>()).map(Pack::Unsigned),
             's' => return Self::getnumlimit(fmt, size_of::<usize>()).map(|v| Pack::Str(Some(v))),
@@ -1934,9 +2071,9 @@ impl Header {
 enum Pack {
     Signed(usize),
     Unsigned(usize),
-    Float(usize),
-    Double(usize),
-    Number(usize),
+    Float,
+    Double,
+    Number,
     Char(usize),
     Str(Option<usize>),
     Padding(usize),

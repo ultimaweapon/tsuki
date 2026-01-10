@@ -200,6 +200,7 @@ impl<A> Module<A> for StrLib {
         m.set_str_key("rep", fp!(self::string::rep));
         m.set_str_key("reverse", fp!(self::string::reverse));
         m.set_str_key("sub", fp!(self::string::sub));
+        m.set_str_key("unpack", fp!(self::string::unpack));
         m.set_str_key("upper", fp!(self::string::upper));
 
         // Set up metatable.
