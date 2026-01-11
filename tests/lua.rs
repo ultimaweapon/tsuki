@@ -60,7 +60,6 @@ fn print() {
 }
 
 #[test]
-#[ignore = "need Lua standard library"]
 fn tpack() {
     run("tpack.lua", |_| {}).unwrap();
 }
@@ -114,7 +113,7 @@ fn run(file: &str, setup: impl FnOnce(&Lua<()>)) -> Result<(), Box<dyn std::erro
     // Get path.
     let mut path = ROOT.join("tests");
 
-    path.push("cases");
+    path.push("lua");
     path.push(file);
 
     // Setup Lua.

@@ -1,6 +1,6 @@
 //! Implementation of [basic library](https://www.lua.org/manual/5.4/manual.html#6.1).
 use crate::context::{ArgNotFound, Args, Context, Ret};
-use crate::{Nil, Type, fp};
+use crate::{Fp, Nil, Type, fp};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::ToString;
@@ -69,6 +69,32 @@ pub fn getmetatable<A>(
     } else {
         Ok(cx.into())
     }
+}
+
+/// Implementation of [ipairs](https://www.lua.org/manual/5.4/manual.html#pdf-ipairs).
+pub fn ipairs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
+    let t = cx.arg(1).exists()?;
+
+    cx.push(Fp::new(|cx| {
+        let t = cx.arg(1);
+        let i = (cx.arg(2).to_int()? as u64).wrapping_add(1) as i64;
+        let v = cx.thread().index(t, i)?;
+
+        match v.is_nil() {
+            true => cx.push(Nil)?,
+            false => {
+                cx.push(i)?;
+                cx.push(v)?;
+            }
+        }
+
+        Ok(cx.into())
+    }))?;
+
+    cx.push(t)?;
+    cx.push(0)?;
+
+    Ok(cx.into())
 }
 
 /// Implementation of [load](https://www.lua.org/manual/5.4/manual.html#pdf-load).

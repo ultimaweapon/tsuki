@@ -35,6 +35,7 @@ impl<A> Module<A> for BaseLib {
         m.set_str_key("assert", fp!(self::base::assert));
         m.set_str_key("error", fp!(self::base::error));
         m.set_str_key("getmetatable", fp!(self::base::getmetatable));
+        m.set_str_key("ipairs", fp!(self::base::ipairs));
         m.set_str_key("load", fp!(self::base::load));
         m.set_str_key("next", fp!(self::base::next));
         m.set_str_key("pairs", fp!(self::base::pairs));
