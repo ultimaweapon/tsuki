@@ -1203,7 +1203,7 @@ impl CallError {
     }
 
     /// Returns error that was originate from [Fp], [AsyncFp] or [YieldFp].
-    pub fn reason(&self) -> &dyn Error {
+    pub fn reason(&self) -> &(dyn Error + 'static) {
         self.reason.deref()
     }
 }

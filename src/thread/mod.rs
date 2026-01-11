@@ -736,7 +736,9 @@ impl<A> PartialEq for Thread<A> {
 
 /// Result of [Thread::resume()] or [Thread::async_resume()].
 pub enum Coroutine<'a, A, R> {
+    /// The coroutine execution is suspended.
     Suspended(Vec<Value<'a, A>>),
+    /// The coroutine execution is finished.
     Finished(R),
 }
 

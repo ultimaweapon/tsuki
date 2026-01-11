@@ -1,7 +1,7 @@
 # Tsuki
 [![Crates.io Version](https://img.shields.io/crates/v/tsuki)](https://crates.io/crates/tsuki)
 
-Tsuki is a port of Lua 5.4 to Rust. This is a port, not binding; which mean all code are Rust and can be using without C compiler. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that this port was done **without** compatibility with the previous version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
+Tsuki is a port of Lua 5.4 to Rust, not binding. This mean all code are Rust and can be using without C compiler. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that this port was done **without** compatibility with previous Lua version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
 
 > [!WARNING]
 > Tsuki currently in a pre-1.0 so prepare for a lot of breaking changes!
@@ -17,7 +17,7 @@ The VM to run Lua code is fully working almost exactly as vanilla Lua (see some 
 
 All public API of Tsuki should provide 100% safety as long as you don't use unsafe API incorrectly.
 
-Tsuki was not designed to run untrusted Lua script. Although you can limit what Lua script can do by not expose a function to it but there is no way to limit amount of memory or execution time used by Lua script. The meaning of this is Lua script can cause a panic due to out of memory or never return the control back to Rust with infinite loop. It is also possible for Lua script to cause stack overflow on Rust.
+However, Tsuki was not designed to run untrusted Lua script. Although you can limit what Lua script can do by not expose a function to it but there is no way to limit amount of memory or execution time used by Lua script. The meaning of this is Lua script can cause a panic due to out of memory or never return the control back to Rust with infinite loop. It is also possible for Lua script to cause stack overflow on Rust.
 
 ## Performance
 
