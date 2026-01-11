@@ -109,6 +109,8 @@ pub struct Proto<D> {
     pub lastlinedefined: c_int,
     pub k: *mut UnsafeValue<D>,
     pub code: *mut u32,
+    #[cfg(feature = "jit")]
+    pub jitted: *const [u8],
     pub p: *mut *mut Self,
     pub upvalues: *mut Upvaldesc<D>,
     pub lineinfo: *mut i8,
