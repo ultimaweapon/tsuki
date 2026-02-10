@@ -135,7 +135,7 @@ impl<A> Gc<A> {
         });
 
         self.all.set(o);
-        self.debt.update(|v| v.saturating_add(3));
+        self.debt.update(|v| v + 1);
 
         o
     }
@@ -173,8 +173,6 @@ impl<A> Gc<A> {
                     while !o.is_null() {
                         if (*o).marked.is_white() {
                             self.mark(o);
-                        } else {
-                            self.debt.update(|v| v.saturating_sub_unsigned(1));
                         }
 
                         o = (*o).refp.get();
@@ -184,13 +182,11 @@ impl<A> Gc<A> {
                 self.state.set(0);
             },
             0 => unsafe {
-                while self.debt.get() > 0 {
-                    if self.gray.get().is_null() {
-                        self.state.set(1);
-                        break;
-                    } else {
-                        self.mark_one_gray();
-                    }
+                if self.gray.get().is_null() {
+                    self.state.set(1);
+                } else if self.debt.get() > 0 {
+                    self.mark_one_gray();
+                    self.debt.update(|v| v - 1);
                 }
             },
             1 => unsafe {
@@ -231,7 +227,7 @@ impl<A> Gc<A> {
             4 | 14 => {
                 (*o).marked
                     .set((*o).marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
+                self.debt.update(|v| v - 1);
                 return;
             }
             9 => {
@@ -249,7 +245,7 @@ impl<A> Gc<A> {
                         .set((*uv).hdr.marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
                 }
 
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
+                self.debt.update(|v| v - 1);
 
                 if (*(*uv).v.get()).tt_ & 1 << 6 != 0
                     && (*(*(*uv).v.get()).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
@@ -281,7 +277,7 @@ impl<A> Gc<A> {
                     .marked
                     .set((*u).hdr.marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
 
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
+                self.debt.update(|v| v - 1);
 
                 return;
             }
@@ -298,7 +294,6 @@ impl<A> Gc<A> {
 
         (*o).marked.set((*o).marked.get() | 1 << 5);
 
-        self.debt.update(|v| v.saturating_sub_unsigned(1));
         self.gray.set(*(*o).gclist.as_ptr());
 
         match (*o).tt {
@@ -375,8 +370,6 @@ impl<A> Gc<A> {
                     != 0
             {
                 self.mark((*(*h).array.get().offset(i as isize)).value_.gc);
-            } else {
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
 
             i = i.wrapping_add(1);
@@ -385,22 +378,13 @@ impl<A> Gc<A> {
         while n < limit {
             if (*n).tt_ & 0xf == 0 {
                 Self::clear_key(n);
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
             } else {
-                let mut marked = false;
-
                 if (*n).key_tt & 1 << 6 != 0 && (*(*n).key_val.gc).marked.is_white() {
                     self.mark((*n).key_val.gc);
-                    marked = true;
                 }
 
                 if (*n).tt_ & 1 << 6 != 0 && (*(*n).value_.gc).marked.is_white() {
                     self.mark((*n).value_.gc);
-                    marked = true;
-                }
-
-                if !marked {
-                    self.debt.update(|v| v.saturating_sub_unsigned(1));
                 }
             }
 
@@ -419,12 +403,9 @@ impl<A> Gc<A> {
         while n < limit {
             if (*n).tt_ & 0xf == 0 {
                 Self::clear_key(n);
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
             } else {
                 if (*n).key_tt & 1 << 6 != 0 && (*(*n).key_val.gc).marked.is_white() {
                     self.mark((*n).key_val.gc);
-                } else {
-                    self.debt.update(|v| v.saturating_sub_unsigned(1));
                 }
 
                 if hasclears == 0
@@ -466,8 +447,6 @@ impl<A> Gc<A> {
             {
                 marked = true;
                 self.mark((*(*h).array.get().offset(i as isize)).value_.gc);
-            } else {
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
 
             i = i.wrapping_add(1);
@@ -486,7 +465,6 @@ impl<A> Gc<A> {
 
             if (*n).tt_ & 0xf == 0 {
                 Self::clear_key(n);
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
             } else if self.is_cleared(if (*n).key_tt & 1 << 6 != 0 {
                 (*n).key_val.gc
             } else {
@@ -497,13 +475,9 @@ impl<A> Gc<A> {
                 if (*n).tt_ & 1 << 6 != 0 && (*(*n).value_.gc).marked.is_white() {
                     hasww = 1 as c_int;
                 }
-
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
             } else if (*n).tt_ & 1 << 6 != 0 && (*(*n).value_.gc).marked.is_white() {
                 marked = true;
                 self.mark((*n).value_.gc);
-            } else {
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
 
             i = i.wrapping_add(1);
@@ -536,8 +510,6 @@ impl<A> Gc<A> {
         {
             if (*uv).hdr.marked.get() as c_int & ((1 as c_int) << 3 | 1 << 4) != 0 {
                 self.mark(uv.cast());
-            } else {
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
         }
     }
@@ -557,8 +529,6 @@ impl<A> Gc<A> {
                     != 0
             {
                 self.mark((*((*cl).upvalue).as_ptr().offset(i as isize)).value_.gc);
-            } else {
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
 
             i += 1;
@@ -576,8 +546,6 @@ impl<A> Gc<A> {
                     != 0
             {
                 self.mark((*((*f).k).offset(i as isize)).value_.gc);
-            } else {
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
 
             i += 1;
@@ -590,8 +558,6 @@ impl<A> Gc<A> {
 
             if !name.is_null() && (*name).hdr.marked.is_white() {
                 self.mark(name.cast());
-            } else {
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
 
             i += 1;
@@ -604,8 +570,6 @@ impl<A> Gc<A> {
 
             if !p.is_null() && (*p).hdr.marked.is_white() {
                 self.mark(p.cast());
-            } else {
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
 
             i += 1;
@@ -618,8 +582,6 @@ impl<A> Gc<A> {
 
             if !name.is_null() && (*name).hdr.marked.is_white() {
                 self.mark(name.cast());
-            } else {
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
 
             i += 1;
@@ -650,8 +612,6 @@ impl<A> Gc<A> {
                     != 0
             {
                 self.mark((*o).value_.gc);
-            } else {
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
 
             o = o.offset(1);
@@ -665,8 +625,6 @@ impl<A> Gc<A> {
                 != 0
             {
                 self.mark(uv.cast());
-            } else {
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
             }
 
             uv = (*(*uv).u.get()).open.next;
@@ -709,8 +667,6 @@ impl<A> Gc<A> {
                 // Mark.
                 if unsafe { (*o).marked.is_white() } {
                     self.mark(o);
-                } else {
-                    self.debt.update(|v| v.saturating_sub_unsigned(1));
                 }
 
                 // Move to previous object.
@@ -775,8 +731,6 @@ impl<A> Gc<A> {
                 break;
             }
 
-            self.debt.update(|v| v.saturating_sub_unsigned(1));
-
             if (*th).hdr.marked.get() & (1 << 3 | 1 << 4) == 0 && !(*th).openupval.get().is_null() {
                 p = (*th).twups.as_ptr();
             } else {
@@ -792,8 +746,6 @@ impl<A> Gc<A> {
                         && (*(*v).value_.gc).marked.is_white()
                     {
                         self.mark((*v).value_.gc);
-                    } else {
-                        self.debt.update(|v| v.saturating_sub_unsigned(1));
                     }
 
                     uv = (*(*uv).u.get()).open.next;
@@ -823,8 +775,6 @@ impl<A> Gc<A> {
 
                 (*w).hdr.marked.set((*w).hdr.marked.get() | 1 << 5);
 
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
-
                 if self.mark_ephemeron(w, dir) {
                     self.mark_all_gray();
                     changed = 1 as c_int;
@@ -843,12 +793,8 @@ impl<A> Gc<A> {
     unsafe fn clear_by_keys(&self, mut l: *const Object<A>) {
         while !l.is_null() {
             let h = l as *mut Table<A>;
-            let limit = ((*h).node.get())
-                .offset(((1 as c_int) << (*h).lsizenode.get() as c_int) as usize as isize)
-                as *mut Node<A>;
-            let mut n = ((*h).node.get()).offset(0 as c_int as isize) as *mut Node<A>;
-
-            self.debt.update(|v| v.saturating_sub_unsigned(1));
+            let limit = (*h).node.get().add(1 << (*h).lsizenode.get());
+            let mut n = (*h).node.get();
 
             while n < limit {
                 if self.is_cleared(if (*n).key_tt & 1 << 6 != 0 {
@@ -863,8 +809,6 @@ impl<A> Gc<A> {
                     Self::clear_key(n);
                 }
 
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
-
                 n = n.offset(1);
             }
 
@@ -877,14 +821,9 @@ impl<A> Gc<A> {
         while l != f {
             let h = l as *mut Table<A>;
             let mut n = null_mut();
-            let limit = ((*h).node.get())
-                .offset(((1 as c_int) << (*h).lsizenode.get() as c_int) as usize as isize)
-                as *mut Node<A>;
-            let mut i: c_uint = 0;
-            let asize: c_uint = luaH_realasize(h);
-            i = 0 as c_int as c_uint;
-
-            self.debt.update(|v| v.saturating_sub_unsigned(1));
+            let limit = (*h).node.get().add(1 << (*h).lsizenode.get());
+            let asize = luaH_realasize(h);
+            let mut i = 0u32;
 
             while i < asize {
                 let o = (*h).array.get().offset(i as isize) as *mut UnsafeValue<A>;
@@ -895,8 +834,6 @@ impl<A> Gc<A> {
                 }) {
                     (*o).tt_ = (0 as c_int | (1 as c_int) << 4 as c_int) as u8;
                 }
-
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
 
                 i = i.wrapping_add(1);
             }
@@ -916,8 +853,6 @@ impl<A> Gc<A> {
                     Self::clear_key(n);
                 }
 
-                self.debt.update(|v| v.saturating_sub_unsigned(1));
-
                 n = n.offset(1);
             }
 
@@ -933,22 +868,43 @@ impl<A> Gc<A> {
 
     #[inline(never)]
     unsafe fn sweep(&self, mut p: *mut *const Object<A>) -> *mut *const Object<A> {
+        // Limit traversal to at most 100 objects per sweep.
         let pw = self.currentwhite.get() ^ (1 << 3 | 1 << 4);
         let cw = self.currentwhite.get() & (1 << 3 | 1 << 4);
+        let mut freed = 0;
 
-        while self.debt.get() > 0 && !(*p).is_null() {
+        for _ in 0..100 {
+            // Stop if all debt has been paid.
+            if self.debt.get() <= 0 {
+                break;
+            }
+
+            // Check if no more objects to sweep.
             let o = *p;
+
+            if o.is_null() {
+                break;
+            }
+
+            // Check if dead.
             let m = (*o).marked.get();
 
             if m & pw != 0 {
                 *p = (*o).next.replace(null());
+
                 self.free(o.cast_mut());
+                self.debt.update(|v| v - 1);
+
+                // Lmit at most 2 objects from freeing since Drop implementation might expensive.
+                freed += 1;
+
+                if freed == 2 {
+                    break;
+                }
             } else {
                 (*o).marked.set(m & !(1 << 5 | (1 << 3 | 1 << 4) | 7) | cw);
                 p = (*o).next.as_ptr();
             }
-
-            self.debt.update(|v| v.saturating_sub_unsigned(1));
         }
 
         if (*p).is_null() { null_mut() } else { p }
@@ -1050,8 +1006,6 @@ impl<A> Gc<A> {
         *list = o;
 
         (*o).marked.set_gray();
-
-        self.debt.update(|v| v.saturating_sub_unsigned(1));
     }
 
     unsafe fn is_cleared(&self, o: *const Object<A>) -> bool {

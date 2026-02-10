@@ -20,7 +20,7 @@
 //!
 //!     lua.global().set_str_key("myfunc", fp!(myfunc));
 //!
-//!     // Run on main thread.
+//!     // Create Lua thread to run Lua code.
 //!     let chunk = lua.load("abc.lua", "return myfunc()").unwrap();
 //!     let td = lua.create_thread();
 //!     let result = td.call(chunk, ()).unwrap();
