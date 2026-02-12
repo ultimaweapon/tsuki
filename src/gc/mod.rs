@@ -903,6 +903,9 @@ impl<A> Gc<A> {
                 }
             } else {
                 (*o).marked.set(m & !(1 << 5 | (1 << 3 | 1 << 4) | 7) | cw);
+
+                self.debt.update(|v| v + 1);
+
                 p = (*o).next.as_ptr();
             }
         }
