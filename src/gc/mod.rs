@@ -42,7 +42,7 @@ pub(crate) struct Gc<A> {
     refs: Cell<*const Object<A>>,
     marked_refs: Cell<*const Object<A>>,
     root: Cell<*const Object<A>>,
-    debt: Cell<isize>,
+    debt: Cell<usize>,
     paused: Cell<bool>,
 }
 
@@ -184,9 +184,9 @@ impl<A> Gc<A> {
             0 => unsafe {
                 if self.gray.get().is_null() {
                     self.state.set(1);
-                } else if self.debt.get() > 0 {
+                } else {
                     self.mark_one_gray();
-                    self.debt.update(|v| v - 1);
+                    self.debt.update(|v| v.strict_sub(1));
                 }
             },
             1 => unsafe {
@@ -202,6 +202,7 @@ impl<A> Gc<A> {
                         (*m).next.set(self.all.get());
 
                         self.all.set(m);
+                        self.debt.update(|v| v + 1);
                     }
                 }
 
@@ -227,25 +228,24 @@ impl<A> Gc<A> {
             4 | 14 => {
                 (*o).marked
                     .set((*o).marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
-                self.debt.update(|v| v - 1);
+                self.debt.update(|v| v.strict_sub(1));
                 return;
             }
             9 => {
                 let uv = o as *const UpVal<A>;
 
                 if (*uv).v.get() != &raw mut (*(*uv).u.get()).value as *mut UnsafeValue<A> {
-                    (*uv)
-                        .hdr
-                        .marked
-                        .set((*uv).hdr.marked.get() & !(1 << 5 | (1 << 3 | 1 << 4)));
+                    // Open upvalues are kept gray.
+                    (*uv).hdr.marked.set_gray();
                 } else {
+                    // Closed upvalues are visited here.
                     (*uv)
                         .hdr
                         .marked
                         .set((*uv).hdr.marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
                 }
 
-                self.debt.update(|v| v - 1);
+                self.debt.update(|v| v.strict_sub(1));
 
                 if (*(*uv).v.get()).tt_ & 1 << 6 != 0
                     && (*(*(*uv).v.get()).value_.gc).marked.get() & (1 << 3 | 1 << 4) != 0
@@ -277,7 +277,7 @@ impl<A> Gc<A> {
                     .marked
                     .set((*u).hdr.marked.get() & !(1 << 3 | 1 << 4) | 1 << 5);
 
-                self.debt.update(|v| v - 1);
+                self.debt.update(|v| v.strict_sub(1));
 
                 return;
             }
@@ -620,10 +620,7 @@ impl<A> Gc<A> {
         uv = (*th).openupval.get();
 
         while !uv.is_null() {
-            if (*uv).hdr.marked.get() as c_int
-                & ((1 as c_int) << 3 as c_int | (1 as c_int) << 4 as c_int)
-                != 0
-            {
+            if (*uv).hdr.marked.get() & (1 << 3 | 1 << 4) != 0 {
                 self.mark(uv.cast());
             }
 
@@ -874,11 +871,6 @@ impl<A> Gc<A> {
         let mut freed = 0;
 
         for _ in 0..100 {
-            // Stop if all debt has been paid.
-            if self.debt.get() <= 0 {
-                break;
-            }
-
             // Check if no more objects to sweep.
             let o = *p;
 
@@ -893,7 +885,7 @@ impl<A> Gc<A> {
                 *p = (*o).next.replace(null());
 
                 self.free(o.cast_mut());
-                self.debt.update(|v| v - 1);
+                self.debt.update(|v| v.strict_sub(1));
 
                 // Lmit at most 2 objects from freeing since Drop implementation might expensive.
                 freed += 1;
