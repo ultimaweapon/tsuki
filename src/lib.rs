@@ -967,6 +967,26 @@ impl<'a, A> Value<'a, A> {
     }
 }
 
+impl<'a, A> Clone for Value<'a, A> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Nil => Self::Nil,
+            Self::False => Self::False,
+            Self::True => Self::True,
+            Self::Fp(v) => Self::Fp(*v),
+            Self::YieldFp(v) => Self::YieldFp(*v),
+            Self::AsyncFp(v) => Self::AsyncFp(*v),
+            Self::Int(v) => Self::Int(*v),
+            Self::Float(v) => Self::Float(*v),
+            Self::Str(v) => Self::Str(v.clone()),
+            Self::Table(v) => Self::Table(v.clone()),
+            Self::LuaFn(v) => Self::LuaFn(v.clone()),
+            Self::UserData(v) => Self::UserData(v.clone()),
+            Self::Thread(v) => Self::Thread(v.clone()),
+        }
+    }
+}
+
 /// Unit struct to create `nil` value.
 pub struct Nil;
 

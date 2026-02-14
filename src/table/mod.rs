@@ -2,10 +2,10 @@ pub(crate) use self::legacy::*;
 pub(crate) use self::node::*;
 pub(crate) use self::rust::*;
 
+use self::iter::Iter;
 use crate::lmem::luaM_free_;
 use crate::ltm::{TM_EQ, TM_GC, luaT_gettm};
 use crate::{Lua, Object, Ref, Str, UnsafeValue, Value};
-use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::cell::Cell;
@@ -15,6 +15,7 @@ use core::mem::zeroed;
 use core::ptr::{addr_of_mut, null, null_mut};
 use thiserror::Error;
 
+mod iter;
 mod legacy;
 mod node;
 mod rust;
@@ -436,10 +437,11 @@ impl<A> Table<A> {
         Ok(())
     }
 
+    #[inline(never)]
     pub(crate) unsafe fn next_raw(
         &self,
         key: &UnsafeValue<A>,
-    ) -> Result<Option<[UnsafeValue<A>; 2]>, Box<dyn core::error::Error>> {
+    ) -> Result<Option<[UnsafeValue<A>; 2]>, KeyMissing> {
         // Get from array table.
         let asize = unsafe { luaH_realasize(self) };
         let mut i = unsafe { findindex(self, key, asize)? };
@@ -498,6 +500,16 @@ impl<A> Drop for Table<A> {
     }
 }
 
+impl<'a, A> IntoIterator for &'a Table<A> {
+    type Item = Result<(Value<'a, A>, Value<'a, A>), KeyMissing>;
+    type IntoIter = Iter<'a, A>;
+
+    #[inline(always)]
+    fn into_iter(self) -> Self::IntoIter {
+        Iter::new(self)
+    }
+}
+
 /// Represents an error when the operation on a table fails.
 #[derive(Debug, Error)]
 pub enum TableError {
@@ -517,3 +529,8 @@ pub enum MetatableError {
     #[error("the metatable contains __gc metamethod, which Tsuki does not support")]
     HasGc,
 }
+
+/// Error when attempt to enumerating a table with a key that was removed.
+#[derive(Debug, Error)]
+#[error("invalid key to 'next'")]
+pub struct KeyMissing;

@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case, unused_assignments)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use super::RustId;
+use super::{KeyMissing, RustId};
 use crate::gc::Object;
 use crate::hasher::LuaHasher;
 use crate::lmem::luaM_realloc_;
@@ -11,7 +11,6 @@ use crate::value::{UnsafeValue, UntaggedValue};
 use crate::vm::{F2Ieq, luaV_flttointeger};
 use crate::{Float, Node, Str, Table, TableError};
 use alloc::alloc::handle_alloc_error;
-use alloc::boxed::Box;
 use core::alloc::Layout;
 use core::any::TypeId;
 use core::cell::Cell;
@@ -271,7 +270,7 @@ pub(super) unsafe fn findindex<D>(
     t: *const Table<D>,
     key: *const UnsafeValue<D>,
     asize: c_uint,
-) -> Result<c_uint, Box<dyn core::error::Error>> {
+) -> Result<c_uint, KeyMissing> {
     let mut i: c_uint = 0;
     if (*key).tt_ as c_int & 0xf as c_int == 0 as c_int {
         return Ok(0 as c_int as c_uint);
@@ -281,20 +280,20 @@ pub(super) unsafe fn findindex<D>(
     } else {
         0 as c_int as c_uint
     };
+
     if i.wrapping_sub(1 as c_uint) < asize {
-        return Ok(i);
+        Ok(i)
     } else {
-        let n = getgeneric(t, key, 1 as c_int);
+        let n = getgeneric(t, key, 1);
 
         if (*n).tt_ == 0 | 2 << 4 {
-            return Err("invalid key to 'next'".into());
+            return Err(KeyMissing);
         }
 
-        i = (n as *mut Node<D>)
-            .offset_from(((*t).node.get()).offset(0 as c_int as isize) as *mut Node<D>)
-            as c_long as c_int as c_uint;
-        return Ok(i.wrapping_add(1 as c_int as c_uint).wrapping_add(asize));
-    };
+        i = (n as *mut Node<D>).offset_from((*t).node.get()) as c_long as c_int as c_uint;
+
+        Ok(i.wrapping_add(1 as c_int as c_uint).wrapping_add(asize))
+    }
 }
 
 pub(super) unsafe fn freehash<D>(t: *const Table<D>) {
