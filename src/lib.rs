@@ -968,22 +968,25 @@ impl<'a, A> Value<'a, A> {
 }
 
 impl<'a, A> Clone for Value<'a, A> {
+    #[inline(always)]
     fn clone(&self) -> Self {
-        match self {
-            Self::Nil => Self::Nil,
-            Self::False => Self::False,
-            Self::True => Self::True,
-            Self::Fp(v) => Self::Fp(*v),
-            Self::YieldFp(v) => Self::YieldFp(*v),
-            Self::AsyncFp(v) => Self::AsyncFp(*v),
-            Self::Int(v) => Self::Int(*v),
-            Self::Float(v) => Self::Float(*v),
-            Self::Str(v) => Self::Str(v.clone()),
-            Self::Table(v) => Self::Table(v.clone()),
-            Self::LuaFn(v) => Self::LuaFn(v.clone()),
-            Self::UserData(v) => Self::UserData(v.clone()),
-            Self::Thread(v) => Self::Thread(v.clone()),
+        // SAFETY: Value has #[repr(u64)].
+        let v = self as *const Self as *const u64;
+        let t = unsafe { v.read() as u8 };
+        let v = unsafe { v.add(1).cast::<UntaggedValue<A>>() };
+
+        if t & 1 << 6 != 0 {
+            unsafe { Ref::increment_strong_count((*v).gc) };
         }
+
+        // Construct new value.
+        let mut r = MaybeUninit::<Self>::uninit();
+        let p = r.as_mut_ptr().cast::<u64>();
+
+        unsafe { p.write(t.into()) };
+        unsafe { p.add(1).cast::<UntaggedValue<A>>().write(*v) };
+
+        unsafe { r.assume_init() }
     }
 }
 

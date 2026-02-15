@@ -57,6 +57,16 @@ impl<'a, T> Ref<'a, T> {
         }
     }
 
+    #[inline(always)]
+    pub(crate) unsafe fn increment_strong_count(o: *const T) {
+        let o = o.cast::<Object<()>>();
+
+        match unsafe { (*o).refs.get().checked_add(1) } {
+            Some(v) => unsafe { (*o).refs.set(v) },
+            None => Self::too_many_refs(),
+        }
+    }
+
     #[cold]
     #[inline(never)]
     fn too_many_refs() -> ! {

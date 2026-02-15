@@ -1,7 +1,7 @@
 # Tsuki
 [![Crates.io Version](https://img.shields.io/crates/v/tsuki)](https://crates.io/crates/tsuki)
 
-Tsuki is a port of Lua 5.4 to Rust, not binding. This mean all code are Rust and can be using without C compiler. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that this port was done **without** compatibility with previous Lua version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
+Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all code are Rust and can be using without C compiler. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that this port was done **without** compatibility with previous Lua version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
 
 > [!WARNING]
 > Tsuki currently in a pre-1.0 so prepare for a lot of breaking changes!
@@ -23,7 +23,7 @@ However, Tsuki was not designed to run untrusted Lua script. Although you can li
 
 ### Interpreter
 
-Tsuki is slower than Lua about 40% on Linux, 22% on macOS and faster than Lua about 6% on Windows. The only possibility for Tsuki to be faster than Lua with computed goto is JIT since computed goto does not available on Rust.
+Tsuki is slower than Lua about 40% on Linux, 22% on macOS and faster than Lua about 6% on Windows. The only possibility for Tsuki to be faster than Lua with computed goto is JIT since computed goto currently not available on Rust.
 
 ### Async
 
@@ -50,6 +50,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - Yield across Rust boundaries is not supported.
 - Hook functions is not supported.
 - Light userdata is not supported.
+- Error with Lua value is not supported.
 - Panic when memory allocation is failed without retry (same as Rust).
 - No recursion checks on a call to Rust function.
 - Rust function cannot yield the values back to Lua in the middle.
@@ -131,7 +132,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 
 ### Can we have zero-based indexing?
 
-This requires too much changes to the language so the answer is no. See #16 for more details.
+This requires too much changes to the language so the answer is no. See [#16](https://github.com/ultimaweapon/tsuki/issues/16) for more details.
 
 ## License
 

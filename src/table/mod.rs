@@ -531,6 +531,8 @@ pub enum MetatableError {
 }
 
 /// Error when attempt to enumerating a table with a key that was removed.
+///
+/// This error can happens only if you remove current key from the table during enumeration.
 #[derive(Debug, Error)]
 #[error("invalid key to 'next'")]
 pub struct KeyMissing;
