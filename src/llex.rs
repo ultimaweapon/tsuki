@@ -211,22 +211,27 @@ pub unsafe fn luaX_newstring<D>(
     str: *const c_char,
     l: usize,
 ) -> *const Str<D> {
-    (*ls).g.gc.step();
-
-    // TODO: Find a better way.
+    // TODO: Find a better way to keep string alive.
     let str = core::slice::from_raw_parts(str.cast(), l);
-    let mut ts = Str::from_bytes((*ls).g, str).unwrap_or_else(identity);
-    let o = luaH_getstr((*ls).h.deref(), ts);
-
-    if !((*o).tt_ as c_int & 0xf as c_int == 0 as c_int) {
-        ts = (*(o as *mut Node<D>)).key_val.gc as *mut Str<D>;
+    let res = Str::from_bytes((*ls).g, str);
+    let key = res.unwrap_or_else(identity);
+    let slot = luaH_getstr((*ls).h.deref(), key);
+    let str = if (*slot).tt_ & 0xf != 0 {
+        (*(slot as *mut Node<D>)).key_val.gc.cast()
     } else {
-        let stv = UnsafeValue::from_obj(ts.cast());
+        let val = UnsafeValue::from_obj(key.cast());
 
-        luaH_finishset((*ls).h.deref(), &stv, o, &stv).unwrap(); // This should never fails.
+        luaH_finishset((*ls).h.deref(), &val, slot, &val).unwrap(); // This should never fails.
+
+        key
+    };
+
+    // The allocated string might be a long string so we always need this.
+    if res.is_ok() {
+        (*ls).g.gc.step();
     }
 
-    ts
+    str
 }
 
 unsafe fn inclinenumber<D>(ls: *mut LexState<D>) {

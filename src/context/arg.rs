@@ -626,6 +626,8 @@ impl<'a, 'b, A> Arg<'a, 'b, A> {
         }
     }
 
+    /// # Safety
+    /// `v` must be a value on Lua stack.
     #[inline(never)]
     unsafe fn convert_str(&self, v: *mut UnsafeValue<A>) -> *const Str<A> {
         // Convert to string.

@@ -43,6 +43,7 @@ pub(crate) struct Gc<A> {
     marked_refs: Cell<*const Object<A>>,
     root: Cell<*const Object<A>>,
     debt: Cell<usize>,
+    survivors: Cell<usize>,
     paused: Cell<bool>,
 }
 
@@ -68,6 +69,7 @@ impl<A> Gc<A> {
             marked_refs: Cell::new(null()),
             root: Cell::new(null()),
             debt: Cell::new(0),
+            survivors: Cell::new(0),
             paused: Cell::new(false),
         }
     }
@@ -148,6 +150,16 @@ impl<A> Gc<A> {
 
         match self.state.get() {
             8 => unsafe {
+                // Start new cycle only when number of newly allocated objects >= 20%. This number
+                // can be very low when most objects from previous cycle are survived. Let's say all
+                // 10,000 objects are survived. The newly allocated objects will be roughly 100 for
+                // this case (we traverse at most 100 objects per sweep).
+                let new = self.debt.get().strict_sub(self.survivors.get());
+
+                if new < self.survivors.get().strict_mul(20) / 100 {
+                    return;
+                }
+
                 // Reset lists.
                 self.gray.set(null());
                 self.grayagain.set(null());
@@ -190,7 +202,9 @@ impl<A> Gc<A> {
                 }
             },
             1 => unsafe {
+                self.state.set(2);
                 self.finish_marking();
+                self.currentwhite.update(|v| v ^ (1 << 3 | 1 << 4));
 
                 // Insert sweep mark to the head.
                 let mut m = self.sweep_mark.replace(null());
@@ -207,12 +221,14 @@ impl<A> Gc<A> {
                 }
 
                 self.sweep.set((*m).next.as_ptr());
+                self.survivors.set(0);
                 self.state.set(3);
             },
             3 => unsafe {
                 let p = self.sweep.get();
 
                 if p.is_null() {
+                    self.debt.update(|v| v + self.survivors.get());
                     self.state.set(8);
                 } else {
                     self.sweep.set(self.sweep(p));
@@ -644,11 +660,8 @@ impl<A> Gc<A> {
 
     #[inline(never)]
     unsafe fn finish_marking(&self) {
-        let grayagain = self.grayagain.replace(null());
-
-        self.state.set(2);
-
         // Mark object with strong references.
+        let grayagain = self.grayagain.replace(null());
         let mut o = self.refs.get();
         let m = self.marked_refs.replace(null());
 
@@ -705,9 +718,6 @@ impl<A> Gc<A> {
         self.clear_by_keys(self.allweak.get());
         self.clear_by_values(self.weak.get(), ow);
         self.clear_by_values(self.allweak.get(), oa);
-
-        self.currentwhite
-            .set(self.currentwhite.get() ^ (1 << 3 | 1 << 4));
     }
 
     #[inline(always)]
@@ -896,7 +906,7 @@ impl<A> Gc<A> {
             } else {
                 (*o).marked.set(m & !(1 << 5 | (1 << 3 | 1 << 4) | 7) | cw);
 
-                self.debt.update(|v| v + 1);
+                self.survivors.update(|v| v + 1);
 
                 p = (*o).next.as_ptr();
             }

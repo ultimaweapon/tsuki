@@ -701,9 +701,11 @@ impl<A> Lua<A> {
     /// Create a Lua table.
     #[inline(always)]
     pub fn create_table(&self) -> Ref<'_, Table<A>> {
+        let v = unsafe { Ref::new(Table::new(self)) };
+
         self.gc.step();
 
-        unsafe { Ref::new(Table::new(self)) }
+        v
     }
 
     /// Create a full userdata.
@@ -713,16 +715,20 @@ impl<A> Lua<A> {
     /// userdata that already created.
     #[inline(always)]
     pub fn create_ud<T: Any>(&self, v: T) -> Ref<'_, UserData<A, T>> {
+        let v = unsafe { Ref::new(UserData::new(self, v).cast()) };
+
         self.gc.step();
 
-        unsafe { Ref::new(UserData::new(self, v).cast()) }
+        v
     }
 
     /// Create a new Lua thread (AKA coroutine).
     pub fn create_thread(&self) -> Ref<'_, Thread<A>> {
+        let v = unsafe { Ref::new(Thread::new(self)) };
+
         self.gc.step();
 
-        unsafe { Ref::new(Thread::new(self)) }
+        v
     }
 
     /// Create a new [BTreeMap] to map Rust value to Lua value.
@@ -734,9 +740,11 @@ impl<A> Lua<A> {
         K: Ord + 'static,
         V: CollectionValue<A> + 'static,
     {
+        let v = unsafe { Ref::new(BTreeMap::new(self)) };
+
         self.gc.step();
 
-        unsafe { Ref::new(BTreeMap::new(self)) }
+        v
     }
 
     /// Deserialize [Value] from Serde deserializer.

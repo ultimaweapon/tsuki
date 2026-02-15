@@ -1217,8 +1217,6 @@ unsafe fn close_func<A>(ls: *mut LexState<A>, fs: *mut FuncState<A>) -> Result<(
         ::core::mem::size_of::<Upvaldesc<A>>() as c_ulong as c_int,
     ) as *mut Upvaldesc<A>;
 
-    (*ls).g.gc.step();
-
     Ok(())
 }
 

@@ -133,9 +133,11 @@ impl<'a, A, T> Context<'a, A, T> {
     /// Create a Lua table.
     #[inline(always)]
     pub fn create_table(&self) -> Ref<'a, Table<A>> {
+        let v = unsafe { Ref::new(Table::new(self.th.hdr.global)) };
+
         self.th.hdr.global().gc.step();
 
-        unsafe { Ref::new(Table::new(self.th.hdr.global)) }
+        v
     }
 
     /// Create a full userdata.
@@ -146,16 +148,20 @@ impl<'a, A, T> Context<'a, A, T> {
     /// effect for any userdata that already created.
     #[inline(always)]
     pub fn create_ud<V: Any>(&self, v: V) -> Ref<'a, UserData<A, V>> {
+        let v = unsafe { Ref::new(UserData::new(self.th.hdr.global, v).cast()) };
+
         self.th.hdr.global().gc.step();
 
-        unsafe { Ref::new(UserData::new(self.th.hdr.global, v).cast()) }
+        v
     }
 
     /// Create a new Lua thread (AKA coroutine).
     pub fn create_thread(&self) -> Ref<'a, Thread<A>> {
+        let v = unsafe { Ref::new(Thread::new(self.th.hdr.global())) };
+
         self.th.hdr.global().gc.step();
 
-        unsafe { Ref::new(Thread::new(self.th.hdr.global())) }
+        v
     }
 
     /// Create a new [BTreeMap] to map Rust value to Lua value.
@@ -167,9 +173,11 @@ impl<'a, A, T> Context<'a, A, T> {
         K: Ord + 'static,
         V: CollectionValue<A> + 'static,
     {
+        let v = unsafe { Ref::new(BTreeMap::new(self.th.hdr.global())) };
+
         self.th.hdr.global().gc.step();
 
-        unsafe { Ref::new(BTreeMap::new(self.th.hdr.global())) }
+        v
     }
 
     /// Deserialize [Value](crate::Value) from Serde deserializer.
