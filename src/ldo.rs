@@ -507,28 +507,26 @@ pub unsafe fn setup_lua_ci<A>(
     mut func: *const StackValue<A>,
     nresults: c_int,
 ) -> Result<*mut CallInfo, StackOverflow> {
-    let mut ci = null_mut();
     let p = (*(*func).value_.gc.cast::<LuaFn<A>>()).p.get();
     let mut narg = (*L).top.get().offset_from(func) as c_long as c_int - 1;
     let nfixparams: c_int = (*p).numparams as c_int;
     let fsize = usize::from((*p).maxstacksize);
 
-    if (*L).stack_last.get().offset_from_unsigned((*L).top.get()) <= fsize {
-        let t__ = func.offset_from_unsigned((*L).stack.get());
+    // This function can be called with extra stack so stack_last can be lower than top of the
+    // stack.
+    let available = (*L).stack_last.get().offset_from((*L).top.get());
+
+    if usize::try_from(available).ok().is_none_or(|v| v <= fsize) {
+        let fo = func.offset_from_unsigned((*L).stack.get());
 
         luaD_growstack(L, fsize)?;
 
-        func = (*L).stack.get().add(t__);
+        func = (*L).stack.get().add(fo);
     }
 
-    ci = get_ci(
-        L,
-        func,
-        nresults,
-        0 as c_int,
-        func.offset(1 as c_int as isize).offset(fsize as isize),
-    );
-    (*L).ci.set(ci);
+    // Setup CI.
+    let ci = get_ci(L, func, nresults, 0, func.add(1).add(fsize));
+
     (*ci).pc = 0;
 
     while narg < nfixparams {
@@ -589,16 +587,26 @@ pub unsafe fn setup_tailcall_ci<A>(
 }
 
 pub async unsafe fn call_fp<A>(
-    L: &Thread<A>,
-    func: *mut StackValue<A>,
+    td: &Thread<A>,
+    mut func: *mut StackValue<A>,
     nresults: c_int,
     fp: fn(Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn Error>>,
 ) -> Result<c_int, Box<dyn Error>> {
+    // This function can be called with extra stack so stack_last can be lower than top of the
+    // stack.
+    if td.stack_last.get().offset_from(td.top.get()) < 0 {
+        let fo = func.offset_from_unsigned((*td).stack.get());
+
+        luaD_growstack(td, 20)?;
+
+        func = (*td).stack.get().add(fo);
+    }
+
     // Invoke.
-    let top = L.top.get();
-    let ci = get_ci(L, func, nresults, 1 << 1, top);
+    let top = td.top.get();
+    let ci = get_ci(td, func, nresults, 1 << 1, top);
     let narg = top.offset_from_unsigned(func) - 1;
-    let cx = Context::new(L, Args::new(narg)).await;
+    let cx = Context::new(td, Args::new(narg)).await;
     let cx = match fp(cx) {
         Ok(v) => v,
         Err(e) => return Err(e),
@@ -607,24 +615,34 @@ pub async unsafe fn call_fp<A>(
     // Get number of results.
     let n = cx.results().try_into().unwrap();
 
-    luaD_poscall(L, ci, n)?;
+    luaD_poscall(td, ci, n)?;
 
     Ok(n)
 }
 
 async unsafe fn call_async_fp<A>(
-    L: &Thread<A>,
-    func: *mut StackValue<A>,
+    td: &Thread<A>,
+    mut func: *mut StackValue<A>,
     nresults: c_int,
     fp: fn(
         Context<A, Args>,
     ) -> Pin<Box<dyn Future<Output = Result<Context<A, Ret>, Box<dyn Error>>> + '_>>,
 ) -> Result<c_int, Box<dyn Error>> {
+    // This function can be called with extra stack so stack_last can be lower than top of the
+    // stack.
+    if td.stack_last.get().offset_from(td.top.get()) < 0 {
+        let fo = func.offset_from_unsigned((*td).stack.get());
+
+        luaD_growstack(td, 20)?;
+
+        func = (*td).stack.get().add(fo);
+    }
+
     // Invoke.
-    let top = L.top.get();
-    let ci = get_ci(L, func, nresults, 1 << 1, top);
+    let top = td.top.get();
+    let ci = get_ci(td, func, nresults, 1 << 1, top);
     let narg = top.offset_from_unsigned(func) - 1;
-    let cx = Context::new(L, Args::new(narg)).await;
+    let cx = Context::new(td, Args::new(narg)).await;
     let f = AsyncInvoker { f: fp(cx) };
     let cx = match f.await {
         Ok(v) => v,
@@ -634,7 +652,7 @@ async unsafe fn call_async_fp<A>(
     // Get number of results.
     let n = cx.results().try_into().unwrap();
 
-    luaD_poscall(L, ci, n)?;
+    luaD_poscall(td, ci, n)?;
 
     Ok(n)
 }
@@ -726,11 +744,21 @@ impl<'a, A> Future for YieldInvoker<'a, A> {
 
                 Poll::Ready(Ok(n))
             }
-            None => {
+            None => unsafe {
+                // This function can be called with extra stack so stack_last can be lower than top
+                // of the stack.
+                if self.th.stack_last.get().offset_from(self.th.top.get()) < 0 {
+                    let fo = self.func.offset_from_unsigned(self.th.stack.get());
+
+                    luaD_growstack(self.th, 20)?;
+
+                    self.func = self.th.stack.get().add(fo);
+                }
+
                 // Create context.
                 let top = self.th.top.get();
-                let ci = unsafe { get_ci(self.th, self.func, self.nresults, 1 << 1, top) };
-                let narg = unsafe { top.offset_from_unsigned(self.func) - 1 };
+                let ci = get_ci(self.th, self.func, self.nresults, 1 << 1, top);
+                let narg = top.offset_from_unsigned(self.func) - 1;
                 let cx = {
                     let f = pin!(Context::new(self.th, Args::new(narg)));
 
@@ -750,7 +778,7 @@ impl<'a, A> Future for YieldInvoker<'a, A> {
                 self.ci = ci;
 
                 Poll::Pending
-            }
+            },
         }
     }
 }

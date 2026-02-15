@@ -50,6 +50,12 @@ fn events() {
 
 #[test]
 #[ignore = "need Lua standard library"]
+fn locals() {
+    run("locals.lua", |_| {}).unwrap();
+}
+
+#[test]
+#[ignore = "need Lua standard library"]
 fn math() {
     run("math.lua", |_| {}).unwrap();
 }
