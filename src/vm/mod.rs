@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-pub use self::interp::run;
+pub use self::engine::run;
 pub use self::opcode::*;
 
 use crate::ldebug::{luaG_forerror, luaG_typeerror};
@@ -38,7 +38,8 @@ type c_long = i64;
 type c_ulong = u64;
 type c_longlong = i64;
 
-mod interp;
+#[path = "interp.rs"]
+mod engine;
 mod opcode;
 
 unsafe fn l_strton<A>(obj: *const UnsafeValue<A>) -> Option<UnsafeValue<A>> {
