@@ -330,7 +330,7 @@ pub struct Lua<A> {
     seed: u32,
     modules_locked: Cell<bool>,
     #[cfg(feature = "jit")]
-    jit: core::cell::RefCell<cranelift_frontend::FunctionBuilderContext>,
+    jit: Jit,
     associated_data: A,
     phantom: PhantomPinned,
 }
@@ -375,7 +375,7 @@ impl<A> Lua<A> {
             seed,
             modules_locked: Cell::new(false),
             #[cfg(feature = "jit")]
-            jit: Default::default(),
+            jit: Jit::new(),
             associated_data,
             phantom: PhantomPinned,
         });
@@ -849,6 +849,32 @@ impl<A> Lua<A> {
         let tab = unsafe { (*tab).value_.gc.cast::<Table<A>>() };
 
         unsafe { &*tab }
+    }
+}
+
+/// Contains infrastructure for JIT.
+#[cfg(feature = "jit")]
+struct Jit {
+    isa: alloc::sync::Arc<dyn cranelift_codegen::isa::TargetIsa>,
+    builder_context: core::cell::RefCell<cranelift_frontend::FunctionBuilderContext>,
+    codegen_context: core::cell::RefCell<cranelift_codegen::Context>,
+}
+
+#[cfg(feature = "jit")]
+impl Jit {
+    fn new() -> Self {
+        use core::cell::RefCell;
+
+        let sb = cranelift_codegen::settings::builder();
+        let flags = cranelift_codegen::settings::Flags::new(sb);
+        let ib = cranelift_codegen::isa::lookup(target_lexicon::Triple::host()).unwrap();
+        let isa = ib.finish(flags).unwrap();
+
+        Self {
+            isa,
+            builder_context: RefCell::default(),
+            codegen_context: RefCell::new(cranelift_codegen::Context::new()),
+        }
     }
 }
 
