@@ -1,11 +1,16 @@
 use super::{
-    F2Ieq, LEnum, LTnum, OP_ADDI, OP_CALL, OP_CLOSURE, OP_CONCAT, OP_EQ, OP_GETFIELD, OP_GETI,
-    OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_LEN, OP_LFALSESKIP, OP_LOADF, OP_LOADFALSE, OP_LOADI,
-    OP_LOADK, OP_LOADKX, OP_LOADNIL, OP_LOADTRUE, OP_MOVE, OP_NEWTABLE, OP_RETURN, OP_SETI,
-    OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL, OP_TESTSET, OP_TFORCALL,
-    floatforloop, forprep, lessequalothers, lessthanothers, luaV_concat, luaV_equalobj,
-    luaV_finishget, luaV_finishset, luaV_idiv, luaV_mod, luaV_modf, luaV_objlen, luaV_shiftl,
-    luaV_tointegerns, pushclosure,
+    F2Ieq, LEnum, LTnum, OP_ADD, OP_ADDI, OP_ADDK, OP_BAND, OP_BANDK, OP_BNOT, OP_BOR, OP_BORK,
+    OP_BXOR, OP_BXORK, OP_CALL, OP_CLOSE, OP_CLOSURE, OP_CONCAT, OP_DIV, OP_DIVK, OP_EQ, OP_EQI,
+    OP_EQK, OP_EXTRAARG, OP_FORLOOP, OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI, OP_GETTABLE,
+    OP_GETTABUP, OP_GETUPVAL, OP_GTI, OP_IDIV, OP_IDIVK, OP_JMP, OP_LE, OP_LEI, OP_LEN,
+    OP_LFALSESKIP, OP_LOADF, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADKX, OP_LOADNIL, OP_LOADTRUE,
+    OP_LT, OP_LTI, OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MOD, OP_MODK, OP_MOVE, OP_MUL, OP_MULK,
+    OP_NEWTABLE, OP_NOT, OP_POW, OP_POWK, OP_RETURN, OP_RETURN0, OP_RETURN1, OP_SELF, OP_SETFIELD,
+    OP_SETI, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_SHL, OP_SHLI, OP_SHR, OP_SHRI,
+    OP_SUB, OP_SUBK, OP_TAILCALL, OP_TBC, OP_TEST, OP_TESTSET, OP_TFORCALL, OP_TFORLOOP,
+    OP_TFORPREP, OP_UNM, OP_VARARG, OP_VARARGPREP, floatforloop, forprep, lessequalothers,
+    lessthanothers, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_idiv,
+    luaV_mod, luaV_modf, luaV_objlen, luaV_shiftl, luaV_tointegerns, pushclosure,
 };
 use crate::ldo::{
     call_fp, luaD_call, luaD_poscall, luaD_precall, luaD_pretailcall, setup_lua_ci,
@@ -613,7 +618,7 @@ pub async unsafe fn run<A>(
                     }
                     next!();
                 }
-                18 => {
+                OP_SETFIELD => {
                     let ra_16 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -726,7 +731,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                20 => {
+                OP_SELF => {
                     let ra = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -829,7 +834,7 @@ pub async unsafe fn run<A>(
                     pc += 1;
                     next!();
                 }
-                22 => {
+                OP_ADDK => {
                     let v1_0 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -892,7 +897,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                23 => {
+                OP_SUBK => {
                     let v1_1 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -955,7 +960,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                24 => {
+                OP_MULK => {
                     let v1_2 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1018,7 +1023,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                25 => {
+                OP_MODK => {
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
 
                     let v1_3 = base.offset(
@@ -1089,7 +1094,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                26 => {
+                OP_POWK => {
                     let ra_24 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1143,7 +1148,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                27 => {
+                OP_DIVK => {
                     let ra_25 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1193,7 +1198,7 @@ pub async unsafe fn run<A>(
                     }
                     next!();
                 }
-                28 => {
+                OP_IDIVK => {
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
 
                     let v1_6 = base.offset(
@@ -1262,7 +1267,7 @@ pub async unsafe fn run<A>(
                     }
                     next!();
                 }
-                29 => {
+                OP_BANDK => {
                     let ra_27 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1299,7 +1304,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                30 => {
+                OP_BORK => {
                     let ra_28 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1337,7 +1342,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                31 => {
+                OP_BXORK => {
                     let ra_29 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1374,7 +1379,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                32 => {
+                OP_SHRI => {
                     let ra_30 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1411,7 +1416,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                33 => {
+                OP_SHLI => {
                     let ra_31 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1447,7 +1452,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                34 => {
+                OP_ADD => {
                     let v1_10 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1508,7 +1513,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                35 => {
+                OP_SUB => {
                     let v1_11 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1571,7 +1576,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                36 => {
+                OP_MUL => {
                     let v1_12 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1635,7 +1640,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                37 => {
+                OP_MOD => {
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
 
                     let v1_13 = base.offset(
@@ -1707,7 +1712,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                38 => {
+                OP_POW => {
                     let ra_36 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1761,7 +1766,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                39 => {
+                OP_DIV => {
                     let ra_37 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1811,7 +1816,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                40 => {
+                OP_IDIV => {
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
 
                     let v1_16 = base.offset(
@@ -1883,7 +1888,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                41 => {
+                OP_BAND => {
                     let ra_39 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1929,7 +1934,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                42 => {
+                OP_BOR => {
                     let ra_40 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1975,7 +1980,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                43 => {
+                OP_BXOR => {
                     let ra_41 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2021,7 +2026,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                45 => {
+                OP_SHR => {
                     let ra_42 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2070,7 +2075,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                44 => {
+                OP_SHL => {
                     let ra_43 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2116,7 +2121,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                46 => {
+                OP_MMBIN => {
                     let ra = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2151,7 +2156,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                47 => {
+                OP_MMBINI => {
                     let ra = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2188,7 +2193,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                48 => {
+                OP_MMBINK => {
                     let ra = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2226,7 +2231,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                49 => {
+                OP_UNM => {
                     let mut ra_47 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2276,7 +2281,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                50 => {
+                OP_BNOT => {
                     let mut ra_48 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2321,7 +2326,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                51 => {
+                OP_NOT => {
                     let ra_49 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2389,7 +2394,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                54 => {
+                OP_CLOSE => {
                     let ra_52 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2406,7 +2411,7 @@ pub async unsafe fn run<A>(
                     base = th.stack.get().add((*ci).func + 1);
                     next!();
                 }
-                55 => {
+                OP_TBC => {
                     let ra_53 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2420,7 +2425,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                56 => {
+                OP_JMP => {
                     pc = pc.wrapping_add_signed(
                         ((i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32)
@@ -2475,7 +2480,7 @@ pub async unsafe fn run<A>(
                     }
                     next!();
                 }
-                58 => {
+                OP_LT => {
                     let ra_55 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2527,7 +2532,7 @@ pub async unsafe fn run<A>(
                     }
                     next!();
                 }
-                59 => {
+                OP_LE => {
                     let ra_56 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2579,7 +2584,7 @@ pub async unsafe fn run<A>(
                     }
                     next!();
                 }
-                60 => {
+                OP_EQK => {
                     let ra_57 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2617,7 +2622,7 @@ pub async unsafe fn run<A>(
                     }
                     next!();
                 }
-                61 => {
+                OP_EQI => {
                     let ra_58 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2658,7 +2663,7 @@ pub async unsafe fn run<A>(
                     }
                     next!();
                 }
-                62 => {
+                OP_LTI => {
                     let ra_59 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2713,7 +2718,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                63 => {
+                OP_LEI => {
                     let ra_60 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2768,7 +2773,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                64 => {
+                OP_GTI => {
                     let ra_61 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2823,7 +2828,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                65 => {
+                OP_GEI => {
                     let ra_62 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -2878,7 +2883,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                66 => {
+                OP_TEST => {
                     let ra_63 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -3110,7 +3115,7 @@ pub async unsafe fn run<A>(
                     base = th.stack.get().add((*ci).func + 1);
                     break;
                 }
-                71 => {
+                OP_RETURN0 => {
                     let mut nres: c_int;
                     (*th).ci.set((*ci).previous);
                     (*th).top.set(base.offset(-(1 as c_int as isize)));
@@ -3124,7 +3129,7 @@ pub async unsafe fn run<A>(
 
                     break;
                 }
-                72 => {
+                OP_RETURN1 => {
                     let mut nres_0: c_int = (*ci).nresults as c_int;
                     (*th).ci.set((*ci).previous);
                     if nres_0 == 0 as c_int {
@@ -3151,7 +3156,7 @@ pub async unsafe fn run<A>(
 
                     break;
                 }
-                73 => {
+                OP_FORLOOP => {
                     let ra_71 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -3190,7 +3195,7 @@ pub async unsafe fn run<A>(
                     }
                     next!();
                 }
-                74 => {
+                OP_FORPREP => {
                     let ra_72 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -3210,7 +3215,7 @@ pub async unsafe fn run<A>(
                     }
                     next!();
                 }
-                75 => {
+                OP_TFORPREP => {
                     let ra_73 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -3235,7 +3240,7 @@ pub async unsafe fn run<A>(
                 OP_TFORCALL => {
                     current_block = 13973394567113199817;
                 }
-                77 => {
+                OP_TFORLOOP => {
                     current_block = 15611964311717037170;
                 }
                 OP_SETLIST => {
@@ -3322,7 +3327,7 @@ pub async unsafe fn run<A>(
 
                     next!();
                 }
-                80 => {
+                OP_VARARG => {
                     let ra_78 = base.offset(
                         (i >> 0 as c_int + 7 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -3341,7 +3346,7 @@ pub async unsafe fn run<A>(
                     base = th.stack.get().add((*ci).func + 1);
                     next!();
                 }
-                81 => {
+                OP_VARARGPREP => {
                     (*ci).pc = pc;
 
                     luaT_adjustvarargs(
@@ -3355,7 +3360,7 @@ pub async unsafe fn run<A>(
                     base = th.stack.get().add((*ci).func + 1);
                     next!();
                 }
-                82 => {
+                OP_EXTRAARG => {
                     next!();
                 }
                 _ => unreachable_unchecked(), // TODO: Remove this once we converted to enum.
