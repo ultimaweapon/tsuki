@@ -342,6 +342,9 @@ impl<A> Lua<A> {
     /// [Context::associated_data()].
     ///
     /// Note that all built-in functions (e.g. `print`) are not enabled by default.
+    ///
+    /// # Panics
+    /// If `jit` feature is enabled and current platform is not supported.
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
     pub fn new(associated_data: A) -> Pin<Rc<Self>> {
@@ -359,6 +362,9 @@ impl<A> Lua<A> {
     /// [Context::associated_data()].
     ///
     /// Note that all built-in functions (e.g. `print`) are not enabled by default.
+    ///
+    /// # Panics
+    /// If `jit` feature is enabled and current platform is not supported.
     pub fn with_seed(associated_data: A, seed: u32) -> Pin<Rc<Self>> {
         let g = Rc::pin(Lua {
             gc: unsafe { Gc::new() }, // SAFETY: gc in the first field on Lua.
