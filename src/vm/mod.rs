@@ -38,7 +38,7 @@ type c_long = i64;
 type c_ulong = u64;
 type c_longlong = i64;
 
-#[cfg_attr(feature = "jit", path = "jit.rs")]
+#[cfg_attr(feature = "jit", path = "jit/mod.rs")]
 #[cfg_attr(not(feature = "jit"), path = "interp/mod.rs")]
 mod engine;
 mod opcode;
