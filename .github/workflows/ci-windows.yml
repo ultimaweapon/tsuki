@@ -5,6 +5,8 @@ on:
       target:
         type: string
         required: true
+      features:
+        type: string
 jobs:
   build:
     name: Windows - ${{ inputs.target }}
@@ -17,4 +19,4 @@ jobs:
     - name: Update Rust
       run: rustup update stable
     - name: Run tests
-      run: cargo test --target ${{ inputs.target }} -r
+      run: cargo test --target ${{ inputs.target }} --features "${{ inputs.features }}" -r
