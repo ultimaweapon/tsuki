@@ -38,7 +38,7 @@ type c_long = i64;
 type c_ulong = u64;
 type c_longlong = i64;
 
-#[path = "interp.rs"]
+#[path = "interp/mod.rs"]
 mod engine;
 mod opcode;
 
