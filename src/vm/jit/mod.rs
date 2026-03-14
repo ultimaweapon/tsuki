@@ -1,21 +1,22 @@
+use self::compiler::Compiler;
 use self::funcs::RustFuncs;
 use super::OP_VARARGPREP;
 use crate::lobject::Proto;
 use crate::lstate::CallInfo;
 use crate::ltm::luaT_adjustvarargs;
-use crate::{Lua, LuaFn, StackValue, Thread};
+use crate::{Lua, LuaFn, Thread};
 use alloc::boxed::Box;
-use core::mem::{offset_of, transmute};
+use core::mem::transmute;
 use core::ops::Deref;
 use core::pin::Pin;
 use core::ptr::null_mut;
 use core::task::{Context, Poll};
-use cranelift_codegen::ir::types::I32;
-use cranelift_codegen::ir::{AbiParam, FuncRef, Function, InstBuilder, MemFlags, Signature, Type};
+use cranelift_codegen::ir::{AbiParam, Function, Signature, Type};
 use cranelift_codegen::isa::CallConv;
-use cranelift_frontend::{FunctionBuilder, Variable};
+use cranelift_frontend::FunctionBuilder;
 use target_lexicon::Triple;
 
+mod compiler;
 mod funcs;
 
 pub async unsafe fn run<A>(
@@ -72,82 +73,10 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
     fb.def_var(cx, fb.block_params(entry)[1]);
     fb.def_var(ret, fb.block_params(entry)[2]);
 
-    // Load td.
-    let td = fb.declare_var(ptr);
-    let v = fb.use_var(st);
-    let v = fb.ins().load(
-        ptr,
-        MemFlags::trusted().with_can_move().with_readonly(),
-        v,
-        offset_of!(State<A>, td) as i32,
-    );
-
-    fb.def_var(td, v);
-
-    // Load ci.
-    let ci = fb.declare_var(ptr);
-    let v = fb.use_var(st);
-    let v = fb.ins().load(
-        ptr,
-        MemFlags::trusted().with_can_move().with_readonly(),
-        v,
-        offset_of!(State<A>, ci) as i32,
-    );
-
-    fb.def_var(ci, v);
-
-    // Get CallInfo::func.
-    let v = fb.use_var(ci);
-    let f = fb.ins().load(
-        ptr,
-        MemFlags::trusted().with_can_move().with_readonly(),
-        v,
-        offset_of!(CallInfo, func) as i32,
-    );
-
-    // Get Thread::stack.
-    let f = fb.ins().imul_imm(f, size_of::<StackValue<A>>() as i64);
-    let v = fb.use_var(td);
-    let v = fb.ins().load(
-        ptr,
-        MemFlags::trusted(),
-        v,
-        offset_of!(Thread<A>, stack) as i32,
-    );
-
-    // Load function object.
-    let v = fb.ins().iadd(v, f);
-    let f = fb.declare_var(ptr);
-    let v = fb.ins().load(
-        ptr,
-        MemFlags::trusted(),
-        v,
-        offset_of!(StackValue<A>, value_) as i32,
-    );
-
-    fb.def_var(f, v);
-
     // Compile instructions.
-    let mut pc = 0;
     let mut funcs = RustFuncs::default();
-    let base = fb.declare_var(ptr);
-    let mut com = Compiler {
-        ret,
-        td,
-        ci,
-        func: f,
-        base,
-        adjustvarargs: funcs.import(
-            &mut fb,
-            &[ptr, I32, ptr, ptr, ptr],
-            None,
-            adjustvarargs::<A> as *const u8,
-        ),
-        fb,
-        ptr,
-    };
-
-    com.update_base_stack::<A>();
+    let mut com = Compiler::new::<A>(fb, st, cx, ret, &mut funcs);
+    let mut pc = 0;
 
     loop {
         let i = match code.get(pc).copied() {
@@ -163,8 +92,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
         };
     }
 
-    com.fb.finalize();
-
+    drop(com);
     drop(ctx);
 
     // Prepare to generate machine code.
@@ -192,109 +120,6 @@ unsafe extern "C-unwind" fn adjustvarargs<A>(
     if let Err(e) = luaT_adjustvarargs(td, nfixparams, ci, p) {
         (*ret).set_error(e);
     };
-}
-
-/// Contains state to compile a Lua function.
-struct Compiler<'a> {
-    ret: Variable,
-    td: Variable,
-    ci: Variable,
-    func: Variable,
-    base: Variable,
-    adjustvarargs: FuncRef,
-    fb: FunctionBuilder<'a>,
-    ptr: Type,
-}
-
-impl<'a> Compiler<'a> {
-    fn emit_varargprep<A>(&mut self, i: u32, pc: usize) -> usize {
-        // Set CallInfo::pc.
-        let v = self.fb.ins().iconst(self.ptr, pc as i64);
-        let ci = self.fb.use_var(self.ci);
-
-        self.fb
-            .ins()
-            .store(MemFlags::trusted(), v, ci, offset_of!(CallInfo, pc) as i32);
-
-        // Get LuaFn::p.
-        let func = self.fb.use_var(self.func);
-        let proto = self.fb.ins().load(
-            self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
-            func,
-            offset_of!(LuaFn<A>, p) as i32,
-        );
-
-        // Invoke luaT_adjustvarargs.
-        let nfixparams = self
-            .fb
-            .ins()
-            .iconst(I32, (i >> 0 + 7 & !(!(0u32) << 8) << 0) as i64);
-        let td = self.fb.use_var(self.td);
-        let ci = self.fb.use_var(self.ci);
-        let ret = self.fb.use_var(self.ret);
-
-        self.fb
-            .ins()
-            .call(self.adjustvarargs, &[td, nfixparams, ci, proto, ret]);
-
-        self.emit_return_on_err();
-        self.update_base_stack::<A>();
-
-        pc
-    }
-
-    fn emit_return_on_err(&mut self) {
-        // Emit branching.
-        let tb = self.fb.create_block();
-        let eb = self.fb.create_block();
-        let ret = self.fb.use_var(self.ret);
-        let obj = self.fb.ins().load(
-            self.ptr,
-            MemFlags::trusted(),
-            ret,
-            offset_of!(Error, obj) as i32,
-        );
-
-        self.fb.ins().brif(obj, tb, [], eb, []);
-
-        // Emit return.
-        self.fb.switch_to_block(tb);
-        self.fb.seal_block(tb);
-
-        self.fb.ins().return_(&[]);
-
-        // Switch to else block.
-        self.fb.switch_to_block(eb);
-        self.fb.seal_block(eb);
-    }
-
-    fn update_base_stack<A>(&mut self) {
-        // Get CallInfo::func.
-        let v = self.fb.use_var(self.ci);
-        let f = self.fb.ins().load(
-            self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
-            v,
-            offset_of!(CallInfo, func) as i32,
-        );
-
-        // Get Thread::stack.
-        let f = self.fb.ins().iadd_imm(f, 1);
-        let f = self.fb.ins().imul_imm(f, size_of::<StackValue<A>>() as i64);
-        let v = self.fb.use_var(self.td);
-        let v = self.fb.ins().load(
-            self.ptr,
-            MemFlags::trusted(),
-            v,
-            offset_of!(Thread<A>, stack) as i32,
-        );
-
-        // Update base stack.
-        let v = self.fb.ins().iadd(v, f);
-
-        self.fb.def_var(self.base, v);
-    }
 }
 
 /// Implementation of [Future] to invoke jitted function.
