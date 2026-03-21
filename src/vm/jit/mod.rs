@@ -1,10 +1,11 @@
 use self::compiler::Compiler;
 use self::funcs::RustFuncs;
-use super::OP_VARARGPREP;
+use super::{OP_GETTABUP, OP_VARARGPREP, luaV_finishget};
 use crate::lobject::Proto;
 use crate::lstate::CallInfo;
 use crate::ltm::luaT_adjustvarargs;
-use crate::{Lua, LuaFn, Thread};
+use crate::value::UnsafeValue;
+use crate::{Lua, LuaFn, Str, Table, Thread, luaH_getshortstr};
 use alloc::boxed::Box;
 use core::mem::transmute;
 use core::ops::Deref;
@@ -87,6 +88,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
         pc += 1;
 
         pc = match i & 0x7F {
+            OP_GETTABUP => com.emit_gettabup::<A>(i, pc),
             OP_VARARGPREP => com.emit_varargprep::<A>(i, pc),
             v => todo!("{v}"),
         };
@@ -120,6 +122,27 @@ unsafe extern "C-unwind" fn adjustvarargs<A>(
     if let Err(e) = luaT_adjustvarargs(td, nfixparams, ci, p) {
         (*ret).set_error(e);
     };
+}
+
+unsafe extern "C-unwind" fn finishget<A>(
+    td: *const Thread<A>,
+    tab: *const UnsafeValue<A>,
+    key: *const UnsafeValue<A>,
+    props_tried: bool,
+    out: *mut UnsafeValue<A>,
+    ret: *mut Error,
+) {
+    match luaV_finishget(&*td, tab, key, props_tried) {
+        Ok(v) => out.write(v),
+        Err(e) => (*ret).set_error(e),
+    }
+}
+
+unsafe extern "C-unwind" fn getshortstr<A>(
+    t: *const Table<A>,
+    key: *const Str<A>,
+) -> *const UnsafeValue<A> {
+    luaH_getshortstr(t, key)
 }
 
 /// Implementation of [Future] to invoke jitted function.
