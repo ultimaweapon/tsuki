@@ -1,5 +1,6 @@
 use super::HOST;
 use alloc::vec::Vec;
+use core::marker::PhantomData;
 use cranelift_codegen::ir::{
     AbiParam, ExtFuncData, ExternalName, FuncRef, Signature, Type, UserExternalName,
 };
@@ -7,10 +8,12 @@ use cranelift_codegen::isa::CallConv;
 use cranelift_frontend::FunctionBuilder;
 
 /// Contains Rust functions that can be called from jitted function.
-#[derive(Default)]
-pub struct RustFuncs(Vec<*const u8>);
+pub struct RustFuncs<A> {
+    list: Vec<*const u8>,
+    phantom: PhantomData<A>,
+}
 
-impl RustFuncs {
+impl<A> RustFuncs<A> {
     /// # Safety
     /// `f` must use C calling convention and its signature must matched with `params` and `output`.
     pub unsafe fn import(
@@ -33,15 +36,24 @@ impl RustFuncs {
 
         // Import function.
         let sig = fb.func.import_signature(sig);
-        let name = UserExternalName::new(0, self.0.len().try_into().unwrap());
+        let name = UserExternalName::new(0, self.list.len().try_into().unwrap());
         let name = fb.func.declare_imported_user_function(name);
 
-        self.0.push(f);
+        self.list.push(f);
 
         fb.func.import_function(ExtFuncData {
             name: ExternalName::User(name),
             signature: sig,
             colocated: false,
         })
+    }
+}
+
+impl<A> Default for RustFuncs<A> {
+    fn default() -> Self {
+        Self {
+            list: Default::default(),
+            phantom: Default::default(),
+        }
     }
 }

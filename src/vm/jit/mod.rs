@@ -75,8 +75,8 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
     fb.def_var(ret, fb.block_params(entry)[2]);
 
     // Compile instructions.
-    let mut funcs = RustFuncs::default();
-    let mut emit = Emitter::new::<A>(fb, st, cx, ret, &mut funcs);
+    let mut funcs = RustFuncs::<A>::default();
+    let mut emit = Emitter::new(fb, st, cx, ret, &mut funcs);
     let mut pc = 0;
 
     loop {
@@ -88,8 +88,8 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
         pc += 1;
 
         pc = match i & 0x7F {
-            OP_GETTABUP => emit.gettabup::<A>(i, pc),
-            OP_VARARGPREP => emit.varargprep::<A>(i, pc),
+            OP_GETTABUP => emit.gettabup(i, pc),
+            OP_VARARGPREP => emit.varargprep(i, pc),
             v => todo!("{v}"),
         };
     }

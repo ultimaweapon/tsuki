@@ -4,6 +4,7 @@ use crate::lstate::CallInfo;
 use crate::value::UnsafeValue;
 use crate::{LuaFn, StackValue, Thread, UserData};
 use core::any::Any;
+use core::marker::PhantomData;
 use core::mem::{ManuallyDrop, offset_of};
 use cranelift_codegen::ir::condcodes::IntCC;
 use cranelift_codegen::ir::types::{I8, I32, I64};
@@ -13,7 +14,7 @@ use cranelift_codegen::ir::{
 use cranelift_frontend::{FunctionBuilder, Variable};
 
 /// Contains state to emit Cranelift instructions for a Lua function.
-pub struct Emitter<'a> {
+pub struct Emitter<'a, A> {
     fb: ManuallyDrop<FunctionBuilder<'a>>,
     ret: Variable,
     td: Variable,
@@ -25,15 +26,16 @@ pub struct Emitter<'a> {
     finishget: FuncRef,
     getshortstr: FuncRef,
     ptr: Type,
+    phantom: PhantomData<A>,
 }
 
-impl<'a> Emitter<'a> {
-    pub unsafe fn new<A>(
+impl<'a, A> Emitter<'a, A> {
+    pub unsafe fn new(
         mut fb: FunctionBuilder<'a>,
         st: Variable,
         cx: Variable,
         ret: Variable,
-        funcs: &mut RustFuncs,
+        funcs: &mut RustFuncs<A>,
     ) -> Self {
         // Load td.
         let ptr = Type::triple_pointer_type(&HOST);
@@ -138,13 +140,14 @@ impl<'a> Emitter<'a> {
             ),
             ptr,
             fb: ManuallyDrop::new(fb),
+            phantom: PhantomData,
         };
 
-        e.update_base_stack::<A>();
+        e.update_base_stack();
         e
     }
 
-    pub fn gettabup<A>(&mut self, i: u32, pc: usize) -> usize {
+    pub fn gettabup(&mut self, i: u32, pc: usize) -> usize {
         // Get output register.
         let base = self.fb.use_var(self.base);
         let ra = self.fb.ins().iadd_imm(
@@ -335,7 +338,7 @@ impl<'a> Emitter<'a> {
         // Emit call to luaV_finishget.
         let v = self.fb.ins().iconst(I8, 4 | 0 << 4 | 1 << 6);
 
-        self.finishget::<A>(i, pc, tab, v, k);
+        self.finishget(i, pc, tab, v, k);
 
         self.fb.ins().jump(next_inst, []);
 
@@ -345,7 +348,7 @@ impl<'a> Emitter<'a> {
         pc
     }
 
-    pub fn varargprep<A>(&mut self, i: u32, pc: usize) -> usize {
+    pub fn varargprep(&mut self, i: u32, pc: usize) -> usize {
         // Set CallInfo::pc.
         self.update_pc(pc);
 
@@ -372,12 +375,12 @@ impl<'a> Emitter<'a> {
             .call(self.adjustvarargs, &[td, nfixparams, ci, proto, ret]);
 
         self.return_on_err();
-        self.update_base_stack::<A>();
+        self.update_base_stack();
 
         pc
     }
 
-    fn finishget<A>(&mut self, i: u32, pc: usize, tab: Value, kt: Value, kv: Value) {
+    fn finishget(&mut self, i: u32, pc: usize, tab: Value, kt: Value, kv: Value) {
         // Set key.
         let key = self.fb.create_sized_stack_slot(StackSlotData::new(
             StackSlotKind::ExplicitSlot,
@@ -392,7 +395,7 @@ impl<'a> Emitter<'a> {
             .ins()
             .stack_store(kv, key, offset_of!(UnsafeValue<A>, value_) as i32);
 
-        self.update_top::<A>();
+        self.update_top();
         self.update_pc(pc);
 
         // Allocate buffer for result.
@@ -414,7 +417,7 @@ impl<'a> Emitter<'a> {
             .call(self.finishget, &[td, tab, key, props_tried, out, ret]);
 
         self.return_on_err();
-        self.update_base_stack::<A>();
+        self.update_base_stack();
 
         // Write output register.
         let tt = self
@@ -471,7 +474,7 @@ impl<'a> Emitter<'a> {
         self.fb.seal_block(eb);
     }
 
-    fn update_top<A>(&mut self) {
+    fn update_top(&mut self) {
         // Load CallInfo::top.
         let ci = self.fb.use_var(self.ci);
         let top = self.fb.ins().load(
@@ -515,7 +518,7 @@ impl<'a> Emitter<'a> {
             .store(MemFlags::trusted(), v, ci, offset_of!(CallInfo, pc) as i32);
     }
 
-    fn update_base_stack<A>(&mut self) {
+    fn update_base_stack(&mut self) {
         // Get CallInfo::func.
         let v = self.fb.use_var(self.ci);
         let f = self.fb.ins().load(
@@ -543,7 +546,7 @@ impl<'a> Emitter<'a> {
     }
 }
 
-impl<'a> Drop for Emitter<'a> {
+impl<'a, A> Drop for Emitter<'a, A> {
     fn drop(&mut self) {
         // SAFETY: We don't touch fb after this.
         unsafe { ManuallyDrop::take(&mut self.fb).finalize() };
