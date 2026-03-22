@@ -147,22 +147,49 @@ impl<'a, A> Emitter<'a, A> {
         e
     }
 
-    pub fn gettabup(&mut self, i: u32, pc: usize) -> usize {
-        // Get output register.
-        let base = self.fb.use_var(self.base);
-        let ra = self.fb.ins().iadd_imm(
-            base,
-            ((i >> 7 & !(!(0u32) << 8)) * size_of::<StackValue<A>>() as u32) as i64,
+    pub unsafe fn loadk(&mut self, i: u32, pc: usize) -> usize {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let rb = self.get_const(i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1));
+
+        // Set type.
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            rb,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
         );
 
-        // Load key.
-        let k = self.fb.use_var(self.k);
-        let k = self.fb.ins().load(
-            self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
-            k,
-            ((i >> 24 & !(!(0u32) << 8)) as usize * size_of::<UnsafeValue<A>>()
-                + offset_of!(UnsafeValue<A>, value_)) as i32,
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            tt,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Set value.
+        let value = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            rb,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            value,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        pc
+    }
+
+    pub unsafe fn gettabup(&mut self, i: u32, pc: usize) -> usize {
+        // Get output register and key.
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let k = self.load_const(
+            i >> 24 & !(!(0u32) << 8),
+            offset_of!(UnsafeValue<A>, value_),
         );
 
         // Load LuaFn::upvals.
@@ -543,6 +570,36 @@ impl<'a, A> Emitter<'a, A> {
         let v = self.fb.ins().iadd(v, f);
 
         self.fb.def_var(self.base, v);
+    }
+
+    /// Returns a pointer to target constant.
+    fn get_const(&mut self, idx: u32) -> Value {
+        let k = self.fb.use_var(self.k);
+
+        self.fb
+            .ins()
+            .iadd_imm(k, (idx * size_of::<UnsafeValue<A>>() as u32) as i64)
+    }
+
+    /// Load constant value.
+    unsafe fn load_const(&mut self, idx: u32, off: usize) -> Value {
+        let k = self.fb.use_var(self.k);
+
+        self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted().with_can_move().with_readonly(),
+            k,
+            (idx as usize * size_of::<UnsafeValue<A>>() + off) as i32,
+        )
+    }
+
+    /// Returns a pointer to target register.
+    unsafe fn get_reg(&mut self, idx: u32) -> Value {
+        let base = self.fb.use_var(self.base);
+
+        self.fb
+            .ins()
+            .iadd_imm(base, (idx * size_of::<StackValue<A>>() as u32) as i64)
     }
 }
 

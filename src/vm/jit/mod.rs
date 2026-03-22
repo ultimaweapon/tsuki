@@ -1,6 +1,6 @@
 use self::emitter::Emitter;
 use self::funcs::RustFuncs;
-use super::{OP_GETTABUP, OP_VARARGPREP, luaV_finishget};
+use super::{OP_GETTABUP, OP_LOADK, OP_VARARGPREP, luaV_finishget};
 use crate::lobject::Proto;
 use crate::lstate::CallInfo;
 use crate::ltm::luaT_adjustvarargs;
@@ -37,7 +37,11 @@ pub async unsafe fn run<A>(
 
     // Invoke jitted function.
     let jitted = transmute((*p).jitted);
-    let state = State { td, ci };
+    let state = State {
+        td,
+        ci,
+        next_block: 0,
+    };
 
     Invoker { state, jitted }.await
 }
@@ -88,6 +92,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
         pc += 1;
 
         pc = match i & 0x7F {
+            OP_LOADK => emit.loadk(i, pc),
             OP_GETTABUP => emit.gettabup(i, pc),
             OP_VARARGPREP => emit.varargprep(i, pc),
             v => todo!("{v}"),
@@ -178,6 +183,7 @@ impl<A> Future for Invoker<A> {
 struct State<A> {
     td: *const Thread<A>,
     ci: *mut CallInfo,
+    next_block: u32,
 }
 
 /// Contains error from jitted function.
