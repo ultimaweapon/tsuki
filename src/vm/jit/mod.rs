@@ -1,4 +1,4 @@
-use self::compiler::Compiler;
+use self::emitter::Emitter;
 use self::funcs::RustFuncs;
 use super::{OP_GETTABUP, OP_VARARGPREP, luaV_finishget};
 use crate::lobject::Proto;
@@ -17,7 +17,7 @@ use cranelift_codegen::isa::CallConv;
 use cranelift_frontend::FunctionBuilder;
 use target_lexicon::Triple;
 
-mod compiler;
+mod emitter;
 mod funcs;
 
 pub async unsafe fn run<A>(
@@ -76,7 +76,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
 
     // Compile instructions.
     let mut funcs = RustFuncs::default();
-    let mut com = Compiler::new::<A>(fb, st, cx, ret, &mut funcs);
+    let mut emit = Emitter::new::<A>(fb, st, cx, ret, &mut funcs);
     let mut pc = 0;
 
     loop {
@@ -88,13 +88,13 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
         pc += 1;
 
         pc = match i & 0x7F {
-            OP_GETTABUP => com.emit_gettabup::<A>(i, pc),
-            OP_VARARGPREP => com.emit_varargprep::<A>(i, pc),
+            OP_GETTABUP => emit.gettabup::<A>(i, pc),
+            OP_VARARGPREP => emit.varargprep::<A>(i, pc),
             v => todo!("{v}"),
         };
     }
 
-    drop(com);
+    drop(emit);
     drop(ctx);
 
     // Prepare to generate machine code.

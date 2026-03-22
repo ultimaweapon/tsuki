@@ -12,8 +12,8 @@ use cranelift_codegen::ir::{
 };
 use cranelift_frontend::{FunctionBuilder, Variable};
 
-/// Contains state to compile a Lua function.
-pub struct Compiler<'a> {
+/// Contains state to emit Cranelift instructions for a Lua function.
+pub struct Emitter<'a> {
     fb: ManuallyDrop<FunctionBuilder<'a>>,
     ret: Variable,
     td: Variable,
@@ -27,7 +27,7 @@ pub struct Compiler<'a> {
     ptr: Type,
 }
 
-impl<'a> Compiler<'a> {
+impl<'a> Emitter<'a> {
     pub unsafe fn new<A>(
         mut fb: FunctionBuilder<'a>,
         st: Variable,
@@ -111,7 +111,7 @@ impl<'a> Compiler<'a> {
         fb.def_var(k, v);
 
         // Get base stack.
-        let mut c = Self {
+        let mut e = Self {
             ret,
             td,
             ci,
@@ -140,11 +140,11 @@ impl<'a> Compiler<'a> {
             fb: ManuallyDrop::new(fb),
         };
 
-        c.emit_update_base_stack::<A>();
-        c
+        e.update_base_stack::<A>();
+        e
     }
 
-    pub fn emit_gettabup<A>(&mut self, i: u32, pc: usize) -> usize {
+    pub fn gettabup<A>(&mut self, i: u32, pc: usize) -> usize {
         // Get output register.
         let base = self.fb.use_var(self.base);
         let ra = self.fb.ins().iadd_imm(
@@ -335,7 +335,7 @@ impl<'a> Compiler<'a> {
         // Emit call to luaV_finishget.
         let v = self.fb.ins().iconst(I8, 4 | 0 << 4 | 1 << 6);
 
-        self.emit_finishget::<A>(i, pc, tab, v, k);
+        self.finishget::<A>(i, pc, tab, v, k);
 
         self.fb.ins().jump(next_inst, []);
 
@@ -345,9 +345,9 @@ impl<'a> Compiler<'a> {
         pc
     }
 
-    pub fn emit_varargprep<A>(&mut self, i: u32, pc: usize) -> usize {
+    pub fn varargprep<A>(&mut self, i: u32, pc: usize) -> usize {
         // Set CallInfo::pc.
-        self.emit_update_pc(pc);
+        self.update_pc(pc);
 
         // Get LuaFn::p.
         let func = self.fb.use_var(self.func);
@@ -371,13 +371,13 @@ impl<'a> Compiler<'a> {
             .ins()
             .call(self.adjustvarargs, &[td, nfixparams, ci, proto, ret]);
 
-        self.emit_return_on_err();
-        self.emit_update_base_stack::<A>();
+        self.return_on_err();
+        self.update_base_stack::<A>();
 
         pc
     }
 
-    fn emit_finishget<A>(&mut self, i: u32, pc: usize, tab: Value, kt: Value, kv: Value) {
+    fn finishget<A>(&mut self, i: u32, pc: usize, tab: Value, kt: Value, kv: Value) {
         // Set key.
         let key = self.fb.create_sized_stack_slot(StackSlotData::new(
             StackSlotKind::ExplicitSlot,
@@ -392,8 +392,8 @@ impl<'a> Compiler<'a> {
             .ins()
             .stack_store(kv, key, offset_of!(UnsafeValue<A>, value_) as i32);
 
-        self.emit_update_top::<A>();
-        self.emit_update_pc(pc);
+        self.update_top::<A>();
+        self.update_pc(pc);
 
         // Allocate buffer for result.
         let val = self.fb.create_sized_stack_slot(StackSlotData::new(
@@ -413,8 +413,8 @@ impl<'a> Compiler<'a> {
             .ins()
             .call(self.finishget, &[td, tab, key, props_tried, out, ret]);
 
-        self.emit_return_on_err();
-        self.emit_update_base_stack::<A>();
+        self.return_on_err();
+        self.update_base_stack::<A>();
 
         // Write output register.
         let tt = self
@@ -446,7 +446,7 @@ impl<'a> Compiler<'a> {
         );
     }
 
-    fn emit_return_on_err(&mut self) {
+    fn return_on_err(&mut self) {
         // Emit branching.
         let tb = self.fb.create_block();
         let eb = self.fb.create_block();
@@ -471,7 +471,7 @@ impl<'a> Compiler<'a> {
         self.fb.seal_block(eb);
     }
 
-    fn emit_update_top<A>(&mut self) {
+    fn update_top<A>(&mut self) {
         // Load CallInfo::top.
         let ci = self.fb.use_var(self.ci);
         let top = self.fb.ins().load(
@@ -506,7 +506,7 @@ impl<'a> Compiler<'a> {
         );
     }
 
-    fn emit_update_pc(&mut self, pc: usize) {
+    fn update_pc(&mut self, pc: usize) {
         let v = self.fb.ins().iconst(self.ptr, pc as i64);
         let ci = self.fb.use_var(self.ci);
 
@@ -515,7 +515,7 @@ impl<'a> Compiler<'a> {
             .store(MemFlags::trusted(), v, ci, offset_of!(CallInfo, pc) as i32);
     }
 
-    fn emit_update_base_stack<A>(&mut self) {
+    fn update_base_stack<A>(&mut self) {
         // Get CallInfo::func.
         let v = self.fb.use_var(self.ci);
         let f = self.fb.ins().load(
@@ -543,7 +543,7 @@ impl<'a> Compiler<'a> {
     }
 }
 
-impl<'a> Drop for Compiler<'a> {
+impl<'a> Drop for Emitter<'a> {
     fn drop(&mut self) {
         // SAFETY: We don't touch fb after this.
         unsafe { ManuallyDrop::take(&mut self.fb).finalize() };
