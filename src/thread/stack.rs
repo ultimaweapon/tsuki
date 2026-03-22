@@ -21,6 +21,7 @@ impl<A> Clone for StackValue<A> {
 impl<A> Copy for StackValue<A> {}
 
 /// Pointer to an item in the stack.
+#[repr(transparent)]
 pub(crate) struct StackPtr<D>(Cell<*mut StackValue<D>>);
 
 impl<D> StackPtr<D> {

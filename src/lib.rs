@@ -329,6 +329,8 @@ pub struct Lua<A> {
     dummy_node: Node<A>,
     seed: u32,
     modules_locked: Cell<bool>,
+    #[cfg(feature = "jit")]
+    jit: Jit,
     associated_data: A,
     phantom: PhantomPinned,
 }
@@ -340,6 +342,9 @@ impl<A> Lua<A> {
     /// [Context::associated_data()].
     ///
     /// Note that all built-in functions (e.g. `print`) are not enabled by default.
+    ///
+    /// # Panics
+    /// If `jit` feature is enabled and current platform is not supported.
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
     pub fn new(associated_data: A) -> Pin<Rc<Self>> {
@@ -357,6 +362,9 @@ impl<A> Lua<A> {
     /// [Context::associated_data()].
     ///
     /// Note that all built-in functions (e.g. `print`) are not enabled by default.
+    ///
+    /// # Panics
+    /// If `jit` feature is enabled and current platform is not supported.
     pub fn with_seed(associated_data: A, seed: u32) -> Pin<Rc<Self>> {
         let g = Rc::pin(Lua {
             gc: unsafe { Gc::new() }, // SAFETY: gc in the first field on Lua.
@@ -372,6 +380,8 @@ impl<A> Lua<A> {
             },
             seed,
             modules_locked: Cell::new(false),
+            #[cfg(feature = "jit")]
+            jit: Jit::new(),
             associated_data,
             phantom: PhantomPinned,
         });
@@ -845,6 +855,32 @@ impl<A> Lua<A> {
         let tab = unsafe { (*tab).value_.gc.cast::<Table<A>>() };
 
         unsafe { &*tab }
+    }
+}
+
+/// Contains infrastructure for JIT.
+#[cfg(feature = "jit")]
+struct Jit {
+    isa: alloc::sync::Arc<dyn cranelift_codegen::isa::TargetIsa>,
+    builder_context: core::cell::RefCell<cranelift_frontend::FunctionBuilderContext>,
+    codegen_context: core::cell::RefCell<cranelift_codegen::Context>,
+}
+
+#[cfg(feature = "jit")]
+impl Jit {
+    fn new() -> Self {
+        use core::cell::RefCell;
+
+        let sb = cranelift_codegen::settings::builder();
+        let flags = cranelift_codegen::settings::Flags::new(sb);
+        let ib = cranelift_codegen::isa::lookup(target_lexicon::Triple::host()).unwrap();
+        let isa = ib.finish(flags).unwrap();
+
+        Self {
+            isa,
+            builder_context: RefCell::default(),
+            codegen_context: RefCell::new(cranelift_codegen::Context::new()),
+        }
     }
 }
 
