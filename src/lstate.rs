@@ -67,6 +67,8 @@ pub struct CallInfo {
     pub nresults: c_short,
     pub callstatus: c_ushort,
     pub nextraargs: c_int,
+    #[cfg(feature = "jit")]
+    pub pending_future: PendingFuture,
 }
 
 #[derive(Copy, Clone)]
@@ -84,6 +86,13 @@ pub struct C2RustUnnamed_0 {
     pub ntransfer: usize,
 }
 
+#[cfg(feature = "jit")]
+#[repr(C)]
+pub union PendingFuture {
+    pub precall: crate::vm::PrecallFuture,
+    pub run: crate::vm::RunFuture,
+}
+
 #[inline(never)]
 pub unsafe fn luaE_extendCI<A>(L: *const Thread<A>) -> *mut CallInfo {
     let ci = luaM_malloc_((*L).hdr.global, size_of::<CallInfo>()) as *mut CallInfo;
@@ -91,6 +100,8 @@ pub unsafe fn luaE_extendCI<A>(L: *const Thread<A>) -> *mut CallInfo {
     (*(*L).ci.get()).next = ci;
     (*ci).previous = (*L).ci.get();
     (*ci).next = null_mut();
+    #[cfg(feature = "jit")]
+    core::ptr::addr_of_mut!((*ci).pending_future).write(core::mem::zeroed());
     (*L).nci.set((*L).nci.get().wrapping_add(1));
 
     return ci;

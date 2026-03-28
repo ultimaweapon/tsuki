@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-pub use self::engine::run;
+pub use self::engine::*;
 pub use self::opcode::*;
 
 use crate::ldebug::{luaG_forerror, luaG_typeerror};

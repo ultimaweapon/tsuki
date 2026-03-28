@@ -3,19 +3,24 @@ use crate::lobject::{Proto, UpVal};
 use crate::lstate::CallInfo;
 use crate::value::UnsafeValue;
 use crate::{LuaFn, StackValue, Thread, UserData};
+use alloc::vec::Vec;
 use core::any::Any;
 use core::marker::PhantomData;
-use core::mem::{ManuallyDrop, offset_of};
+use core::mem::offset_of;
 use cranelift_codegen::ir::condcodes::IntCC;
 use cranelift_codegen::ir::types::{I8, I32, I64};
 use cranelift_codegen::ir::{
-    BlockArg, FuncRef, InstBuilder, MemFlags, StackSlotData, StackSlotKind, Type, Value,
+    Block, BlockArg, BlockCall, FuncRef, InstBuilder, MemFlags, StackSlotData, StackSlotKind, Type,
+    Value, ValueListPool,
 };
 use cranelift_frontend::{FunctionBuilder, Variable};
 
 /// Contains state to emit Cranelift instructions for a Lua function.
-pub struct Emitter<'a, A> {
-    fb: ManuallyDrop<FunctionBuilder<'a>>,
+pub struct Emitter<'a, 'b, A> {
+    fb: &'a mut FunctionBuilder<'b>,
+    vlp: &'a mut ValueListPool,
+    st: Variable,
+    cx: Variable,
     ret: Variable,
     td: Variable,
     ci: Variable,
@@ -25,17 +30,25 @@ pub struct Emitter<'a, A> {
     adjustvarargs: FuncRef,
     finishget: FuncRef,
     getshortstr: FuncRef,
+    precall: FuncRef,
+    resume_precall: FuncRef,
+    run_lua: FuncRef,
+    resume_run_lua: FuncRef,
     ptr: Type,
+    resumes: &'a mut Vec<BlockCall>,
     phantom: PhantomData<A>,
 }
 
-impl<'a, A> Emitter<'a, A> {
+impl<'a, 'b, A> Emitter<'a, 'b, A> {
     pub unsafe fn new(
-        mut fb: FunctionBuilder<'a>,
+        fb: &'a mut FunctionBuilder<'b>,
+        vlp: &'a mut ValueListPool,
         st: Variable,
         cx: Variable,
         ret: Variable,
-        funcs: &mut RustFuncs<A>,
+        funcs: &'a mut RustFuncs<A>,
+        resumes: &'a mut Vec<BlockCall>,
+        jumper: Block,
     ) -> Self {
         // Load td.
         let ptr = Type::triple_pointer_type(&HOST);
@@ -114,6 +127,9 @@ impl<'a, A> Emitter<'a, A> {
 
         // Get base stack.
         let mut e = Self {
+            vlp,
+            st,
+            cx,
             ret,
             td,
             ci,
@@ -121,29 +137,63 @@ impl<'a, A> Emitter<'a, A> {
             k,
             base: fb.declare_var(ptr),
             adjustvarargs: funcs.import(
-                &mut fb,
+                fb,
                 &[ptr, I32, ptr, ptr, ptr],
                 None,
                 super::adjustvarargs::<A> as *const u8,
             ),
             finishget: funcs.import(
-                &mut fb,
+                fb,
                 &[ptr, ptr, ptr, I8, ptr, ptr],
                 None,
                 super::finishget::<A> as *const u8,
             ),
             getshortstr: funcs.import(
-                &mut fb,
+                fb,
                 &[ptr, ptr],
                 Some(ptr),
                 super::getshortstr::<A> as *const u8,
             ),
+            precall: funcs.import(
+                fb,
+                &[ptr, ptr, ptr, I32, ptr, ptr],
+                Some(ptr),
+                super::precall::<A> as *const u8,
+            ),
+            resume_precall: funcs.import(
+                fb,
+                &[ptr, ptr, ptr],
+                Some(ptr),
+                super::resume_precall::<A> as *const u8,
+            ),
+            run_lua: funcs.import(
+                fb,
+                &[ptr, ptr, ptr, ptr],
+                None,
+                super::run_lua::<A> as *const u8,
+            ),
+            resume_run_lua: funcs.import(
+                fb,
+                &[ptr, ptr, ptr],
+                None,
+                super::resume_run_lua::<A> as *const u8,
+            ),
             ptr,
-            fb: ManuallyDrop::new(fb),
+            resumes,
+            fb,
             phantom: PhantomData,
         };
 
         e.update_base_stack();
+
+        e.fb.ins().jump(jumper, []);
+
+        // Create root block.
+        let root = e.fb.create_block();
+
+        e.fb.switch_to_block(root);
+        e.resumes.push(BlockCall::new(root, [], e.vlp));
+
         e
     }
 
@@ -375,7 +425,108 @@ impl<'a, A> Emitter<'a, A> {
         pc
     }
 
-    pub fn varargprep(&mut self, i: u32, pc: usize) -> usize {
+    pub unsafe fn call(&mut self, i: u32, pc: usize) -> usize {
+        // Update top and PC.
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let args = (i >> 7 + 8 + 1 & 0xFF) as u8;
+        let nresults = (i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8)) as i32 - 1;
+
+        if args != 0 {
+            let top = self
+                .fb
+                .ins()
+                .iadd_imm(ra, (usize::from(args) * size_of::<StackValue<A>>()) as i64);
+
+            self.set_top(top);
+        }
+
+        self.update_pc(pc);
+
+        // Invoke luaD_precall.
+        let nresults = self.fb.ins().iconst(I32, i64::from(nresults));
+        let td = self.fb.use_var(self.td);
+        let ci = self.fb.use_var(self.ci);
+        let cx = self.fb.use_var(self.cx);
+        let ret = self.fb.use_var(self.ret);
+        let precall = self
+            .fb
+            .ins()
+            .call(self.precall, &[td, ci, ra, nresults, cx, ret]);
+
+        self.return_on_err();
+
+        // Prepare to check Lua function.
+        let check_lua = self.fb.create_block();
+
+        self.fb.append_block_param(check_lua, self.ptr);
+
+        // Check if pending.
+        let v = self.fb.inst_results(precall)[0];
+        let resume_precall = self.return_on_pending(check_lua, [&BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(check_lua);
+
+        // Check if Lua function.
+        let newci = self.fb.block_params(check_lua)[0];
+        let run_lua = self.fb.create_block();
+        let finished = self.fb.create_block();
+
+        self.fb.ins().brif(newci, run_lua, [], finished, []);
+
+        self.fb.switch_to_block(run_lua);
+        self.fb.seal_block(run_lua);
+
+        // Invoke run.
+        let td = self.fb.use_var(self.td);
+        let ci = self.fb.use_var(self.ci);
+        let cx = self.fb.use_var(self.cx);
+        let ret = self.fb.use_var(self.ret);
+
+        self.fb.ins().call(self.run_lua, &[td, ci, cx, ret]);
+
+        self.return_on_err();
+
+        // Jump to finished.
+        let resume_lua = self.return_on_pending(finished, []);
+
+        self.fb.switch_to_block(resume_precall);
+
+        // Resume luaD_precall.
+        let ci = self.fb.use_var(self.ci);
+        let cx = self.fb.use_var(self.cx);
+        let ret = self.fb.use_var(self.ret);
+        let resume_precall = self.fb.ins().call(self.resume_precall, &[ci, cx, ret]);
+
+        self.return_on_err();
+
+        // Check if ready.
+        let v = self.fb.inst_results(resume_precall)[0];
+
+        self.join_on_ready(check_lua, [&BlockArg::Value(v)]);
+
+        self.fb.seal_block(check_lua);
+        self.fb.switch_to_block(resume_lua);
+
+        // Resume run_lua.
+        let ci = self.fb.use_var(self.ci);
+        let cx = self.fb.use_var(self.cx);
+        let ret = self.fb.use_var(self.ret);
+
+        self.fb.ins().call(self.resume_run_lua, &[ci, cx, ret]);
+
+        self.return_on_err();
+        self.join_on_ready(finished, []);
+
+        // Update base stack.
+        self.fb.switch_to_block(finished);
+        self.fb.seal_block(finished);
+
+        self.update_base_stack();
+
+        pc
+    }
+
+    pub unsafe fn varargprep(&mut self, i: u32, pc: usize) -> usize {
         // Set CallInfo::pc.
         self.update_pc(pc);
 
@@ -501,6 +652,70 @@ impl<'a, A> Emitter<'a, A> {
         self.fb.seal_block(eb);
     }
 
+    /// This can only be called after [Self::return_on_err()].
+    #[must_use]
+    unsafe fn return_on_pending<'c>(
+        &mut self,
+        ready: Block,
+        args: impl IntoIterator<Item = &'c BlockArg>,
+    ) -> Block {
+        // Check Error::vtb.
+        let pending = self.fb.create_block();
+        let ret = self.fb.use_var(self.ret);
+        let vtb = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted(),
+            ret,
+            offset_of!(Error, vtb) as i32,
+        );
+
+        self.fb.ins().brif(vtb, pending, [], ready, args);
+
+        self.fb.switch_to_block(pending);
+        self.fb.seal_block(pending);
+
+        // Emit return.
+        let resume = self.fb.ins().iconst(I32, self.resumes.len() as i64);
+        let st = self.fb.use_var(self.st);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            resume,
+            st,
+            offset_of!(State::<A>, next_block) as i32,
+        );
+
+        self.fb.ins().return_(&[]);
+
+        // Create resume block.
+        let resume = self.fb.create_block();
+
+        self.resumes.push(BlockCall::new(resume, [], self.vlp));
+
+        resume
+    }
+
+    /// This can only be called after [Self::return_on_err()].
+    fn join_on_ready<'c>(&mut self, ready: Block, args: impl IntoIterator<Item = &'c BlockArg>) {
+        // Check Error::vtb.
+        let pending = self.fb.create_block();
+        let ret = self.fb.use_var(self.ret);
+        let vtb = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted(),
+            ret,
+            offset_of!(Error, vtb) as i32,
+        );
+
+        self.fb.ins().brif(vtb, pending, [], ready, args);
+
+        // Emit return.
+        self.fb.switch_to_block(pending);
+        self.fb.seal_block(pending);
+
+        self.fb.ins().return_(&[]);
+    }
+
     fn update_top(&mut self) {
         // Load CallInfo::top.
         let ci = self.fb.use_var(self.ci);
@@ -526,6 +741,11 @@ impl<'a, A> Emitter<'a, A> {
             .ins()
             .imul_imm(top, size_of::<StackValue<A>>() as i64);
         let top = self.fb.ins().iadd(v, top);
+
+        unsafe { self.set_top(top) };
+    }
+
+    unsafe fn set_top(&mut self, top: Value) {
         let td = self.fb.use_var(self.td);
 
         self.fb.ins().store(
@@ -600,12 +820,5 @@ impl<'a, A> Emitter<'a, A> {
         self.fb
             .ins()
             .iadd_imm(base, (idx * size_of::<StackValue<A>>() as u32) as i64)
-    }
-}
-
-impl<'a, A> Drop for Emitter<'a, A> {
-    fn drop(&mut self) {
-        // SAFETY: We don't touch fb after this.
-        unsafe { ManuallyDrop::take(&mut self.fb).finalize() };
     }
 }

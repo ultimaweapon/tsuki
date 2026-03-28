@@ -1,38 +1,46 @@
+pub use self::future::*;
+
 use self::emitter::Emitter;
 use self::funcs::RustFuncs;
-use super::{OP_GETTABUP, OP_LOADK, OP_VARARGPREP, luaV_finishget};
+use super::{OP_CALL, OP_GETTABUP, OP_LOADK, OP_VARARGPREP, luaV_finishget};
 use crate::lobject::Proto;
 use crate::lstate::CallInfo;
 use crate::ltm::luaT_adjustvarargs;
 use crate::value::UnsafeValue;
-use crate::{Lua, LuaFn, Str, Table, Thread, luaH_getshortstr};
+use crate::{Lua, LuaFn, StackValue, Str, Table, Thread, luaH_getshortstr};
 use alloc::boxed::Box;
-use core::mem::transmute;
+use alloc::vec::Vec;
+use core::mem::{offset_of, transmute};
 use core::ops::Deref;
 use core::pin::Pin;
 use core::ptr::null_mut;
 use core::task::{Context, Poll};
-use cranelift_codegen::ir::{AbiParam, Function, Signature, Type};
+use cranelift_codegen::ir::types::I32;
+use cranelift_codegen::ir::{
+    AbiParam, BlockCall, Function, InstBuilder, JumpTableData, MemFlags, Signature, TrapCode, Type,
+    ValueListPool,
+};
 use cranelift_codegen::isa::CallConv;
 use cranelift_frontend::FunctionBuilder;
 use target_lexicon::Triple;
 
 mod emitter;
 mod funcs;
+mod future;
 
 pub async unsafe fn run<A>(
-    td: &Thread<A>,
+    td: *const Thread<A>,
     ci: *mut CallInfo,
 ) -> Result<(), Box<dyn core::error::Error>> {
     // Check if already jitted.
-    let f = (*td.stack.get().add((*ci).func))
+    let f = (*(*td).stack.get().add((*ci).func))
         .value_
         .gc
         .cast::<LuaFn<A>>();
     let p = (*f).p.get();
 
     if (*p).jitted.is_null() {
-        compile(td.hdr.global(), p);
+        compile((*td).hdr.global(), p);
     }
 
     // Invoke jitted function.
@@ -79,9 +87,21 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
     fb.def_var(ret, fb.block_params(entry)[2]);
 
     // Compile instructions.
-    let mut funcs = RustFuncs::<A>::default();
-    let mut emit = Emitter::new(fb, st, cx, ret, &mut funcs);
     let mut pc = 0;
+    let mut vlp = ValueListPool::new();
+    let mut funcs = RustFuncs::<A>::default();
+    let mut resumes = Vec::new();
+    let jump = fb.create_block();
+    let mut emit = Emitter::new(
+        &mut fb,
+        &mut vlp,
+        st,
+        cx,
+        ret,
+        &mut funcs,
+        &mut resumes,
+        jump,
+    );
 
     loop {
         let i = match code.get(pc).copied() {
@@ -94,12 +114,45 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
         pc = match i & 0x7F {
             OP_LOADK => emit.loadk(i, pc),
             OP_GETTABUP => emit.gettabup(i, pc),
+            OP_CALL => emit.call(i, pc),
             OP_VARARGPREP => emit.varargprep(i, pc),
             v => todo!("{v}"),
         };
     }
 
     drop(emit);
+
+    // Create root jump table.
+    let def = fb.create_block();
+    let jt = fb.create_jump_table(JumpTableData::new(
+        BlockCall::new(def, [], &mut vlp),
+        &resumes,
+    ));
+
+    fb.switch_to_block(def);
+    fb.ins().trap(TrapCode::unwrap_user(1));
+    fb.switch_to_block(jump);
+
+    // Jump to resume block.
+    let st = fb.use_var(st);
+    let v = fb.ins().load(
+        I32,
+        MemFlags::trusted(),
+        st,
+        offset_of!(State<A>, next_block) as i32,
+    );
+
+    fb.ins().br_table(v, jt);
+
+    // Seal all resume blocks.
+    fb.seal_block(def);
+
+    for b in resumes {
+        fb.seal_block(b.block(&vlp));
+    }
+
+    fb.finalize();
+
     drop(ctx);
 
     // Prepare to generate machine code.
@@ -148,6 +201,104 @@ unsafe extern "C-unwind" fn getshortstr<A>(
     key: *const Str<A>,
 ) -> *const UnsafeValue<A> {
     luaH_getshortstr(t, key)
+}
+
+unsafe extern "C-unwind" fn precall<A>(
+    td: *const Thread<A>,
+    ci: *mut CallInfo,
+    f: *mut StackValue<A>,
+    nresults: i32,
+    cx: *mut Context,
+    ret: *mut Error,
+) -> *mut CallInfo {
+    let f = Pin::new_unchecked((*ci).pending_future.precall.init(td, f, nresults));
+    let r = match f.poll(&mut *cx) {
+        Poll::Ready(v) => v,
+        Poll::Pending => {
+            (*ret).vtb = 1usize as *const ();
+
+            return null_mut();
+        }
+    };
+
+    (*ci).pending_future.precall.drop::<A>();
+
+    match r {
+        Ok(v) => v,
+        Err(e) => {
+            (*ret).set_error(e);
+
+            null_mut()
+        }
+    }
+}
+
+unsafe extern "C-unwind" fn resume_precall<A>(
+    ci: *mut CallInfo,
+    cx: *mut Context,
+    ret: *mut Error,
+) -> *mut CallInfo {
+    let r = match (*ci).pending_future.precall.poll::<A>(&mut *cx) {
+        Poll::Ready(v) => v,
+        Poll::Pending => {
+            (*ret).vtb = 1usize as *const ();
+
+            return null_mut();
+        }
+    };
+
+    (*ci).pending_future.precall.drop::<A>();
+
+    match r {
+        Ok(v) => v,
+        Err(e) => {
+            (*ret).set_error(e);
+
+            null_mut()
+        }
+    }
+}
+
+unsafe extern "C-unwind" fn run_lua<A>(
+    td: *const Thread<A>,
+    ci: *mut CallInfo,
+    cx: *mut Context,
+    ret: *mut Error,
+) {
+    let f = Pin::new_unchecked((*ci).pending_future.run.init(td, ci));
+    let r = match f.poll(&mut *cx) {
+        Poll::Ready(v) => v,
+        Poll::Pending => {
+            (*ret).vtb = 1usize as *const ();
+            return;
+        }
+    };
+
+    (*ci).pending_future.run.drop::<A>();
+
+    if let Err(e) = r {
+        (*ret).set_error(e);
+    }
+}
+
+unsafe extern "C-unwind" fn resume_run_lua<A>(
+    ci: *mut CallInfo,
+    cx: *mut Context,
+    ret: *mut Error,
+) {
+    let r = match (*ci).pending_future.run.poll::<A>(&mut *cx) {
+        Poll::Ready(v) => v,
+        Poll::Pending => {
+            (*ret).vtb = 1usize as *const ();
+            return;
+        }
+    };
+
+    (*ci).pending_future.run.drop::<A>();
+
+    if let Err(e) = r {
+        (*ret).set_error(e);
+    }
 }
 
 /// Implementation of [Future] to invoke jitted function.

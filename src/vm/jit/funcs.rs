@@ -45,6 +45,7 @@ impl<A> RustFuncs<A> {
             name: ExternalName::User(name),
             signature: sig,
             colocated: false,
+            patchable: false,
         })
     }
 }
