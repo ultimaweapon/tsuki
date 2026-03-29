@@ -11,14 +11,13 @@ use cranelift_codegen::ir::condcodes::IntCC;
 use cranelift_codegen::ir::types::{I8, I32, I64};
 use cranelift_codegen::ir::{
     Block, BlockArg, BlockCall, FuncRef, InstBuilder, MemFlags, StackSlotData, StackSlotKind, Type,
-    Value, ValueListPool,
+    Value,
 };
 use cranelift_frontend::{FunctionBuilder, Variable};
 
 /// Contains state to emit Cranelift instructions for a Lua function.
 pub struct Emitter<'a, 'b, A> {
     fb: &'a mut FunctionBuilder<'b>,
-    vlp: &'a mut ValueListPool,
     st: Variable,
     cx: Variable,
     ret: Variable,
@@ -44,7 +43,6 @@ pub struct Emitter<'a, 'b, A> {
 impl<'a, 'b, A> Emitter<'a, 'b, A> {
     pub unsafe fn new(
         fb: &'a mut FunctionBuilder<'b>,
-        vlp: &'a mut ValueListPool,
         st: Variable,
         cx: Variable,
         ret: Variable,
@@ -129,7 +127,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         // Get base stack.
         let mut e = Self {
-            vlp,
             st,
             cx,
             ret,
@@ -201,7 +198,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let root = e.fb.create_block();
 
         e.fb.switch_to_block(root);
-        e.resumes.push(BlockCall::new(root, [], e.vlp));
+        e.resumes.push(e.fb.func.dfg.block_call(root, []));
 
         e
     }
@@ -832,7 +829,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Create resume block.
         let resume = self.fb.create_block();
 
-        self.resumes.push(BlockCall::new(resume, [], self.vlp));
+        self.resumes.push(self.fb.func.dfg.block_call(resume, []));
 
         resume
     }

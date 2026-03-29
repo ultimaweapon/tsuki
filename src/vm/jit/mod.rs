@@ -19,8 +19,7 @@ use core::ptr::null_mut;
 use core::task::{Context, Poll};
 use cranelift_codegen::ir::types::I32;
 use cranelift_codegen::ir::{
-    AbiParam, BlockCall, Function, InstBuilder, JumpTableData, MemFlags, Signature, TrapCode, Type,
-    ValueListPool,
+    AbiParam, Function, InstBuilder, JumpTableData, MemFlags, Signature, TrapCode, Type,
 };
 use cranelift_codegen::isa::CallConv;
 use cranelift_frontend::FunctionBuilder;
@@ -90,20 +89,10 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
 
     // Compile instructions.
     let mut pc = 0;
-    let mut vlp = ValueListPool::new();
     let mut funcs = RustFuncs::<A>::default();
     let mut resumes = Vec::new();
     let jump = fb.create_block();
-    let mut emit = Emitter::new(
-        &mut fb,
-        &mut vlp,
-        st,
-        cx,
-        ret,
-        &mut funcs,
-        &mut resumes,
-        jump,
-    );
+    let mut emit = Emitter::new(&mut fb, st, cx, ret, &mut funcs, &mut resumes, jump);
 
     loop {
         // Get instruction.
@@ -131,10 +120,8 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
 
     // Create root jump table.
     let def = fb.create_block();
-    let jt = fb.create_jump_table(JumpTableData::new(
-        BlockCall::new(def, [], &mut vlp),
-        &resumes,
-    ));
+    let bc = fb.func.dfg.block_call(def, []);
+    let jt = fb.create_jump_table(JumpTableData::new(bc, &resumes));
 
     fb.switch_to_block(def);
     fb.ins().trap(TrapCode::unwrap_user(1));
@@ -156,7 +143,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
     fb.seal_block(def);
 
     for b in resumes {
-        fb.seal_block(b.block(&vlp));
+        fb.seal_block(b.block(&fb.func.dfg.value_lists));
     }
 
     fb.finalize();
