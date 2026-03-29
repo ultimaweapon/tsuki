@@ -2,7 +2,9 @@ pub use self::future::*;
 
 use self::emitter::Emitter;
 use self::funcs::RustFuncs;
-use super::{OP_CALL, OP_GETTABUP, OP_LOADK, OP_VARARGPREP, luaV_finishget};
+use super::{OP_CALL, OP_GETTABUP, OP_LOADK, OP_RETURN, OP_VARARGPREP, luaV_finishget};
+use crate::ldo::luaD_poscall;
+use crate::lfunc::luaF_close;
 use crate::lobject::Proto;
 use crate::lstate::CallInfo;
 use crate::ltm::luaT_adjustvarargs;
@@ -104,20 +106,25 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
     );
 
     loop {
-        let i = match code.get(pc).copied() {
-            Some(v) => v,
-            None => break,
-        };
+        // Get instruction.
+        let i = code.get(pc).copied().unwrap();
 
         pc += 1;
 
-        pc = match i & 0x7F {
+        // Emit IR.
+        let r = match i & 0x7F {
             OP_LOADK => emit.loadk(i, pc),
             OP_GETTABUP => emit.gettabup(i, pc),
             OP_CALL => emit.call(i, pc),
+            OP_RETURN => emit.r#return(i, pc),
             OP_VARARGPREP => emit.varargprep(i, pc),
             v => todo!("{v}"),
         };
+
+        match r {
+            Some(v) => pc = v,
+            None => break,
+        }
     }
 
     drop(emit);
@@ -132,6 +139,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
     fb.switch_to_block(def);
     fb.ins().trap(TrapCode::unwrap_user(1));
     fb.switch_to_block(jump);
+    fb.seal_block(jump);
 
     // Jump to resume block.
     let st = fb.use_var(st);
@@ -297,6 +305,27 @@ unsafe extern "C-unwind" fn resume_run_lua<A>(
     (*ci).pending_future.run.drop::<A>();
 
     if let Err(e) = r {
+        (*ret).set_error(e);
+    }
+}
+
+unsafe extern "C-unwind" fn close<A>(
+    td: *const Thread<A>,
+    lv: *mut StackValue<A>,
+    ret: *mut Error,
+) {
+    if let Err(e) = luaF_close(&*td, lv) {
+        (*ret).set_error(e);
+    }
+}
+
+unsafe extern "C-unwind" fn poscall<A>(
+    td: *const Thread<A>,
+    ci: *mut CallInfo,
+    nres: i32,
+    ret: *mut Error,
+) {
+    if let Err(e) = luaD_poscall(&*td, ci, nres) {
         (*ret).set_error(e);
     }
 }

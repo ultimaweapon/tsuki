@@ -34,6 +34,8 @@ pub struct Emitter<'a, 'b, A> {
     resume_precall: FuncRef,
     run_lua: FuncRef,
     resume_run_lua: FuncRef,
+    close: FuncRef,
+    poscall: FuncRef,
     ptr: Type,
     resumes: &'a mut Vec<BlockCall>,
     phantom: PhantomData<A>,
@@ -178,6 +180,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 None,
                 super::resume_run_lua::<A> as *const u8,
             ),
+            close: funcs.import(fb, &[ptr, ptr, ptr], None, super::close::<A> as *const u8),
+            poscall: funcs.import(
+                fb,
+                &[ptr, ptr, I32, ptr],
+                None,
+                super::poscall::<A> as *const u8,
+            ),
             ptr,
             resumes,
             fb,
@@ -197,7 +206,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         e
     }
 
-    pub unsafe fn loadk(&mut self, i: u32, pc: usize) -> usize {
+    pub unsafe fn loadk(&mut self, i: u32, pc: usize) -> Option<usize> {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_const(i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1));
 
@@ -231,10 +240,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        pc
+        Some(pc)
     }
 
-    pub unsafe fn gettabup(&mut self, i: u32, pc: usize) -> usize {
+    pub unsafe fn gettabup(&mut self, i: u32, pc: usize) -> Option<usize> {
         // Get output register and key.
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let k = self.load_const(
@@ -422,10 +431,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(next_inst);
         self.fb.seal_block(next_inst);
 
-        pc
+        Some(pc)
     }
 
-    pub unsafe fn call(&mut self, i: u32, pc: usize) -> usize {
+    pub unsafe fn call(&mut self, i: u32, pc: usize) -> Option<usize> {
         // Update top and PC.
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let args = (i >> 7 + 8 + 1 & 0xFF) as u8;
@@ -523,10 +532,143 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.update_base_stack();
 
-        pc
+        Some(pc)
     }
 
-    pub unsafe fn varargprep(&mut self, i: u32, pc: usize) -> usize {
+    pub fn r#return(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = i >> 7 & !(!(0u32) << 8);
+        let n = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - 1;
+        let n = if n < 0 {
+            // Load top.
+            let td = self.fb.use_var(self.td);
+            let top = self.fb.ins().load(
+                self.ptr,
+                MemFlags::trusted(),
+                td,
+                offset_of!(Thread<A>, top) as i32,
+            );
+
+            // Get number of values to return.
+            let ra = unsafe { self.get_reg(ra) };
+            let n = self.fb.ins().isub(top, ra);
+
+            self.fb.ins().imul_imm(n, size_of::<StackValue<A>>() as i64)
+        } else {
+            self.fb.ins().iconst(I32, i64::from(n))
+        };
+
+        self.update_pc(pc);
+
+        if (i & 1 << 7 + 8) != 0 {
+            // Set CallInfo::u2::nres.
+            let ci = self.fb.use_var(self.ci);
+
+            self.fb.ins().store(
+                MemFlags::trusted(),
+                n,
+                ci,
+                offset_of!(CallInfo, u2.nres) as i32,
+            );
+
+            // Load stack pointers to compare.
+            let new = self.get_ci_top();
+            let td = self.fb.use_var(self.td);
+            let current = self.fb.ins().load(
+                self.ptr,
+                MemFlags::trusted(),
+                td,
+                offset_of!(Thread<A>, top) as i32,
+            );
+
+            // Check if we need to update top.
+            let cond = self.fb.ins().icmp(IntCC::UnsignedLessThan, current, new);
+            let update = self.fb.create_block();
+            let join = self.fb.create_block();
+
+            self.fb.ins().brif(cond, update, [], join, []);
+
+            self.fb.switch_to_block(update);
+            self.fb.seal_block(update);
+
+            // Update top.
+            self.fb.ins().store(
+                MemFlags::trusted(),
+                new,
+                td,
+                offset_of!(Thread<A>, top) as i32,
+            );
+
+            self.fb.ins().jump(join, []);
+
+            self.fb.switch_to_block(join);
+            self.fb.seal_block(join);
+
+            // Invoke luaF_close.
+            let base = self.fb.use_var(self.base);
+
+            self.fb.ins().call(self.close, &[td, base]);
+
+            self.return_on_err();
+            self.update_base_stack();
+        }
+
+        // Update
+        let nparams1 = i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8);
+
+        if nparams1 != 0 {
+            // Load CallInfo::nextraargs.
+            let ci = self.fb.use_var(self.ci);
+            let nextraargs = self.fb.ins().sload32(
+                MemFlags::trusted(),
+                ci,
+                offset_of!(CallInfo, nextraargs) as i32,
+            );
+
+            // Load CallInfo::func.
+            let func = self.fb.ins().load(
+                self.ptr,
+                MemFlags::trusted(),
+                ci,
+                offset_of!(CallInfo, func) as i32,
+            );
+
+            // Update CallInfo::func.
+            let args = self.fb.ins().iadd_imm(nextraargs, i64::from(nparams1));
+            let func = self.fb.ins().isub(func, args);
+
+            self.fb.ins().store(
+                MemFlags::trusted(),
+                func,
+                ci,
+                offset_of!(CallInfo, func) as i32,
+            );
+        }
+
+        // Update top.
+        let ra = unsafe { self.get_reg(ra) };
+        let top = self.fb.ins().imul_imm(n, size_of::<StackValue<A>>() as i64);
+        let top = self.fb.ins().uextend(self.ptr, top);
+        let top = self.fb.ins().iadd(ra, top);
+        let td = self.fb.use_var(self.td);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            top,
+            td,
+            offset_of!(Thread<A>, top) as i32,
+        );
+
+        // Invoke luaD_poscall.
+        let ci = self.fb.use_var(self.ci);
+        let ret = self.fb.use_var(self.ret);
+
+        self.fb.ins().call(self.poscall, &[td, ci, n, ret]);
+        self.fb.ins().return_(&[]);
+
+        None
+    }
+
+    pub unsafe fn varargprep(&mut self, i: u32, pc: usize) -> Option<usize> {
         // Set CallInfo::pc.
         self.update_pc(pc);
 
@@ -555,7 +697,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.return_on_err();
         self.update_base_stack();
 
-        pc
+        Some(pc)
     }
 
     fn finishget(&mut self, i: u32, pc: usize, tab: Value, kt: Value, kv: Value) {
@@ -717,6 +859,23 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     fn update_top(&mut self) {
+        let top = self.get_ci_top();
+
+        unsafe { self.set_top(top) };
+    }
+
+    unsafe fn set_top(&mut self, top: Value) {
+        let td = self.fb.use_var(self.td);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            top,
+            td,
+            offset_of!(Thread<A>, top) as i32,
+        );
+    }
+
+    fn get_ci_top(&mut self) -> Value {
         // Load CallInfo::top.
         let ci = self.fb.use_var(self.ci);
         let top = self.fb.ins().load(
@@ -735,25 +894,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(Thread<A>, stack) as i32,
         );
 
-        // Set Thread::top.
+        // Get top.
         let top = self
             .fb
             .ins()
             .imul_imm(top, size_of::<StackValue<A>>() as i64);
-        let top = self.fb.ins().iadd(v, top);
 
-        unsafe { self.set_top(top) };
-    }
-
-    unsafe fn set_top(&mut self, top: Value) {
-        let td = self.fb.use_var(self.td);
-
-        self.fb.ins().store(
-            MemFlags::trusted(),
-            top,
-            td,
-            offset_of!(Thread<A>, top) as i32,
-        );
+        self.fb.ins().iadd(v, top)
     }
 
     fn update_pc(&mut self, pc: usize) {
