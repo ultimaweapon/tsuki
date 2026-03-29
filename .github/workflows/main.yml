@@ -31,6 +31,7 @@ jobs:
     uses: ./.github/workflows/ci-windows.yml
     with:
       target: x86_64-pc-windows-msvc
+      features: jit
     needs: prebuild
   build-32:
     name: Build
