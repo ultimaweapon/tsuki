@@ -1,3 +1,4 @@
+pub use self::allocator::*;
 pub use self::future::*;
 
 use self::emitter::Emitter;
@@ -25,6 +26,7 @@ use cranelift_codegen::isa::CallConv;
 use cranelift_frontend::FunctionBuilder;
 use target_lexicon::Triple;
 
+mod allocator;
 mod emitter;
 mod funcs;
 mod future;
@@ -41,7 +43,7 @@ pub async unsafe fn run<A>(
     let p = (*f).p.get();
 
     if (*p).jitted.is_null() {
-        compile((*td).hdr.global(), p);
+        compile((*td).hdr.global(), p)?;
     }
 
     // Invoke jitted function.
@@ -56,7 +58,7 @@ pub async unsafe fn run<A>(
 }
 
 #[inline(never)]
-unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
+unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error> {
     // https://users.rust-lang.org/t/calling-a-rust-function-from-cranelift/103948/5.
     let mut sig = Signature::new(CallConv::triple_default(&HOST));
     let ptr = Type::triple_pointer_type(&HOST);
@@ -159,9 +161,16 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) {
     let code = ctx
         .compile(g.jit.isa.deref(), &mut Default::default())
         .unwrap();
+    let data = code.buffer.data();
+    let align = usize::try_from(code.buffer.alignment).unwrap();
+    let mut allocator = g.jit.allocator.borrow_mut();
+    let mut buf = allocator.allocate(data.len().try_into().unwrap(), align.try_into().unwrap())?;
+
+    buf.copy_from_slice(data);
 
     ctx.clear();
 
+    // Relocate.
     todo!()
 }
 

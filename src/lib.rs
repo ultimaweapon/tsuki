@@ -864,6 +864,7 @@ struct Jit {
     isa: alloc::sync::Arc<dyn cranelift_codegen::isa::TargetIsa>,
     builder_context: core::cell::RefCell<cranelift_frontend::FunctionBuilderContext>,
     codegen_context: core::cell::RefCell<cranelift_codegen::Context>,
+    allocator: core::cell::RefCell<crate::vm::CodeAllocator>,
 }
 
 #[cfg(feature = "jit")]
@@ -880,6 +881,7 @@ impl Jit {
             isa,
             builder_context: RefCell::default(),
             codegen_context: RefCell::new(cranelift_codegen::Context::new()),
+            allocator: RefCell::new(crate::vm::CodeAllocator::new()),
         }
     }
 }
