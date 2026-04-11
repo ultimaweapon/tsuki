@@ -52,7 +52,7 @@ jobs:
       features: jit
     needs: prebuild
   build-32:
-    name: Build
+    name: Interpreter
     uses: ./.github/workflows/ci-windows.yml
     with:
       target: i686-pc-windows-msvc
