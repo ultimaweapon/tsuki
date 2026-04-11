@@ -3,12 +3,14 @@ pub use self::future::*;
 
 use self::emitter::Emitter;
 use self::funcs::RustFuncs;
-use super::{OP_CALL, OP_CLOSURE, OP_GETTABUP, OP_LOADK, OP_RETURN, OP_VARARGPREP, luaV_finishget};
+use super::{
+    OP_CALL, OP_CLOSURE, OP_GETTABUP, OP_LOADK, OP_RETURN, OP_VARARG, OP_VARARGPREP, luaV_finishget,
+};
 use crate::ldo::luaD_poscall;
 use crate::lfunc::luaF_close;
 use crate::lobject::Proto;
 use crate::lstate::CallInfo;
-use crate::ltm::luaT_adjustvarargs;
+use crate::ltm::{luaT_adjustvarargs, luaT_getvarargs};
 use crate::value::UnsafeValue;
 use crate::{Lua, LuaFn, StackValue, Str, Table, Thread, luaH_getshortstr};
 use alloc::boxed::Box;
@@ -112,6 +114,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_CALL => emit.call(i, pc),
             OP_RETURN => emit.r#return(i, pc),
             OP_CLOSURE => emit.closure(i, pc),
+            OP_VARARG => emit.vararg(i, pc),
             OP_VARARGPREP => emit.varargprep(i, pc),
             v => todo!("OP {v}"),
         };
@@ -239,6 +242,18 @@ unsafe extern "C-unwind" fn adjustvarargs<A>(
     if let Err(e) = luaT_adjustvarargs(td, nfixparams, ci, p) {
         (*ret).set_error(e);
     };
+}
+
+unsafe extern "C-unwind" fn getvarargs<A>(
+    td: *const Thread<A>,
+    ci: *mut CallInfo,
+    r#where: *mut StackValue<A>,
+    wanted: i32,
+    ret: *mut Error,
+) {
+    if let Err(e) = luaT_getvarargs(td, ci, r#where, wanted) {
+        (*ret).set_error(e);
+    }
 }
 
 unsafe extern "C-unwind" fn finishget<A>(

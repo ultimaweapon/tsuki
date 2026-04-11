@@ -39,7 +39,7 @@ fn async_call(c: &mut Criterion) {
     {
         let lua = tsuki::Lua::new(());
         let th = lua.create_thread();
-        let chunk = lua.load("async-call.lua", "return asyncfn(...)").unwrap();
+        let chunk = lua.load("async-call.lua", "asyncfn(...)").unwrap();
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -81,7 +81,7 @@ fn async_call(c: &mut Criterion) {
 
     {
         let lua = mlua::Lua::new();
-        let chunk = lua.load("return asyncfn(...)").into_function().unwrap();
+        let chunk = lua.load("asyncfn(...)").into_function().unwrap();
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()

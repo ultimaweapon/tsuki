@@ -28,6 +28,7 @@ pub struct Emitter<'a, 'b, A> {
     k: Variable,
     base: Variable,
     adjustvarargs: FuncRef,
+    getvarargs: FuncRef,
     finishget: FuncRef,
     getshortstr: FuncRef,
     precall: FuncRef,
@@ -147,6 +148,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 &[ptr, I32, ptr, ptr, ptr],
                 None,
                 super::adjustvarargs::<A> as *const u8,
+            ),
+            getvarargs: funcs.import(
+                fb,
+                &[ptr, ptr, ptr, I32, ptr],
+                None,
+                super::getvarargs::<A> as *const u8,
             ),
             finishget: funcs.import(
                 fb,
@@ -724,6 +731,27 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         Some(pc)
     }
 
+    pub unsafe fn vararg(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let n = (i >> 0 + 7 + 8 + 1 + 8 & !(!(0u32) << 8)) as i32 - 1;
+        let n = self.fb.ins().iconst(I32, i64::from(n));
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        // Invoke luaT_getvarargs.
+        let td = self.fb.use_var(self.td);
+        let ci = self.fb.use_var(self.ci);
+        let ret = self.fb.use_var(self.ret);
+
+        self.fb.ins().call(self.getvarargs, &[td, ci, ra, n, ret]);
+
+        self.return_on_err();
+        self.update_base_stack();
+
+        Some(pc)
+    }
+
     pub unsafe fn varargprep(&mut self, i: u32, pc: usize) -> Option<usize> {
         // Set CallInfo::pc.
         self.update_pc(pc);
@@ -960,6 +988,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.ins().iadd(v, top)
     }
 
+    /// `(*ci).pc = pc`.
     fn update_pc(&mut self, pc: usize) {
         let v = self.fb.ins().iconst(self.ptr, pc as i64);
         let ci = self.fb.use_var(self.ci);
