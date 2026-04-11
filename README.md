@@ -136,6 +136,10 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 
 This requires too much changes to the language so the answer is no. See [#16](https://github.com/ultimaweapon/tsuki/issues/16) for more details.
 
+## Contribution
+
+We don't accept AI generated code. This also include code documentation.
+
 ## License
 
 Same as Lua, which is MIT.

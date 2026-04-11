@@ -1086,13 +1086,14 @@ pub fn luaV_shiftl(x: i64, y: i64) -> i64 {
     };
 }
 
-#[inline(never)]
-unsafe fn pushclosure<D>(
-    L: *const Thread<D>,
-    p: *mut Proto<D>,
-    encup: &[Cell<*mut UpVal<D>>],
-    base: *mut StackValue<D>,
-    ra: *mut StackValue<D>,
+#[cfg_attr(feature = "jit", inline(always))]
+#[cfg_attr(not(feature = "jit"), inline(never))]
+unsafe fn pushclosure<A>(
+    L: *const Thread<A>,
+    p: *mut Proto<A>,
+    encup: &[Cell<*mut UpVal<A>>],
+    base: *mut StackValue<A>,
+    ra: *mut StackValue<A>,
 ) {
     let nup: c_int = (*p).sizeupvalues;
     let uv = (*p).upvalues;

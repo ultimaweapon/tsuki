@@ -23,7 +23,8 @@ pub struct Emitter<'a, 'b, A> {
     ret: Variable,
     td: Variable,
     ci: Variable,
-    func: Variable,
+    f: Variable,
+    p: Variable,
     k: Variable,
     base: Variable,
     adjustvarargs: FuncRef,
@@ -35,6 +36,8 @@ pub struct Emitter<'a, 'b, A> {
     resume_run_lua: FuncRef,
     close: FuncRef,
     poscall: FuncRef,
+    pushclosure: FuncRef,
+    gc: FuncRef,
     ptr: Type,
     resumes: &'a mut Vec<BlockCall>,
     phantom: PhantomData<A>,
@@ -107,19 +110,22 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         fb.def_var(f, v);
 
         // Load function prototype.
-        let proto = fb.ins().load(
+        let p = fb.declare_var(ptr);
+        let v = fb.ins().load(
             ptr,
             MemFlags::trusted().with_can_move().with_readonly(),
             v,
             offset_of!(LuaFn<A>, p) as i32,
         );
 
+        fb.def_var(p, v);
+
         // Load constants.
         let k = fb.declare_var(ptr);
         let v = fb.ins().load(
             ptr,
             MemFlags::trusted().with_can_move().with_readonly(),
-            proto,
+            v,
             offset_of!(Proto<A>, k) as i32,
         );
 
@@ -132,7 +138,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             ret,
             td,
             ci,
-            func: f,
+            f,
+            p,
             k,
             base: fb.declare_var(ptr),
             adjustvarargs: funcs.import(
@@ -184,6 +191,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 None,
                 super::poscall::<A> as *const u8,
             ),
+            pushclosure: funcs.import(
+                fb,
+                &[ptr, ptr, ptr, ptr, ptr],
+                None,
+                super::pushclosure::<A> as *const u8,
+            ),
+            gc: funcs.import(fb, &[ptr], None, super::step_gc::<A> as *const u8),
             ptr,
             resumes,
             fb,
@@ -249,7 +263,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         );
 
         // Load LuaFn::upvals.
-        let func = self.fb.use_var(self.func);
+        let func = self.fb.use_var(self.f);
         let vals = self.fb.ins().load(
             self.ptr,
             MemFlags::trusted().with_can_move().with_readonly(),
@@ -532,7 +546,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         Some(pc)
     }
 
-    pub fn r#return(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn r#return(&mut self, i: u32, pc: usize) -> Option<usize> {
         let ra = i >> 7 & !(!(0u32) << 8);
         let n = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - 1;
         let n = if n < 0 {
@@ -665,12 +679,57 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         None
     }
 
+    pub unsafe fn closure(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+
+        // Load Proto::p.
+        let p = self.fb.use_var(self.p);
+        let p = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted().with_can_move().with_readonly(),
+            p,
+            offset_of!(Proto<A>, p) as i32,
+        );
+
+        // Load Proto for closure.
+        let p = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted().with_can_move().with_readonly(),
+            p,
+            ((i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1)) as usize * size_of::<*mut Proto<A>>()) as i32,
+        );
+
+        self.update_top_from_ci();
+
+        // Invoke pushclosure.
+        let td = self.fb.use_var(self.td);
+        let f = self.fb.use_var(self.f);
+        let base = self.fb.use_var(self.base);
+
+        self.fb.ins().call(self.pushclosure, &[td, p, f, base, ra]);
+
+        // Update top.
+        let top = self
+            .fb
+            .ins()
+            .iadd_imm(ra, size_of::<StackValue<A>>() as i64);
+
+        self.set_top(top);
+
+        // Trigger GC.
+        self.fb.ins().call(self.gc, &[td]);
+
+        self.update_base_stack();
+
+        Some(pc)
+    }
+
     pub unsafe fn varargprep(&mut self, i: u32, pc: usize) -> Option<usize> {
         // Set CallInfo::pc.
         self.update_pc(pc);
 
         // Get LuaFn::p.
-        let func = self.fb.use_var(self.func);
+        let func = self.fb.use_var(self.f);
         let proto = self.fb.ins().load(
             self.ptr,
             MemFlags::trusted().with_can_move().with_readonly(),
@@ -712,7 +771,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .stack_store(kv, key, offset_of!(UnsafeValue<A>, value_) as i32);
 
-        self.update_top();
+        self.update_top_from_ci();
         self.update_pc(pc);
 
         // Allocate buffer for result.
@@ -855,7 +914,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.ins().return_(&[]);
     }
 
-    fn update_top(&mut self) {
+    /// `(*th).top.set(th.stack.get().add((*ci).top.get()))`.
+    fn update_top_from_ci(&mut self) {
         let top = self.get_ci_top();
 
         unsafe { self.set_top(top) };
@@ -909,6 +969,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .store(MemFlags::trusted(), v, ci, offset_of!(CallInfo, pc) as i32);
     }
 
+    /// `base = th.stack.get().add((*ci).func + 1)`.
     fn update_base_stack(&mut self) {
         // Get CallInfo::func.
         let v = self.fb.use_var(self.ci);

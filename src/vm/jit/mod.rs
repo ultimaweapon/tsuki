@@ -3,7 +3,7 @@ pub use self::future::*;
 
 use self::emitter::Emitter;
 use self::funcs::RustFuncs;
-use super::{OP_CALL, OP_GETTABUP, OP_LOADK, OP_RETURN, OP_VARARGPREP, luaV_finishget};
+use super::{OP_CALL, OP_CLOSURE, OP_GETTABUP, OP_LOADK, OP_RETURN, OP_VARARGPREP, luaV_finishget};
 use crate::ldo::luaD_poscall;
 use crate::lfunc::luaF_close;
 use crate::lobject::Proto;
@@ -111,6 +111,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_GETTABUP => emit.gettabup(i, pc),
             OP_CALL => emit.call(i, pc),
             OP_RETURN => emit.r#return(i, pc),
+            OP_CLOSURE => emit.closure(i, pc),
             OP_VARARGPREP => emit.varargprep(i, pc),
             v => todo!("OP {v}"),
         };
@@ -378,6 +379,20 @@ unsafe extern "C-unwind" fn poscall<A>(
     if let Err(e) = luaD_poscall(&*td, ci, nres) {
         (*ret).set_error(e);
     }
+}
+
+unsafe extern "C-unwind" fn pushclosure<A>(
+    td: *const Thread<A>,
+    p: *mut Proto<A>,
+    f: *const LuaFn<A>,
+    base: *mut StackValue<A>,
+    ra: *mut StackValue<A>,
+) {
+    super::pushclosure(td, p, &(*f).upvals, base, ra);
+}
+
+unsafe extern "C-unwind" fn step_gc<A>(td: *const Thread<A>) {
+    (*td).hdr.global().gc.step();
 }
 
 /// Implementation of [Future] to invoke jitted function.
