@@ -18,9 +18,12 @@ use core::ops::Deref;
 use core::pin::Pin;
 use core::ptr::null_mut;
 use core::task::{Context, Poll};
+use cranelift_codegen::FinalizedRelocTarget;
+use cranelift_codegen::binemit::Reloc;
 use cranelift_codegen::ir::types::I32;
 use cranelift_codegen::ir::{
-    AbiParam, Function, InstBuilder, JumpTableData, MemFlags, Signature, TrapCode, Type,
+    AbiParam, ExternalName, Function, InstBuilder, JumpTableData, MemFlags, Signature, TrapCode,
+    Type,
 };
 use cranelift_codegen::isa::CallConv;
 use cranelift_frontend::FunctionBuilder;
@@ -42,12 +45,12 @@ pub async unsafe fn run<A>(
         .cast::<LuaFn<A>>();
     let p = (*f).p.get();
 
-    if (*p).jitted.is_null() {
+    if (*p).jitted.is_empty() {
         compile((*td).hdr.global(), p)?;
     }
 
     // Invoke jitted function.
-    let jitted = transmute((*p).jitted);
+    let jitted = transmute((*p).jitted as *const u8);
     let state = State {
         td,
         ci,
@@ -109,7 +112,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_CALL => emit.call(i, pc),
             OP_RETURN => emit.r#return(i, pc),
             OP_VARARGPREP => emit.varargprep(i, pc),
-            v => todo!("{v}"),
+            v => todo!("OP {v}"),
         };
 
         match r {
@@ -168,10 +171,61 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
 
     buf.copy_from_slice(data);
 
+    // Apply relocations.
+    for r in code.buffer.relocs() {
+        let off = usize::try_from(r.offset).unwrap();
+
+        match r.kind {
+            Reloc::Abs4 => todo!(),
+            Reloc::Abs8 => match &r.target {
+                FinalizedRelocTarget::ExternalName(ExternalName::User(v)) => {
+                    let f = funcs.get(*v) as usize;
+
+                    buf[off..(off + 8)].copy_from_slice(&f.to_ne_bytes());
+                }
+                FinalizedRelocTarget::ExternalName(ExternalName::TestCase(_)) => todo!(),
+                FinalizedRelocTarget::ExternalName(ExternalName::LibCall(_)) => todo!(),
+                FinalizedRelocTarget::ExternalName(ExternalName::KnownSymbol(_)) => todo!(),
+                FinalizedRelocTarget::Func(_) => todo!(),
+            },
+            Reloc::X86PCRel4 => todo!(),
+            Reloc::X86CallPCRel4 => todo!(),
+            Reloc::X86CallPLTRel4 => todo!(),
+            Reloc::X86GOTPCRel4 => todo!(),
+            Reloc::X86SecRel => todo!(),
+            Reloc::Arm32Call => todo!(),
+            Reloc::Arm64Call => todo!(),
+            Reloc::S390xPCRel32Dbl => todo!(),
+            Reloc::S390xPLTRel32Dbl => todo!(),
+            Reloc::ElfX86_64TlsGd => todo!(),
+            Reloc::MachOX86_64Tlv => todo!(),
+            Reloc::MachOAarch64TlsAdrPage21 => todo!(),
+            Reloc::MachOAarch64TlsAdrPageOff12 => todo!(),
+            Reloc::Aarch64TlsDescAdrPage21 => todo!(),
+            Reloc::Aarch64TlsDescLd64Lo12 => todo!(),
+            Reloc::Aarch64TlsDescAddLo12 => todo!(),
+            Reloc::Aarch64TlsDescCall => todo!(),
+            Reloc::Aarch64AdrGotPage21 => todo!(),
+            Reloc::Aarch64AdrPrelPgHi21 => todo!(),
+            Reloc::Aarch64AddAbsLo12Nc => todo!(),
+            Reloc::Aarch64Ld64GotLo12Nc => todo!(),
+            Reloc::RiscvCallPlt => todo!(),
+            Reloc::RiscvTlsGdHi20 => todo!(),
+            Reloc::RiscvPCRelLo12I => todo!(),
+            Reloc::RiscvGotHi20 => todo!(),
+            Reloc::RiscvPCRelHi20 => todo!(),
+            Reloc::S390xTlsGd64 => todo!(),
+            Reloc::S390xTlsGdCall => todo!(),
+            Reloc::PulleyPcRel => todo!(),
+            Reloc::PulleyCallIndirectHost => todo!(),
+        }
+    }
+
     ctx.clear();
 
-    // Relocate.
-    todo!()
+    (*p).jitted = buf.seal();
+
+    Ok(())
 }
 
 unsafe extern "C-unwind" fn adjustvarargs<A>(

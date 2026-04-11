@@ -16,7 +16,11 @@ harness = false
 
 [features]
 default = ["rand", "std"]
+
+# Compile Lua bytecode to machine code with Cranelift. This is a preview feature and not all
+# bytecode instructions currently implemented.
 jit = ["std", "dep:cranelift-codegen", "dep:cranelift-frontend", "dep:target-lexicon"]
+
 rand = ["dep:rand"]
 serde = ["dep:serde"]
 std = ["libm/arch", "tsuki-macros/std"]

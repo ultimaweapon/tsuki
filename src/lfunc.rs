@@ -296,7 +296,7 @@ pub unsafe fn luaF_newproto<D>(g: *const Lua<D>, chunk: Rc<String>) -> *mut Prot
     (*f).code = 0 as *mut u32;
     (*f).sizecode = 0 as c_int;
     #[cfg(feature = "jit")]
-    addr_of_mut!((*f).jitted).write(null_mut());
+    addr_of_mut!((*f).jitted).write(&[]);
     (*f).lineinfo = 0 as *mut i8;
     (*f).sizelineinfo = 0 as c_int;
     (*f).abslineinfo = 0 as *mut AbsLineInfo;

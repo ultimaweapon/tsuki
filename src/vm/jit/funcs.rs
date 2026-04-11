@@ -1,15 +1,16 @@
 use super::HOST;
-use alloc::vec::Vec;
 use core::marker::PhantomData;
 use cranelift_codegen::ir::{
     AbiParam, ExtFuncData, ExternalName, FuncRef, Signature, Type, UserExternalName,
+    UserExternalNameRef,
 };
 use cranelift_codegen::isa::CallConv;
 use cranelift_frontend::FunctionBuilder;
+use std::collections::HashMap;
 
 /// Contains Rust functions that can be called from jitted function.
 pub struct RustFuncs<A> {
-    list: Vec<*const u8>,
+    list: HashMap<UserExternalNameRef, *const u8>,
     phantom: PhantomData<A>,
 }
 
@@ -39,7 +40,7 @@ impl<A> RustFuncs<A> {
         let name = UserExternalName::new(0, self.list.len().try_into().unwrap());
         let name = fb.func.declare_imported_user_function(name);
 
-        self.list.push(f);
+        assert!(self.list.insert(name, f).is_none());
 
         fb.func.import_function(ExtFuncData {
             name: ExternalName::User(name),
@@ -47,6 +48,12 @@ impl<A> RustFuncs<A> {
             colocated: false,
             patchable: false,
         })
+    }
+
+    /// # Panics
+    /// If `name` does not exists.
+    pub fn get(&self, name: UserExternalNameRef) -> *const u8 {
+        self.list.get(&name).copied().unwrap()
     }
 }
 

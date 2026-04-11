@@ -110,7 +110,7 @@ pub struct Proto<D> {
     pub k: *mut UnsafeValue<D>,
     pub code: *mut u32,
     #[cfg(feature = "jit")]
-    pub jitted: *mut u8,
+    pub jitted: *const [u8],
     pub p: *mut *mut Self,
     pub upvalues: *mut Upvaldesc<D>,
     pub lineinfo: *mut i8,
@@ -163,6 +163,13 @@ impl<D> Drop for Proto<D> {
                 (self.sizeupvalues as usize).wrapping_mul(::core::mem::size_of::<Upvaldesc<D>>()),
             )
         };
+
+        #[cfg(feature = "jit")]
+        if !self.jitted.is_empty() {
+            let mut alloc = self.hdr.global().jit.allocator.borrow_mut();
+
+            unsafe { alloc.deallocate(self.jitted.cast_mut()) };
+        }
     }
 }
 

@@ -345,6 +345,12 @@ pub struct WritableBlock<'a> {
     phantom: PhantomData<&'a CodeAllocator>,
 }
 
+impl<'a> WritableBlock<'a> {
+    pub fn seal(self) -> *const [u8] {
+        core::ptr::slice_from_raw_parts(self.ptr, self.size.get())
+    }
+}
+
 impl<'a> Drop for WritableBlock<'a> {
     fn drop(&mut self) {
         unsafe { CodeAllocator::clear_writable(self.pages).unwrap() };
