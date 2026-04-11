@@ -19,33 +19,33 @@ jobs:
     - name: Check code styles
       run: cargo fmt --check
   build-linux:
-    name: Build
+    name: Interpreter
     uses: ./.github/workflows/ci-linux.yml
     needs: prebuild
   build-linux-jit:
-    name: Build (JIT)
+    name: JIT
     uses: ./.github/workflows/ci-linux.yml
     with:
       features: jit
     needs: prebuild
   build-mac:
-    name: Build
+    name: Interpreter
     uses: ./.github/workflows/ci-mac.yml
     needs: prebuild
   build-mac-jit:
-    name: Build (JIT)
+    name: JIT
     uses: ./.github/workflows/ci-mac.yml
     with:
       features: jit
     needs: prebuild
   build-windows:
-    name: Build
+    name: Interpreter
     uses: ./.github/workflows/ci-windows.yml
     with:
       target: x86_64-pc-windows-msvc
     needs: prebuild
   build-windows-jit:
-    name: Build (JIT)
+    name: JIT
     uses: ./.github/workflows/ci-windows.yml
     with:
       target: x86_64-pc-windows-msvc

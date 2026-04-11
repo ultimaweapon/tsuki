@@ -331,6 +331,22 @@ impl CodeAllocator {
         }
     }
 
+    #[cfg(windows)]
+    unsafe fn set_writable(pages: *mut [u8]) -> Result<(), Error> {
+        use windows_sys::Win32::System::Memory::{PAGE_READWRITE, VirtualProtect};
+
+        let Slice(ptr, len) = transmute(pages);
+
+        let new = PAGE_READWRITE;
+        let mut old = 0;
+
+        if unsafe { VirtualProtect(ptr.cast(), len, new, &mut old) == 0 } {
+            Err(Error::last_os_error())
+        } else {
+            Ok(())
+        }
+    }
+
     #[cfg(unix)]
     unsafe fn clear_writable(pages: *mut [u8]) -> Result<(), Error> {
         let Slice(ptr, len) = transmute(pages);
