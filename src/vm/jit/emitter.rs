@@ -248,10 +248,21 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub fn prepare(&mut self, pc: usize) {
-        if let Some(b) = self.branches.get(&pc).copied() {
-            self.fb.switch_to_block(b);
-            self.fb.seal_block(b);
+        let next = match self.branches.get(&pc) {
+            Some(v) => *v,
+            None => return,
+        };
+
+        // Check if we need to fallthrough.
+        let current = self.fb.current_block().unwrap();
+        let inst = self.fb.func.layout.last_inst(current).unwrap();
+        let inst = self.fb.func.dfg.insts[inst];
+
+        if !inst.opcode().is_terminator() {
+            self.fb.ins().jump(next, []);
         }
+
+        self.fb.switch_to_block(next);
     }
 
     pub unsafe fn r#move(&mut self, i: u32, pc: usize) -> Option<usize> {
@@ -369,6 +380,20 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         };
 
         self.fb.ins().jump(b, []);
+
+        Some(pc)
+    }
+
+    pub unsafe fn loadtrue(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let tt = self.fb.ins().iconst(I8, 1 | 1 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            tt,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
 
         Some(pc)
     }
@@ -1275,5 +1300,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb
             .ins()
             .iadd_imm(base, (idx * size_of::<StackValue<A>>() as u32) as i64)
+    }
+}
+
+impl<'a, 'b, A> Drop for Emitter<'a, 'b, A> {
+    fn drop(&mut self) {
+        for b in self.branches.values().copied() {
+            self.fb.seal_block(b);
+        }
     }
 }
