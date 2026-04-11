@@ -236,6 +236,43 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         e
     }
 
+    pub unsafe fn r#move(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & 0xFF);
+        let rb = self.get_reg(i >> 7 + 8 + 1 & 0xFF);
+
+        // Type.
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            rb,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Value.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            rb,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        Some(pc)
+    }
+
     pub unsafe fn loadi(&mut self, i: u32, pc: usize) -> Option<usize> {
         let ra = self.get_reg(i >> 7 & 0xFF);
         let b: i64 = ((i >> 15 & 0x1FFFF) as i32 - ((1 << 17) - 1 >> 1)) as i64;
