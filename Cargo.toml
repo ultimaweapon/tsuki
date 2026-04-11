@@ -19,7 +19,7 @@ default = ["rand", "std"]
 
 # Compile Lua bytecode to machine code with Cranelift. This is a preview feature and not all
 # bytecode instructions currently implemented.
-jit = ["std", "dep:cranelift-codegen", "dep:cranelift-frontend", "dep:target-lexicon"]
+jit = ["std", "dep:cranelift-codegen", "dep:cranelift-frontend", "dep:target-lexicon", "dep:windows-sys"]
 
 rand = ["dep:rand"]
 serde = ["dep:serde"]
@@ -37,6 +37,9 @@ serde = { version = "1.0.228", features = ["alloc"], default-features = false, o
 target-lexicon = { version = "0.13.5", optional = true }
 thiserror = { version = "2.0.12", default-features = false }
 tsuki-macros = { version = "=0.1.3", path = "macros" }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_System_SystemInformation"], optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.7.0", features = ["html_reports"] }

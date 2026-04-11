@@ -318,6 +318,15 @@ impl CodeAllocator {
 
         usize::try_from(v).unwrap().try_into().unwrap()
     }
+
+    #[cfg(windows)]
+    fn get_page_size() -> NonZero<usize> {
+        let mut v = unsafe { core::mem::zeroed() };
+
+        unsafe { windows_sys::Win32::System::SystemInformation::GetSystemInfo(&mut v) };
+
+        usize::try_from(v.dwPageSize).unwrap().try_into().unwrap()
+    }
 }
 
 /// Contains information for allocated block.
