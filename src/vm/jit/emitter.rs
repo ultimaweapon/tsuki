@@ -15,6 +15,7 @@ use cranelift_codegen::ir::{
 };
 use cranelift_frontend::{FunctionBuilder, Variable};
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 
 /// Contains state to emit Cranelift instructions for a Lua function.
 pub struct Emitter<'a, 'b, A> {
@@ -346,6 +347,28 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             ra,
             offset_of!(StackValue<A>, value_) as i32,
         );
+
+        Some(pc)
+    }
+
+    pub unsafe fn lfalseskip(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let tt = self.fb.ins().iconst(I8, 1 | 0 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            tt,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Jump.
+        let b = match self.branches.entry(pc + 1) {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
+        };
+
+        self.fb.ins().jump(b, []);
 
         Some(pc)
     }
