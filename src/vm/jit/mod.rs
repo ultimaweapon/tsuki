@@ -4,8 +4,8 @@ pub use self::future::*;
 use self::emitter::Emitter;
 use self::funcs::RustFuncs;
 use super::{
-    OP_CALL, OP_CLOSURE, OP_GETTABUP, OP_LOADK, OP_NEWTABLE, OP_RETURN, OP_VARARG, OP_VARARGPREP,
-    luaV_finishget,
+    OP_CALL, OP_CLOSURE, OP_GETTABUP, OP_LOADI, OP_LOADK, OP_NEWTABLE, OP_RETURN, OP_VARARG,
+    OP_VARARGPREP, luaV_finishget,
 };
 use crate::ldo::luaD_poscall;
 use crate::lfunc::luaF_close;
@@ -110,6 +110,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
 
         // Emit IR.
         let r = match i & 0x7F {
+            OP_LOADI => emit.loadi(i, pc),
             OP_LOADK => emit.loadk(i, pc),
             OP_GETTABUP => emit.gettabup(i, pc),
             OP_NEWTABLE => emit.newtable(i, pc),
