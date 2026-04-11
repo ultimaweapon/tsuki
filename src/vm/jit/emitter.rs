@@ -2,7 +2,7 @@ use super::{Error, HOST, RustFuncs, State};
 use crate::lobject::{Proto, UpVal};
 use crate::lstate::CallInfo;
 use crate::value::UnsafeValue;
-use crate::{LuaFn, StackValue, Thread, UserData};
+use crate::{LuaFn, StackValue, Thread, UserData, luaH_resize};
 use alloc::vec::Vec;
 use core::any::Any;
 use core::marker::PhantomData;
@@ -18,6 +18,7 @@ use cranelift_frontend::{FunctionBuilder, Variable};
 /// Contains state to emit Cranelift instructions for a Lua function.
 pub struct Emitter<'a, 'b, A> {
     fb: &'a mut FunctionBuilder<'b>,
+    code: &'a [u32],
     st: Variable,
     cx: Variable,
     ret: Variable,
@@ -39,6 +40,8 @@ pub struct Emitter<'a, 'b, A> {
     poscall: FuncRef,
     pushclosure: FuncRef,
     gc: FuncRef,
+    create_table: FuncRef,
+    resize_table: FuncRef,
     ptr: Type,
     resumes: &'a mut Vec<BlockCall>,
     phantom: PhantomData<A>,
@@ -47,6 +50,7 @@ pub struct Emitter<'a, 'b, A> {
 impl<'a, 'b, A> Emitter<'a, 'b, A> {
     pub unsafe fn new(
         fb: &'a mut FunctionBuilder<'b>,
+        code: &'a [u32],
         st: Variable,
         cx: Variable,
         ret: Variable,
@@ -134,6 +138,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         // Get base stack.
         let mut e = Self {
+            code,
             st,
             cx,
             ret,
@@ -205,6 +210,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 super::pushclosure::<A> as *const u8,
             ),
             gc: funcs.import(fb, &[ptr], None, super::step_gc::<A> as *const u8),
+            create_table: funcs.import(
+                fb,
+                &[ptr],
+                Some(ptr),
+                super::create_table::<A> as *const u8,
+            ),
+            resize_table: funcs.import(fb, &[ptr, I32, I32], None, luaH_resize::<A> as *const u8),
             ptr,
             resumes,
             fb,
@@ -448,6 +460,75 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(next_inst);
         self.fb.seal_block(next_inst);
+
+        Some(pc)
+    }
+
+    pub unsafe fn newtable(&mut self, i: u32, mut pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let mut b = i >> 7 + 8 + 1 & !(!(0u32) << 8);
+        let mut c = i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8);
+
+        if b > 0 {
+            b = 1 << b - 1;
+        }
+
+        if (i & 1 << 7 + 8) != 0 {
+            let i = self.code[pc];
+
+            c += (i >> 7 & !(!(0u32) << 8 + 8 + 1 + 8)) * ((1 << 8) - 1 + 1);
+        }
+
+        pc += 1;
+
+        // Set top.
+        let top = self
+            .fb
+            .ins()
+            .iadd_imm(ra, size_of::<StackValue<A>>() as i64);
+
+        self.set_top(top);
+
+        // Create table.
+        let td = self.fb.use_var(self.td);
+        let t = self.fb.ins().call(self.create_table, &[td]);
+        let t = self.fb.inst_results(t)[0];
+        let tt = self.fb.ins().iconst(I8, 5 | 0 << 4 | 1 << 6);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            tt,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            t,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        if b != 0 || c != 0 {
+            // Invoke luaH_resize.
+            let c = self.fb.ins().iconst(I32, i64::from(c));
+            let b = self.fb.ins().iconst(I32, i64::from(b));
+
+            self.fb.ins().call(self.resize_table, &[t, c, b]);
+        }
+
+        // Update top.
+        let top = self
+            .fb
+            .ins()
+            .iadd_imm(ra, size_of::<StackValue<A>>() as i64);
+
+        self.set_top(top);
+
+        // Trigger GC.
+        self.fb.ins().call(self.gc, &[td]);
+
+        self.update_base_stack();
 
         Some(pc)
     }

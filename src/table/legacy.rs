@@ -499,7 +499,7 @@ unsafe fn exchangehashpart<D>(t1: *const Table<D>, t2: *mut Table<D>) {
 }
 
 #[inline(never)]
-pub unsafe fn luaH_resize<D>(t: *const Table<D>, newasize: c_uint, nhsize: c_uint) {
+pub unsafe extern "C-unwind" fn luaH_resize<A>(t: *const Table<A>, newasize: u32, nhsize: u32) {
     let mut i: c_uint = 0;
     let mut newt = Table {
         hdr: Object::default(),
@@ -541,9 +541,9 @@ pub unsafe fn luaH_resize<D>(t: *const Table<D>, newasize: c_uint, nhsize: c_uin
 
     newarray = luaM_realloc_(
         (*t).array.get() as *mut c_void,
-        (oldasize as usize).wrapping_mul(::core::mem::size_of::<UnsafeValue<D>>()),
-        (newasize as usize).wrapping_mul(::core::mem::size_of::<UnsafeValue<D>>()),
-    ) as *mut UnsafeValue<D>;
+        (oldasize as usize).wrapping_mul(size_of::<UnsafeValue<A>>()),
+        (newasize as usize).wrapping_mul(size_of::<UnsafeValue<A>>()),
+    ) as *mut UnsafeValue<A>;
 
     if ((newarray.is_null() && newasize > 0 as c_int as c_uint) as c_int != 0 as c_int) as c_int
         as c_long

@@ -4,7 +4,8 @@ pub use self::future::*;
 use self::emitter::Emitter;
 use self::funcs::RustFuncs;
 use super::{
-    OP_CALL, OP_CLOSURE, OP_GETTABUP, OP_LOADK, OP_RETURN, OP_VARARG, OP_VARARGPREP, luaV_finishget,
+    OP_CALL, OP_CLOSURE, OP_GETTABUP, OP_LOADK, OP_NEWTABLE, OP_RETURN, OP_VARARG, OP_VARARGPREP,
+    luaV_finishget,
 };
 use crate::ldo::luaD_poscall;
 use crate::lfunc::luaF_close;
@@ -99,7 +100,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
     let mut funcs = RustFuncs::<A>::default();
     let mut resumes = Vec::new();
     let jump = fb.create_block();
-    let mut emit = Emitter::new(&mut fb, st, cx, ret, &mut funcs, &mut resumes, jump);
+    let mut emit = Emitter::new(&mut fb, code, st, cx, ret, &mut funcs, &mut resumes, jump);
 
     loop {
         // Get instruction.
@@ -111,6 +112,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
         let r = match i & 0x7F {
             OP_LOADK => emit.loadk(i, pc),
             OP_GETTABUP => emit.gettabup(i, pc),
+            OP_NEWTABLE => emit.newtable(i, pc),
             OP_CALL => emit.call(i, pc),
             OP_RETURN => emit.r#return(i, pc),
             OP_CLOSURE => emit.closure(i, pc),
@@ -408,6 +410,10 @@ unsafe extern "C-unwind" fn pushclosure<A>(
 
 unsafe extern "C-unwind" fn step_gc<A>(td: *const Thread<A>) {
     (*td).hdr.global().gc.step();
+}
+
+unsafe extern "C-unwind" fn create_table<A>(td: *const Thread<A>) -> *const Table<A> {
+    Table::new((*td).hdr.global)
 }
 
 /// Implementation of [Future] to invoke jitted function.
