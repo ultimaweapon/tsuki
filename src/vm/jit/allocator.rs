@@ -307,6 +307,19 @@ impl CodeAllocator {
         }
     }
 
+    #[cfg(windows)]
+    unsafe fn free_pages(pages: *mut [u8]) -> Result<(), Error> {
+        use windows_sys::Win32::System::Memory::{MEM_RELEASE, VirtualFree};
+
+        let Slice(ptr, _) = transmute(pages);
+
+        if unsafe { VirtualFree(ptr.cast(), 0, MEM_RELEASE) == 0 } {
+            Err(Error::last_os_error())
+        } else {
+            Ok(())
+        }
+    }
+
     #[cfg(unix)]
     unsafe fn set_writable(pages: *mut [u8]) -> Result<(), Error> {
         let Slice(ptr, len) = transmute(pages);
