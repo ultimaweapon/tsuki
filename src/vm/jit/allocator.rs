@@ -279,6 +279,23 @@ impl CodeAllocator {
         }
     }
 
+    #[cfg(windows)]
+    fn allocate_pages(len: NonZero<usize>) -> Result<*mut u8, Error> {
+        use windows_sys::Win32::System::Memory::{
+            MEM_COMMIT, MEM_RESERVE, PAGE_READWRITE, VirtualAlloc,
+        };
+
+        let flags = MEM_RESERVE | MEM_COMMIT;
+        let prot = PAGE_READWRITE;
+        let ptr = unsafe { VirtualAlloc(null_mut(), len.get(), flags, prot) };
+
+        if ptr.is_null() {
+            Err(Error::last_os_error())
+        } else {
+            Ok(ptr.cast())
+        }
+    }
+
     #[cfg(unix)]
     unsafe fn free_pages(pages: *mut [u8]) -> Result<(), Error> {
         let Slice(ptr, len) = transmute(pages);
