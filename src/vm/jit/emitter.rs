@@ -14,6 +14,7 @@ use cranelift_codegen::ir::{
     Value,
 };
 use cranelift_frontend::{FunctionBuilder, Variable};
+use std::collections::HashMap;
 
 /// Contains state to emit Cranelift instructions for a Lua function.
 pub struct Emitter<'a, 'b, A> {
@@ -42,7 +43,9 @@ pub struct Emitter<'a, 'b, A> {
     gc: FuncRef,
     create_table: FuncRef,
     resize_table: FuncRef,
+    equalobj: FuncRef,
     ptr: Type,
+    branches: HashMap<usize, Block>,
     resumes: &'a mut Vec<BlockCall>,
     phantom: PhantomData<A>,
 }
@@ -217,7 +220,14 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 super::create_table::<A> as *const u8,
             ),
             resize_table: funcs.import(fb, &[ptr, I32, I32], None, luaH_resize::<A> as *const u8),
+            equalobj: funcs.import(
+                fb,
+                &[ptr, ptr, ptr, ptr],
+                Some(I32),
+                super::equalobj::<A> as *const u8,
+            ),
             ptr,
+            branches: HashMap::new(),
             resumes,
             fb,
             phantom: PhantomData,
@@ -234,6 +244,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         e.resumes.push(e.fb.func.dfg.block_call(root, []));
 
         e
+    }
+
+    pub fn prepare(&mut self, pc: usize) {
+        if let Some(b) = self.branches.get(&pc).copied() {
+            self.fb.switch_to_block(b);
+            self.fb.seal_block(b);
+        }
     }
 
     pub unsafe fn r#move(&mut self, i: u32, pc: usize) -> Option<usize> {
@@ -591,6 +608,46 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.update_base_stack();
 
         Some(pc)
+    }
+
+    pub unsafe fn eqk(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let rb = self.get_const(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+
+        // Invoke luaV_equalobj.
+        let td = self.fb.ins().iconst(self.ptr, 0);
+        let ret = self.fb.use_var(self.ret);
+        let cond = self.fb.ins().call(self.equalobj, &[td, ra, rb, ret]);
+        let cond = self.fb.inst_results(cond)[0];
+
+        self.return_on_err();
+        self.update_base_stack();
+
+        // Get branch PC.
+        let br = self.code[pc];
+        let br = pc.wrapping_add_signed(
+            ((br >> 7 & !(!(0u32) << 25)) as i32 - ((1 << 25) - 1 >> 1) + 1) as isize,
+        );
+
+        // Create branch.
+        let eq = self.fb.create_block();
+
+        assert!(self.branches.insert(br, eq).is_none());
+
+        // Check result.
+        let ne = self.fb.create_block();
+        let v = self.fb.ins().icmp_imm(
+            IntCC::NotEqual,
+            cond,
+            i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
+        );
+
+        self.fb.ins().brif(v, ne, [], eq, []);
+
+        self.fb.switch_to_block(ne);
+        self.fb.seal_block(ne);
+
+        Some(pc + 1)
     }
 
     pub unsafe fn call(&mut self, i: u32, pc: usize) -> Option<usize> {

@@ -4,8 +4,8 @@ pub use self::future::*;
 use self::emitter::Emitter;
 use self::funcs::RustFuncs;
 use super::{
-    OP_CALL, OP_CLOSURE, OP_GETTABUP, OP_LOADI, OP_LOADK, OP_MOVE, OP_NEWTABLE, OP_RETURN,
-    OP_VARARG, OP_VARARGPREP, luaV_finishget,
+    OP_CALL, OP_CLOSURE, OP_EQK, OP_GETTABUP, OP_LOADI, OP_LOADK, OP_MOVE, OP_NEWTABLE, OP_RETURN,
+    OP_VARARG, OP_VARARGPREP, luaV_equalobj, luaV_finishget,
 };
 use crate::ldo::luaD_poscall;
 use crate::lfunc::luaF_close;
@@ -103,6 +103,8 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
     let mut emit = Emitter::new(&mut fb, code, st, cx, ret, &mut funcs, &mut resumes, jump);
 
     loop {
+        emit.prepare(pc);
+
         // Get instruction.
         let i = code.get(pc).copied().unwrap();
 
@@ -115,6 +117,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_LOADK => emit.loadk(i, pc),
             OP_GETTABUP => emit.gettabup(i, pc),
             OP_NEWTABLE => emit.newtable(i, pc),
+            OP_EQK => emit.eqk(i, pc),
             OP_CALL => emit.call(i, pc),
             OP_RETURN => emit.r#return(i, pc),
             OP_CLOSURE => emit.closure(i, pc),
@@ -416,6 +419,21 @@ unsafe extern "C-unwind" fn step_gc<A>(td: *const Thread<A>) {
 
 unsafe extern "C-unwind" fn create_table<A>(td: *const Thread<A>) -> *const Table<A> {
     Table::new((*td).hdr.global)
+}
+
+unsafe extern "C-unwind" fn equalobj<A>(
+    td: *const Thread<A>,
+    t1: *const UnsafeValue<A>,
+    t2: *const UnsafeValue<A>,
+    ret: *mut Error,
+) -> i32 {
+    match luaV_equalobj(td.as_ref(), t1, t2) {
+        Ok(v) => v.into(),
+        Err(e) => {
+            (*ret).set_error(e);
+            0
+        }
+    }
 }
 
 /// Implementation of [Future] to invoke jitted function.
