@@ -362,6 +362,20 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         Some(pc)
     }
 
+    pub unsafe fn loadfalse(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let tt = self.fb.ins().iconst(I8, 1 | 0 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            tt,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        Some(pc)
+    }
+
     pub unsafe fn lfalseskip(&mut self, i: u32, pc: usize) -> Option<usize> {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let tt = self.fb.ins().iconst(I8, 1 | 0 << 4);
