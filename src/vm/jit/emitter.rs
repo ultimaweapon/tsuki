@@ -1,4 +1,5 @@
-use super::{Error, HOST, RustFuncs, State};
+use super::{Error, HOST, RustFuncs, State, Status};
+use crate::lfunc::luaF_closeupval;
 use crate::lobject::{Proto, UpVal};
 use crate::lstate::CallInfo;
 use crate::value::UnsafeValue;
@@ -37,6 +38,8 @@ pub struct Emitter<'a, 'b, A> {
     getstr: FuncRef,
     precall: FuncRef,
     resume_precall: FuncRef,
+    pretailcall: FuncRef,
+    resume_pretailcall: FuncRef,
     run_lua: FuncRef,
     resume_run_lua: FuncRef,
     close: FuncRef,
@@ -46,6 +49,7 @@ pub struct Emitter<'a, 'b, A> {
     create_table: FuncRef,
     resize_table: FuncRef,
     equalobj: FuncRef,
+    closeupval: FuncRef,
     ptr: Type,
     branches: HashMap<usize, Block>,
     resumes: &'a mut Vec<BlockCall>,
@@ -190,6 +194,18 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 Some(ptr),
                 super::resume_precall::<A> as *const u8,
             ),
+            pretailcall: funcs.import(
+                fb,
+                &[ptr, ptr, ptr, I32, I32, ptr, ptr],
+                Some(I32),
+                super::pretailcall::<A> as *const u8,
+            ),
+            resume_pretailcall: funcs.import(
+                fb,
+                &[ptr, ptr, ptr],
+                Some(I32),
+                super::resume_pretailcall::<A> as *const u8,
+            ),
             run_lua: funcs.import(
                 fb,
                 &[ptr, ptr, ptr, ptr],
@@ -229,6 +245,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 Some(I32),
                 super::equalobj::<A> as *const u8,
             ),
+            closeupval: funcs.import(fb, &[ptr, ptr], None, luaF_closeupval::<A> as *const u8),
             ptr,
             branches: HashMap::new(),
             resumes,
@@ -267,7 +284,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(next);
     }
 
-    pub unsafe fn r#move(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn move_(&mut self, i: u32, pc: usize) -> Option<usize> {
         let ra = self.get_reg(i >> 7 & 0xFF);
         let rb = self.get_reg(i >> 7 + 8 + 1 & 0xFF);
 
@@ -986,6 +1003,163 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         Some(pc)
     }
 
+    pub unsafe fn tailcall(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let td = self.fb.use_var(self.td);
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let b = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32;
+        let b = if b != 0 {
+            let top = b as usize * size_of::<StackValue<A>>();
+            let top = self.fb.ins().iadd_imm(ra, top as i64);
+
+            self.set_top(top);
+
+            self.fb.ins().iconst(I32, i64::from(b))
+        } else {
+            // Load top.
+            let top = self.fb.ins().load(
+                self.ptr,
+                MemFlags::trusted(),
+                td,
+                offset_of!(Thread<A>, top) as i32,
+            );
+
+            // Get distance from RA.
+            let b = self.fb.ins().isub(top, ra);
+            let b = self.fb.ins().udiv_imm(b, size_of::<StackValue<A>>() as i64);
+
+            self.fb.ins().ireduce(I32, b)
+        };
+
+        // Get delta.
+        let ci = self.fb.use_var(self.ci);
+        let nparams1 = (i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8)) as i32;
+        let delta = if nparams1 != 0 {
+            let v = self.fb.ins().load(
+                I32,
+                MemFlags::trusted(),
+                ci,
+                offset_of!(CallInfo, nextraargs) as i32,
+            );
+
+            self.fb.ins().iadd_imm(v, i64::from(nparams1))
+        } else {
+            self.fb.ins().iconst(I32, 0)
+        };
+
+        // Invoke luaF_closeupval.
+        if (i & 1 << 7 + 8) != 0 {
+            let base = self.fb.use_var(self.base);
+
+            self.fb.ins().call(self.closeupval, &[td, base]);
+        }
+
+        self.update_pc(pc);
+
+        // Invoke luaD_pretailcall.
+        let cx = self.fb.use_var(self.cx);
+        let ret = self.fb.use_var(self.ret);
+        let ret = self
+            .fb
+            .ins()
+            .call(self.pretailcall, &[td, ci, ra, b, delta, cx, ret]);
+        let ready = self.fb.create_block();
+
+        self.fb.append_block_param(ready, I32);
+        self.fb.append_block_param(ready, I32);
+
+        self.return_on_err();
+
+        // Check if ready.
+        let ret = self.fb.inst_results(ret)[0];
+        let resume = self.return_on_pending(ready, &[BlockArg::Value(delta), BlockArg::Value(ret)]);
+
+        self.fb.switch_to_block(resume);
+
+        // Resume luaD_pretailcall.
+        let ci = self.fb.use_var(self.ci);
+        let cx = self.fb.use_var(self.cx);
+        let ret = self.fb.use_var(self.ret);
+        let ret = self.fb.ins().call(self.resume_pretailcall, &[ci, cx, ret]);
+        let ret = self.fb.inst_results(ret)[0];
+
+        self.return_on_err();
+
+        // Check if ready.
+        let delta = if nparams1 != 0 {
+            let v = self.fb.ins().load(
+                I32,
+                MemFlags::trusted().with_can_move(),
+                ci,
+                offset_of!(CallInfo, nextraargs) as i32,
+            );
+
+            self.fb.ins().iadd_imm(v, i64::from(nparams1))
+        } else {
+            self.fb.ins().iconst(I32, 0)
+        };
+
+        self.join_on_ready(ready, &[BlockArg::Value(delta), BlockArg::Value(ret)]);
+
+        self.fb.switch_to_block(ready);
+        self.fb.seal_block(ready);
+
+        // Check if Lua function.
+        let finished = self.fb.create_block();
+        let exit = self.fb.create_block();
+        let r = self.fb.ins().iconst(I8, i64::from(Status::Replaced));
+        let &[delta, n] = self.fb.block_params(ready).as_array().unwrap();
+        let v = self.fb.ins().icmp_imm(IntCC::SignedLessThan, n, 0);
+
+        self.fb.append_block_param(exit, I8);
+
+        self.fb
+            .ins()
+            .brif(v, exit, &[BlockArg::Value(r)], finished, []);
+        self.fb.switch_to_block(finished);
+        self.fb.seal_block(finished);
+
+        // Load CallInfo::func.
+        let ci = self.fb.use_var(self.ci);
+        let v = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted(),
+            ci,
+            offset_of!(CallInfo, func) as i32,
+        );
+
+        // Update CallInfo::func.
+        let delta = self.fb.ins().sextend(self.ptr, delta);
+        let v = self.fb.ins().isub(v, delta);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ci,
+            offset_of!(CallInfo, func) as i32,
+        );
+
+        // Invoke luaD_poscall.
+        let td = self.fb.use_var(self.td);
+        let ret = self.fb.use_var(self.ret);
+
+        self.fb.ins().call(self.poscall, &[td, ci, n, ret]);
+        self.return_on_err();
+
+        // Jump to exit.
+        let v = self.fb.ins().iconst(I8, i64::from(Status::Finished));
+
+        self.fb.ins().jump(exit, &[BlockArg::Value(v)]);
+        self.fb.switch_to_block(exit);
+        self.fb.seal_block(exit);
+
+        // Exit.
+        let ret = self.fb.block_params(exit)[0];
+
+        self.fb.ins().return_(&[ret]);
+
+        None
+    }
+
     pub unsafe fn r#return(&mut self, i: u32, pc: usize) -> Option<usize> {
         let ra = i >> 7 & !(!(0u32) << 8);
         let n = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - 1;
@@ -1114,7 +1288,11 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let ret = self.fb.use_var(self.ret);
 
         self.fb.ins().call(self.poscall, &[td, ci, n, ret]);
-        self.fb.ins().return_(&[]);
+
+        // Emit return.
+        let v = self.fb.ins().iconst(I8, i64::from(Status::Finished));
+
+        self.fb.ins().return_(&[v]);
 
         None
     }
@@ -1305,18 +1483,21 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         );
 
         self.fb.ins().brif(obj, tb, [], eb, []);
-
-        // Emit return.
         self.fb.switch_to_block(tb);
         self.fb.seal_block(tb);
 
-        self.fb.ins().return_(&[]);
+        // Emit return.
+        let v = self.fb.ins().iconst(I8, i64::from(Status::Finished));
+
+        self.fb.ins().return_(&[v]);
 
         // Switch to else block.
         self.fb.switch_to_block(eb);
         self.fb.seal_block(eb);
     }
 
+    /// Returns a block to resume the future. The caller must not seal this block.
+    ///
     /// This can only be called after [Self::return_on_err()].
     #[must_use]
     unsafe fn return_on_pending<'c>(
@@ -1340,6 +1521,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.seal_block(pending);
 
         // Emit return.
+        let ret = self.fb.ins().iconst(I8, i64::from(Status::Finished));
         let resume = self.fb.ins().iconst(I32, self.resumes.len() as i64);
         let st = self.fb.use_var(self.st);
 
@@ -1350,7 +1532,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(State::<A>, next_block) as i32,
         );
 
-        self.fb.ins().return_(&[]);
+        self.fb.ins().return_(&[ret]);
 
         // Create resume block.
         let resume = self.fb.create_block();
@@ -1373,12 +1555,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         );
 
         self.fb.ins().brif(vtb, pending, [], ready, args);
-
-        // Emit return.
         self.fb.switch_to_block(pending);
         self.fb.seal_block(pending);
 
-        self.fb.ins().return_(&[]);
+        // Emit return.
+        let ret = self.fb.ins().iconst(I8, i64::from(Status::Finished));
+
+        self.fb.ins().return_(&[ret]);
     }
 
     /// `(*th).top.set(th.stack.get().add((*ci).top.get()))`.

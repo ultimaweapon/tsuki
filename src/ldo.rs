@@ -581,6 +581,7 @@ pub unsafe fn setup_tailcall_ci<A>(
         .unwrap();
     (*ci).pc = 0;
     (*ci).callstatus = ((*ci).callstatus as c_int | (1 as c_int) << 5 as c_int) as c_ushort;
+
     (*L).top.set(func.offset(narg1 as isize));
 
     Ok(())

@@ -104,6 +104,10 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - Environment variable `LUA_PATH` and `LUA_PATH_5_4` is ignored.
 - `LUA_NOENV` in registry is ignored.
 
+## Differences between JIT and interpreter
+
+When JIT is enabled, Lua call stack will use Rust stack instead of Lua stack. The meaning of this is the number of nested calls are much lower in JIT and it will trigger stack overflow on Rust stack when too much nested calls, which results in program termination. Although the limit are much lower it is still high enough for most applications. Usually the only cases you will hit this limit is too much recursive call.
+
 ## Non-goals
 
 - Become a superset of Lua (e.g. Luau).

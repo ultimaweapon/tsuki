@@ -213,13 +213,13 @@ pub unsafe fn luaF_unlinkupval<D>(uv: *mut UpVal<D>) {
 }
 
 #[inline(always)]
-pub unsafe fn luaF_closeupval<D>(L: *const Thread<D>, level: *mut StackValue<D>) {
+pub unsafe extern "C-unwind" fn luaF_closeupval<A>(L: *const Thread<A>, level: *mut StackValue<A>) {
     let mut upl = null_mut();
 
     loop {
         let uv = (*L).openupval.get();
         if !(!uv.is_null() && {
-            upl = (*uv).v.get() as *mut StackValue<D>;
+            upl = (*uv).v.get() as *mut StackValue<A>;
             upl >= level
         }) {
             break;

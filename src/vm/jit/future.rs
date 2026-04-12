@@ -1,5 +1,5 @@
 use super::run;
-use crate::ldo::luaD_precall;
+use crate::ldo::{luaD_precall, luaD_pretailcall};
 use crate::lstate::CallInfo;
 use crate::{StackValue, Thread};
 use alloc::boxed::Box;
@@ -62,6 +62,70 @@ impl PrecallFuture {
 
     const fn size<A, R>(
         _: unsafe fn(*const Thread<A>, *mut StackValue<A>, nresults: i32) -> R,
+    ) -> usize {
+        size_of::<R>()
+    }
+}
+
+/// Encapsulates a future returned from [luaD_pretailcall].
+#[repr(C, align(8))]
+#[derive(Clone, Copy)]
+pub struct TailcallFuture([u8; Self::size(luaD_pretailcall::<()>)]);
+
+const _: () =
+    assert!(align_of::<TailcallFuture>() >= TailcallFuture::align(luaD_pretailcall::<()>));
+
+impl TailcallFuture {
+    #[inline]
+    pub unsafe fn init<A>(
+        &mut self,
+        td: *const Thread<A>,
+        ci: *mut CallInfo,
+        func: *mut StackValue<A>,
+        narg1: i32,
+        delta: i32,
+    ) -> &mut impl Future<Output = Result<i32, Box<dyn core::error::Error>>> {
+        let f = luaD_pretailcall(td, ci, func, narg1, delta);
+        let p = self.0.as_mut_ptr().cast();
+
+        core::ptr::write(p, f);
+
+        &mut *p
+    }
+
+    pub unsafe fn poll<A>(
+        &mut self,
+        cx: &mut Context,
+    ) -> Poll<Result<i32, Box<dyn core::error::Error>>> {
+        let f = Pin::new_unchecked(self.get(luaD_pretailcall::<A>));
+
+        f.poll(cx)
+    }
+
+    pub unsafe fn drop<A>(&mut self) {
+        let f = self.get(luaD_pretailcall::<A>);
+
+        core::ptr::drop_in_place(f);
+    }
+
+    #[inline(always)]
+    unsafe fn get<A, R>(
+        &mut self,
+        _: unsafe fn(*const Thread<A>, *mut CallInfo, *mut StackValue<A>, i32, i32) -> R,
+    ) -> &mut R {
+        let p = self.0.as_mut_ptr().cast();
+
+        &mut *p
+    }
+
+    const fn align<A, R>(
+        _: unsafe fn(*const Thread<A>, *mut CallInfo, *mut StackValue<A>, i32, i32) -> R,
+    ) -> usize {
+        align_of::<R>()
+    }
+
+    const fn size<A, R>(
+        _: unsafe fn(*const Thread<A>, *mut CallInfo, *mut StackValue<A>, i32, i32) -> R,
     ) -> usize {
         size_of::<R>()
     }

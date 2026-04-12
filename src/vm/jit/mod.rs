@@ -5,8 +5,8 @@ use self::emitter::Emitter;
 use self::funcs::RustFuncs;
 use super::{
     OP_CALL, OP_CLOSURE, OP_EQK, OP_GETTABUP, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK,
-    OP_LOADTRUE, OP_MOVE, OP_NEWTABLE, OP_RETURN, OP_SELF, OP_VARARG, OP_VARARGPREP, luaV_equalobj,
-    luaV_finishget,
+    OP_LOADTRUE, OP_MOVE, OP_NEWTABLE, OP_RETURN, OP_SELF, OP_TAILCALL, OP_VARARG, OP_VARARGPREP,
+    luaV_equalobj, luaV_finishget,
 };
 use crate::ldo::luaD_poscall;
 use crate::lfunc::luaF_close;
@@ -24,7 +24,7 @@ use core::ptr::null_mut;
 use core::task::{Context, Poll};
 use cranelift_codegen::FinalizedRelocTarget;
 use cranelift_codegen::binemit::Reloc;
-use cranelift_codegen::ir::types::I32;
+use cranelift_codegen::ir::types::{I8, I32};
 use cranelift_codegen::ir::{
     AbiParam, ExternalName, Function, InstBuilder, JumpTableData, MemFlags, Signature, TrapCode,
     Type,
@@ -42,26 +42,35 @@ pub async unsafe fn run<A>(
     td: *const Thread<A>,
     ci: *mut CallInfo,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    // Check if already jitted.
-    let f = (*(*td).stack.get().add((*ci).func))
-        .value_
-        .gc
-        .cast::<LuaFn<A>>();
-    let p = (*f).p.get();
+    loop {
+        // Check if already jitted.
+        let f = (*(*td).stack.get().add((*ci).func))
+            .value_
+            .gc
+            .cast::<LuaFn<A>>();
+        let p = (*f).p.get();
 
-    if (*p).jitted.is_empty() {
-        compile((*td).hdr.global(), p)?;
+        if (*p).jitted.is_empty() {
+            compile((*td).hdr.global(), p)?;
+        }
+
+        // Set up state.
+        let jitted = transmute((*p).jitted as *const u8);
+        let state = State {
+            td,
+            ci,
+            next_block: 0,
+        };
+
+        // Invoke jitted function.
+        let f = Invoker { state, jitted };
+
+        match f.await {
+            Ok(Status::Finished) => break Ok(()),
+            Ok(Status::Replaced) => (),
+            Err(e) => break Err(e),
+        }
     }
-
-    // Invoke jitted function.
-    let jitted = transmute((*p).jitted as *const u8);
-    let state = State {
-        td,
-        ci,
-        next_block: 0,
-    };
-
-    Invoker { state, jitted }.await
 }
 
 #[inline(never)]
@@ -73,6 +82,8 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
     sig.params.push(AbiParam::new(ptr)); // *mut State
     sig.params.push(AbiParam::new(ptr)); // *mut Context
     sig.params.push(AbiParam::new(ptr)); // *mut Error
+
+    sig.returns.push(AbiParam::new(I8));
 
     // Setup builder.
     let mut ctx = g.jit.builder_context.borrow_mut();
@@ -113,7 +124,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
 
         // Emit IR.
         let r = match i & 0x7F {
-            OP_MOVE => emit.r#move(i, pc),
+            OP_MOVE => emit.move_(i, pc),
             OP_LOADI => emit.loadi(i, pc),
             OP_LOADK => emit.loadk(i, pc),
             OP_LOADFALSE => emit.loadfalse(i, pc),
@@ -124,6 +135,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_SELF => emit.self_(i, pc),
             OP_EQK => emit.eqk(i, pc),
             OP_CALL => emit.call(i, pc),
+            OP_TAILCALL => emit.tailcall(i, pc),
             OP_RETURN => emit.r#return(i, pc),
             OP_CLOSURE => emit.closure(i, pc),
             OP_VARARG => emit.vararg(i, pc),
@@ -192,48 +204,15 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
         let off = usize::try_from(r.offset).unwrap();
 
         match r.kind {
-            Reloc::Abs4 => todo!(),
             Reloc::Abs8 => match &r.target {
                 FinalizedRelocTarget::ExternalName(ExternalName::User(v)) => {
                     let f = funcs.get(*v) as usize;
 
                     buf[off..(off + 8)].copy_from_slice(&f.to_ne_bytes());
                 }
-                FinalizedRelocTarget::ExternalName(ExternalName::TestCase(_)) => todo!(),
-                FinalizedRelocTarget::ExternalName(ExternalName::LibCall(_)) => todo!(),
-                FinalizedRelocTarget::ExternalName(ExternalName::KnownSymbol(_)) => todo!(),
-                FinalizedRelocTarget::Func(_) => todo!(),
+                v => todo!("{v:?}"),
             },
-            Reloc::X86PCRel4 => todo!(),
-            Reloc::X86CallPCRel4 => todo!(),
-            Reloc::X86CallPLTRel4 => todo!(),
-            Reloc::X86GOTPCRel4 => todo!(),
-            Reloc::X86SecRel => todo!(),
-            Reloc::Arm32Call => todo!(),
-            Reloc::Arm64Call => todo!(),
-            Reloc::S390xPCRel32Dbl => todo!(),
-            Reloc::S390xPLTRel32Dbl => todo!(),
-            Reloc::ElfX86_64TlsGd => todo!(),
-            Reloc::MachOX86_64Tlv => todo!(),
-            Reloc::MachOAarch64TlsAdrPage21 => todo!(),
-            Reloc::MachOAarch64TlsAdrPageOff12 => todo!(),
-            Reloc::Aarch64TlsDescAdrPage21 => todo!(),
-            Reloc::Aarch64TlsDescLd64Lo12 => todo!(),
-            Reloc::Aarch64TlsDescAddLo12 => todo!(),
-            Reloc::Aarch64TlsDescCall => todo!(),
-            Reloc::Aarch64AdrGotPage21 => todo!(),
-            Reloc::Aarch64AdrPrelPgHi21 => todo!(),
-            Reloc::Aarch64AddAbsLo12Nc => todo!(),
-            Reloc::Aarch64Ld64GotLo12Nc => todo!(),
-            Reloc::RiscvCallPlt => todo!(),
-            Reloc::RiscvTlsGdHi20 => todo!(),
-            Reloc::RiscvPCRelLo12I => todo!(),
-            Reloc::RiscvGotHi20 => todo!(),
-            Reloc::RiscvPCRelHi20 => todo!(),
-            Reloc::S390xTlsGd64 => todo!(),
-            Reloc::S390xTlsGdCall => todo!(),
-            Reloc::PulleyPcRel => todo!(),
-            Reloc::PulleyCallIndirectHost => todo!(),
+            v => todo!("{v:?}"),
         }
     }
 
@@ -338,6 +317,63 @@ unsafe extern "C-unwind" fn resume_precall<A>(
     }
 }
 
+unsafe extern "C-unwind" fn pretailcall<A>(
+    td: *const Thread<A>,
+    ci: *mut CallInfo,
+    f: *mut StackValue<A>,
+    narg1: i32,
+    delta: i32,
+    cx: *mut Context,
+    ret: *mut Error,
+) -> i32 {
+    let f = Pin::new_unchecked((*ci).pending_future.tailcall.init(td, ci, f, narg1, delta));
+    let r = match f.poll(&mut *cx) {
+        Poll::Ready(v) => v,
+        Poll::Pending => {
+            (*ret).vtb = 1usize as *const ();
+
+            return 0;
+        }
+    };
+
+    (*ci).pending_future.tailcall.drop::<A>();
+
+    match r {
+        Ok(v) => v,
+        Err(e) => {
+            (*ret).set_error(e);
+
+            0
+        }
+    }
+}
+
+unsafe extern "C-unwind" fn resume_pretailcall<A>(
+    ci: *mut CallInfo,
+    cx: *mut Context,
+    ret: *mut Error,
+) -> i32 {
+    let r = match (*ci).pending_future.tailcall.poll::<A>(&mut *cx) {
+        Poll::Ready(v) => v,
+        Poll::Pending => {
+            (*ret).vtb = 1usize as *const ();
+
+            return 0;
+        }
+    };
+
+    (*ci).pending_future.tailcall.drop::<A>();
+
+    match r {
+        Ok(v) => v,
+        Err(e) => {
+            (*ret).set_error(e);
+
+            0
+        }
+    }
+}
+
 unsafe extern "C-unwind" fn run_lua<A>(
     td: *const Thread<A>,
     ci: *mut CallInfo,
@@ -437,25 +473,21 @@ unsafe extern "C-unwind" fn equalobj<A>(
 /// Implementation of [Future] to invoke jitted function.
 struct Invoker<A> {
     state: State<A>,
-    jitted: unsafe extern "C-unwind" fn(*mut State<A>, *mut Context, *mut Error),
+    jitted: unsafe extern "C-unwind" fn(*mut State<A>, *mut Context, *mut Error) -> Status,
 }
 
 impl<A> Future for Invoker<A> {
-    type Output = Result<(), Box<dyn core::error::Error>>;
+    type Output = Result<Status, Box<dyn core::error::Error>>;
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut r = Error {
-            obj: null_mut(),
-            vtb: null_mut(),
-        };
-
-        unsafe { (self.jitted)(&mut self.state, cx, &mut r) };
+        let mut r = Error::default();
+        let s = unsafe { (self.jitted)(&mut self.state, cx, &mut r) };
 
         if !r.obj.is_null() {
             Poll::Ready(Err(unsafe { Box::from_raw(transmute(r)) }))
         } else if r.vtb.is_null() {
-            Poll::Ready(Ok(()))
+            Poll::Ready(Ok(s))
         } else {
             Poll::Pending
         }
@@ -474,7 +506,7 @@ struct State<A> {
 ///
 /// This struct must have the same layout as a pointer to trait object.
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Default, Clone, Copy)]
 struct Error {
     obj: *mut (),
     vtb: *const (),
@@ -483,6 +515,21 @@ struct Error {
 impl Error {
     fn set_error(&mut self, e: Box<dyn core::error::Error>) {
         *self = unsafe { transmute(Box::into_raw(e)) };
+    }
+}
+
+/// Status of a call to jitted function.
+#[repr(u8)]
+#[derive(Clone, Copy)]
+enum Status {
+    Finished,
+    Replaced,
+}
+
+impl From<Status> for i64 {
+    #[inline(always)]
+    fn from(value: Status) -> Self {
+        value as i64
     }
 }
 

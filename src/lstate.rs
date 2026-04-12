@@ -90,6 +90,7 @@ pub struct C2RustUnnamed_0 {
 #[repr(C)]
 pub union PendingFuture {
     pub precall: crate::vm::PrecallFuture,
+    pub tailcall: crate::vm::TailcallFuture,
     pub run: crate::vm::RunFuture,
 }
 
