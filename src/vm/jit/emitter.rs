@@ -862,6 +862,65 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         Some(pc)
     }
 
+    pub unsafe fn not(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            rb,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Check if false.
+        let join = self.fb.create_block();
+        let check_nil = self.fb.create_block();
+        let set_true = self.fb.create_block();
+        let set_false = self.fb.create_block();
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 1 | 0 << 4);
+
+        self.fb.ins().brif(v, set_true, [], check_nil, []);
+        self.fb.switch_to_block(check_nil);
+        self.fb.seal_block(check_nil);
+
+        // Check if nil.
+        let v = self.fb.ins().band_imm(tt, 0xf);
+
+        self.fb.ins().brif(v, set_false, [], set_true, []);
+        self.fb.switch_to_block(set_true);
+        self.fb.seal_block(set_true);
+
+        // Set true.
+        let v = self.fb.ins().iconst(I8, 1 | 1 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().jump(join, []);
+        self.fb.switch_to_block(set_false);
+        self.fb.seal_block(set_false);
+
+        // Set false.
+        let v = self.fb.ins().iconst(I8, 1 | 0 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().jump(join, []);
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
+
+        Some(pc)
+    }
+
     pub unsafe fn eqk(&mut self, i: u32, pc: usize) -> Option<usize> {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_const(i >> 7 + 8 + 1 & !(!(0u32) << 8));
@@ -1230,8 +1289,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
             // Invoke luaF_close.
             let base = self.fb.use_var(self.base);
+            let ret = self.fb.use_var(self.ret);
 
-            self.fb.ins().call(self.close, &[td, base]);
+            self.fb.ins().call(self.close, &[td, base, ret]);
 
             self.return_on_err();
             self.update_base_stack();
