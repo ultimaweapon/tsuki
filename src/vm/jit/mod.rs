@@ -4,9 +4,9 @@ pub use self::future::*;
 use self::emitter::Emitter;
 use self::funcs::RustFuncs;
 use super::{
-    OP_CALL, OP_CLOSURE, OP_EQK, OP_GETTABUP, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK,
-    OP_LOADTRUE, OP_MOVE, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_SELF, OP_TAILCALL, OP_VARARG,
-    OP_VARARGPREP, luaV_equalobj, luaV_finishget,
+    OP_CALL, OP_CLOSURE, OP_EQI, OP_EQK, OP_GETTABUP, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI,
+    OP_LOADK, OP_LOADTRUE, OP_MOVE, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_SELF, OP_TAILCALL,
+    OP_VARARG, OP_VARARGPREP, luaV_equalobj, luaV_finishget,
 };
 use crate::ldo::luaD_poscall;
 use crate::lfunc::luaF_close;
@@ -135,6 +135,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_SELF => emit.self_(i, pc),
             OP_NOT => emit.not(i, pc),
             OP_EQK => emit.eqk(i, pc),
+            OP_EQI => emit.eqi(i, pc),
             OP_CALL => emit.call(i, pc),
             OP_TAILCALL => emit.tailcall(i, pc),
             OP_RETURN => emit.r#return(i, pc),

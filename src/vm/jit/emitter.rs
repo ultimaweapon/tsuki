@@ -8,8 +8,8 @@ use alloc::vec::Vec;
 use core::any::Any;
 use core::marker::PhantomData;
 use core::mem::offset_of;
-use cranelift_codegen::ir::condcodes::IntCC;
-use cranelift_codegen::ir::types::{I8, I32, I64};
+use cranelift_codegen::ir::condcodes::{FloatCC, IntCC};
+use cranelift_codegen::ir::types::{F64, I8, I32, I64};
 use cranelift_codegen::ir::{
     Block, BlockArg, BlockCall, FuncRef, InstBuilder, MemFlags, StackSlotData, StackSlotKind, Type,
     Value,
@@ -957,6 +957,95 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(ne);
         self.fb.seal_block(ne);
+
+        Some(pc + 1)
+    }
+
+    pub unsafe fn eqi(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let im = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - ((1 << 8) - 1 >> 1);
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Check if integer.
+        let cmp_int = self.fb.create_block();
+        let check_float = self.fb.create_block();
+        let check_res = self.fb.create_block();
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 0 << 4);
+
+        self.fb.append_block_param(check_res, I8);
+
+        self.fb.ins().brif(v, cmp_int, [], check_float, []);
+        self.fb.switch_to_block(cmp_int);
+        self.fb.seal_block(cmp_int);
+
+        // Load integer.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Compare integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, im as i64);
+
+        self.fb.ins().jump(check_res, &[BlockArg::Value(v)]);
+        self.fb.switch_to_block(check_float);
+        self.fb.seal_block(check_float);
+
+        // Check if float.
+        let z = self.fb.ins().iconst(I8, 0);
+        let cmp_float = self.fb.create_block();
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 1 << 4);
+
+        self.fb
+            .ins()
+            .brif(v, cmp_float, [], check_res, &[BlockArg::Value(z)]);
+        self.fb.switch_to_block(cmp_float);
+        self.fb.seal_block(cmp_float);
+
+        // Load float.
+        let v = self.fb.ins().load(
+            F64,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Compare float.
+        let im = self.fb.ins().f64const(im as f64);
+        let v = self.fb.ins().fcmp(FloatCC::Equal, v, im);
+
+        self.fb.ins().jump(check_res, &[BlockArg::Value(v)]);
+        self.fb.switch_to_block(check_res);
+        self.fb.seal_block(check_res);
+
+        // Get branch.
+        let ni = self.code[pc];
+        let ni = (ni >> 7 & !(!(0u32) << 25)) as i32 - ((1 << 25) - 1 >> 1) + 1;
+        let ni = pc.wrapping_add_signed(ni.try_into().unwrap());
+        let jump = match self.branches.entry(ni) {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
+        };
+
+        // Check result.
+        let next = self.fb.create_block();
+        let cond = self.fb.block_params(check_res)[0];
+        let v = self.fb.ins().icmp_imm(
+            IntCC::NotEqual,
+            cond,
+            i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
+        );
+
+        self.fb.ins().brif(v, next, [], jump, []);
+        self.fb.switch_to_block(next);
+        self.fb.seal_block(next);
 
         Some(pc + 1)
     }
