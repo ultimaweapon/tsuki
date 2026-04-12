@@ -5,7 +5,7 @@ use self::emitter::Emitter;
 use self::funcs::RustFuncs;
 use super::{
     OP_CALL, OP_CLOSURE, OP_EQK, OP_GETTABUP, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK,
-    OP_LOADTRUE, OP_MOVE, OP_NEWTABLE, OP_RETURN, OP_VARARG, OP_VARARGPREP, luaV_equalobj,
+    OP_LOADTRUE, OP_MOVE, OP_NEWTABLE, OP_RETURN, OP_SELF, OP_VARARG, OP_VARARGPREP, luaV_equalobj,
     luaV_finishget,
 };
 use crate::ldo::luaD_poscall;
@@ -14,7 +14,7 @@ use crate::lobject::Proto;
 use crate::lstate::CallInfo;
 use crate::ltm::{luaT_adjustvarargs, luaT_getvarargs};
 use crate::value::UnsafeValue;
-use crate::{Lua, LuaFn, StackValue, Str, Table, Thread, luaH_getshortstr};
+use crate::{Lua, LuaFn, StackValue, Table, Thread};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::mem::{offset_of, transmute};
@@ -121,6 +121,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_LOADTRUE => emit.loadtrue(i, pc),
             OP_GETTABUP => emit.gettabup(i, pc),
             OP_NEWTABLE => emit.newtable(i, pc),
+            OP_SELF => emit.self_(i, pc),
             OP_EQK => emit.eqk(i, pc),
             OP_CALL => emit.call(i, pc),
             OP_RETURN => emit.r#return(i, pc),
@@ -279,13 +280,6 @@ unsafe extern "C-unwind" fn finishget<A>(
         Ok(v) => out.write(v),
         Err(e) => (*ret).set_error(e),
     }
-}
-
-unsafe extern "C-unwind" fn getshortstr<A>(
-    t: *const Table<A>,
-    key: *const Str<A>,
-) -> *const UnsafeValue<A> {
-    luaH_getshortstr(t, key)
 }
 
 unsafe extern "C-unwind" fn precall<A>(

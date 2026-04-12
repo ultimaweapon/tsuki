@@ -2,7 +2,7 @@ use super::{Error, HOST, RustFuncs, State};
 use crate::lobject::{Proto, UpVal};
 use crate::lstate::CallInfo;
 use crate::value::UnsafeValue;
-use crate::{LuaFn, StackValue, Thread, UserData, luaH_resize};
+use crate::{LuaFn, StackValue, Thread, UserData, luaH_getshortstr, luaH_getstr, luaH_resize};
 use alloc::vec::Vec;
 use core::any::Any;
 use core::marker::PhantomData;
@@ -34,6 +34,7 @@ pub struct Emitter<'a, 'b, A> {
     getvarargs: FuncRef,
     finishget: FuncRef,
     getshortstr: FuncRef,
+    getstr: FuncRef,
     precall: FuncRef,
     resume_precall: FuncRef,
     run_lua: FuncRef,
@@ -174,8 +175,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 fb,
                 &[ptr, ptr],
                 Some(ptr),
-                super::getshortstr::<A> as *const u8,
+                luaH_getshortstr::<A> as *const u8,
             ),
+            getstr: funcs.import(fb, &[ptr, ptr], Some(ptr), luaH_getstr::<A> as *const u8),
             precall: funcs.import(
                 fb,
                 &[ptr, ptr, ptr, I32, ptr, ptr],
@@ -593,7 +595,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Emit call to luaV_finishget.
         let v = self.fb.ins().iconst(I8, 4 | 0 << 4 | 1 << 6);
 
-        self.finishget(i, pc, tab, v, k);
+        self.finishget_with_key_parts(i, pc, tab, v, k);
 
         self.fb.ins().jump(next_inst, []);
 
@@ -668,6 +670,177 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.ins().call(self.gc, &[td]);
 
         self.update_base_stack();
+
+        Some(pc)
+    }
+
+    pub unsafe fn self_(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let tab = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let k = if (i & 1 << 7 + 8) != 0 {
+            self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
+        } else {
+            self.get_reg(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
+        };
+
+        // Store table type.
+        let reg = self
+            .fb
+            .ins()
+            .iadd_imm(ra, size_of::<StackValue<A>>() as i64);
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            tab,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            tt,
+            reg,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Store table value.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            tab,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            reg,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Check table type.
+        let load_tab = self.fb.create_block();
+        let check_ud = self.fb.create_block();
+        let lookup_table = self.fb.create_block();
+        let not_found = self.fb.create_block();
+        let ty = self.fb.ins().band_imm(tt, 0xf);
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, ty, 5);
+
+        self.fb.append_block_param(lookup_table, self.ptr);
+
+        self.fb.ins().brif(v, load_tab, [], check_ud, []);
+
+        self.fb.switch_to_block(load_tab);
+        self.fb.seal_block(load_tab);
+
+        // Load table.
+        let v = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted(),
+            tab,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().jump(lookup_table, &[BlockArg::Value(v)]);
+        self.fb.switch_to_block(check_ud);
+        self.fb.seal_block(check_ud);
+
+        // Check if userdata.
+        let check_props = self.fb.create_block();
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, ty, 7);
+
+        self.fb.ins().brif(v, check_props, [], not_found, []);
+        self.fb.switch_to_block(check_props);
+        self.fb.seal_block(check_props);
+
+        // Load userdata.
+        let v = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted(),
+            tab,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Load UserData::props.
+        let props = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted(),
+            v,
+            offset_of!(UserData<A, dyn Any>, props) as i32,
+        );
+
+        self.fb.ins().brif(
+            props,
+            lookup_table,
+            &[BlockArg::Value(props)],
+            not_found,
+            [],
+        );
+
+        self.fb.switch_to_block(lookup_table);
+        self.fb.seal_block(lookup_table);
+
+        // Get arguments for luaH_getstr.
+        let args = [
+            self.fb.block_params(lookup_table)[0],
+            self.fb.ins().load(
+                self.ptr,
+                MemFlags::trusted(),
+                k,
+                offset_of!(UnsafeValue<A>, value_) as i32,
+            ),
+        ];
+
+        // Invoke luaH_getstr.
+        let v = self.fb.ins().call(self.getstr, &args);
+        let res = self.fb.inst_results(v)[0];
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            res,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Check result.
+        let found = self.fb.create_block();
+        let join = self.fb.create_block();
+        let v = self.fb.ins().band_imm(tt, 0xf);
+
+        self.fb.ins().brif(v, found, [], not_found, []);
+        self.fb.switch_to_block(found);
+        self.fb.seal_block(found);
+
+        // Set output register.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            res,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            tt,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().jump(join, []);
+        self.fb.switch_to_block(not_found);
+        self.fb.seal_block(not_found);
+
+        // Invoke luaV_finishget.
+        self.finishget(i, pc, tab, k);
+
+        self.fb.ins().jump(join, []);
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
 
         Some(pc)
     }
@@ -1044,7 +1217,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         Some(pc)
     }
 
-    fn finishget(&mut self, i: u32, pc: usize, tab: Value, kt: Value, kv: Value) {
+    fn finishget_with_key_parts(&mut self, i: u32, pc: usize, tab: Value, kt: Value, kv: Value) {
         // Set key.
         let key = self.fb.create_sized_stack_slot(StackSlotData::new(
             StackSlotKind::ExplicitSlot,
@@ -1059,6 +1232,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .stack_store(kv, key, offset_of!(UnsafeValue<A>, value_) as i32);
 
+        // Invoke luaV_finishget.
+        let key = self.fb.ins().stack_addr(self.ptr, key, 0);
+
+        self.finishget(i, pc, tab, key);
+    }
+
+    fn finishget(&mut self, i: u32, pc: usize, tab: Value, key: Value) {
         self.update_top_from_ci();
         self.update_pc(pc);
 
@@ -1070,7 +1250,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         ));
 
         // Call luaV_finishget.
-        let key = self.fb.ins().stack_addr(self.ptr, key, 0);
         let props_tried = self.fb.ins().iconst(I8, 1);
         let out = self.fb.ins().stack_addr(self.ptr, val, 0);
         let td = self.fb.use_var(self.td);

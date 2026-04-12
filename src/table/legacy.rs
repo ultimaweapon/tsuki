@@ -743,7 +743,10 @@ unsafe fn luaH_searchint<A>(t: *const Table<A>, key: i64) -> *const UnsafeValue<
 }
 
 #[inline(always)]
-pub unsafe fn luaH_getshortstr<A>(t: *const Table<A>, key: *const Str<A>) -> *const UnsafeValue<A> {
+pub unsafe extern "C-unwind" fn luaH_getshortstr<A>(
+    t: *const Table<A>,
+    key: *const Str<A>,
+) -> *const UnsafeValue<A> {
     let mut n =
         ((*t).node.get()).offset(((*key).hash.get() & ((1 << (*t).lsizenode.get()) - 1)) as isize);
 
@@ -762,7 +765,10 @@ pub unsafe fn luaH_getshortstr<A>(t: *const Table<A>, key: *const Str<A>) -> *co
 }
 
 #[inline(never)]
-pub unsafe fn luaH_getstr<A>(t: *const Table<A>, key: *const Str<A>) -> *const UnsafeValue<A> {
+pub unsafe extern "C-unwind" fn luaH_getstr<A>(
+    t: *const Table<A>,
+    key: *const Str<A>,
+) -> *const UnsafeValue<A> {
     if (*key).is_short() {
         luaH_getshortstr(t, key)
     } else {
