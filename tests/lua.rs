@@ -5,16 +5,19 @@ use tsuki::context::{Args, Context, Ret};
 use tsuki::{CallError, Lua, fp};
 
 #[test]
+#[cfg_attr(feature = "jit", ignore = "need unimplemented instructions")]
 fn badkey() {
     run("badkey.lua", |_| {}).unwrap();
 }
 
 #[test]
+#[cfg_attr(feature = "jit", ignore = "need unimplemented instructions")]
 fn close() {
     run("close.lua", |_| {}).unwrap();
 }
 
 #[test]
+#[cfg_attr(feature = "jit", ignore = "need unimplemented instructions")]
 fn closure() {
     run("closure.lua", |_| {}).unwrap();
 }
@@ -39,11 +42,13 @@ fn error() {
 }
 
 #[test]
+#[cfg_attr(feature = "jit", ignore = "need unimplemented instructions")]
 fn errors() {
     run("errors.lua", |_| {}).unwrap();
 }
 
 #[test]
+#[cfg_attr(feature = "jit", ignore = "need unimplemented instructions")]
 fn events() {
     run("events.lua", |_| {}).unwrap();
 }
@@ -66,6 +71,7 @@ fn print() {
 }
 
 #[test]
+#[cfg_attr(feature = "jit", ignore = "need unimplemented instructions")]
 fn tpack() {
     run("tpack.lua", |_| {}).unwrap();
 }
@@ -111,6 +117,7 @@ fn userdata() {
 }
 
 #[test]
+#[cfg_attr(feature = "jit", ignore = "need unimplemented instructions")]
 fn vararg() {
     run("vararg.lua", |_| {}).unwrap();
 }
