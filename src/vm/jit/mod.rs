@@ -5,15 +5,15 @@ use self::emitter::Emitter;
 use self::funcs::RustFuncs;
 use super::{
     OP_CALL, OP_CLOSURE, OP_DIVK, OP_EQI, OP_EQK, OP_GETTABUP, OP_GETUPVAL, OP_LFALSESKIP,
-    OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MOVE, OP_NEWTABLE, OP_NOT,
-    OP_RETURN, OP_RETURN0, OP_SELF, OP_SETTABLE, OP_TAILCALL, OP_VARARG, OP_VARARGPREP,
+    OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MMBINK, OP_MOVE, OP_NEWTABLE,
+    OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETTABLE, OP_TAILCALL, OP_VARARG, OP_VARARGPREP,
     luaV_equalobj, luaV_finishget, luaV_finishset,
 };
 use crate::ldo::luaD_poscall;
 use crate::lfunc::luaF_close;
 use crate::lobject::Proto;
 use crate::lstate::CallInfo;
-use crate::ltm::{luaT_adjustvarargs, luaT_getvarargs};
+use crate::ltm::{luaT_adjustvarargs, luaT_getvarargs, luaT_trybinassocTM};
 use crate::value::UnsafeValue;
 use crate::{Lua, LuaFn, StackValue, Table, Thread};
 use alloc::boxed::Box;
@@ -138,6 +138,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_NEWTABLE => emit.newtable(i, pc),
             OP_SELF => emit.self_(i, pc),
             OP_DIVK => emit.divk(i, pc),
+            OP_MMBINK => emit.mmbink(i, pc),
             OP_NOT => emit.not(i, pc),
             OP_EQK => emit.eqk(i, pc),
             OP_EQI => emit.eqi(i, pc),
@@ -498,6 +499,21 @@ unsafe extern "C-unwind" fn equalobj<A>(
             (*ret).set_error(e);
             0
         }
+    }
+}
+
+unsafe extern "C-unwind" fn trybinassocTM<A>(
+    td: *const Thread<A>,
+    p1: *const UnsafeValue<A>,
+    p2: *const UnsafeValue<A>,
+    flip: i32,
+    event: u32,
+    out: *mut UnsafeValue<A>,
+    ret: *mut Error,
+) {
+    match luaT_trybinassocTM(&*td, p1, p2, flip, event) {
+        Ok(v) => out.write(v),
+        Err(e) => (*ret).set_error(e),
     }
 }
 

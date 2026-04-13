@@ -5,7 +5,6 @@ use tsuki::context::{Args, Context, Ret};
 use tsuki::{CallError, Lua, fp};
 
 #[test]
-#[cfg_attr(feature = "jit", ignore = "need unimplemented instructions")]
 fn badkey() {
     run("badkey.lua", |_| {}).unwrap();
 }

@@ -55,6 +55,7 @@ pub struct Emitter<'a, 'b, A> {
     lookup_table: FuncRef,
     equalobj: FuncRef,
     closeupval: FuncRef,
+    trybinassocTM: FuncRef,
     ptr: Type,
     branches: HashMap<usize, Block>,
     resumes: &'a mut Vec<BlockCall>,
@@ -264,6 +265,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 super::equalobj::<A> as *const u8,
             ),
             closeupval: funcs.import(fb, &[ptr, ptr], None, luaF_closeupval::<A> as *const u8),
+            trybinassocTM: funcs.import(
+                fb,
+                &[ptr, ptr, ptr, I32, I32, ptr, ptr],
+                None,
+                super::trybinassocTM::<A> as *const u8,
+            ),
             ptr,
             branches: HashMap::new(),
             resumes,
@@ -1240,6 +1247,69 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
+
+        Some(pc)
+    }
+
+    pub unsafe fn mmbink(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let pi = self.code[pc - 2];
+        let imm = self.get_const(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let tm = self
+            .fb
+            .ins()
+            .iconst(I32, i64::from(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8)));
+        let flip = self
+            .fb
+            .ins()
+            .iconst(I32, i64::from(i >> 7 + 8 & !(!(0u32) << 1)));
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        // Allocate buffer for result.
+        let val = self.fb.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            size_of::<UnsafeValue<A>>() as u32,
+            align_of::<UnsafeValue<A>>() as u8,
+        ));
+
+        // Invoke luaT_trybinassocTM.
+        let td = self.fb.use_var(self.td);
+        let out = self.fb.ins().stack_addr(self.ptr, val, 0);
+        let ret = self.fb.use_var(self.ret);
+
+        self.fb
+            .ins()
+            .call(self.trybinassocTM, &[td, ra, imm, flip, tm, out, ret]);
+
+        self.return_on_err();
+        self.update_base_stack();
+
+        // Set output register.
+        let out = self.get_reg(pi >> 7 & !(!(0u32) << 8));
+        let tt = self
+            .fb
+            .ins()
+            .stack_load(I8, val, offset_of!(UnsafeValue<A>, tt_) as i32);
+        let val = self
+            .fb
+            .ins()
+            .stack_load(I64, val, offset_of!(UnsafeValue<A>, value_) as i32);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            tt,
+            out,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            val,
+            out,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
 
         Some(pc)
     }
