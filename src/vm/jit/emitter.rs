@@ -49,6 +49,7 @@ pub struct Emitter<'a, 'b, A> {
     poscall: FuncRef,
     pushclosure: FuncRef,
     gc: FuncRef,
+    barrier: FuncRef,
     barrier_back: FuncRef,
     create_table: FuncRef,
     resize_table: FuncRef,
@@ -245,6 +246,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 super::pushclosure::<A> as *const u8,
             ),
             gc: funcs.import(fb, &[ptr], None, super::step_gc::<A> as *const u8),
+            barrier: funcs.import(fb, &[ptr, ptr], None, super::barrier::<A> as *const u8),
             barrier_back: funcs.import(
                 fb,
                 &[ptr, ptr],
@@ -541,6 +543,69 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             ra,
             offset_of!(StackValue<A>, value_) as i32,
         );
+
+        Some(pc)
+    }
+
+    pub unsafe fn setupval(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+
+        // Load LuaFn::upvals.
+        let f = self.fb.use_var(self.f);
+        let uv = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted().with_can_move().with_readonly(),
+            f,
+            offset_of!(LuaFn<A>, upvals) as i32,
+        );
+
+        // Load UpVal.
+        let uv = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted().with_can_move().with_readonly(),
+            uv,
+            ((i >> 7 + 8 + 1 & !(!(0u32) << 8)) as usize * size_of::<*mut UpVal<A>>()) as i32,
+        );
+
+        // Load UpVal::v.
+        let dst = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted(),
+            uv,
+            offset_of!(UpVal<A>, v) as i32,
+        );
+
+        // Set type.
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            dst,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Set value.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            dst,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().call(self.barrier, &[uv, ra]);
 
         Some(pc)
     }

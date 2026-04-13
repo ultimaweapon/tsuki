@@ -6,9 +6,10 @@ use self::funcs::RustFuncs;
 use super::{
     OP_CALL, OP_CLOSURE, OP_DIVK, OP_EQI, OP_EQK, OP_GETTABUP, OP_GETUPVAL, OP_LFALSESKIP,
     OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MMBINK, OP_MOVE, OP_NEWTABLE,
-    OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETTABLE, OP_TAILCALL, OP_TBC,
-    OP_VARARG, OP_VARARGPREP, luaV_equalobj, luaV_finishget, luaV_finishset,
+    OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETTABLE, OP_SETUPVAL, OP_TAILCALL,
+    OP_TBC, OP_VARARG, OP_VARARGPREP, luaV_equalobj, luaV_finishget, luaV_finishset,
 };
+use crate::gc::Object;
 use crate::ldo::luaD_poscall;
 use crate::lfunc::{luaF_close, luaF_newtbcupval};
 use crate::lobject::Proto;
@@ -133,6 +134,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_LOADTRUE => emit.loadtrue(i, pc),
             OP_LOADNIL => emit.loadnil(i, pc),
             OP_GETUPVAL => emit.getupval(i, pc),
+            OP_SETUPVAL => emit.setupval(i, pc),
             OP_GETTABUP => emit.gettabup(i, pc),
             OP_SETTABLE => emit.settable(i, pc),
             OP_SETFIELD => emit.setfield(i, pc),
@@ -481,6 +483,16 @@ unsafe extern "C-unwind" fn pushclosure<A>(
 
 unsafe extern "C-unwind" fn step_gc<A>(td: *const Thread<A>) {
     (*td).hdr.global().gc.step();
+}
+
+unsafe extern "C-unwind" fn barrier<A>(p: *const Object<A>, v: *const UnsafeValue<A>) {
+    if (*v).tt_ & 1 << 6 != 0 {
+        let v = (*v).value_.gc;
+
+        if (*p).marked.get() & 1 << 5 != 0 && (*v).marked.is_white() {
+            (*p).global().gc.barrier(p, v);
+        }
+    }
 }
 
 unsafe extern "C-unwind" fn barrier_back<A>(p: *const UnsafeValue<A>, v: *const UnsafeValue<A>) {

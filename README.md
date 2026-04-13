@@ -146,6 +146,10 @@ When JIT is enabled, calling Lua function from Lua also consume Rust stack. The 
 
 This requires too much changes to the language so the answer is no. See [#16](https://github.com/ultimaweapon/tsuki/issues/16) for more details.
 
+### Does JIT mode the same as LuaJIT?
+
+No. LuaJIT is Tracing JIT while Tsuki is Method JIT. It is likely for LuaJIT to be faster since Lua is dynamic typing, which make all type checking still present in Method JIT. The only benefits Tsuki got from JIT is the elimination of some branches, interpreter jump table and unnecessary code.
+
 ## Contribution
 
 We don't accept AI generated code. This also include code documentation.

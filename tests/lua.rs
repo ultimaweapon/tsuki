@@ -10,7 +10,6 @@ fn badkey() {
 }
 
 #[test]
-#[cfg_attr(feature = "jit", ignore = "need unimplemented instructions")]
 fn close() {
     run("close.lua", |_| {}).unwrap();
 }
