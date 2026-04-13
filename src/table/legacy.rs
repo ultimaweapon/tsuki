@@ -814,7 +814,10 @@ pub unsafe fn luaH_getid<A>(t: *const Table<A>, k: &TypeId) -> *const UnsafeValu
 }
 
 #[inline(never)]
-pub unsafe fn luaH_get<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *const UnsafeValue<D> {
+pub unsafe extern "C-unwind" fn luaH_get<A>(
+    t: *const Table<A>,
+    key: *const UnsafeValue<A>,
+) -> *const UnsafeValue<A> {
     match (*key).tt_ & 0x3f {
         4 => return luaH_getstr(t, (*key).value_.gc.cast()),
         3 => return luaH_getint(t, (*key).value_.i),
@@ -824,7 +827,7 @@ pub unsafe fn luaH_get<D>(t: *const Table<D>, key: *const UnsafeValue<D>) -> *co
                 return luaH_getint(t, k);
             }
         }
-        14 => return luaH_getid(t, (*(*key).value_.gc.cast::<RustId<D>>()).value()),
+        14 => return luaH_getid(t, (*(*key).value_.gc.cast::<RustId<A>>()).value()),
         _ => {}
     }
 

@@ -6,7 +6,8 @@ use self::funcs::RustFuncs;
 use super::{
     OP_CALL, OP_CLOSURE, OP_EQI, OP_EQK, OP_GETTABUP, OP_GETUPVAL, OP_LFALSESKIP, OP_LOADFALSE,
     OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MOVE, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_SELF,
-    OP_TAILCALL, OP_VARARG, OP_VARARGPREP, luaV_equalobj, luaV_finishget,
+    OP_SETTABLE, OP_TAILCALL, OP_VARARG, OP_VARARGPREP, luaV_equalobj, luaV_finishget,
+    luaV_finishset,
 };
 use crate::ldo::luaD_poscall;
 use crate::lfunc::luaF_close;
@@ -133,6 +134,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_LOADNIL => emit.loadnil(i, pc),
             OP_GETUPVAL => emit.getupval(i, pc),
             OP_GETTABUP => emit.gettabup(i, pc),
+            OP_SETTABLE => emit.settable(i, pc),
             OP_NEWTABLE => emit.newtable(i, pc),
             OP_SELF => emit.self_(i, pc),
             OP_NOT => emit.not(i, pc),
@@ -262,6 +264,19 @@ unsafe extern "C-unwind" fn finishget<A>(
     match luaV_finishget(&*td, tab, key, props_tried) {
         Ok(v) => out.write(v),
         Err(e) => (*ret).set_error(e),
+    }
+}
+
+unsafe extern "C-unwind" fn finishset<A>(
+    td: *const Thread<A>,
+    tab: *const UnsafeValue<A>,
+    key: *const UnsafeValue<A>,
+    val: *const UnsafeValue<A>,
+    slot: *const UnsafeValue<A>,
+    ret: *mut Error,
+) {
+    if let Err(e) = luaV_finishset(&*td, tab, key, val, slot) {
+        (*ret).set_error(e);
     }
 }
 
@@ -453,6 +468,16 @@ unsafe extern "C-unwind" fn pushclosure<A>(
 
 unsafe extern "C-unwind" fn step_gc<A>(td: *const Thread<A>) {
     (*td).hdr.global().gc.step();
+}
+
+unsafe extern "C-unwind" fn barrier_back<A>(p: *const UnsafeValue<A>, v: *const UnsafeValue<A>) {
+    if (*v).tt_ & 1 << 6 != 0 {
+        let p = (*p).value_.gc;
+
+        if (*p).marked.get() & 1 << 5 != 0 && (*(*v).value_.gc).marked.is_white() {
+            (*p).global().gc.barrier_back(p);
+        }
+    }
 }
 
 unsafe extern "C-unwind" fn create_table<A>(td: *const Thread<A>) -> *const Table<A> {

@@ -3,7 +3,9 @@ use crate::lfunc::luaF_closeupval;
 use crate::lobject::{Proto, UpVal};
 use crate::lstate::CallInfo;
 use crate::value::UnsafeValue;
-use crate::{LuaFn, StackValue, Thread, UserData, luaH_getshortstr, luaH_getstr, luaH_resize};
+use crate::{
+    LuaFn, StackValue, Thread, UserData, luaH_get, luaH_getshortstr, luaH_getstr, luaH_resize,
+};
 use alloc::vec::Vec;
 use core::any::Any;
 use core::marker::PhantomData;
@@ -34,6 +36,7 @@ pub struct Emitter<'a, 'b, A> {
     adjustvarargs: FuncRef,
     getvarargs: FuncRef,
     finishget: FuncRef,
+    finishset: FuncRef,
     getshortstr: FuncRef,
     getstr: FuncRef,
     precall: FuncRef,
@@ -46,8 +49,10 @@ pub struct Emitter<'a, 'b, A> {
     poscall: FuncRef,
     pushclosure: FuncRef,
     gc: FuncRef,
+    barrier_back: FuncRef,
     create_table: FuncRef,
     resize_table: FuncRef,
+    lookup_table: FuncRef,
     equalobj: FuncRef,
     closeupval: FuncRef,
     ptr: Type,
@@ -175,6 +180,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 None,
                 super::finishget::<A> as *const u8,
             ),
+            finishset: funcs.import(
+                fb,
+                &[ptr, ptr, ptr, ptr, ptr, ptr],
+                None,
+                super::finishset::<A> as *const u8,
+            ),
             getshortstr: funcs.import(
                 fb,
                 &[ptr, ptr],
@@ -232,6 +243,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 super::pushclosure::<A> as *const u8,
             ),
             gc: funcs.import(fb, &[ptr], None, super::step_gc::<A> as *const u8),
+            barrier_back: funcs.import(
+                fb,
+                &[ptr, ptr],
+                None,
+                super::barrier_back::<A> as *const u8,
+            ),
             create_table: funcs.import(
                 fb,
                 &[ptr],
@@ -239,6 +256,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 super::create_table::<A> as *const u8,
             ),
             resize_table: funcs.import(fb, &[ptr, I32, I32], None, luaH_resize::<A> as *const u8),
+            lookup_table: funcs.import(fb, &[ptr, ptr], Some(ptr), luaH_get::<A> as *const u8),
             equalobj: funcs.import(
                 fb,
                 &[ptr, ptr, ptr, ptr],
@@ -700,6 +718,130 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(next_inst);
         self.fb.seal_block(next_inst);
+
+        Some(pc)
+    }
+
+    pub unsafe fn settable(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let tab = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let key = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let val = if (i & 1 << 7 + 8) != 0 {
+            self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
+        } else {
+            self.get_reg(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
+        };
+
+        // Load table type.
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            tab,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Check if table.
+        let null = self.fb.ins().iconst(self.ptr, 0);
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, 5 | 0 << 4 | 1 << 6);
+        let lookup_table = self.fb.create_block();
+        let not_found = self.fb.create_block();
+        let join = self.fb.create_block();
+
+        self.fb.append_block_param(not_found, self.ptr);
+
+        self.fb
+            .ins()
+            .brif(v, lookup_table, [], not_found, &[BlockArg::Value(null)]);
+
+        self.fb.switch_to_block(lookup_table);
+        self.fb.seal_block(lookup_table);
+
+        // Set up arguments for luaH_get.
+        let args = [
+            self.fb.ins().load(
+                self.ptr,
+                MemFlags::trusted(),
+                tab,
+                offset_of!(StackValue<A>, value_) as i32,
+            ),
+            key,
+        ];
+
+        // Invoke luaH_get.
+        let slot = self.fb.ins().call(self.lookup_table, &args);
+        let slot = self.fb.inst_results(slot)[0];
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            slot,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Check result.
+        let v = self.fb.ins().band_imm(v, 0xf);
+        let found = self.fb.create_block();
+
+        self.fb
+            .ins()
+            .brif(v, found, [], not_found, &[BlockArg::Value(slot)]);
+
+        self.fb.switch_to_block(found);
+        self.fb.seal_block(found);
+
+        // Set type.
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            val,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            slot,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Set value.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            val,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            slot,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().call(self.barrier_back, &[tab, val]);
+        self.fb.ins().jump(join, []);
+
+        self.fb.switch_to_block(not_found);
+        self.fb.seal_block(not_found);
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        // Invoke luaV_finishset.
+        let slot = self.fb.block_params(not_found)[0];
+        let td = self.fb.use_var(self.td);
+        let ret = self.fb.use_var(self.ret);
+
+        self.fb
+            .ins()
+            .call(self.finishset, &[td, tab, key, val, slot, ret]);
+
+        self.return_on_err();
+        self.update_base_stack();
+
+        self.fb.ins().jump(join, []);
+
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
 
         Some(pc)
     }
