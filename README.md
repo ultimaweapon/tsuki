@@ -106,7 +106,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 
 ## Differences between JIT and interpreter
 
-When JIT is enabled, Lua call stack will use Rust stack instead of Lua stack. The meaning of this is the number of nested calls are much lower in JIT and it will trigger stack overflow on Rust stack when too much nested calls, which results in program termination. Although the limit are much lower it is still high enough for most applications. Usually the only cases you will hit this limit is too much recursive call.
+When JIT is enabled, calling Lua function from Lua also consume Rust stack. The meaning of this is the number of nested calls are much lower in JIT and it will trigger stack overflow on Rust stack when too much nested calls, which results in program termination. Although the limit are much lower it is still high enough for most applications. Usually the only cases you will hit this limit is too much recursive call.
 
 ## Non-goals
 

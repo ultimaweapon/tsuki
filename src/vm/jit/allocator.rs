@@ -262,6 +262,14 @@ impl CodeAllocator {
 
             assert!(free.insert((size, lb)));
 
+            if !pm.is_null() {
+                (*pm).next = lm;
+            }
+
+            if !nm.is_null() {
+                (*nm).prev = lm;
+            }
+
             Self::clear_writable(pages).unwrap();
         }
     }
