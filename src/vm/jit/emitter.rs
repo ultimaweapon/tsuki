@@ -274,10 +274,14 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         // Check if we need to fallthrough.
         let current = self.fb.current_block().unwrap();
-        let inst = self.fb.func.layout.last_inst(current).unwrap();
-        let inst = self.fb.func.dfg.insts[inst];
 
-        if !inst.opcode().is_terminator() {
+        if self
+            .fb
+            .func
+            .layout
+            .last_inst(current)
+            .is_none_or(|i| !self.fb.func.dfg.insts[i].opcode().is_terminator())
+        {
             self.fb.ins().jump(next, []);
         }
 
@@ -427,6 +431,23 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             ra,
             offset_of!(StackValue<A>, tt_) as i32,
         );
+
+        Some(pc)
+    }
+
+    pub unsafe fn loadnil(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let b = i >> 7 + 8 + 1 & !(!(0u32) << 8);
+        let v = self.fb.ins().iconst(I8, 0 | 0 << 4);
+
+        for k in 0..=b {
+            self.fb.ins().store(
+                MemFlags::trusted(),
+                v,
+                ra,
+                (k as usize * size_of::<StackValue<A>>() + offset_of!(StackValue<A>, tt_)) as i32,
+            );
+        }
 
         Some(pc)
     }
