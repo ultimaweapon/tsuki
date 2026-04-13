@@ -11,10 +11,10 @@ use core::num::NonZero;
 /// The only way to create the value of this type is either [Lua::load()](crate::Lua::load()) or
 /// [Context::load()](crate::Context::load()).
 #[repr(C)]
-pub struct LuaFn<D> {
-    pub(crate) hdr: Object<D>,
-    pub(crate) p: Cell<*mut Proto<D>>,
-    pub(crate) upvals: Box<[Cell<*mut UpVal<D>>]>,
+pub struct LuaFn<A> {
+    pub(crate) hdr: Object<A>,
+    pub(crate) p: Cell<*mut Proto<A>>,
+    pub(crate) upvals: Box<[Cell<*mut UpVal<A>>]>,
     pin: PhantomPinned,
 }
 

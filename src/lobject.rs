@@ -20,10 +20,10 @@ type c_uint = u32;
 type c_ulong = u64;
 
 #[repr(C)]
-pub struct UpVal<D> {
-    pub hdr: Object<D>,
-    pub v: Cell<*mut UnsafeValue<D>>,
-    pub u: UnsafeCell<C2RustUnnamed_5<D>>,
+pub struct UpVal<A> {
+    pub hdr: Object<A>,
+    pub v: Cell<*mut UnsafeValue<A>>,
+    pub u: UnsafeCell<C2RustUnnamed_5<A>>,
 }
 
 #[repr(C)]

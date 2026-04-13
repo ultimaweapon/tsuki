@@ -431,6 +431,67 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         Some(pc)
     }
 
+    pub unsafe fn getupval(&mut self, i: u32, pc: usize) -> Option<usize> {
+        // Load LuaFn::upvals.
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let b = i >> 7 + 8 + 1 & !(!(0u32) << 8);
+        let f = self.fb.use_var(self.f);
+        let uv = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted().with_can_move().with_readonly(),
+            f,
+            offset_of!(LuaFn<A>, upvals) as i32,
+        );
+
+        // Load UpVal.
+        let uv = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted().with_can_move().with_readonly(),
+            uv,
+            (b as usize * size_of::<*mut UpVal<A>>()) as i32,
+        );
+
+        // Load UpVal::v.
+        let uv = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted(),
+            uv,
+            offset_of!(UpVal<A>, v) as i32,
+        );
+
+        // Set type.
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            uv,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Set value.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            uv,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        Some(pc)
+    }
+
     pub unsafe fn gettabup(&mut self, i: u32, pc: usize) -> Option<usize> {
         // Get output register and key.
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
@@ -453,7 +514,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             self.ptr,
             MemFlags::trusted().with_can_move().with_readonly(),
             vals,
-            ((i >> 7 + 8 + 1 & !(!(0u32) << 8) << 0) * size_of::<usize>() as u32) as i32,
+            ((i >> 7 + 8 + 1 & !(!(0u32) << 8)) as usize * size_of::<*mut UpVal<A>>()) as i32,
         );
 
         // Load UpVal::v.
