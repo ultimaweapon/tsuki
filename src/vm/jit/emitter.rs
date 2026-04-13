@@ -220,7 +220,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             ),
             run_lua: funcs.import(
                 fb,
-                &[ptr, ptr, ptr, ptr],
+                &[ptr, ptr, ptr, ptr, ptr],
                 None,
                 super::run_lua::<A> as *const u8,
             ),
@@ -1691,7 +1691,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let cx = self.fb.use_var(self.cx);
         let ret = self.fb.use_var(self.ret);
 
-        self.fb.ins().call(self.run_lua, &[td, ci, cx, ret]);
+        self.fb.ins().call(self.run_lua, &[td, ci, newci, cx, ret]);
 
         self.return_on_err();
 

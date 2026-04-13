@@ -407,10 +407,11 @@ unsafe extern "C-unwind" fn resume_pretailcall<A>(
 unsafe extern "C-unwind" fn run_lua<A>(
     td: *const Thread<A>,
     ci: *mut CallInfo,
+    new: *mut CallInfo,
     cx: *mut Context,
     ret: *mut Error,
 ) {
-    let f = Pin::new_unchecked((*ci).pending_future.run.init(td, ci));
+    let f = Pin::new_unchecked((*ci).pending_future.run.init(td, new));
     let r = match f.poll(&mut *cx) {
         Poll::Ready(v) => v,
         Poll::Pending => {
