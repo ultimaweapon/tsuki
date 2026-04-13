@@ -1086,6 +1086,164 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         Some(pc)
     }
 
+    pub unsafe fn divk(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let v1 = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let v2 = self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
+
+        // Load type of first opererand.
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            v1,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Load value of first operand.
+        let n1 = self.fb.ins().load(
+            F64,
+            MemFlags::trusted().with_can_move(),
+            v1,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Check if float.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 1 << 4);
+        let check_v2 = self.fb.create_block();
+        let check_int = self.fb.create_block();
+        let join = self.fb.create_block();
+
+        self.fb.append_block_param(check_v2, F64);
+
+        self.fb
+            .ins()
+            .brif(v, check_v2, &[BlockArg::Value(n1)], check_int, []);
+
+        self.fb.switch_to_block(check_int);
+        self.fb.seal_block(check_int);
+
+        // Check if integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 0 << 4);
+        let load_int = self.fb.create_block();
+
+        self.fb.ins().brif(v, load_int, [], join, []);
+
+        self.fb.switch_to_block(load_int);
+        self.fb.seal_block(load_int);
+
+        // Load integer.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            v1,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Convert to float.
+        let v = self.fb.ins().fcvt_from_sint(F64, v);
+
+        self.fb.ins().jump(check_v2, &[BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(check_v2);
+        self.fb.seal_block(check_v2);
+
+        // Load type of second opererand.
+        let n1 = self.fb.block_params(check_v2)[0];
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            v2,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Load value of second operand.
+        let n2 = self.fb.ins().load(
+            F64,
+            MemFlags::trusted().with_can_move(),
+            v2,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Check if float.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 1 << 4);
+        let div = self.fb.create_block();
+        let check_int = self.fb.create_block();
+
+        self.fb.append_block_param(div, F64);
+        self.fb.append_block_param(div, F64);
+
+        self.fb.ins().brif(
+            v,
+            div,
+            &[BlockArg::Value(n1), BlockArg::Value(n2)],
+            check_int,
+            [],
+        );
+
+        self.fb.switch_to_block(check_int);
+        self.fb.seal_block(check_int);
+
+        // Check if integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 0 << 4);
+        let load_int = self.fb.create_block();
+
+        self.fb.ins().brif(v, load_int, [], join, []);
+
+        self.fb.switch_to_block(load_int);
+        self.fb.seal_block(load_int);
+
+        // Load integer.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            v2,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        // Convert to float.
+        let v = self.fb.ins().fcvt_from_sint(F64, v);
+
+        self.fb
+            .ins()
+            .jump(div, &[BlockArg::Value(n1), BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(div);
+        self.fb.seal_block(div);
+
+        // Set type.
+        let &[n1, n2] = self.fb.block_params(div).as_array().unwrap();
+        let v = self.fb.ins().iconst(I8, 3 | 1 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Perform div.
+        let v = self.fb.ins().fdiv(n1, n2);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Jump to branch.
+        let next = self.fb.create_block();
+
+        self.fb.ins().jump(next, []);
+
+        assert!(self.branches.insert(pc + 1, next).is_none());
+
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
+
+        Some(pc)
+    }
+
     pub unsafe fn not(&mut self, i: u32, pc: usize) -> Option<usize> {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));

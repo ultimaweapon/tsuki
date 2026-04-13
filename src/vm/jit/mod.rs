@@ -4,10 +4,10 @@ pub use self::future::*;
 use self::emitter::Emitter;
 use self::funcs::RustFuncs;
 use super::{
-    OP_CALL, OP_CLOSURE, OP_EQI, OP_EQK, OP_GETTABUP, OP_GETUPVAL, OP_LFALSESKIP, OP_LOADFALSE,
-    OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MOVE, OP_NEWTABLE, OP_NOT, OP_RETURN,
-    OP_RETURN0, OP_SELF, OP_SETTABLE, OP_TAILCALL, OP_VARARG, OP_VARARGPREP, luaV_equalobj,
-    luaV_finishget, luaV_finishset,
+    OP_CALL, OP_CLOSURE, OP_DIVK, OP_EQI, OP_EQK, OP_GETTABUP, OP_GETUPVAL, OP_LFALSESKIP,
+    OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MOVE, OP_NEWTABLE, OP_NOT,
+    OP_RETURN, OP_RETURN0, OP_SELF, OP_SETTABLE, OP_TAILCALL, OP_VARARG, OP_VARARGPREP,
+    luaV_equalobj, luaV_finishget, luaV_finishset,
 };
 use crate::ldo::luaD_poscall;
 use crate::lfunc::luaF_close;
@@ -137,6 +137,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_SETTABLE => emit.settable(i, pc),
             OP_NEWTABLE => emit.newtable(i, pc),
             OP_SELF => emit.self_(i, pc),
+            OP_DIVK => emit.divk(i, pc),
             OP_NOT => emit.not(i, pc),
             OP_EQK => emit.eqk(i, pc),
             OP_EQI => emit.eqi(i, pc),
