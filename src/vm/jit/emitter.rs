@@ -56,6 +56,7 @@ pub struct Emitter<'a, 'b, A> {
     equalobj: FuncRef,
     closeupval: FuncRef,
     trybinassocTM: FuncRef,
+    newtbcupval: FuncRef,
     ptr: Type,
     branches: HashMap<usize, Block>,
     resumes: &'a mut Vec<BlockCall>,
@@ -270,6 +271,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 &[ptr, ptr, ptr, I32, I32, ptr, ptr],
                 None,
                 super::trybinassocTM::<A> as *const u8,
+            ),
+            newtbcupval: funcs.import(
+                fb,
+                &[ptr, ptr, ptr],
+                None,
+                super::newtbcupval::<A> as *const u8,
             ),
             ptr,
             branches: HashMap::new(),
@@ -1501,6 +1508,23 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.ins().jump(join, []);
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
+
+        Some(pc)
+    }
+
+    pub unsafe fn tbc(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        // Invoke luaF_newtbcupval.
+        let td = self.fb.use_var(self.td);
+        let ret = self.fb.use_var(self.ret);
+
+        self.fb.ins().call(self.newtbcupval, &[td, ra, ret]);
+
+        self.return_on_err();
 
         Some(pc)
     }

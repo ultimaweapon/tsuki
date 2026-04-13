@@ -169,9 +169,9 @@ unsafe fn checkclosemth<A>(
 }
 
 #[inline(always)]
-pub unsafe fn luaF_newtbcupval<D>(
-    L: *const Thread<D>,
-    level: *mut StackValue<D>,
+pub unsafe fn luaF_newtbcupval<A>(
+    L: *const Thread<A>,
+    level: *mut StackValue<A>,
 ) -> Result<(), Box<dyn core::error::Error>> {
     if (*level).tt_ as c_int == 1 as c_int | (0 as c_int) << 4 as c_int
         || (*level).tt_ as c_int & 0xf as c_int == 0 as c_int
