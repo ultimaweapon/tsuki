@@ -11,7 +11,7 @@ use core::any::Any;
 use core::marker::PhantomData;
 use core::mem::offset_of;
 use cranelift_codegen::ir::condcodes::{FloatCC, IntCC};
-use cranelift_codegen::ir::types::{F64, I8, I32, I64};
+use cranelift_codegen::ir::types::{F64, I8, I16, I32, I64};
 use cranelift_codegen::ir::{
     Block, BlockArg, BlockCall, FuncRef, InstBuilder, MemFlags, StackSlotData, StackSlotKind, Type,
     Value,
@@ -1532,7 +1532,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         None
     }
 
-    pub unsafe fn r#return(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn return_(&mut self, i: u32, pc: usize) -> Option<usize> {
         let ra = i >> 7 & !(!(0u32) << 8);
         let n = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - 1;
         let n = if n < 0 {
@@ -1661,6 +1661,102 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let ret = self.fb.use_var(self.ret);
 
         self.fb.ins().call(self.poscall, &[td, ci, n, ret]);
+
+        // Emit return.
+        let v = self.fb.ins().iconst(I8, i64::from(Status::Finished));
+
+        self.fb.ins().return_(&[v]);
+
+        None
+    }
+
+    pub unsafe fn return0(&mut self, _: u32, _: usize) -> Option<usize> {
+        let ci = self.fb.use_var(self.ci);
+
+        // Get top.
+        let v = self
+            .fb
+            .ins()
+            .iconst(self.ptr, size_of::<StackValue<A>>() as i64);
+        let top = self.fb.use_var(self.base);
+        let top = self.fb.ins().isub(top, v);
+
+        // Load CallInfo::nresults.
+        let nres = self.fb.ins().load(
+            I16,
+            MemFlags::trusted(),
+            ci,
+            offset_of!(CallInfo, nresults) as i32,
+        );
+
+        // Check if no more slot to fill.
+        let v = self.fb.ins().icmp_imm(IntCC::SignedGreaterThan, nres, 0);
+        let fill = self.fb.create_block();
+        let exit = self.fb.create_block();
+
+        self.fb.append_block_param(fill, self.ptr);
+        self.fb.append_block_param(exit, self.ptr);
+
+        self.fb.ins().brif(
+            v,
+            fill,
+            &[BlockArg::Value(top)],
+            exit,
+            &[BlockArg::Value(top)],
+        );
+
+        self.fb.switch_to_block(fill);
+
+        // Set nil.
+        let top = self.fb.block_params(fill)[0];
+        let nil = self.fb.ins().iconst(I8, 0 | 0 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            nil,
+            top,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Increase top.
+        let top = self
+            .fb
+            .ins()
+            .iadd_imm(top, size_of::<StackValue<A>>() as i64);
+
+        // Decrease nres.
+        let one = self.fb.ins().iconst(I16, 1);
+        let nres = self.fb.ins().isub(nres, one);
+
+        self.fb.ins().brif(
+            nres,
+            fill,
+            &[BlockArg::Value(top)],
+            exit,
+            &[BlockArg::Value(top)],
+        );
+
+        self.fb.seal_block(fill);
+        self.fb.switch_to_block(exit);
+        self.fb.seal_block(exit);
+
+        // Set new top.
+        let top = self.fb.block_params(exit)[0];
+
+        self.set_top(top);
+
+        // Set Thread::ci.
+        let td = self.fb.use_var(self.td);
+        let v = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted(),
+            ci,
+            offset_of!(CallInfo, previous) as i32,
+        );
+
+        self.fb
+            .ins()
+            .store(MemFlags::trusted(), v, td, offset_of!(Thread<A>, ci) as i32);
 
         // Emit return.
         let v = self.fb.ins().iconst(I8, i64::from(Status::Finished));
