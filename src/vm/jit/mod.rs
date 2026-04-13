@@ -160,30 +160,37 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
 
     drop(emit);
 
-    // Create root jump table.
-    let def = fb.create_block();
-    let bc = fb.func.dfg.block_call(def, []);
-    let jt = fb.create_jump_table(JumpTableData::new(bc, &resumes));
+    if resumes.len() == 1 {
+        let b = resumes[0].block(&fb.func.dfg.value_lists);
 
-    fb.switch_to_block(def);
-    fb.ins().trap(TrapCode::unwrap_user(1));
-    fb.switch_to_block(jump);
-    fb.seal_block(jump);
+        fb.switch_to_block(jump);
+        fb.seal_block(jump);
+        fb.ins().jump(b, []);
+    } else {
+        // Create root jump table.
+        let def = fb.create_block();
+        let bc = fb.func.dfg.block_call(def, []);
+        let jt = fb.create_jump_table(JumpTableData::new(bc, &resumes));
 
-    // Jump to resume block.
-    let st = fb.use_var(st);
-    let v = fb.ins().load(
-        I32,
-        MemFlags::trusted(),
-        st,
-        offset_of!(State<A>, next_block) as i32,
-    );
+        fb.switch_to_block(def);
+        fb.ins().trap(TrapCode::unwrap_user(1));
+        fb.switch_to_block(jump);
+        fb.seal_block(jump);
 
-    fb.ins().br_table(v, jt);
+        // Jump to resume block.
+        let st = fb.use_var(st);
+        let v = fb.ins().load(
+            I32,
+            MemFlags::trusted(),
+            st,
+            offset_of!(State<A>, next_block) as i32,
+        );
+
+        fb.ins().br_table(v, jt);
+        fb.seal_block(def);
+    }
 
     // Seal all resume blocks.
-    fb.seal_block(def);
-
     for b in resumes {
         fb.seal_block(b.block(&fb.func.dfg.value_lists));
     }
