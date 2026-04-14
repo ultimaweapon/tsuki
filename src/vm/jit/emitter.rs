@@ -1653,6 +1653,24 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         Some(pc)
     }
 
+    pub unsafe fn close(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        // Invoke luaF_close.
+        let td = self.fb.use_var(self.td);
+        let ret = self.fb.use_var(self.ret);
+
+        self.fb.ins().call(self.close, &[td, ra, ret]);
+
+        self.return_on_err();
+        self.update_base_stack();
+
+        Some(pc)
+    }
+
     pub unsafe fn tbc(&mut self, i: u32, pc: usize) -> Option<usize> {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
 
