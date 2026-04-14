@@ -3,6 +3,7 @@ use crate::lfunc::luaF_closeupval;
 use crate::lobject::{Proto, UpVal};
 use crate::lstate::CallInfo;
 use crate::value::UnsafeValue;
+use crate::vm::floatforloop;
 use crate::{
     LuaFn, StackValue, Thread, UserData, luaH_get, luaH_getshortstr, luaH_getstr, luaH_resize,
 };
@@ -59,6 +60,7 @@ pub struct Emitter<'a, 'b, A> {
     trybinassocTM: FuncRef,
     newtbcupval: FuncRef,
     forprep: FuncRef,
+    floatforloop: FuncRef,
     ptr: Type,
     branches: HashMap<usize, Block>,
     resumes: &'a mut Vec<BlockCall>,
@@ -287,6 +289,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 Some(I8),
                 super::forprep::<A> as *const u8,
             ),
+            floatforloop: funcs.import(fb, &[ptr], Some(I8), floatforloop::<A> as *const u8),
             ptr,
             branches: HashMap::new(),
             resumes,
@@ -2289,6 +2292,122 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         None
     }
 
+    pub unsafe fn forloop(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            ra,
+            (size_of::<StackValue<A>>() * 2 + offset_of!(StackValue<A>, tt_)) as i32,
+        );
+
+        // Check if step is integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, 3 | 0 << 4);
+        let int_step = self.fb.create_block();
+        let float_step = self.fb.create_block();
+
+        self.fb.ins().brif(v, int_step, [], float_step, []);
+
+        self.fb.switch_to_block(int_step);
+        self.fb.seal_block(int_step);
+
+        // Load count.
+        let count = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            ra,
+            (size_of::<StackValue<A>>() + offset_of!(StackValue<A>, value_)) as i32,
+        );
+
+        // Check if count > 0.
+        let v = self.fb.ins().icmp_imm(IntCC::UnsignedGreaterThan, count, 0);
+        let do_int = self.fb.create_block();
+        let join = self.fb.create_block();
+
+        self.fb.ins().brif(v, do_int, [], join, []);
+
+        self.fb.switch_to_block(do_int);
+        self.fb.seal_block(do_int);
+
+        // Decrease count.
+        let one = self.fb.ins().iconst(I64, 1);
+        let v = self.fb.ins().isub(count, one);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            (size_of::<StackValue<A>>() + offset_of!(StackValue<A>, value_)) as i32,
+        );
+
+        // Load internal index.
+        let idx = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Load step.
+        let step = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            ra,
+            (size_of::<StackValue<A>>() * 2 + offset_of!(StackValue<A>, value_)) as i32,
+        );
+
+        // Increase internal index.
+        let idx = self.fb.ins().iadd(idx, step);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            idx,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Update constrol variable.
+        let v = self.fb.ins().iconst(I8, 3 | 0 << 4);
+        let ctrl = self
+            .fb
+            .ins()
+            .iadd_imm(ra, (size_of::<StackValue<A>>() * 3) as i64);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ctrl,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            idx,
+            ctrl,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Jump to body.
+        let next = pc.wrapping_add_signed(-((i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1)) as isize));
+        let jump = self.branches.get(&next).copied().unwrap();
+
+        self.fb.ins().jump(jump, []);
+
+        self.fb.switch_to_block(float_step);
+        self.fb.seal_block(float_step);
+
+        // Invoke floatforloop.
+        let v = self.fb.ins().call(self.floatforloop, &[ra]);
+        let v = self.fb.inst_results(v)[0];
+
+        self.fb.ins().brif(v, jump, [], join, []);
+
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
+
+        Some(pc)
+    }
+
     pub unsafe fn forprep(&mut self, i: u32, pc: usize) -> Option<usize> {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
 
@@ -2303,16 +2422,15 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.return_on_err();
 
-        // Check if jump.
+        // Check if skip.
         let next = pc + ((i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1)) + 1) as usize;
-        let jump = self.fb.create_block();
-        let not_jump = self.fb.create_block();
+        let skip = self.fb.create_block();
+        let body = self.fb.create_block();
 
-        assert!(self.branches.insert(next, jump).is_none());
+        assert!(self.branches.insert(next, skip).is_none());
+        assert!(self.branches.insert(pc, body).is_none());
 
-        self.fb.ins().brif(v, jump, [], not_jump, []);
-        self.fb.switch_to_block(not_jump);
-        self.fb.seal_block(not_jump);
+        self.fb.ins().brif(v, skip, [], body, []);
 
         Some(pc)
     }

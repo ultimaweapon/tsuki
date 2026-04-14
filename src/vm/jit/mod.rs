@@ -4,7 +4,7 @@ pub use self::future::*;
 use self::emitter::Emitter;
 use self::funcs::RustFuncs;
 use super::{
-    OP_CALL, OP_CLOSURE, OP_DIVK, OP_EQI, OP_EQK, OP_FORPREP, OP_GETTABUP, OP_GETUPVAL,
+    OP_CALL, OP_CLOSURE, OP_DIVK, OP_EQI, OP_EQK, OP_FORLOOP, OP_FORPREP, OP_GETTABUP, OP_GETUPVAL,
     OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MMBINK, OP_MOVE,
     OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETTABLE, OP_SETTABUP,
     OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_VARARG, OP_VARARGPREP, luaV_equalobj, luaV_finishget,
@@ -152,6 +152,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_TAILCALL => emit.tailcall(i, pc),
             OP_RETURN => emit.return_(i, pc),
             OP_RETURN0 => emit.return0(i, pc),
+            OP_FORLOOP => emit.forloop(i, pc),
             OP_FORPREP => emit.forprep(i, pc),
             OP_CLOSURE => emit.closure(i, pc),
             OP_VARARG => emit.vararg(i, pc),

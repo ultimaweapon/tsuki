@@ -3186,7 +3186,7 @@ pub async unsafe fn run<A>(
                                     as isize),
                             );
                         }
-                    } else if floatforloop(ra_71) != 0 {
+                    } else if floatforloop(ra_71) {
                         pc = pc.wrapping_add_signed(
                             -((i >> 0 as c_int + 7 as c_int + 8 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)

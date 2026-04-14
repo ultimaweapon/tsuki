@@ -269,7 +269,7 @@ unsafe fn forprep<A>(
 }
 
 #[inline(always)]
-unsafe fn floatforloop<D>(ra: *mut StackValue<D>) -> c_int {
+unsafe extern "C-unwind" fn floatforloop<A>(ra: *mut StackValue<A>) -> bool {
     let step = (*ra.offset(2)).value_.n;
     let limit = (*ra.offset(1)).value_.n;
     let mut idx = (*ra).value_.n;
@@ -288,10 +288,10 @@ unsafe fn floatforloop<D>(ra: *mut StackValue<D>) -> c_int {
 
         (*io_0).value_.n = idx;
         (*io_0).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
-        return 1 as c_int;
+        true
     } else {
-        return 0 as c_int;
-    };
+        false
+    }
 }
 
 #[inline(never)]
