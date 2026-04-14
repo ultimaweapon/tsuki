@@ -5,7 +5,8 @@ use crate::lstate::CallInfo;
 use crate::value::UnsafeValue;
 use crate::vm::floatforloop;
 use crate::{
-    LuaFn, StackValue, Thread, UserData, luaH_get, luaH_getshortstr, luaH_getstr, luaH_resize,
+    LuaFn, StackValue, Thread, UserData, luaH_get, luaH_getint, luaH_getshortstr, luaH_getstr,
+    luaH_resize,
 };
 use alloc::vec::Vec;
 use core::any::Any;
@@ -38,6 +39,7 @@ pub struct Emitter<'a, 'b, A> {
     getvarargs: FuncRef,
     finishget: FuncRef,
     finishset: FuncRef,
+    getint: FuncRef,
     getshortstr: FuncRef,
     getstr: FuncRef,
     precall: FuncRef,
@@ -192,6 +194,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 None,
                 super::finishset::<A> as *const u8,
             ),
+            getint: funcs.import(fb, &[ptr, I64], Some(ptr), luaH_getint::<A> as *const u8),
             getshortstr: funcs.import(
                 fb,
                 &[ptr, ptr],
@@ -744,6 +747,136 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(next_inst);
         self.fb.seal_block(next_inst);
+
+        Some(pc)
+    }
+
+    pub unsafe fn geti(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let tab = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let c = self
+            .fb
+            .ins()
+            .iconst(I64, i64::from(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8)));
+
+        // Load table type.
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            tab,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Load table object.
+        let t = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted().with_can_move(),
+            tab,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Check if table.
+        let ty = self.fb.ins().band_imm(v, 0xf);
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, ty, 5);
+        let lookup_table = self.fb.create_block();
+        let check_ud = self.fb.create_block();
+
+        self.fb.append_block_param(lookup_table, self.ptr);
+
+        self.fb
+            .ins()
+            .brif(v, lookup_table, &[BlockArg::Value(t)], check_ud, []);
+
+        self.fb.switch_to_block(lookup_table);
+
+        // Invoke luaH_getint.
+        let v = self.fb.block_params(lookup_table)[0];
+        let slot = self.fb.ins().call(self.getint, &[v, c]);
+        let slot = self.fb.inst_results(slot)[0];
+        let vt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            slot,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Check if found.
+        let v = self.fb.ins().band_imm(vt, 0xf);
+        let found = self.fb.create_block();
+        let not_found = self.fb.create_block();
+
+        self.fb.ins().brif(v, found, [], not_found, []);
+
+        self.fb.switch_to_block(found);
+        self.fb.seal_block(found);
+
+        // Set output register.
+        let join = self.fb.create_block();
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            slot,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            vt,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().jump(join, []);
+
+        self.fb.switch_to_block(check_ud);
+        self.fb.seal_block(check_ud);
+
+        // Check if userdata.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, ty, 7);
+        let load_ud = self.fb.create_block();
+
+        self.fb.ins().brif(v, load_ud, [], not_found, []);
+
+        self.fb.switch_to_block(load_ud);
+        self.fb.seal_block(load_ud);
+
+        // Load UserData::props.s
+        let props = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted(),
+            t,
+            offset_of!(UserData<A, dyn Any>, props) as i32,
+        );
+
+        self.fb.ins().brif(
+            props,
+            lookup_table,
+            &[BlockArg::Value(props)],
+            not_found,
+            [],
+        );
+
+        self.fb.seal_block(lookup_table);
+
+        self.fb.switch_to_block(not_found);
+        self.fb.seal_block(not_found);
+
+        // Invoke luaV_finishget.
+        let v = self.fb.ins().iconst(I8, 3 | 0 << 4);
+
+        self.finishget_with_key_parts(i, pc, tab, v, c);
+
+        self.fb.ins().jump(join, []);
+
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
 
         Some(pc)
     }

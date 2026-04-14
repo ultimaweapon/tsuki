@@ -703,7 +703,10 @@ unsafe fn luaH_newkey<D>(
 }
 
 #[inline(always)]
-pub unsafe fn luaH_getint<D>(t: *const Table<D>, key: i64) -> *const UnsafeValue<D> {
+pub unsafe extern "C-unwind" fn luaH_getint<A>(
+    t: *const Table<A>,
+    key: i64,
+) -> *const UnsafeValue<A> {
     // Check if key within array part.
     let alimit = u64::from((*t).alimit.get());
 
