@@ -2209,13 +2209,14 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let fill = self.fb.create_block();
         let exit = self.fb.create_block();
 
+        self.fb.append_block_param(fill, I16);
         self.fb.append_block_param(fill, self.ptr);
         self.fb.append_block_param(exit, self.ptr);
 
         self.fb.ins().brif(
             v,
             fill,
-            &[BlockArg::Value(top)],
+            &[BlockArg::Value(nres), BlockArg::Value(top)],
             exit,
             &[BlockArg::Value(top)],
         );
@@ -2223,7 +2224,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(fill);
 
         // Set nil.
-        let top = self.fb.block_params(fill)[0];
+        let &[nres, top] = self.fb.block_params(fill).as_array().unwrap();
         let nil = self.fb.ins().iconst(I8, 0 | 0 << 4);
 
         self.fb.ins().store(
@@ -2246,7 +2247,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.ins().brif(
             nres,
             fill,
-            &[BlockArg::Value(top)],
+            &[BlockArg::Value(nres), BlockArg::Value(top)],
             exit,
             &[BlockArg::Value(top)],
         );
