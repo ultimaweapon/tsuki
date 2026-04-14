@@ -58,6 +58,7 @@ pub struct Emitter<'a, 'b, A> {
     closeupval: FuncRef,
     trybinassocTM: FuncRef,
     newtbcupval: FuncRef,
+    forprep: FuncRef,
     ptr: Type,
     branches: HashMap<usize, Block>,
     resumes: &'a mut Vec<BlockCall>,
@@ -279,6 +280,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 &[ptr, ptr, ptr],
                 None,
                 super::newtbcupval::<A> as *const u8,
+            ),
+            forprep: funcs.import(
+                fb,
+                &[ptr, ptr, ptr],
+                Some(I8),
+                super::forprep::<A> as *const u8,
             ),
             ptr,
             branches: HashMap::new(),
@@ -2280,6 +2287,34 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.ins().return_(&[v]);
 
         None
+    }
+
+    pub unsafe fn forprep(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        // Invoke forprep.
+        let td = self.fb.use_var(self.td);
+        let ret = self.fb.use_var(self.ret);
+        let v = self.fb.ins().call(self.forprep, &[td, ra, ret]);
+        let v = self.fb.inst_results(v)[0];
+
+        self.return_on_err();
+
+        // Check if jump.
+        let next = pc + ((i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1)) + 1) as usize;
+        let jump = self.fb.create_block();
+        let not_jump = self.fb.create_block();
+
+        assert!(self.branches.insert(next, jump).is_none());
+
+        self.fb.ins().brif(v, jump, [], not_jump, []);
+        self.fb.switch_to_block(not_jump);
+        self.fb.seal_block(not_jump);
+
+        Some(pc)
     }
 
     pub unsafe fn closure(&mut self, i: u32, pc: usize) -> Option<usize> {

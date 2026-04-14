@@ -3205,7 +3205,7 @@ pub async unsafe fn run<A>(
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
                     (*ci).pc = pc;
 
-                    if forprep(th, ra_72)? != 0 {
+                    if forprep(th, ra_72)? {
                         pc = pc.wrapping_add_signed(
                             ((i >> 0 as c_int + 7 as c_int + 8 as c_int
                                 & !(!(0 as c_int as u32) << 8 as c_int + 8 as c_int + 1 as c_int)

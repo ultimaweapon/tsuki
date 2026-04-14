@@ -151,11 +151,12 @@ unsafe fn forlimit<D>(
     };
 }
 
-#[inline(never)]
-unsafe fn forprep<D>(
-    L: *const Thread<D>,
-    ra: *mut StackValue<D>,
-) -> Result<c_int, Box<dyn core::error::Error>> {
+#[cfg_attr(feature = "jit", inline(always))]
+#[cfg_attr(not(feature = "jit"), inline(never))]
+unsafe fn forprep<A>(
+    L: *const Thread<A>,
+    ra: *mut StackValue<A>,
+) -> Result<bool, Box<dyn core::error::Error>> {
     let pinit = ra;
     let plimit = ra.offset(1 as c_int as isize);
     let pstep = ra.offset(2 as c_int as isize);
@@ -174,7 +175,7 @@ unsafe fn forprep<D>(
         (*io).value_.i = init;
         (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
         if forlimit(L, init, plimit.cast(), &mut limit, step)? != 0 {
-            return Ok(1 as c_int);
+            return Ok(true);
         } else {
             let mut count: u64;
 
@@ -201,7 +202,7 @@ unsafe fn forprep<D>(
         if (if (*plimit).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
             limit_0 = (*plimit).value_.n;
             1 as c_int
-        } else if let Some(v) = luaV_tonumber_::<D>(plimit.cast()) {
+        } else if let Some(v) = luaV_tonumber_::<A>(plimit.cast()) {
             limit_0 = v;
             1
         } else {
@@ -214,7 +215,7 @@ unsafe fn forprep<D>(
         if (if (*pstep).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
             step_0 = (*pstep).value_.n;
             1
-        } else if let Some(v) = luaV_tonumber_::<D>(pstep.cast()) {
+        } else if let Some(v) = luaV_tonumber_::<A>(pstep.cast()) {
             step_0 = v;
             1
         } else {
@@ -227,7 +228,7 @@ unsafe fn forprep<D>(
         if (if (*pinit).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
             init_0 = (*pinit).value_.n;
             1
-        } else if let Some(v) = luaV_tonumber_::<D>(pinit.cast()) {
+        } else if let Some(v) = luaV_tonumber_::<A>(pinit.cast()) {
             init_0 = v;
             1
         } else {
@@ -247,7 +248,7 @@ unsafe fn forprep<D>(
             (init_0 < limit_0) as c_int
         } != 0
         {
-            return Ok(1 as c_int);
+            return Ok(true);
         } else {
             let io_1 = plimit;
             (*io_1).value_.n = limit_0;
@@ -263,7 +264,8 @@ unsafe fn forprep<D>(
             (*io_4).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
         }
     }
-    return Ok(0 as c_int);
+
+    Ok(false)
 }
 
 #[inline(always)]
