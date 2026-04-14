@@ -1821,6 +1821,47 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         Some(pc)
     }
 
+    pub unsafe fn eq(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let ni = self.code[pc];
+        let jump = pc.wrapping_add_signed(
+            ((ni >> 7 & !(!(0u32) << 25)) as i32 - ((1 << 25) - 1 >> 1) + 1) as isize,
+        );
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        // Invoke luaV_equalobj.
+        let td = self.fb.use_var(self.td);
+        let ret = self.fb.use_var(self.ret);
+        let cond = self.fb.ins().call(self.equalobj, &[td, ra, rb, ret]);
+        let cond = self.fb.inst_results(cond)[0];
+
+        self.return_on_err();
+        self.update_base_stack();
+
+        // Get jump block.
+        let jump = match self.branches.entry(jump) {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
+        };
+
+        // Check result.
+        let next = self.fb.create_block();
+        let v = self.fb.ins().icmp_imm(
+            IntCC::NotEqual,
+            cond,
+            i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
+        );
+
+        self.fb.ins().brif(v, next, [], jump, []);
+
+        assert!(self.branches.insert(pc + 1, next).is_none());
+
+        Some(pc)
+    }
+
     pub unsafe fn eqk(&mut self, i: u32, pc: usize) -> Option<usize> {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_const(i >> 7 + 8 + 1 & !(!(0u32) << 8));
