@@ -881,6 +881,139 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         Some(pc)
     }
 
+    pub unsafe fn getfield(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let tab = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let k = self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
+
+        // Load table type.
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            tab,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Load table object.
+        let o = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted().with_can_move(),
+            tab,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Check if table.
+        let ty = self.fb.ins().band_imm(v, 0xf);
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, ty, 5);
+        let lookup_table = self.fb.create_block();
+        let check_ud = self.fb.create_block();
+
+        self.fb.append_block_param(lookup_table, self.ptr);
+
+        self.fb
+            .ins()
+            .brif(v, lookup_table, &[BlockArg::Value(o)], check_ud, []);
+
+        self.fb.switch_to_block(lookup_table);
+
+        // Load key.
+        let v = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted(),
+            k,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        // Invoke luaH_getshortstr.
+        let t = self.fb.block_params(lookup_table)[0];
+        let slot = self.fb.ins().call(self.getshortstr, &[t, v]);
+        let slot = self.fb.inst_results(slot)[0];
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            slot,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Check if found.
+        let v = self.fb.ins().band_imm(tt, 0xf);
+        let found = self.fb.create_block();
+        let not_found = self.fb.create_block();
+
+        self.fb.ins().brif(v, found, [], not_found, []);
+
+        self.fb.switch_to_block(found);
+        self.fb.seal_block(found);
+
+        // Set output register.
+        let join = self.fb.create_block();
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            slot,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            tt,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().jump(join, []);
+
+        self.fb.switch_to_block(check_ud);
+        self.fb.seal_block(check_ud);
+
+        // Check if userdata.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, ty, 7);
+        let load_ud = self.fb.create_block();
+
+        self.fb.ins().brif(v, load_ud, [], not_found, []);
+
+        self.fb.switch_to_block(load_ud);
+        self.fb.seal_block(load_ud);
+
+        // Load UserData::props.
+        let props = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted(),
+            o,
+            offset_of!(UserData<A, dyn Any>, props) as i32,
+        );
+
+        self.fb.ins().brif(
+            props,
+            lookup_table,
+            &[BlockArg::Value(props)],
+            not_found,
+            [],
+        );
+
+        self.fb.seal_block(lookup_table);
+
+        self.fb.switch_to_block(not_found);
+        self.fb.seal_block(not_found);
+
+        // Invoke luaV_finishget.
+        self.finishget(i, pc, tab, k);
+
+        self.fb.ins().jump(join, []);
+
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
+
+        Some(pc)
+    }
+
     pub unsafe fn settabup(&mut self, i: u32, pc: usize) -> Option<usize> {
         let uv = self.load_uv(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_const(i >> 7 + 8 + 1 & !(!(0u32) << 8));
