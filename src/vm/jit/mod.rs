@@ -5,7 +5,7 @@ use self::emitter::Emitter;
 use self::funcs::RustFuncs;
 use super::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_DIVK, OP_EQ, OP_EQI, OP_EQK, OP_FORLOOP, OP_FORPREP, OP_GETI,
-    OP_GETTABUP, OP_GETUPVAL, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL,
+    OP_GETTABUP, OP_GETUPVAL, OP_JMP, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL,
     OP_LOADTRUE, OP_MMBINK, OP_MOVE, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF,
     OP_SETFIELD, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_VARARG,
     OP_VARARGPREP, luaV_equalobj, luaV_finishget, luaV_finishset,
@@ -148,6 +148,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_NOT => emit.not(i, pc),
             OP_CLOSE => emit.close(i, pc),
             OP_TBC => emit.tbc(i, pc),
+            OP_JMP => emit.jmp(i, pc),
             OP_EQ => emit.eq(i, pc),
             OP_EQK => emit.eqk(i, pc),
             OP_EQI => emit.eqi(i, pc),

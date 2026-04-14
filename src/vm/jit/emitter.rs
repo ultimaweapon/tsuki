@@ -1821,13 +1821,25 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         Some(pc)
     }
 
+    pub unsafe fn jmp(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let next = pc.wrapping_add_signed(
+            ((i >> 7 & !(!(0u32) << 17 + 8)) as i32 - ((1 << 17 + 8) - 1 >> 1)) as isize,
+        );
+
+        // Get jump block.
+        let jump = match self.branches.entry(next) {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
+        };
+
+        self.fb.ins().jump(jump, []);
+
+        Some(pc)
+    }
+
     pub unsafe fn eq(&mut self, i: u32, pc: usize) -> Option<usize> {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
-        let ni = self.code[pc];
-        let jump = pc.wrapping_add_signed(
-            ((ni >> 7 & !(!(0u32) << 25)) as i32 - ((1 << 25) - 1 >> 1) + 1) as isize,
-        );
 
         self.update_top_from_ci();
         self.update_pc(pc);
@@ -1841,23 +1853,25 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.return_on_err();
         self.update_base_stack();
 
-        // Get jump block.
-        let jump = match self.branches.entry(jump) {
+        // Get jump skip.
+        let skip = match self.branches.entry(pc + 1) {
             Entry::Occupied(e) => *e.get(),
             Entry::Vacant(e) => *e.insert(self.fb.create_block()),
         };
 
         // Check result.
-        let next = self.fb.create_block();
+        let jump = self.fb.create_block();
         let v = self.fb.ins().icmp_imm(
             IntCC::NotEqual,
             cond,
             i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
         );
 
-        self.fb.ins().brif(v, next, [], jump, []);
+        self.fb.ins().brif(v, skip, [], jump, []);
 
-        assert!(self.branches.insert(pc + 1, next).is_none());
+        // Next instruction is OP_JMP.
+        self.fb.switch_to_block(jump);
+        self.fb.seal_block(jump);
 
         Some(pc)
     }
@@ -1875,31 +1889,27 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.return_on_err();
         self.update_base_stack();
 
-        // Get branch PC.
-        let br = self.code[pc];
-        let br = pc.wrapping_add_signed(
-            ((br >> 7 & !(!(0u32) << 25)) as i32 - ((1 << 25) - 1 >> 1) + 1) as isize,
-        );
-
-        // Create branch.
-        let eq = self.fb.create_block();
-
-        assert!(self.branches.insert(br, eq).is_none());
+        // Get jump skip.
+        let skip = match self.branches.entry(pc + 1) {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
+        };
 
         // Check result.
-        let ne = self.fb.create_block();
+        let jump = self.fb.create_block();
         let v = self.fb.ins().icmp_imm(
             IntCC::NotEqual,
             cond,
             i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
         );
 
-        self.fb.ins().brif(v, ne, [], eq, []);
+        self.fb.ins().brif(v, skip, [], jump, []);
 
-        self.fb.switch_to_block(ne);
-        self.fb.seal_block(ne);
+        // Next instruction is OP_JMP.
+        self.fb.switch_to_block(jump);
+        self.fb.seal_block(jump);
 
-        Some(pc + 1)
+        Some(pc)
     }
 
     pub unsafe fn eqi(&mut self, i: u32, pc: usize) -> Option<usize> {
@@ -1966,17 +1976,14 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(check_res);
         self.fb.seal_block(check_res);
 
-        // Get branch.
-        let ni = self.code[pc];
-        let ni = (ni >> 7 & !(!(0u32) << 25)) as i32 - ((1 << 25) - 1 >> 1) + 1;
-        let ni = pc.wrapping_add_signed(ni.try_into().unwrap());
-        let jump = match self.branches.entry(ni) {
+        // Get jump skip.
+        let skip = match self.branches.entry(pc + 1) {
             Entry::Occupied(e) => *e.get(),
             Entry::Vacant(e) => *e.insert(self.fb.create_block()),
         };
 
         // Check result.
-        let next = self.fb.create_block();
+        let jump = self.fb.create_block();
         let cond = self.fb.block_params(check_res)[0];
         let v = self.fb.ins().icmp_imm(
             IntCC::NotEqual,
@@ -1984,11 +1991,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
         );
 
-        self.fb.ins().brif(v, next, [], jump, []);
-        self.fb.switch_to_block(next);
-        self.fb.seal_block(next);
+        self.fb.ins().brif(v, skip, [], jump, []);
 
-        Some(pc + 1)
+        // Next instruction is OP_JMP.
+        self.fb.switch_to_block(jump);
+        self.fb.seal_block(jump);
+
+        Some(pc)
     }
 
     pub unsafe fn call(&mut self, i: u32, pc: usize) -> Option<usize> {
