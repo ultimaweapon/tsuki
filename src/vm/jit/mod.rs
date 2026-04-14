@@ -6,8 +6,8 @@ use self::funcs::RustFuncs;
 use super::{
     OP_CALL, OP_CLOSURE, OP_DIVK, OP_EQI, OP_EQK, OP_GETTABUP, OP_GETUPVAL, OP_LFALSESKIP,
     OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MMBINK, OP_MOVE, OP_NEWTABLE,
-    OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETTABLE, OP_SETUPVAL, OP_TAILCALL,
-    OP_TBC, OP_VARARG, OP_VARARGPREP, luaV_equalobj, luaV_finishget, luaV_finishset,
+    OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL,
+    OP_TAILCALL, OP_TBC, OP_VARARG, OP_VARARGPREP, luaV_equalobj, luaV_finishget, luaV_finishset,
 };
 use crate::gc::Object;
 use crate::ldo::luaD_poscall;
@@ -136,6 +136,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_GETUPVAL => emit.getupval(i, pc),
             OP_SETUPVAL => emit.setupval(i, pc),
             OP_GETTABUP => emit.gettabup(i, pc),
+            OP_SETTABUP => emit.settabup(i, pc),
             OP_SETTABLE => emit.settable(i, pc),
             OP_SETFIELD => emit.setfield(i, pc),
             OP_NEWTABLE => emit.newtable(i, pc),

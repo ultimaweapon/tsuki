@@ -487,32 +487,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn getupval(&mut self, i: u32, pc: usize) -> Option<usize> {
-        // Load LuaFn::upvals.
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let b = i >> 7 + 8 + 1 & !(!(0u32) << 8);
-        let f = self.fb.use_var(self.f);
-        let uv = self.fb.ins().load(
-            self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
-            f,
-            offset_of!(LuaFn<A>, upvals) as i32,
-        );
-
-        // Load UpVal.
-        let uv = self.fb.ins().load(
-            self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
-            uv,
-            (b as usize * size_of::<*mut UpVal<A>>()) as i32,
-        );
-
-        // Load UpVal::v.
-        let uv = self.fb.ins().load(
-            self.ptr,
-            MemFlags::trusted(),
-            uv,
-            offset_of!(UpVal<A>, v) as i32,
-        );
+        let uv = self.load_uv(b);
 
         // Set type.
         let v = self.fb.ins().load(
@@ -550,24 +527,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     pub unsafe fn setupval(&mut self, i: u32, pc: usize) -> Option<usize> {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
 
-        // Load LuaFn::upvals.
-        let f = self.fb.use_var(self.f);
-        let uv = self.fb.ins().load(
-            self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
-            f,
-            offset_of!(LuaFn<A>, upvals) as i32,
-        );
-
-        // Load UpVal.
-        let uv = self.fb.ins().load(
-            self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
-            uv,
-            ((i >> 7 + 8 + 1 & !(!(0u32) << 8)) as usize * size_of::<*mut UpVal<A>>()) as i32,
-        );
-
         // Load UpVal::v.
+        let uv = self.get_uv(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let dst = self.fb.ins().load(
             self.ptr,
             MemFlags::trusted(),
@@ -618,32 +579,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(UnsafeValue<A>, value_),
         );
 
-        // Load LuaFn::upvals.
-        let func = self.fb.use_var(self.f);
-        let vals = self.fb.ins().load(
-            self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
-            func,
-            offset_of!(LuaFn<A>, upvals) as i32,
-        );
-
-        // Load UpVal.
-        let uv = self.fb.ins().load(
-            self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
-            vals,
-            ((i >> 7 + 8 + 1 & !(!(0u32) << 8)) as usize * size_of::<*mut UpVal<A>>()) as i32,
-        );
-
-        // Load UpVal::v.
-        let tab = self.fb.ins().load(
-            self.ptr,
-            MemFlags::trusted().with_can_move(),
-            uv,
-            offset_of!(UpVal<A>, v) as i32,
-        );
-
-        // Load UnsafeValue::tt_.
+        // Load table type.
+        let tab = self.load_uv(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let tt = self.fb.ins().load(
             I8,
             MemFlags::trusted().with_can_move(),
@@ -797,6 +734,135 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(next_inst);
         self.fb.seal_block(next_inst);
+
+        Some(pc)
+    }
+
+    pub unsafe fn settabup(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let uv = self.load_uv(i >> 7 & !(!(0u32) << 8));
+        let rb = self.get_const(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let rc = if (i & 1 << 7 + 8) != 0 {
+            self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
+        } else {
+            self.get_reg(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
+        };
+
+        // Load table type.
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            uv,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Check if table.
+        let null = self.fb.ins().iconst(self.ptr, 0);
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, 5 | 0 << 4 | 1 << 6);
+        let lookup_table = self.fb.create_block();
+        let not_found = self.fb.create_block();
+
+        self.fb.append_block_param(not_found, self.ptr);
+
+        self.fb
+            .ins()
+            .brif(v, lookup_table, [], not_found, &[BlockArg::Value(null)]);
+
+        self.fb.switch_to_block(lookup_table);
+        self.fb.seal_block(lookup_table);
+
+        // Set up arguments for luaH_getshortstr.
+        let args = [
+            self.fb.ins().load(
+                self.ptr,
+                MemFlags::trusted(),
+                uv,
+                offset_of!(UnsafeValue<A>, value_) as i32,
+            ),
+            self.fb.ins().load(
+                self.ptr,
+                MemFlags::trusted(),
+                rb,
+                offset_of!(UnsafeValue<A>, value_) as i32,
+            ),
+        ];
+
+        // Invoke luaH_getshortstr.
+        let slot = self.fb.ins().call(self.getshortstr, &args);
+        let slot = self.fb.inst_results(slot)[0];
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            slot,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Check result.
+        let v = self.fb.ins().band_imm(v, 0xf);
+        let found = self.fb.create_block();
+
+        self.fb
+            .ins()
+            .brif(v, found, [], not_found, &[BlockArg::Value(slot)]);
+
+        self.fb.switch_to_block(found);
+        self.fb.seal_block(found);
+
+        // Set type.
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            rc,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            slot,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Set value.
+        let join = self.fb.create_block();
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            rc,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            slot,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().call(self.barrier_back, &[uv, rc]);
+        self.fb.ins().jump(join, []);
+
+        self.fb.switch_to_block(not_found);
+        self.fb.seal_block(not_found);
+
+        // Invoke luaV_finishset.
+        let slot = self.fb.block_params(not_found)[0];
+        let td = self.fb.use_var(self.td);
+        let ret = self.fb.use_var(self.ret);
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        self.fb
+            .ins()
+            .call(self.finishset, &[td, uv, rb, rc, slot, ret]);
+
+        self.return_on_err();
+        self.update_base_stack();
+
+        self.fb.ins().jump(join, []);
+
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
 
         Some(pc)
     }
@@ -2566,7 +2632,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.def_var(self.base, v);
     }
 
-    /// Returns a pointer to target constant.
+    /// Returns a pointer to target constant, which is a pointer to [UnsafeValue].
     fn get_const(&mut self, idx: u32) -> Value {
         let k = self.fb.use_var(self.k);
 
@@ -2584,6 +2650,38 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             MemFlags::trusted().with_can_move().with_readonly(),
             k,
             (idx as usize * size_of::<UnsafeValue<A>>() + off) as i32,
+        )
+    }
+
+    /// Returns a pointer to [UpVal].
+    unsafe fn get_uv(&mut self, idx: u32) -> Value {
+        // Load LuaFn::upvals.
+        let f = self.fb.use_var(self.f);
+        let v = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted().with_can_move().with_readonly(),
+            f,
+            offset_of!(LuaFn<A>, upvals) as i32,
+        );
+
+        // Load UpVal.
+        self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted().with_can_move().with_readonly(),
+            v,
+            (idx as usize * size_of::<*mut UpVal<A>>()) as i32,
+        )
+    }
+
+    /// Load [UpVal::v], which is a pointer to [UnsafeValue].
+    unsafe fn load_uv(&mut self, idx: u32) -> Value {
+        let v = self.get_uv(idx);
+
+        self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted().with_can_move(),
+            v,
+            offset_of!(UpVal<A>, v) as i32,
         )
     }
 
