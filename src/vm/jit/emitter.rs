@@ -2514,6 +2514,49 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         Some(pc)
     }
 
+    pub unsafe fn test(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Test for false.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 1 | 0 << 4);
+        let cond = self.fb.ins().iconst(I8, 0);
+        let cond = self.fb.ins().bor(cond, v);
+
+        // Test for nil.
+        let v = self.fb.ins().band_imm(tt, 0xf);
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, 0);
+        let cond = self.fb.ins().bor(cond, v);
+        let cond = self.fb.ins().bxor_imm(cond, 1);
+
+        // Get jump skip.
+        let skip = match self.branches.entry(pc + 1) {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
+        };
+
+        // Check if jump skip.
+        let next = self.fb.create_block();
+        let v = self.fb.ins().icmp_imm(
+            IntCC::NotEqual,
+            cond,
+            i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
+        );
+
+        self.fb.ins().brif(v, skip, [], next, []);
+
+        // Next instruction is OP_JMP.
+        self.fb.switch_to_block(next);
+        self.fb.seal_block(next);
+
+        Some(pc)
+    }
+
     pub unsafe fn call(&mut self, i: u32, pc: usize) -> Option<usize> {
         // Update top and PC.
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));

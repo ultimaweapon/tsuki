@@ -8,8 +8,8 @@ use super::{
     OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_JMP, OP_LEN, OP_LFALSESKIP,
     OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MMBINI, OP_MMBINK, OP_MOVE,
     OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETLIST, OP_SETTABLE,
-    OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_VARARG, OP_VARARGPREP, luaV_equalobj,
-    luaV_finishget, luaV_finishset, luaV_objlen,
+    OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_TEST, OP_VARARG, OP_VARARGPREP,
+    luaV_equalobj, luaV_finishget, luaV_finishset, luaV_objlen,
 };
 use crate::gc::Object;
 use crate::ldo::luaD_poscall;
@@ -158,6 +158,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_EQ => emit.eq(i, pc),
             OP_EQK => emit.eqk(i, pc),
             OP_EQI => emit.eqi(i, pc),
+            OP_TEST => emit.test(i, pc),
             OP_CALL => emit.call(i, pc),
             OP_TAILCALL => emit.tailcall(i, pc),
             OP_RETURN => emit.return_(i, pc),
