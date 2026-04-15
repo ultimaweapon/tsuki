@@ -6,17 +6,17 @@ use self::funcs::RustFuncs;
 use super::{
     OP_ADDI, OP_CALL, OP_CLOSE, OP_CLOSURE, OP_DIVK, OP_EQ, OP_EQI, OP_EQK, OP_FORLOOP, OP_FORPREP,
     OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_JMP, OP_LEN, OP_LFALSESKIP,
-    OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MMBINK, OP_MOVE, OP_NEWTABLE,
-    OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETLIST, OP_SETTABLE, OP_SETTABUP,
-    OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_VARARG, OP_VARARGPREP, luaV_equalobj, luaV_finishget,
-    luaV_finishset, luaV_objlen,
+    OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MMBINI, OP_MMBINK, OP_MOVE,
+    OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETLIST, OP_SETTABLE,
+    OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_VARARG, OP_VARARGPREP, luaV_equalobj,
+    luaV_finishget, luaV_finishset, luaV_objlen,
 };
 use crate::gc::Object;
 use crate::ldo::luaD_poscall;
 use crate::lfunc::{luaF_close, luaF_newtbcupval};
 use crate::lobject::Proto;
 use crate::lstate::CallInfo;
-use crate::ltm::{luaT_adjustvarargs, luaT_getvarargs, luaT_trybinassocTM};
+use crate::ltm::{luaT_adjustvarargs, luaT_getvarargs, luaT_trybinassocTM, luaT_trybiniTM};
 use crate::value::UnsafeValue;
 use crate::{Lua, LuaFn, StackValue, Table, Thread};
 use alloc::boxed::Box;
@@ -148,6 +148,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_SELF => emit.self_(i, pc),
             OP_ADDI => emit.addi(i, pc),
             OP_DIVK => emit.divk(i, pc),
+            OP_MMBINI => emit.mmbini(i, pc),
             OP_MMBINK => emit.mmbink(i, pc),
             OP_NOT => emit.not(i, pc),
             OP_LEN => emit.len(i, pc),
@@ -545,6 +546,21 @@ unsafe extern "C-unwind" fn objlen<A>(
     ret: *mut Error,
 ) {
     match luaV_objlen(&*td, v) {
+        Ok(v) => out.write(v),
+        Err(e) => (*ret).set_error(e),
+    }
+}
+
+unsafe extern "C-unwind" fn trybiniTM<A>(
+    td: *const Thread<A>,
+    p1: *const UnsafeValue<A>,
+    i2: i64,
+    flip: i32,
+    event: u32,
+    out: *mut UnsafeValue<A>,
+    ret: *mut Error,
+) {
+    match luaT_trybiniTM(&*td, p1, i2, flip, event) {
         Ok(v) => out.write(v),
         Err(e) => (*ret).set_error(e),
     }
