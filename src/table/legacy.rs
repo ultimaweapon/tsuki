@@ -193,10 +193,8 @@ unsafe fn equalkey<D>(k1: *const UnsafeValue<D>, n2: *const Node<D>, deadok: c_i
 }
 
 #[inline(always)]
-pub unsafe fn luaH_realasize<D>(t: *const Table<D>) -> c_uint {
-    if (*t).flags.get() as c_int & (1 as c_int) << 7 as c_int == 0
-        || (*t).alimit.get() & ((*t).alimit.get()).wrapping_sub(1 as c_int as c_uint)
-            == 0 as c_int as c_uint
+pub unsafe extern "C-unwind" fn luaH_realasize<A>(t: *const Table<A>) -> u32 {
+    if (*t).flags.get() & 1 << 7 == 0 || (*t).alimit.get() & (*t).alimit.get().wrapping_sub(1) == 0
     {
         return (*t).alimit.get();
     } else {
@@ -567,7 +565,7 @@ pub unsafe extern "C-unwind" fn luaH_resize<A>(t: *const Table<A>, newasize: u32
 }
 
 #[inline(always)]
-pub unsafe fn luaH_resizearray<D>(t: *const Table<D>, nasize: c_uint) {
+pub unsafe extern "C-unwind" fn luaH_resizearray<A>(t: *const Table<A>, nasize: u32) {
     let nsize: c_int = if ((*t).lastfree.get()).is_null() {
         0 as c_int
     } else {

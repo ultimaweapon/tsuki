@@ -5,8 +5,8 @@ use crate::lstate::CallInfo;
 use crate::value::UnsafeValue;
 use crate::vm::floatforloop;
 use crate::{
-    LuaFn, StackValue, Thread, UserData, luaH_get, luaH_getint, luaH_getshortstr, luaH_getstr,
-    luaH_resize,
+    LuaFn, StackValue, Table, Thread, UserData, luaH_get, luaH_getint, luaH_getshortstr,
+    luaH_getstr, luaH_realasize, luaH_resize, luaH_resizearray,
 };
 use alloc::vec::Vec;
 use core::any::Any;
@@ -42,6 +42,8 @@ pub struct Emitter<'a, 'b, A> {
     getint: FuncRef,
     getshortstr: FuncRef,
     getstr: FuncRef,
+    realasize: FuncRef,
+    resizearray: FuncRef,
     precall: FuncRef,
     resume_precall: FuncRef,
     pretailcall: FuncRef,
@@ -202,6 +204,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 luaH_getshortstr::<A> as *const u8,
             ),
             getstr: funcs.import(fb, &[ptr, ptr], Some(ptr), luaH_getstr::<A> as *const u8),
+            realasize: funcs.import(fb, &[ptr], Some(I32), luaH_realasize::<A> as *const u8),
+            resizearray: funcs.import(fb, &[ptr, I32], None, luaH_resizearray::<A> as *const u8),
             precall: funcs.import(
                 fb,
                 &[ptr, ptr, ptr, I32, ptr, ptr],
@@ -2765,6 +2769,164 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         assert!(self.branches.insert(pc, body).is_none());
 
         self.fb.ins().brif(v, skip, [], body, []);
+
+        Some(pc)
+    }
+
+    pub unsafe fn setlist(&mut self, i: u32, mut pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let last = i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8);
+        let n = i >> 7 + 8 + 1 & !(!(0u32) << 8);
+        let n = if n == 0 {
+            // Get top of the stack.
+            let td = self.fb.use_var(self.td);
+            let top = self.fb.ins().load(
+                self.ptr,
+                MemFlags::trusted(),
+                td,
+                offset_of!(Thread<A>, top) as i32,
+            );
+
+            // Get distance from RA.
+            let one = self.fb.ins().iconst(self.ptr, 1);
+            let n = self.fb.ins().isub(top, ra);
+            let n = self.fb.ins().udiv_imm(n, size_of::<StackValue<A>>() as i64);
+            let n = self.fb.ins().isub(n, one);
+
+            self.fb.ins().ireduce(I32, n)
+        } else {
+            self.update_top_from_ci();
+            self.fb.ins().iconst(I32, i64::from(n))
+        };
+
+        // Get number of items.
+        let last = self.fb.ins().iconst(I32, i64::from(last));
+        let mut last = self.fb.ins().iadd(last, n);
+
+        if (i & 1 << 7 + 8) != 0 {
+            let i = self.code[pc];
+
+            pc += 1;
+
+            last = self.fb.ins().iadd_imm(
+                last,
+                i64::from((i >> 7 & !(!(0u32) << 8 + 8 + 1 + 8)) * ((1 << 8) - 1 + 1)),
+            );
+        }
+
+        // Load target table.
+        let h = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Check if number of items larger than array size.
+        let v = self.fb.ins().call(self.realasize, &[h]);
+        let v = self.fb.inst_results(v)[0];
+        let v = self.fb.ins().icmp(IntCC::UnsignedGreaterThan, last, v);
+        let resize = self.fb.create_block();
+        let copy_loop = self.fb.create_block();
+
+        self.fb.append_block_param(copy_loop, I32);
+        self.fb.append_block_param(copy_loop, I32);
+
+        self.fb.ins().brif(
+            v,
+            resize,
+            [],
+            copy_loop,
+            &[BlockArg::Value(n), BlockArg::Value(last)],
+        );
+
+        self.fb.switch_to_block(resize);
+        self.fb.seal_block(resize);
+
+        // Invoke luaH_resizearray.
+        self.fb.ins().call(self.resizearray, &[h, last]);
+        self.fb
+            .ins()
+            .jump(copy_loop, &[BlockArg::Value(n), BlockArg::Value(last)]);
+
+        self.fb.switch_to_block(copy_loop);
+
+        // Get array.
+        let &[n, last] = self.fb.block_params(copy_loop).as_array().unwrap();
+        let array = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted().with_can_move(),
+            h,
+            offset_of!(Table<A>, array) as i32,
+        );
+
+        // Check remaining.
+        let v = self.fb.ins().icmp_imm(IntCC::UnsignedGreaterThan, n, 0);
+        let copy = self.fb.create_block();
+        let end = self.fb.create_block();
+
+        self.fb.ins().brif(v, copy, [], end, []);
+
+        self.fb.switch_to_block(copy);
+        self.fb.seal_block(copy);
+
+        // Get source.
+        let one = self.fb.ins().iconst(I32, 1);
+        let last = self.fb.ins().isub(last, one);
+        let v = self.fb.ins().uextend(self.ptr, n);
+        let v = self.fb.ins().imul_imm(v, size_of::<StackValue<A>>() as i64);
+        let src = self.fb.ins().iadd(ra, v);
+
+        // Get destination.
+        let v = self.fb.ins().uextend(self.ptr, last);
+        let v = self
+            .fb
+            .ins()
+            .imul_imm(v, size_of::<UnsafeValue<A>>() as i64);
+        let dst = self.fb.ins().iadd(array, v);
+
+        // Copy type.
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            src,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            dst,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Copy value.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            src,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            dst,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().call(self.barrier_back, &[ra, src]);
+
+        // Decrease remaining.
+        let n = self.fb.ins().isub(n, one);
+
+        self.fb
+            .ins()
+            .jump(copy_loop, &[BlockArg::Value(n), BlockArg::Value(last)]);
+
+        self.fb.seal_block(copy_loop);
+        self.fb.switch_to_block(end);
+        self.fb.seal_block(end);
 
         Some(pc)
     }
