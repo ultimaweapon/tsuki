@@ -60,6 +60,7 @@ pub struct Emitter<'a, 'b, A> {
     resize_table: FuncRef,
     lookup_table: FuncRef,
     equalobj: FuncRef,
+    objlen: FuncRef,
     closeupval: FuncRef,
     trybinassocTM: FuncRef,
     newtbcupval: FuncRef,
@@ -276,6 +277,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 &[ptr, ptr, ptr, ptr],
                 Some(I32),
                 super::equalobj::<A> as *const u8,
+            ),
+            objlen: funcs.import(
+                fb,
+                &[ptr, ptr, ptr, ptr],
+                None,
+                super::objlen::<A> as *const u8,
             ),
             closeupval: funcs.import(fb, &[ptr, ptr], None, luaF_closeupval::<A> as *const u8),
             trybinassocTM: funcs.import(
@@ -1919,6 +1926,63 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.ins().jump(join, []);
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
+
+        Some(pc)
+    }
+
+    pub unsafe fn len(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        // Allocate buffer for result.
+        let val = self.fb.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            size_of::<UnsafeValue<A>>() as u32,
+            align_of::<UnsafeValue<A>>() as u8,
+        ));
+
+        // Invoke luaV_objlen.
+        let td = self.fb.use_var(self.td);
+        let ret = self.fb.use_var(self.ret);
+        let val = self.fb.ins().stack_addr(self.ptr, val, 0);
+
+        self.fb.ins().call(self.objlen, &[td, rb, val, ret]);
+
+        self.return_on_err();
+        self.update_base_stack();
+
+        // Set output type.
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            val,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Set output value.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            val,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
 
         Some(pc)
     }

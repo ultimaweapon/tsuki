@@ -5,10 +5,11 @@ use self::emitter::Emitter;
 use self::funcs::RustFuncs;
 use super::{
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_DIVK, OP_EQ, OP_EQI, OP_EQK, OP_FORLOOP, OP_FORPREP,
-    OP_GETFIELD, OP_GETI, OP_GETTABUP, OP_GETUPVAL, OP_JMP, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI,
-    OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MMBINK, OP_MOVE, OP_NEWTABLE, OP_NOT, OP_RETURN,
-    OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL,
+    OP_GETFIELD, OP_GETI, OP_GETTABUP, OP_GETUPVAL, OP_JMP, OP_LEN, OP_LFALSESKIP, OP_LOADFALSE,
+    OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MMBINK, OP_MOVE, OP_NEWTABLE, OP_NOT,
+    OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL,
     OP_TAILCALL, OP_TBC, OP_VARARG, OP_VARARGPREP, luaV_equalobj, luaV_finishget, luaV_finishset,
+    luaV_objlen,
 };
 use crate::gc::Object;
 use crate::ldo::luaD_poscall;
@@ -147,6 +148,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_DIVK => emit.divk(i, pc),
             OP_MMBINK => emit.mmbink(i, pc),
             OP_NOT => emit.not(i, pc),
+            OP_LEN => emit.len(i, pc),
             OP_CLOSE => emit.close(i, pc),
             OP_TBC => emit.tbc(i, pc),
             OP_JMP => emit.jmp(i, pc),
@@ -531,6 +533,18 @@ unsafe extern "C-unwind" fn equalobj<A>(
             (*ret).set_error(e);
             0
         }
+    }
+}
+
+unsafe extern "C-unwind" fn objlen<A>(
+    td: *const Thread<A>,
+    v: *const UnsafeValue<A>,
+    out: *mut UnsafeValue<A>,
+    ret: *mut Error,
+) {
+    match luaV_objlen(&*td, v) {
+        Ok(v) => out.write(v),
+        Err(e) => (*ret).set_error(e),
     }
 }
 
