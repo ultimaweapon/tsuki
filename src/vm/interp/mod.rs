@@ -1025,6 +1025,7 @@ pub async unsafe fn run<A>(
                 }
                 OP_MODK => {
                     (*th).top.set(th.stack.get().add((*ci).top.get()));
+                    (*ci).pc = pc;
 
                     let v1_3 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
@@ -1051,11 +1052,9 @@ pub async unsafe fn run<A>(
 
                         (*io_12).value_.i = match luaV_mod(i1_2, i2_2) {
                             Some(v) => v,
-                            None => {
-                                (*ci).pc = pc;
-                                return Err(Box::new(ArithError::ModZero));
-                            }
+                            None => return Err(Box::new(ArithError::ModZero)),
                         };
+
                         (*io_12).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
                     } else {
                         let mut n1_2 = 0.0;
