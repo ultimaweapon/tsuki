@@ -301,15 +301,11 @@ pub unsafe fn luaT_callorderTM<A>(
     p1: *const UnsafeValue<A>,
     p2: *const UnsafeValue<A>,
     event: TMS,
-) -> Result<c_int, Box<dyn core::error::Error>> {
+) -> Result<bool, Box<dyn core::error::Error>> {
     if callbinTM(L, p1, p2, event)? != 0 {
         (*L).top.sub(1);
 
-        return Ok(
-            !((*(*L).top.get()).tt_ as c_int == 1 as c_int | (0 as c_int) << 4 as c_int
-                || (*(*L).top.get()).tt_ as c_int & 0xf as c_int == 0 as c_int)
-                as c_int,
-        );
+        return Ok(!((*(*L).top.get()).tt_ == 1 | 0 << 4 || (*(*L).top.get()).tt_ & 0xf == 0));
     }
 
     Err(luaG_ordererror(L, p1, p2))
@@ -323,7 +319,7 @@ pub unsafe fn luaT_callorderiTM<A>(
     flip: c_int,
     isfloat: c_int,
     event: TMS,
-) -> Result<c_int, Box<dyn core::error::Error>> {
+) -> Result<bool, Box<dyn core::error::Error>> {
     let mut aux = UnsafeValue::default();
     let mut p2 = null();
 
@@ -342,7 +338,8 @@ pub unsafe fn luaT_callorderiTM<A>(
     } else {
         p2 = &mut aux;
     }
-    return luaT_callorderTM(L, p1, p2, event);
+
+    luaT_callorderTM(L, p1, p2, event)
 }
 
 #[inline(always)]

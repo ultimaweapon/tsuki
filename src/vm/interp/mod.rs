@@ -2501,12 +2501,12 @@ pub async unsafe fn run<A>(
                     } else if (*ra_55).tt_ as c_int & 0xf as c_int == 3 as c_int
                         && (*rb_15).tt_ as c_int & 0xf as c_int == 3 as c_int
                     {
-                        cond_0 = LTnum::<A>(ra_55.cast(), rb_15.cast());
+                        cond_0 = LTnum::<A>(ra_55.cast(), rb_15.cast()).into();
                     } else {
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
                         (*ci).pc = pc;
 
-                        cond_0 = lessthanothers(th, ra_55.cast(), rb_15.cast())?;
+                        cond_0 = lessthanothers(th, ra_55.cast(), rb_15.cast())?.into();
                         base = th.stack.get().add((*ci).func + 1);
                     }
                     if cond_0
@@ -2553,12 +2553,12 @@ pub async unsafe fn run<A>(
                     } else if (*ra_56).tt_ as c_int & 0xf as c_int == 3 as c_int
                         && (*rb_16).tt_ as c_int & 0xf as c_int == 3 as c_int
                     {
-                        cond_1 = LEnum::<A>(ra_56.cast(), rb_16.cast());
+                        cond_1 = LEnum::<A>(ra_56.cast(), rb_16.cast()).into();
                     } else {
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
                         (*ci).pc = pc;
 
-                        cond_1 = lessequalothers(th, ra_56.cast(), rb_16.cast())?;
+                        cond_1 = lessequalothers(th, ra_56.cast(), rb_16.cast())?.into();
                         base = th.stack.get().add((*ci).func + 1);
                     }
                     if cond_1
@@ -2690,7 +2690,7 @@ pub async unsafe fn run<A>(
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
                         (*ci).pc = pc;
 
-                        cond_4 = luaT_callorderiTM(th, ra_59.cast(), im_0, 0, isf, TM_LT)?;
+                        cond_4 = luaT_callorderiTM(th, ra_59.cast(), im_0, 0, isf, TM_LT)?.into();
                         base = th.stack.get().add((*ci).func + 1);
                     }
 
@@ -2745,7 +2745,7 @@ pub async unsafe fn run<A>(
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
                         (*ci).pc = pc;
 
-                        cond_5 = luaT_callorderiTM(th, ra_60.cast(), im_1, 0, isf_0, TM_LE)?;
+                        cond_5 = luaT_callorderiTM(th, ra_60.cast(), im_1, 0, isf_0, TM_LE)?.into();
                         base = th.stack.get().add((*ci).func + 1);
                     }
 
@@ -2800,7 +2800,7 @@ pub async unsafe fn run<A>(
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
                         (*ci).pc = pc;
 
-                        cond_6 = luaT_callorderiTM(th, ra_61.cast(), im_2, 1, isf_1, TM_LT)?;
+                        cond_6 = luaT_callorderiTM(th, ra_61.cast(), im_2, 1, isf_1, TM_LT)?.into();
                         base = th.stack.get().add((*ci).func + 1);
                     }
 
@@ -2855,7 +2855,7 @@ pub async unsafe fn run<A>(
                         (*th).top.set(th.stack.get().add((*ci).top.get()));
                         (*ci).pc = pc;
 
-                        cond_7 = luaT_callorderiTM(th, ra_62.cast(), im_3, 1, isf_2, TM_LE)?;
+                        cond_7 = luaT_callorderiTM(th, ra_62.cast(), im_3, 1, isf_2, TM_LE)?.into();
                         base = th.stack.get().add((*ci).func + 1);
                     }
 

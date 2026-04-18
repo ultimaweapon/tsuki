@@ -496,99 +496,99 @@ unsafe fn l_strcmp<D>(ts1: *const Str<D>, ts2: *const Str<D>) -> c_int {
 }
 
 #[inline(always)]
-unsafe fn LTintfloat(i: i64, f: f64) -> c_int {
+unsafe fn LTintfloat(i: i64, f: f64) -> bool {
     if ((1 as c_int as u64) << 53 as c_int).wrapping_add(i as u64)
         <= 2 as c_int as u64 * ((1 as c_int as u64) << 53 as c_int)
     {
-        (f > (i as f64)) as c_int
+        f > (i as f64)
     } else {
         match luaV_flttointeger(f, F2Iceil) {
-            Some(fi) => (i < fi) as c_int,
-            None => (f > 0 as c_int as f64) as c_int,
+            Some(fi) => i < fi,
+            None => f > 0f64,
         }
     }
 }
 
 #[inline(always)]
-unsafe fn LEintfloat(i: i64, f: f64) -> c_int {
+unsafe fn LEintfloat(i: i64, f: f64) -> bool {
     if ((1 as c_int as u64) << 53 as c_int).wrapping_add(i as u64)
         <= 2 as c_int as u64 * ((1 as c_int as u64) << 53 as c_int)
     {
-        (f >= (i as f64)) as c_int
+        f >= (i as f64)
     } else {
         match luaV_flttointeger(f, F2Ifloor) {
-            Some(fi) => (i <= fi) as c_int,
-            None => (f > 0 as c_int as f64) as c_int,
+            Some(fi) => i <= fi,
+            None => f > 0f64,
         }
     }
 }
 
 #[inline(always)]
-unsafe fn LTfloatint(f: f64, i: i64) -> c_int {
+unsafe fn LTfloatint(f: f64, i: i64) -> bool {
     if ((1 as c_int as u64) << 53 as c_int).wrapping_add(i as u64)
         <= 2 as c_int as u64 * ((1 as c_int as u64) << 53 as c_int)
     {
-        return (f < i as f64) as c_int;
+        f < i as f64
     } else {
         match luaV_flttointeger(f, F2Ifloor) {
-            Some(fi) => (fi < i) as c_int,
-            None => (f < 0 as c_int as f64) as c_int,
+            Some(fi) => fi < i,
+            None => f < 0f64,
         }
     }
 }
 
 #[inline(always)]
-unsafe fn LEfloatint(f: f64, i: i64) -> c_int {
+unsafe fn LEfloatint(f: f64, i: i64) -> bool {
     if ((1 as c_int as u64) << 53 as c_int).wrapping_add(i as u64)
         <= 2 as c_int as u64 * ((1 as c_int as u64) << 53 as c_int)
     {
-        return (f <= i as f64) as c_int;
+        f <= i as f64
     } else {
         match luaV_flttointeger(f, F2Iceil) {
-            Some(fi) => (fi <= i) as c_int,
-            None => (f < 0 as c_int as f64) as c_int,
+            Some(fi) => fi <= i,
+            None => f < 0f64,
         }
     }
 }
 
 #[inline(always)]
-unsafe fn LTnum<A>(l: *const UnsafeValue<A>, r: *const UnsafeValue<A>) -> c_int {
+unsafe fn LTnum<A>(l: *const UnsafeValue<A>, r: *const UnsafeValue<A>) -> bool {
     if (*l).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
         let li: i64 = (*l).value_.i;
         if (*r).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
-            return (li < (*r).value_.i) as c_int;
+            li < (*r).value_.i
         } else {
-            return LTintfloat(li, (*r).value_.n.into());
+            LTintfloat(li, (*r).value_.n.into())
         }
     } else {
         let lf = (*l).value_.n;
 
         if (*r).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
-            return (lf < (*r).value_.n) as c_int;
+            lf < (*r).value_.n
         } else {
-            return LTfloatint(lf.into(), (*r).value_.i);
+            LTfloatint(lf.into(), (*r).value_.i)
         }
-    };
+    }
 }
 
 #[inline(always)]
-unsafe fn LEnum<D>(l: *const UnsafeValue<D>, r: *const UnsafeValue<D>) -> c_int {
+unsafe fn LEnum<A>(l: *const UnsafeValue<A>, r: *const UnsafeValue<A>) -> bool {
     if (*l).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
         let li: i64 = (*l).value_.i;
         if (*r).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
-            return (li <= (*r).value_.i) as c_int;
+            li <= (*r).value_.i
         } else {
-            return LEintfloat(li, (*r).value_.n.into());
+            LEintfloat(li, (*r).value_.n.into())
         }
     } else {
         let lf = (*l).value_.n;
 
         if (*r).tt_ as c_int == 3 as c_int | (1 as c_int) << 4 as c_int {
-            return (lf <= (*r).value_.n) as c_int;
+            lf <= (*r).value_.n
         } else {
-            return LEfloatint(lf.into(), (*r).value_.i);
+            LEfloatint(lf.into(), (*r).value_.i)
         }
-    };
+    }
 }
 
 #[inline(always)]
@@ -596,16 +596,14 @@ unsafe fn lessthanothers<A>(
     L: &Thread<A>,
     l: *const UnsafeValue<A>,
     r: *const UnsafeValue<A>,
-) -> Result<c_int, Box<dyn core::error::Error>> {
+) -> Result<bool, Box<dyn core::error::Error>> {
     if (*l).tt_ as c_int & 0xf as c_int == 4 as c_int
         && (*r).tt_ as c_int & 0xf as c_int == 4 as c_int
     {
-        return Ok(
-            (l_strcmp::<A>((*l).value_.gc.cast(), (*r).value_.gc.cast()) < 0 as c_int) as c_int,
-        );
+        Ok(l_strcmp::<A>((*l).value_.gc.cast(), (*r).value_.gc.cast()) < 0)
     } else {
         return luaT_callorderTM(L, l, r, TM_LT);
-    };
+    }
 }
 
 #[inline(never)]
@@ -613,7 +611,7 @@ pub unsafe fn luaV_lessthan<A>(
     L: &Thread<A>,
     l: *const UnsafeValue<A>,
     r: *const UnsafeValue<A>,
-) -> Result<c_int, Box<dyn core::error::Error>> {
+) -> Result<bool, Box<dyn core::error::Error>> {
     if (*l).tt_ as c_int & 0xf as c_int == 3 as c_int
         && (*r).tt_ as c_int & 0xf as c_int == 3 as c_int
     {
@@ -628,23 +626,21 @@ unsafe fn lessequalothers<A>(
     L: &Thread<A>,
     l: *const UnsafeValue<A>,
     r: *const UnsafeValue<A>,
-) -> Result<c_int, Box<dyn core::error::Error>> {
+) -> Result<bool, Box<dyn core::error::Error>> {
     if (*l).tt_ as c_int & 0xf as c_int == 4 as c_int
         && (*r).tt_ as c_int & 0xf as c_int == 4 as c_int
     {
-        return Ok(
-            (l_strcmp::<A>((*l).value_.gc.cast(), (*r).value_.gc.cast()) <= 0 as c_int) as c_int,
-        );
+        Ok(l_strcmp::<A>((*l).value_.gc.cast(), (*r).value_.gc.cast()) <= 0)
     } else {
-        return luaT_callorderTM(L, l, r, TM_LE);
-    };
+        luaT_callorderTM(L, l, r, TM_LE)
+    }
 }
 
 pub unsafe fn luaV_lessequal<A>(
     L: &Thread<A>,
     l: *const UnsafeValue<A>,
     r: *const UnsafeValue<A>,
-) -> Result<c_int, Box<dyn core::error::Error>> {
+) -> Result<bool, Box<dyn core::error::Error>> {
     if (*l).tt_ as c_int & 0xf as c_int == 3 as c_int
         && (*r).tt_ as c_int & 0xf as c_int == 3 as c_int
     {

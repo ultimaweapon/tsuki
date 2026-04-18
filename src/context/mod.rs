@@ -297,7 +297,7 @@ impl<'a, A, T> Context<'a, A, T> {
             panic!("attempt to compare a value created from a different Lua");
         }
 
-        Ok(unsafe { luaV_lessthan(self.th, &lhs, &rhs)? != 0 })
+        unsafe { luaV_lessthan(self.th, &lhs, &rhs) }
     }
 
     /// Resolve type name for `v`.
