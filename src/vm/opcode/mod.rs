@@ -4,6 +4,8 @@
 pub type OpCode = c_uint;
 pub type OpMode = c_uint;
 
+#[cfg(feature = "jit")]
+pub const OP_LABEL: OpCode = 83;
 pub const OP_EXTRAARG: OpCode = 82;
 pub const OP_VARARGPREP: OpCode = 81;
 pub const OP_VARARG: OpCode = 80;

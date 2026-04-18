@@ -148,7 +148,7 @@ This requires too much changes to the language so the answer is no. See [#16](ht
 
 ### Does JIT mode the same as LuaJIT?
 
-No. LuaJIT is Tracing JIT while Tsuki is Method JIT. It is likely for LuaJIT to be faster since Lua is dynamic typing, which make some type checking still present at runtime in Method JIT. The benefits Tsuki got from JIT is the elimination of some branches, interpreter jump table and dead code. In the future it is possible to do optimization based on static analysis to improve math performance dramatically.
+No. LuaJIT is Tracing JIT while Tsuki is Method JIT. It is likely for LuaJIT to be faster since Lua is dynamic typing, which make some type checking still present at runtime for Method JIT. The benefits Tsuki got from JIT is the elimination of some branches, interpreter jump table, dead code and possibility of optimization from Cranelift.
 
 ## Contribution
 

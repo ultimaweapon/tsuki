@@ -5,10 +5,10 @@ use self::emitter::Emitter;
 use self::funcs::RustFuncs;
 use super::{
     OP_ADDI, OP_CALL, OP_CLOSE, OP_CLOSURE, OP_DIVK, OP_EQ, OP_EQI, OP_EQK, OP_FORLOOP, OP_FORPREP,
-    OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_JMP, OP_LEN, OP_LFALSESKIP,
-    OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MMBINI, OP_MMBINK, OP_MOVE,
-    OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETLIST, OP_SETTABLE,
-    OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_TEST, OP_VARARG, OP_VARARGPREP,
+    OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_JMP, OP_LABEL, OP_LEN,
+    OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MMBINI, OP_MMBINK,
+    OP_MOVE, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETLIST,
+    OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_TEST, OP_VARARG, OP_VARARGPREP,
     luaV_equalobj, luaV_finishget, luaV_finishset, luaV_objlen,
 };
 use crate::gc::Object;
@@ -169,6 +169,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_CLOSURE => emit.closure(i, pc),
             OP_VARARG => emit.vararg(i, pc),
             OP_VARARGPREP => emit.varargprep(i, pc),
+            OP_LABEL => emit.label(i, pc),
             v => todo!("OP {v}"),
         };
 

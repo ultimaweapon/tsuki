@@ -2210,6 +2210,8 @@ unsafe fn whilestat<A>(
         insidetbc: 0,
     };
     luaX_next(ls)?;
+    #[cfg(feature = "jit")]
+    luaK_code(ls, fs, crate::vm::OP_LABEL)?;
     whileinit = luaK_getlabel(fs);
     condexit = cond(ls, fs)?;
     enterblock(ls, fs, &mut bl, 1 as c_int as u8);
