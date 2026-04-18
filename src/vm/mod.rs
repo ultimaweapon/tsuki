@@ -1050,7 +1050,7 @@ pub fn luaV_mod(m: i64, n: i64) -> Option<i64> {
 }
 
 #[inline(always)]
-pub fn luaV_modf(m: f64, n: f64) -> f64 {
+pub extern "C-unwind" fn luaV_modf(m: f64, n: f64) -> f64 {
     let mut r = fmod(m, n);
 
     if if r > 0f64 {

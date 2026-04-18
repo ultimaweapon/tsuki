@@ -4,7 +4,7 @@ use crate::lobject::{Proto, UpVal};
 use crate::lstate::CallInfo;
 use crate::ltm::TM_LT;
 use crate::value::UnsafeValue;
-use crate::vm::floatforloop;
+use crate::vm::{floatforloop, luaV_modf};
 use crate::{
     LuaFn, StackValue, Table, Thread, UserData, luaH_get, luaH_getint, luaH_getshortstr,
     luaH_getstr, luaH_realasize, luaH_resize, luaH_resizearray,
@@ -69,6 +69,8 @@ pub struct Emitter<'a, 'b, A> {
     newtbcupval: FuncRef,
     forprep: FuncRef,
     floatforloop: FuncRef,
+    mod_f: FuncRef,
+    mod_zero: FuncRef,
     ptr: Type,
     labels: HashMap<usize, Block>,
     resumes: &'a mut Vec<BlockCall>,
@@ -319,6 +321,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 super::forprep::<A> as *const u8,
             ),
             floatforloop: funcs.import(fb, &[ptr], Some(I8), floatforloop::<A> as *const u8),
+            mod_f: funcs.import(fb, &[F64, F64], Some(F64), luaV_modf as *const u8),
+            mod_zero: funcs.import(fb, &[ptr], None, super::mod_zero as *const u8),
             ptr,
             labels: HashMap::new(),
             resumes,
@@ -1886,6 +1890,148 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(not_num);
         self.fb.seal_block(not_num);
+
+        Some(pc)
+    }
+
+    pub unsafe fn modk(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let v1 = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let v2 = self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+
+        // Load type of v1.
+        let t1 = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            v1,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Load type of v2;
+        let t2 = self.fb.ins().load(
+            I8,
+            MemFlags::trusted().with_can_move().with_readonly(),
+            v2,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Get metamethod skip.
+        let skip = match self.labels.entry(pc + 1) {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
+        };
+
+        // Check if v1 integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, t1, 3 | 0 << 4);
+        let check_v2 = self.fb.create_block();
+        let check_float = self.fb.create_block();
+
+        self.fb.ins().brif(v, check_v2, [], check_float, []);
+
+        self.fb.switch_to_block(check_v2);
+        self.fb.seal_block(check_v2);
+
+        // Check if v2 integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, t2, 3 | 0 << 4);
+        let load_v2 = self.fb.create_block();
+
+        self.fb.ins().brif(v, load_v2, [], check_float, []);
+
+        self.fb.switch_to_block(load_v2);
+        self.fb.seal_block(load_v2);
+
+        // Load int from v2.
+        let i2 = self.fb.ins().load(
+            I64,
+            MemFlags::trusted().with_can_move().with_readonly(),
+            v2,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        // Check if v2 zero.
+        let mod_int = self.fb.create_block();
+        let mod_zero = self.fb.create_block();
+
+        self.fb.ins().brif(i2, mod_int, [], mod_zero, []);
+
+        self.fb.switch_to_block(mod_int);
+        self.fb.seal_block(mod_int);
+
+        // Load int from v1.
+        let i1 = self.fb.ins().load(
+            I64,
+            MemFlags::trusted().with_can_move(),
+            v1,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Set output type.
+        let v = self.fb.ins().iconst(I8, 3 | 0 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Perform v1 % v2.
+        let v = self.fb.ins().srem(i1, i2);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().jump(skip, []);
+
+        self.fb.switch_to_block(mod_zero);
+        self.fb.seal_block(mod_zero);
+        self.fb.set_cold_block(mod_zero);
+
+        // Set error.
+        let ret = self.fb.use_var(self.ret);
+        let v = self.fb.ins().iconst(I8, i64::from(Status::Finished));
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        self.fb.ins().call(self.mod_zero, &[ret]);
+        self.fb.ins().return_(&[v]);
+
+        self.fb.switch_to_block(check_float);
+        self.fb.seal_block(check_float);
+
+        // Load floats.
+        let join = self.fb.create_block();
+        let n1 = self.load_num_as_float(v1, join, &[]);
+        let n2 = self.load_num_as_float(v2, join, &[]);
+        let v = self.fb.ins().iconst(I8, 3 | 1 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Perform v1 % v2.
+        let v = self.fb.ins().call(self.mod_f, &[n1, n2]);
+        let v = self.fb.inst_results(v)[0];
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().jump(skip, []);
+
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
 
         Some(pc)
     }
@@ -3834,6 +3980,63 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.ins().iadd(v, f);
 
         self.fb.def_var(self.base, v);
+    }
+
+    unsafe fn load_num_as_float(&mut self, ptr: Value, not_num: Block, args: &[BlockArg]) -> Value {
+        // Load type.
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            ptr,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Check if integer.
+        let c = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 0 << 4);
+        let convert = self.fb.create_block();
+        let check_float = self.fb.create_block();
+
+        self.fb.ins().brif(c, convert, [], check_float, []);
+
+        self.fb.switch_to_block(convert);
+        self.fb.seal_block(convert);
+
+        // Load integer.
+        let i = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            ptr,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        // Convert integer to float.
+        let f = self.fb.ins().fcvt_from_sint(F64, i);
+        let join = self.fb.create_block();
+
+        self.fb.append_block_param(join, F64);
+
+        self.fb.ins().jump(join, &[BlockArg::Value(f)]);
+
+        self.fb.switch_to_block(check_float);
+        self.fb.seal_block(check_float);
+
+        // Check if float.
+        let c = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 1 << 4);
+        let f = self.fb.ins().load(
+            F64,
+            MemFlags::trusted().with_can_move(),
+            ptr,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        self.fb
+            .ins()
+            .brif(c, join, &[BlockArg::Value(f)], not_num, args);
+
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
+
+        self.fb.block_params(join)[0]
     }
 
     /// Returns a pointer to target constant, which is a pointer to [UnsafeValue].
