@@ -1,8 +1,9 @@
 pub use self::allocator::*;
 pub use self::future::*;
 
+pub(self) use self::rust::*;
+
 use self::emitter::Emitter;
-use self::funcs::RustFuncs;
 use super::{
     OP_ADD, OP_ADDI, OP_CALL, OP_CLOSE, OP_CLOSURE, OP_DIVK, OP_EQ, OP_EQI, OP_EQK, OP_FORLOOP,
     OP_FORPREP, OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI, OP_JMP,
@@ -43,8 +44,8 @@ use target_lexicon::Triple;
 
 mod allocator;
 mod emitter;
-mod funcs;
 mod future;
+mod rust;
 
 pub async unsafe fn run<A>(
     td: *const Thread<A>,
@@ -117,10 +118,10 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
 
     // Compile instructions.
     let mut pc = 0;
-    let mut funcs = RustFuncs::<A>::default();
+    let mut rust = RustFuncs::<A>::default();
     let mut resumes = Vec::new();
     let jump = fb.create_block();
-    let mut emit = Emitter::new(&mut fb, code, st, cx, ret, &mut funcs, &mut resumes, jump);
+    let mut emit = Emitter::new(&mut fb, code, st, cx, ret, &mut rust, &mut resumes, jump);
 
     loop {
         emit.prepare(pc);
@@ -252,7 +253,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
         match r.kind {
             Reloc::Abs8 => match &r.target {
                 FinalizedRelocTarget::ExternalName(ExternalName::User(v)) => {
-                    let f = funcs.get(*v) as usize;
+                    let f = rust.get(*v) as usize;
 
                     buf[off..(off + 8)].copy_from_slice(&f.to_ne_bytes());
                 }

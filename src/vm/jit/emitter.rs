@@ -85,7 +85,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         st: Variable,
         cx: Variable,
         ret: Variable,
-        funcs: &'a mut RustFuncs<A>,
+        rust: &'a mut RustFuncs<A>,
         resumes: &'a mut Vec<BlockCall>,
         jumper: Block,
     ) -> Self {
@@ -179,157 +179,147 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             p,
             k,
             base: fb.declare_var(ptr),
-            adjustvarargs: funcs.import(
+            adjustvarargs: rust.import(
                 fb,
                 &[ptr, I32, ptr, ptr, ptr],
                 None,
                 super::adjustvarargs::<A> as *const u8,
             ),
-            getvarargs: funcs.import(
+            getvarargs: rust.import(
                 fb,
                 &[ptr, ptr, ptr, I32, ptr],
                 None,
                 super::getvarargs::<A> as *const u8,
             ),
-            finishget: funcs.import(
+            finishget: rust.import(
                 fb,
                 &[ptr, ptr, ptr, I8, ptr, ptr],
                 None,
                 super::finishget::<A> as *const u8,
             ),
-            finishset: funcs.import(
+            finishset: rust.import(
                 fb,
                 &[ptr, ptr, ptr, ptr, ptr, ptr],
                 None,
                 super::finishset::<A> as *const u8,
             ),
-            getint: funcs.import(fb, &[ptr, I64], Some(ptr), luaH_getint::<A> as *const u8),
-            getshortstr: funcs.import(
+            getint: rust.import(fb, &[ptr, I64], Some(ptr), luaH_getint::<A> as *const u8),
+            getshortstr: rust.import(
                 fb,
                 &[ptr, ptr],
                 Some(ptr),
                 luaH_getshortstr::<A> as *const u8,
             ),
-            getstr: funcs.import(fb, &[ptr, ptr], Some(ptr), luaH_getstr::<A> as *const u8),
-            realasize: funcs.import(fb, &[ptr], Some(I32), luaH_realasize::<A> as *const u8),
-            resizearray: funcs.import(fb, &[ptr, I32], None, luaH_resizearray::<A> as *const u8),
-            precall: funcs.import(
+            getstr: rust.import(fb, &[ptr, ptr], Some(ptr), luaH_getstr::<A> as *const u8),
+            realasize: rust.import(fb, &[ptr], Some(I32), luaH_realasize::<A> as *const u8),
+            resizearray: rust.import(fb, &[ptr, I32], None, luaH_resizearray::<A> as *const u8),
+            precall: rust.import(
                 fb,
                 &[ptr, ptr, ptr, I32, ptr, ptr],
                 Some(ptr),
                 super::precall::<A> as *const u8,
             ),
-            resume_precall: funcs.import(
+            resume_precall: rust.import(
                 fb,
                 &[ptr, ptr, ptr],
                 Some(ptr),
                 super::resume_precall::<A> as *const u8,
             ),
-            pretailcall: funcs.import(
+            pretailcall: rust.import(
                 fb,
                 &[ptr, ptr, ptr, I32, I32, ptr, ptr],
                 Some(I32),
                 super::pretailcall::<A> as *const u8,
             ),
-            resume_pretailcall: funcs.import(
+            resume_pretailcall: rust.import(
                 fb,
                 &[ptr, ptr, ptr],
                 Some(I32),
                 super::resume_pretailcall::<A> as *const u8,
             ),
-            run_lua: funcs.import(
+            run_lua: rust.import(
                 fb,
                 &[ptr, ptr, ptr, ptr, ptr],
                 None,
                 super::run_lua::<A> as *const u8,
             ),
-            resume_run_lua: funcs.import(
+            resume_run_lua: rust.import(
                 fb,
                 &[ptr, ptr, ptr],
                 None,
                 super::resume_run_lua::<A> as *const u8,
             ),
-            close: funcs.import(fb, &[ptr, ptr, ptr], None, super::close::<A> as *const u8),
-            poscall: funcs.import(
+            close: rust.import(fb, &[ptr, ptr, ptr], None, super::close::<A> as *const u8),
+            poscall: rust.import(
                 fb,
                 &[ptr, ptr, I32, ptr],
                 None,
                 super::poscall::<A> as *const u8,
             ),
-            pushclosure: funcs.import(
+            pushclosure: rust.import(
                 fb,
                 &[ptr, ptr, ptr, ptr, ptr],
                 None,
                 super::pushclosure::<A> as *const u8,
             ),
-            gc: funcs.import(fb, &[ptr], None, super::step_gc::<A> as *const u8),
-            barrier: funcs.import(fb, &[ptr, ptr], None, super::barrier::<A> as *const u8),
-            barrier_back: funcs.import(
-                fb,
-                &[ptr, ptr],
-                None,
-                super::barrier_back::<A> as *const u8,
-            ),
-            create_table: funcs.import(
-                fb,
-                &[ptr],
-                Some(ptr),
-                super::create_table::<A> as *const u8,
-            ),
-            resize_table: funcs.import(fb, &[ptr, I32, I32], None, luaH_resize::<A> as *const u8),
-            lookup_table: funcs.import(fb, &[ptr, ptr], Some(ptr), luaH_get::<A> as *const u8),
-            equalobj: funcs.import(
+            gc: rust.import(fb, &[ptr], None, super::step_gc::<A> as *const u8),
+            barrier: rust.import(fb, &[ptr, ptr], None, super::barrier::<A> as *const u8),
+            barrier_back: rust.import(fb, &[ptr, ptr], None, super::barrier_back::<A> as *const u8),
+            create_table: rust.import(fb, &[ptr], Some(ptr), super::create_table::<A> as *const u8),
+            resize_table: rust.import(fb, &[ptr, I32, I32], None, luaH_resize::<A> as *const u8),
+            lookup_table: rust.import(fb, &[ptr, ptr], Some(ptr), luaH_get::<A> as *const u8),
+            equalobj: rust.import(
                 fb,
                 &[ptr, ptr, ptr, ptr],
                 Some(I32),
                 super::equalobj::<A> as *const u8,
             ),
-            objlen: funcs.import(
+            objlen: rust.import(
                 fb,
                 &[ptr, ptr, ptr, ptr],
                 None,
                 super::objlen::<A> as *const u8,
             ),
-            closeupval: funcs.import(fb, &[ptr, ptr], None, luaF_closeupval::<A> as *const u8),
-            trybinTM: funcs.import(
+            closeupval: rust.import(fb, &[ptr, ptr], None, luaF_closeupval::<A> as *const u8),
+            trybinTM: rust.import(
                 fb,
                 &[ptr, ptr, ptr, I32, ptr, ptr],
                 None,
                 super::trybinTM::<A> as *const u8,
             ),
-            trybiniTM: funcs.import(
+            trybiniTM: rust.import(
                 fb,
                 &[ptr, ptr, I64, I32, I32, ptr, ptr],
                 None,
                 super::trybiniTM::<A> as *const u8,
             ),
-            trybinassocTM: funcs.import(
+            trybinassocTM: rust.import(
                 fb,
                 &[ptr, ptr, ptr, I32, I32, ptr, ptr],
                 None,
                 super::trybinassocTM::<A> as *const u8,
             ),
-            callorderiTM: funcs.import(
+            callorderiTM: rust.import(
                 fb,
                 &[ptr, ptr, I32, I32, I32, I32, ptr],
                 Some(I8),
                 super::callorderiTM::<A> as *const u8,
             ),
-            newtbcupval: funcs.import(
+            newtbcupval: rust.import(
                 fb,
                 &[ptr, ptr, ptr],
                 None,
                 super::newtbcupval::<A> as *const u8,
             ),
-            forprep: funcs.import(
+            forprep: rust.import(
                 fb,
                 &[ptr, ptr, ptr],
                 Some(I8),
                 super::forprep::<A> as *const u8,
             ),
-            floatforloop: funcs.import(fb, &[ptr], Some(I8), floatforloop::<A> as *const u8),
-            mod_f: funcs.import(fb, &[F64, F64], Some(F64), luaV_modf as *const u8),
-            mod_zero: funcs.import(fb, &[ptr], None, super::mod_zero as *const u8),
+            floatforloop: rust.import(fb, &[ptr], Some(I8), floatforloop::<A> as *const u8),
+            mod_f: rust.import(fb, &[F64, F64], Some(F64), luaV_modf as *const u8),
+            mod_zero: rust.import(fb, &[ptr], None, super::mod_zero as *const u8),
             ptr,
             labels: HashMap::new(),
             resumes,
