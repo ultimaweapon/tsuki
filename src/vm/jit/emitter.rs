@@ -4,7 +4,7 @@ use crate::lobject::{Proto, UpVal};
 use crate::lstate::CallInfo;
 use crate::ltm::TM_LT;
 use crate::value::UnsafeValue;
-use crate::vm::{floatforloop, luaV_modf};
+use crate::vm::{LTnum, floatforloop, luaV_modf};
 use crate::{
     LuaFn, StackValue, Table, Thread, UserData, luaH_get, luaH_getint, luaH_getshortstr,
     luaH_getstr, luaH_realasize, luaH_resize, luaH_resizearray,
@@ -61,6 +61,8 @@ pub struct Emitter<'a, 'b, A> {
     resize_table: FuncRef,
     lookup_table: FuncRef,
     equalobj: FuncRef,
+    LTnum: FuncRef,
+    lessthanothers: FuncRef,
     objlen: FuncRef,
     closeupval: FuncRef,
     trybinTM: FuncRef,
@@ -273,6 +275,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 &[ptr, ptr, ptr, ptr],
                 Some(I32),
                 super::equalobj::<A> as *const u8,
+            ),
+            LTnum: rust.import(fb, &[ptr, ptr], Some(I8), LTnum::<A> as *const u8),
+            lessthanothers: rust.import(
+                fb,
+                &[ptr, ptr, ptr, ptr],
+                Some(I8),
+                super::lessthanothers::<A> as *const u8,
             ),
             objlen: rust.import(
                 fb,
@@ -2795,6 +2804,143 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             self.fb.switch_to_block(b);
             self.fb.seal_block(b);
         }
+
+        Some(pc)
+    }
+
+    pub unsafe fn lt(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+
+        // Load type of RA.
+        let ta = self.fb.ins().load(
+            I8,
+            MemFlags::trusted().with_can_move(),
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Load type of RB.
+        let tb = self.fb.ins().load(
+            I8,
+            MemFlags::trusted().with_can_move(),
+            rb,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Check if RA integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, ta, 3 | 0 << 4);
+        let check_rb = self.fb.create_block();
+        let check_ra = self.fb.create_block();
+
+        self.fb.ins().brif(v, check_rb, [], check_ra, []);
+
+        self.fb.switch_to_block(check_rb);
+        self.fb.seal_block(check_rb);
+
+        // Check if RB integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, tb, 3 | 0 << 4);
+        let cmp_int = self.fb.create_block();
+
+        self.fb.ins().brif(v, cmp_int, [], check_ra, []);
+
+        self.fb.switch_to_block(cmp_int);
+        self.fb.seal_block(cmp_int);
+
+        // Load integer from RA.
+        let ia = self.fb.ins().load(
+            I64,
+            MemFlags::trusted().with_can_move(),
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Load integer from RB.
+        let ib = self.fb.ins().load(
+            I64,
+            MemFlags::trusted().with_can_move(),
+            rb,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Compare.
+        let v = self.fb.ins().icmp(IntCC::SignedLessThan, ia, ib);
+        let check_result = self.fb.create_block();
+
+        self.fb.append_block_param(check_result, I8);
+
+        self.fb.ins().jump(check_result, &[BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(check_ra);
+        self.fb.seal_block(check_ra);
+
+        // Check if RA number.
+        let v = self.fb.ins().band_imm(ta, 0xf);
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, 3);
+        let check_rb = self.fb.create_block();
+        let not_num = self.fb.create_block();
+
+        self.fb.ins().brif(v, check_rb, [], not_num, []);
+
+        self.fb.switch_to_block(check_rb);
+        self.fb.seal_block(check_rb);
+
+        // Check if RB number.
+        let v = self.fb.ins().band_imm(tb, 0xf);
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, 3);
+        let cmp_num = self.fb.create_block();
+
+        self.fb.ins().brif(v, cmp_num, [], not_num, []);
+
+        self.fb.switch_to_block(cmp_num);
+        self.fb.seal_block(cmp_num);
+
+        // Invoke LTnum.
+        let v = self.fb.ins().call(self.LTnum, &[ra, rb]);
+        let v = self.fb.inst_results(v)[0];
+
+        self.fb.ins().jump(check_result, &[BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(not_num);
+        self.fb.seal_block(not_num);
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        // Invoke lessthanothers.
+        let td = self.fb.use_var(self.td);
+        let ret = self.fb.use_var(self.ret);
+        let v = self.fb.ins().call(self.lessthanothers, &[td, ra, rb, ret]);
+        let v = self.fb.inst_results(v)[0];
+
+        self.return_on_err();
+        self.update_base_stack();
+
+        self.fb.ins().jump(check_result, &[BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(check_result);
+        self.fb.seal_block(check_result);
+
+        // Get jump skip.
+        let skip = match self.labels.entry(pc + 1) {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
+        };
+
+        // Check result.
+        let cond = self.fb.block_params(check_result)[0];
+        let jump = self.fb.create_block();
+        let v = self.fb.ins().icmp_imm(
+            IntCC::NotEqual,
+            cond,
+            i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
+        );
+
+        self.fb.ins().brif(v, skip, [], jump, []);
+
+        // Next instruction is OP_JMP.
+        self.fb.switch_to_block(jump);
+        self.fb.seal_block(jump);
 
         Some(pc)
     }
