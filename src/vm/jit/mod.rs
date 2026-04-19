@@ -4,12 +4,13 @@ pub use self::future::*;
 use self::emitter::Emitter;
 use self::funcs::RustFuncs;
 use super::{
-    OP_ADDI, OP_CALL, OP_CLOSE, OP_CLOSURE, OP_DIVK, OP_EQ, OP_EQI, OP_EQK, OP_FORLOOP, OP_FORPREP,
-    OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI, OP_JMP, OP_LABEL, OP_LEN,
-    OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_MMBIN, OP_MMBINI,
-    OP_MMBINK, OP_MODK, OP_MOVE, OP_MUL, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF,
-    OP_SETFIELD, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_TEST,
-    OP_VARARG, OP_VARARGPREP, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_objlen,
+    OP_ADD, OP_ADDI, OP_CALL, OP_CLOSE, OP_CLOSURE, OP_DIVK, OP_EQ, OP_EQI, OP_EQK, OP_FORLOOP,
+    OP_FORPREP, OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI, OP_JMP,
+    OP_LABEL, OP_LEN, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE,
+    OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MODK, OP_MOVE, OP_MUL, OP_NEWTABLE, OP_NOT, OP_RETURN,
+    OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL,
+    OP_TAILCALL, OP_TBC, OP_TEST, OP_VARARG, OP_VARARGPREP, luaV_equalobj, luaV_finishget,
+    luaV_finishset, luaV_objlen,
 };
 use crate::gc::Object;
 use crate::ldo::luaD_poscall;
@@ -152,6 +153,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_ADDI => emit.addi(i, pc),
             OP_MODK => emit.modk(i, pc),
             OP_DIVK => emit.divk(i, pc),
+            OP_ADD => emit.add(i, pc),
             OP_MUL => emit.mul(i, pc),
             OP_MMBIN => emit.mmbin(i, pc),
             OP_MMBINI => emit.mmbini(i, pc),
