@@ -7,7 +7,7 @@ use self::emitter::Emitter;
 use super::{
     OP_ADD, OP_ADDI, OP_CALL, OP_CLOSE, OP_CLOSURE, OP_DIVK, OP_EQ, OP_EQI, OP_EQK, OP_FORLOOP,
     OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI,
-    OP_JMP, OP_LABEL, OP_LEN, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL,
+    OP_JMP, OP_LABEL, OP_LE, OP_LEN, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL,
     OP_LOADTRUE, OP_LT, OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MODK, OP_MOVE, OP_MUL, OP_NEWTABLE,
     OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETLIST, OP_SETTABLE, OP_SETTABUP,
     OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_TEST, OP_VARARG, OP_VARARGPREP, luaV_equalobj,
@@ -165,6 +165,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_TBC => emit.tbc(i, pc),
             OP_JMP => emit.jmp(i, pc),
             OP_LT => emit.lt(i, pc),
+            OP_LE => emit.le(i, pc),
             OP_EQ => emit.eq(i, pc),
             OP_EQK => emit.eqk(i, pc),
             OP_EQI => emit.eqi(i, pc),
@@ -560,6 +561,21 @@ unsafe extern "C-unwind" fn lessthanothers<A>(
     ret: *mut Error,
 ) -> bool {
     match super::lessthanothers(&*td, l, r) {
+        Ok(v) => v,
+        Err(e) => {
+            (*ret).set_error(e);
+            false
+        }
+    }
+}
+
+unsafe extern "C-unwind" fn lessequalothers<A>(
+    td: *const Thread<A>,
+    l: *const UnsafeValue<A>,
+    r: *const UnsafeValue<A>,
+    ret: *mut Error,
+) -> bool {
+    match super::lessequalothers(&*td, l, r) {
         Ok(v) => v,
         Err(e) => {
             (*ret).set_error(e);

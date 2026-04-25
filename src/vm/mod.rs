@@ -572,7 +572,7 @@ unsafe extern "C-unwind" fn LTnum<A>(l: *const UnsafeValue<A>, r: *const UnsafeV
 }
 
 #[inline(always)]
-unsafe fn LEnum<A>(l: *const UnsafeValue<A>, r: *const UnsafeValue<A>) -> bool {
+unsafe extern "C-unwind" fn LEnum<A>(l: *const UnsafeValue<A>, r: *const UnsafeValue<A>) -> bool {
     if (*l).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
         let li: i64 = (*l).value_.i;
         if (*r).tt_ as c_int == 3 as c_int | (0 as c_int) << 4 as c_int {
