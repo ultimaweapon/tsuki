@@ -4304,12 +4304,16 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.return_on_err();
 
+        // Get body skip.
+        let skip = pc + ((i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1)) + 1) as usize;
+        let skip = match self.labels.entry(skip) {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
+        };
+
         // Check if skip.
-        let next = pc + ((i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1)) + 1) as usize;
-        let skip = self.fb.create_block();
         let body = self.fb.create_block();
 
-        assert!(self.labels.insert(next, skip).is_none());
         assert!(self.labels.insert(pc, body).is_none());
 
         self.fb.ins().brif(v, skip, [], body, []);
