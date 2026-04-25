@@ -9,9 +9,9 @@ use super::{
     OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI,
     OP_JMP, OP_LABEL, OP_LE, OP_LEN, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL,
     OP_LOADTRUE, OP_LT, OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MODK, OP_MOVE, OP_MUL, OP_NEWTABLE,
-    OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETLIST, OP_SETTABLE, OP_SETTABUP,
-    OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_TEST, OP_VARARG, OP_VARARGPREP, luaV_equalobj,
-    luaV_finishget, luaV_finishset, luaV_objlen,
+    OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE,
+    OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_TEST, OP_VARARG, OP_VARARGPREP,
+    luaV_equalobj, luaV_finishget, luaV_finishset, luaV_objlen,
 };
 use crate::gc::Object;
 use crate::ldo::luaD_poscall;
@@ -148,6 +148,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_GETFIELD => emit.getfield(i, pc),
             OP_SETTABUP => emit.settabup(i, pc),
             OP_SETTABLE => emit.settable(i, pc),
+            OP_SETI => emit.seti(i, pc),
             OP_SETFIELD => emit.setfield(i, pc),
             OP_NEWTABLE => emit.newtable(i, pc),
             OP_SELF => emit.self_(i, pc),

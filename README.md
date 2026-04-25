@@ -40,7 +40,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - 100% Rust code.
   - [libc](https://crates.io/crates/libc) is required at the moment.
 - Support JIT.
-  - This is a preview feature and not all bytecode instructions currently implemented.
+  - This is a preview feature and may contains memory bugs.
 - Support both synchronous and asynchronous.
 - Safe, ergonomic and low overhead API.
 - Strongly typed registry.

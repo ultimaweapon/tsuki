@@ -1437,6 +1437,152 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         Some(pc)
     }
 
+    pub unsafe fn seti(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let c = i >> 7 + 8 + 1 & !(!(0u32) << 8);
+        let rc = if (i & 1 << 0 + 7 + 8) != 0 {
+            self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
+        } else {
+            self.get_reg(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
+        };
+
+        // Load type of RA.
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted().with_can_move(),
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Check if table.
+        let null = self.fb.ins().iconst(self.ptr, 0);
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, 5 | 0 << 4 | 1 << 6);
+        let lookup_table = self.fb.create_block();
+        let not_found = self.fb.create_block();
+
+        self.fb.append_block_param(not_found, self.ptr);
+
+        self.fb
+            .ins()
+            .brif(v, lookup_table, [], not_found, &[BlockArg::Value(null)]);
+
+        self.fb.switch_to_block(lookup_table);
+        self.fb.seal_block(lookup_table);
+
+        // Set up arguments for luaH_getint.
+        let args = [
+            self.fb.ins().load(
+                self.ptr,
+                MemFlags::trusted().with_can_move(),
+                ra,
+                offset_of!(StackValue<A>, value_) as i32,
+            ),
+            self.fb.ins().iconst(I64, i64::from(c)),
+        ];
+
+        // Invoke luaH_getint.
+        let slot = self.fb.ins().call(self.getint, &args);
+        let slot = self.fb.inst_results(slot)[0];
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted().with_can_move(),
+            slot,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Check if found.
+        let v = self.fb.ins().band_imm(v, 0xf);
+        let found = self.fb.create_block();
+
+        self.fb
+            .ins()
+            .brif(v, found, [], not_found, &[BlockArg::Value(slot)]);
+
+        self.fb.switch_to_block(found);
+        self.fb.seal_block(found);
+
+        // Set slot type.
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted().with_can_move(),
+            rc,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            slot,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Set slot value.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted().with_can_move(),
+            rc,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            slot,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        // Invoke barrier_back.
+        let join = self.fb.create_block();
+
+        self.fb.ins().call(self.barrier_back, &[ra, rc]);
+        self.fb.ins().jump(join, []);
+
+        self.fb.switch_to_block(not_found);
+        self.fb.seal_block(not_found);
+
+        // Set key type.
+        let v = self.fb.ins().iconst(I8, 3 | 0 << 4);
+        let key = self.fb.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            size_of::<UnsafeValue<A>>() as u32,
+            align_of::<UnsafeValue<A>>() as u8,
+        ));
+
+        self.fb
+            .ins()
+            .stack_store(v, key, offset_of!(UnsafeValue<A>, tt_) as i32);
+
+        // Set key value.
+        let v = self.fb.ins().iconst(I64, i64::from(c));
+
+        self.fb
+            .ins()
+            .stack_store(v, key, offset_of!(UnsafeValue<A>, value_) as i32);
+
+        // Invoke luaV_finishset.
+        let slot = self.fb.block_params(not_found)[0];
+        let td = self.fb.use_var(self.td);
+        let key = self.fb.ins().stack_addr(self.ptr, key, 0);
+        let ret = self.fb.use_var(self.ret);
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        self.fb
+            .ins()
+            .call(self.finishset, &[td, ra, key, rc, slot, ret]);
+
+        self.return_on_err();
+        self.update_base_stack();
+
+        self.fb.ins().jump(join, []);
+
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
+
+        Some(pc)
+    }
+
     pub unsafe fn setfield(&mut self, i: u32, pc: usize) -> Option<usize> {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_const(i >> 7 + 8 + 1 & !(!(0u32) << 8));
