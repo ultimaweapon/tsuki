@@ -123,7 +123,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
     let jump = fb.create_block();
     let mut emit = Emitter::new(&mut fb, code, st, cx, ret, &mut rust, &mut resumes, jump);
 
-    loop {
+    while pc != code.len() {
         emit.prepare(pc);
 
         // Get instruction.
@@ -132,7 +132,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
         pc += 1;
 
         // Emit IR.
-        let r = match i & 0x7F {
+        pc = match i & 0x7F {
             OP_MOVE => emit.move_(i, pc),
             OP_LOADI => emit.loadi(i, pc),
             OP_LOADK => emit.loadk(i, pc),
@@ -186,11 +186,6 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_LABEL => emit.label(i, pc),
             v => todo!("OP {v}"),
         };
-
-        match r {
-            Some(v) => pc = v,
-            None => break,
-        }
     }
 
     drop(emit);

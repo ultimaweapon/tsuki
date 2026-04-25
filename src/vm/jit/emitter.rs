@@ -380,7 +380,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(label);
     }
 
-    pub unsafe fn move_(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn move_(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & 0xFF);
         let rb = self.get_reg(i >> 7 + 8 + 1 & 0xFF);
 
@@ -414,10 +414,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn loadi(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn loadi(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & 0xFF);
         let b: i64 = ((i >> 15 & 0x1FFFF) as i32 - ((1 << 17) - 1 >> 1)) as i64;
         let b = self.fb.ins().iconst(I64, b);
@@ -437,10 +437,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn loadk(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn loadk(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_const(i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1));
 
@@ -474,10 +474,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn loadfalse(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn loadfalse(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let tt = self.fb.ins().iconst(I8, 1 | 0 << 4);
 
@@ -488,10 +488,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, tt_) as i32,
         );
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn lfalseskip(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn lfalseskip(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let tt = self.fb.ins().iconst(I8, 1 | 0 << 4);
 
@@ -510,10 +510,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.ins().jump(label, []);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn loadtrue(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn loadtrue(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let tt = self.fb.ins().iconst(I8, 1 | 1 << 4);
 
@@ -524,10 +524,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, tt_) as i32,
         );
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn loadnil(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn loadnil(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let b = i >> 7 + 8 + 1 & !(!(0u32) << 8);
         let v = self.fb.ins().iconst(I8, 0 | 0 << 4);
@@ -541,10 +541,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             );
         }
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn getupval(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn getupval(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let b = i >> 7 + 8 + 1 & !(!(0u32) << 8);
         let uv = self.load_uv(b);
@@ -579,10 +579,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn setupval(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn setupval(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
 
         // Load UpVal::v.
@@ -626,10 +626,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.ins().call(self.barrier, &[uv, ra]);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn gettabup(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn gettabup(&mut self, i: u32, pc: usize) -> usize {
         // Get output register and key.
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let k = self.load_const(
@@ -793,10 +793,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(next_inst);
         self.fb.seal_block(next_inst);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn gettable(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn gettable(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let tab = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let k = self.get_reg(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
@@ -918,10 +918,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(end);
         self.fb.seal_block(end);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn geti(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn geti(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let tab = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let c = self
@@ -1048,10 +1048,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn getfield(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn getfield(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let tab = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let k = self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
@@ -1181,10 +1181,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn settabup(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn settabup(&mut self, i: u32, pc: usize) -> usize {
         let uv = self.load_uv(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_const(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let rc = if (i & 1 << 7 + 8) != 0 {
@@ -1310,10 +1310,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn settable(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn settable(&mut self, i: u32, pc: usize) -> usize {
         let tab = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let key = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let val = if (i & 1 << 7 + 8) != 0 {
@@ -1434,10 +1434,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn seti(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn seti(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let c = i >> 7 + 8 + 1 & !(!(0u32) << 8);
         let rc = if (i & 1 << 0 + 7 + 8) != 0 {
@@ -1580,10 +1580,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn setfield(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn setfield(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_const(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let rc = if (i & 1 << 7 + 8) != 0 {
@@ -1712,10 +1712,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn newtable(&mut self, i: u32, mut pc: usize) -> Option<usize> {
+    pub unsafe fn newtable(&mut self, i: u32, mut pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let mut b = i >> 7 + 8 + 1 & !(!(0u32) << 8);
         let mut c = i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8);
@@ -1781,10 +1781,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.update_base_stack();
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn self_(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn self_(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let tab = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let k = if (i & 1 << 7 + 8) != 0 {
@@ -1952,10 +1952,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn addi(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn addi(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let v1 = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let imm = (i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8)) as i32 - ((1 << 8) - 1 >> 1);
@@ -2052,10 +2052,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(not_num);
         self.fb.seal_block(not_num);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn modk(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn modk(&mut self, i: u32, pc: usize) -> usize {
         let v1 = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let v2 = self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
@@ -2194,10 +2194,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn divk(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn divk(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let v1 = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let v2 = self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
@@ -2352,10 +2352,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn add(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn add(&mut self, i: u32, pc: usize) -> usize {
         let v1 = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let v2 = self.get_reg(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
@@ -2470,10 +2470,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn mul(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn mul(&mut self, i: u32, pc: usize) -> usize {
         let v1 = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let v2 = self.get_reg(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
@@ -2588,10 +2588,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn mmbin(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn mmbin(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let tm = self
@@ -2649,10 +2649,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn mmbini(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn mmbini(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let imm = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - ((1 << 8) - 1 >> 1);
         let tm = i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8);
@@ -2711,10 +2711,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn mmbink(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn mmbink(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let pi = self.code[pc - 2];
         let imm = self.get_const(i >> 7 + 8 + 1 & !(!(0u32) << 8));
@@ -2774,10 +2774,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn not(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn not(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let tt = self.fb.ins().load(
@@ -2833,10 +2833,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn len(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn len(&mut self, i: u32, pc: usize) -> usize {
         let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
 
         self.update_top_from_ci();
@@ -2890,10 +2890,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn close(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn close(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
 
         self.update_top_from_ci();
@@ -2908,10 +2908,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.return_on_err();
         self.update_base_stack();
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn tbc(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn tbc(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
 
         self.update_top_from_ci();
@@ -2925,10 +2925,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.return_on_err();
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn jmp(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn jmp(&mut self, i: u32, pc: usize) -> usize {
         let dest = pc.wrapping_add_signed(
             ((i >> 7 & !(!(0u32) << 17 + 8)) as i32 - ((1 << 17 + 8) - 1 >> 1)) as isize,
         );
@@ -2960,10 +2960,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             self.fb.seal_block(b);
         }
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn lt(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn lt(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
 
@@ -3097,10 +3097,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(jump);
         self.fb.seal_block(jump);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn le(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn le(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
 
@@ -3234,10 +3234,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn eq(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn eq(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
 
@@ -3273,10 +3273,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(jump);
         self.fb.seal_block(jump);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn eqk(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn eqk(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_const(i >> 7 + 8 + 1 & !(!(0u32) << 8));
 
@@ -3309,10 +3309,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(jump);
         self.fb.seal_block(jump);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn eqi(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn eqi(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let im = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - ((1 << 8) - 1 >> 1);
         let tt = self.fb.ins().load(
@@ -3397,10 +3397,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(jump);
         self.fb.seal_block(jump);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn gti(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn gti(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let im = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - ((1 << 8) - 1 >> 1);
         let tt = self.fb.ins().load(
@@ -3511,14 +3511,14 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.ins().brif(v, skip, [], join, []);
 
+        // Next instruction is OP_JMP.
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        // Next instruction is OP_JMP.
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn gei(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn gei(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let im = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - ((1 << 8) - 1 >> 1);
         let tt = self.fb.ins().load(
@@ -3635,10 +3635,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn test(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn test(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let tt = self.fb.ins().load(
             I8,
@@ -3678,10 +3678,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(next);
         self.fb.seal_block(next);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn call(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn call(&mut self, i: u32, pc: usize) -> usize {
         // Update top and PC.
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let args = (i >> 7 + 8 + 1 & 0xFF) as u8;
@@ -3779,10 +3779,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.update_base_stack();
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn tailcall(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn tailcall(&mut self, i: u32, mut pc: usize) -> usize {
         let td = self.fb.use_var(self.td);
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let b = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32;
@@ -3936,10 +3936,17 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.ins().return_(&[ret]);
 
-        None
+        // Create block for remaining instructions.
+        pc += 1; // Skip unused OP_RETURN.
+
+        if let Entry::Vacant(e) = self.labels.entry(pc) {
+            e.insert(self.fb.create_block());
+        }
+
+        pc
     }
 
-    pub unsafe fn return_(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn return_(&mut self, i: u32, pc: usize) -> usize {
         let ra = i >> 7 & !(!(0u32) << 8);
         let n = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - 1;
         let n = if n < 0 {
@@ -4074,10 +4081,15 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.ins().return_(&[v]);
 
-        None
+        // Create block for remaining instructions.
+        if let Entry::Vacant(e) = self.labels.entry(pc) {
+            e.insert(self.fb.create_block());
+        }
+
+        pc
     }
 
-    pub unsafe fn return0(&mut self, _: u32, _: usize) -> Option<usize> {
+    pub unsafe fn return0(&mut self, _: u32, pc: usize) -> usize {
         let ci = self.fb.use_var(self.ci);
 
         // Get top.
@@ -4171,10 +4183,15 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.ins().return_(&[v]);
 
-        None
+        // Create block for remaining instructions.
+        if let Entry::Vacant(e) = self.labels.entry(pc) {
+            e.insert(self.fb.create_block());
+        }
+
+        pc
     }
 
-    pub unsafe fn forloop(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn forloop(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let v = self.fb.ins().load(
             I8,
@@ -4287,10 +4304,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn forprep(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn forprep(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
 
         self.update_top_from_ci();
@@ -4318,10 +4335,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.ins().brif(v, skip, [], body, []);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn setlist(&mut self, i: u32, mut pc: usize) -> Option<usize> {
+    pub unsafe fn setlist(&mut self, i: u32, mut pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let last = i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8);
         let n = i >> 7 + 8 + 1 & !(!(0u32) << 8);
@@ -4476,10 +4493,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(end);
         self.fb.seal_block(end);
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn closure(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn closure(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
 
         // Load Proto::p.
@@ -4521,10 +4538,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.update_base_stack();
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn vararg(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn vararg(&mut self, i: u32, pc: usize) -> usize {
         let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
         let n = (i >> 0 + 7 + 8 + 1 + 8 & !(!(0u32) << 8)) as i32 - 1;
         let n = self.fb.ins().iconst(I32, i64::from(n));
@@ -4542,10 +4559,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.return_on_err();
         self.update_base_stack();
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn varargprep(&mut self, i: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn varargprep(&mut self, i: u32, pc: usize) -> usize {
         // Set CallInfo::pc.
         self.update_pc(pc);
 
@@ -4574,15 +4591,15 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.return_on_err();
         self.update_base_stack();
 
-        Some(pc)
+        pc
     }
 
-    pub unsafe fn label(&mut self, _: u32, pc: usize) -> Option<usize> {
+    pub unsafe fn label(&mut self, _: u32, pc: usize) -> usize {
         if let Entry::Vacant(e) = self.labels.entry(pc) {
             e.insert(self.fb.create_block());
         }
 
-        Some(pc)
+        pc
     }
 
     fn finishget_with_key_parts(&mut self, i: u32, pc: usize, tab: Value, kt: Value, kv: Value) {
