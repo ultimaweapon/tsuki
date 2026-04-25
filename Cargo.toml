@@ -26,8 +26,8 @@ serde = ["dep:serde"]
 std = ["libm/arch", "tsuki-macros/std"]
 
 [dependencies]
-cranelift-codegen = { version = "0.130.0", optional = true }
-cranelift-frontend = { version = "0.130.0", optional = true }
+cranelift-codegen = { version = "0.131.0", optional = true }
+cranelift-frontend = { version = "0.131.0", optional = true }
 erdp = "0.2.0"
 libc = "0.2.172"
 libm = { version = "0.2.15", default-features = false }
