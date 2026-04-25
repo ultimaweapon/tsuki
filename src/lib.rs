@@ -874,11 +874,10 @@ impl Jit {
 
         let sb = cranelift_codegen::settings::builder();
         let flags = cranelift_codegen::settings::Flags::new(sb);
-        let ib = cranelift_codegen::isa::lookup(target_lexicon::Triple::host()).unwrap();
-        let isa = ib.finish(flags).unwrap();
+        let ib = cranelift_native::builder().unwrap();
 
         Self {
-            isa,
+            isa: ib.finish(flags).unwrap(),
             builder_context: RefCell::default(),
             codegen_context: RefCell::new(cranelift_codegen::Context::new()),
             allocator: RefCell::new(crate::vm::CodeAllocator::new()),
