@@ -6,12 +6,12 @@ pub(self) use self::rust::*;
 use self::emitter::Emitter;
 use super::{
     OP_ADD, OP_ADDI, OP_CALL, OP_CLOSE, OP_CLOSURE, OP_DIVK, OP_EQ, OP_EQI, OP_EQK, OP_FORLOOP,
-    OP_FORPREP, OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI, OP_JMP,
-    OP_LABEL, OP_LEN, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE,
-    OP_LT, OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MODK, OP_MOVE, OP_MUL, OP_NEWTABLE, OP_NOT,
-    OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL,
-    OP_TAILCALL, OP_TBC, OP_TEST, OP_VARARG, OP_VARARGPREP, luaV_equalobj, luaV_finishget,
-    luaV_finishset, luaV_objlen,
+    OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI,
+    OP_JMP, OP_LABEL, OP_LEN, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL,
+    OP_LOADTRUE, OP_LT, OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MODK, OP_MOVE, OP_MUL, OP_NEWTABLE,
+    OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETLIST, OP_SETTABLE, OP_SETTABUP,
+    OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_TEST, OP_VARARG, OP_VARARGPREP, luaV_equalobj,
+    luaV_finishget, luaV_finishset, luaV_objlen,
 };
 use crate::gc::Object;
 use crate::ldo::luaD_poscall;
@@ -169,6 +169,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_EQK => emit.eqk(i, pc),
             OP_EQI => emit.eqi(i, pc),
             OP_GTI => emit.gti(i, pc),
+            OP_GEI => emit.gei(i, pc),
             OP_TEST => emit.test(i, pc),
             OP_CALL => emit.call(i, pc),
             OP_TAILCALL => emit.tailcall(i, pc),

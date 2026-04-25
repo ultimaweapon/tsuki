@@ -2,7 +2,7 @@ use super::{Error, HOST, RustFuncs, State, Status};
 use crate::lfunc::luaF_closeupval;
 use crate::lobject::{Proto, UpVal};
 use crate::lstate::CallInfo;
-use crate::ltm::TM_LT;
+use crate::ltm::{TM_LE, TM_LT};
 use crate::value::UnsafeValue;
 use crate::vm::{LTnum, floatforloop, luaV_modf};
 use crate::{
@@ -3223,6 +3223,126 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.seal_block(join);
 
         // Next instruction is OP_JMP.
+        Some(pc)
+    }
+
+    pub unsafe fn gei(&mut self, i: u32, pc: usize) -> Option<usize> {
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let im = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - ((1 << 8) - 1 >> 1);
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Check if integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 0 << 4);
+        let cmp_int = self.fb.create_block();
+        let check_float = self.fb.create_block();
+
+        self.fb.ins().brif(v, cmp_int, [], check_float, []);
+
+        self.fb.switch_to_block(cmp_int);
+        self.fb.seal_block(cmp_int);
+
+        // Load integer.
+        let lhs = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Compare integer.
+        let v = self
+            .fb
+            .ins()
+            .icmp_imm(IntCC::SignedGreaterThanOrEqual, lhs, i64::from(im));
+        let check_res = self.fb.create_block();
+
+        self.fb.append_block_param(check_res, I8);
+
+        self.fb.ins().jump(check_res, &[BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(check_float);
+        self.fb.seal_block(check_float);
+
+        // Check if float.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 1 << 4);
+        let cmp_float = self.fb.create_block();
+        let invoke_mt = self.fb.create_block();
+
+        self.fb.ins().brif(v, cmp_float, [], invoke_mt, []);
+
+        self.fb.switch_to_block(cmp_float);
+        self.fb.seal_block(cmp_float);
+
+        // Load float.
+        let lhs = self.fb.ins().load(
+            F64,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Compare float.
+        let v = self.fb.ins().f64const(im as f64);
+        let v = self.fb.ins().fcmp(FloatCC::GreaterThanOrEqual, lhs, v);
+
+        self.fb.ins().jump(check_res, &[BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(invoke_mt);
+        self.fb.seal_block(invoke_mt);
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        // Invoke luaT_callorderiTM.
+        let td = self.fb.use_var(self.td);
+        let im = self.fb.ins().iconst(I32, i64::from(im));
+        let flip = self.fb.ins().iconst(I32, 1);
+        let isf = self
+            .fb
+            .ins()
+            .iconst(I32, i64::from(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8)));
+        let event = self.fb.ins().iconst(I32, i64::from(TM_LE));
+        let ret = self.fb.use_var(self.ret);
+        let v = self
+            .fb
+            .ins()
+            .call(self.callorderiTM, &[td, ra, im, flip, isf, event, ret]);
+        let v = self.fb.inst_results(v)[0];
+
+        self.return_on_err();
+        self.update_base_stack();
+
+        self.fb.ins().jump(check_res, &[BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(check_res);
+        self.fb.seal_block(check_res);
+
+        // Skip jump skip.
+        let skip = match self.labels.entry(pc + 1) {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
+        };
+
+        // Check result.
+        let cond = self.fb.block_params(check_res)[0];
+        let join = self.fb.create_block();
+        let v = self.fb.ins().icmp_imm(
+            IntCC::NotEqual,
+            cond,
+            i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
+        );
+
+        self.fb.ins().brif(v, skip, [], join, []);
+
+        // Next instruction is OP_JMP.
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
+
         Some(pc)
     }
 
