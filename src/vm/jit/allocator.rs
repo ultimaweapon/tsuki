@@ -139,9 +139,10 @@ impl CodeAllocator {
         }
 
         // Allocate new pages.
+        let min = self.page_size.get() * 64;
         let len = size
             .checked_add(size_of::<BlockMeta>())
-            .and_then(|v| v.get().checked_next_multiple_of(self.page_size.get()))
+            .and_then(move |v| v.get().checked_next_multiple_of(min))
             .unwrap()
             .try_into()
             .unwrap();
