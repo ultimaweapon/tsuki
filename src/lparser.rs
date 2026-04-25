@@ -2230,6 +2230,8 @@ unsafe fn repeatstat<A>(
     line: c_int,
 ) -> Result<(), ParseError> {
     let mut condexit: c_int = 0;
+    #[cfg(feature = "jit")]
+    luaK_code(ls, fs, crate::vm::OP_LABEL)?;
     let repeat_init: c_int = luaK_getlabel(fs);
     let mut bl1: BlockCnt = BlockCnt {
         previous: 0 as *mut BlockCnt,
