@@ -817,22 +817,27 @@ pub unsafe fn luaH_getid<A>(t: *const Table<A>, k: &TypeId) -> *const UnsafeValu
 #[inline(never)]
 pub unsafe extern "C-unwind" fn luaH_get<A>(
     t: *const Table<A>,
-    key: *const UnsafeValue<A>,
+    k: *const UnsafeValue<A>,
 ) -> *const UnsafeValue<A> {
-    match (*key).tt_ & 0x3f {
-        4 => return luaH_getstr(t, (*key).value_.gc.cast()),
-        3 => return luaH_getint(t, (*key).value_.i),
-        0 => return &raw const (*t).absent_key,
-        19 => {
-            if let Some(k) = luaV_flttointeger((*key).value_.n.into(), F2Ieq) {
-                return luaH_getint(t, k);
-            }
+    // Filter out number to eliminate jump table on match statement.
+    let kt = (*k).tt_;
+
+    if kt == 3 | 0 << 4 {
+        return luaH_getint(t, (*k).value_.i);
+    } else if kt == 3 | 1 << 4 {
+        if let Some(k) = luaV_flttointeger((*k).value_.n.into(), F2Ieq) {
+            return luaH_getint(t, k);
         }
-        14 => return luaH_getid(t, (*(*key).value_.gc.cast::<RustId<A>>()).value()),
-        _ => {}
+    } else {
+        match kt & 0x3f {
+            4 => return luaH_getstr(t, (*k).value_.gc.cast()),
+            0 => return &raw const (*t).absent_key,
+            14 => return luaH_getid(t, (*(*k).value_.gc.cast::<RustId<A>>()).value()),
+            _ => (),
+        }
     }
 
-    getgeneric(t, key, 0 as c_int)
+    getgeneric(t, k, 0)
 }
 
 #[inline(always)]
