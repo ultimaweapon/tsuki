@@ -16,8 +16,8 @@ use core::mem::offset_of;
 use cranelift_codegen::ir::condcodes::{FloatCC, IntCC};
 use cranelift_codegen::ir::types::{F64, I8, I16, I32, I64};
 use cranelift_codegen::ir::{
-    Block, BlockArg, BlockCall, FuncRef, InstBuilder, MemFlags, StackSlotData, StackSlotKind, Type,
-    Value,
+    Block, BlockArg, BlockCall, FuncRef, InstBuilder, MemFlags, StackSlot, StackSlotData,
+    StackSlotKind, Type, Value,
 };
 use cranelift_frontend::{FunctionBuilder, Variable};
 use std::collections::HashMap;
@@ -36,6 +36,7 @@ pub struct Emitter<'a, 'b, A> {
     p: Variable,
     k: Variable,
     base: Variable,
+    values: [StackSlot; 2],
     adjustvarargs: FuncRef,
     getvarargs: FuncRef,
     finishget: FuncRef,
@@ -97,24 +98,18 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let ptr = Type::triple_pointer_type(&HOST);
         let td = fb.declare_var(ptr);
         let v = fb.use_var(st);
-        let v = fb.ins().load(
-            ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
-            v,
-            offset_of!(State<A>, td) as i32,
-        );
+        let v = fb
+            .ins()
+            .load(ptr, MemFlags::trusted(), v, offset_of!(State<A>, td) as i32);
 
         fb.def_var(td, v);
 
         // Load ci.
         let ci = fb.declare_var(ptr);
         let v = fb.use_var(st);
-        let v = fb.ins().load(
-            ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
-            v,
-            offset_of!(State<A>, ci) as i32,
-        );
+        let v = fb
+            .ins()
+            .load(ptr, MemFlags::trusted(), v, offset_of!(State<A>, ci) as i32);
 
         fb.def_var(ci, v);
 
@@ -122,7 +117,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = fb.use_var(ci);
         let f = fb.ins().load(
             ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
+            MemFlags::trusted().with_can_move(),
             v,
             offset_of!(CallInfo, func) as i32,
         );
@@ -151,23 +146,17 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         // Load function prototype.
         let p = fb.declare_var(ptr);
-        let v = fb.ins().load(
-            ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
-            v,
-            offset_of!(LuaFn<A>, p) as i32,
-        );
+        let v = fb
+            .ins()
+            .load(ptr, MemFlags::trusted(), v, offset_of!(LuaFn<A>, p) as i32);
 
         fb.def_var(p, v);
 
         // Load constants.
         let k = fb.declare_var(ptr);
-        let v = fb.ins().load(
-            ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
-            v,
-            offset_of!(Proto<A>, k) as i32,
-        );
+        let v = fb
+            .ins()
+            .load(ptr, MemFlags::trusted(), v, offset_of!(Proto<A>, k) as i32);
 
         fb.def_var(k, v);
 
@@ -183,6 +172,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             p,
             k,
             base: fb.declare_var(ptr),
+            values: core::array::from_fn(|_| {
+                fb.create_sized_stack_slot(StackSlotData::new(
+                    StackSlotKind::ExplicitSlot,
+                    size_of::<UnsafeValue<A>>() as u32,
+                    align_of::<UnsafeValue<A>>() as u8,
+                ))
+            }),
             adjustvarargs: rust.import(
                 fb,
                 &[ptr, I32, ptr, ptr, ptr],
@@ -1547,11 +1543,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         // Set key type.
         let v = self.fb.ins().iconst(I8, 3 | 0 << 4);
-        let key = self.fb.create_sized_stack_slot(StackSlotData::new(
-            StackSlotKind::ExplicitSlot,
-            size_of::<UnsafeValue<A>>() as u32,
-            align_of::<UnsafeValue<A>>() as u8,
-        ));
+        let key = self.values[0];
 
         self.fb
             .ins()
@@ -2092,7 +2084,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Load type of v2;
         let t2 = self.fb.ins().load(
             I8,
-            MemFlags::trusted().with_can_move().with_readonly(),
+            MemFlags::trusted().with_can_move(),
             v2,
             offset_of!(UnsafeValue<A>, tt_) as i32,
         );
@@ -2109,7 +2101,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Load int from v2.
         let i2 = self.fb.ins().load(
             I64,
-            MemFlags::trusted().with_can_move().with_readonly(),
+            MemFlags::trusted().with_can_move(),
             v2,
             offset_of!(UnsafeValue<A>, value_) as i32,
         );
@@ -2604,17 +2596,11 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .iconst(I32, i64::from(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8)));
 
-        // Allocate buffer for result.
-        let val = self.fb.create_sized_stack_slot(StackSlotData::new(
-            StackSlotKind::ExplicitSlot,
-            size_of::<UnsafeValue<A>>() as u32,
-            align_of::<UnsafeValue<A>>() as u8,
-        ));
-
         self.update_top_from_ci();
         self.update_pc(pc);
 
         // Invoke luaT_trybinTM.
+        let val = self.values[0];
         let td = self.fb.use_var(self.td);
         let out = self.fb.ins().stack_addr(self.ptr, val, 0);
         let ret = self.fb.use_var(self.ret);
@@ -2666,14 +2652,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.update_top_from_ci();
         self.update_pc(pc);
 
-        // Allocate buffer for result.
-        let val = self.fb.create_sized_stack_slot(StackSlotData::new(
-            StackSlotKind::ExplicitSlot,
-            size_of::<UnsafeValue<A>>() as u32,
-            align_of::<UnsafeValue<A>>() as u8,
-        ));
-
         // Invoke luaT_trybiniTM.
+        let val = self.values[0];
         let td = self.fb.use_var(self.td);
         let imm = self.fb.ins().iconst(I64, i64::from(imm));
         let flip = self.fb.ins().iconst(I32, i64::from(flip));
@@ -2735,14 +2715,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.update_top_from_ci();
         self.update_pc(pc);
 
-        // Allocate buffer for result.
-        let val = self.fb.create_sized_stack_slot(StackSlotData::new(
-            StackSlotKind::ExplicitSlot,
-            size_of::<UnsafeValue<A>>() as u32,
-            align_of::<UnsafeValue<A>>() as u8,
-        ));
-
         // Invoke luaT_trybinassocTM.
+        let val = self.values[0];
         let td = self.fb.use_var(self.td);
         let out = self.fb.ins().stack_addr(self.ptr, val, 0);
         let ret = self.fb.use_var(self.ret);
@@ -2847,14 +2821,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.update_top_from_ci();
         self.update_pc(pc);
 
-        // Allocate buffer for result.
-        let val = self.fb.create_sized_stack_slot(StackSlotData::new(
-            StackSlotKind::ExplicitSlot,
-            size_of::<UnsafeValue<A>>() as u32,
-            align_of::<UnsafeValue<A>>() as u8,
-        ));
-
         // Invoke luaV_objlen.
+        let val = self.values[0];
         let td = self.fb.use_var(self.td);
         let ret = self.fb.use_var(self.ret);
         let val = self.fb.ins().stack_addr(self.ptr, val, 0);
@@ -4508,7 +4476,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let p = self.fb.use_var(self.p);
         let p = self.fb.ins().load(
             self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
+            MemFlags::trusted().with_can_move(),
             p,
             offset_of!(Proto<A>, p) as i32,
         );
@@ -4516,7 +4484,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Load Proto for closure.
         let p = self.fb.ins().load(
             self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
+            MemFlags::trusted().with_can_move(),
             p,
             ((i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1)) as usize * size_of::<*mut Proto<A>>()) as i32,
         );
@@ -4575,7 +4543,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let func = self.fb.use_var(self.f);
         let proto = self.fb.ins().load(
             self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
+            MemFlags::trusted().with_can_move(),
             func,
             offset_of!(LuaFn<A>, p) as i32,
         );
@@ -4608,12 +4576,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     fn finishget_with_key_parts(&mut self, i: u32, pc: usize, tab: Value, kt: Value, kv: Value) {
-        // Set key.
-        let key = self.fb.create_sized_stack_slot(StackSlotData::new(
-            StackSlotKind::ExplicitSlot,
-            size_of::<UnsafeValue<A>>() as u32,
-            align_of::<UnsafeValue<A>>() as u8,
-        ));
+        let key = self.values[0];
 
         self.fb
             .ins()
@@ -4632,15 +4595,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.update_top_from_ci();
         self.update_pc(pc);
 
-        // Allocate buffer for result.
-        let val = self.fb.create_sized_stack_slot(StackSlotData::new(
-            StackSlotKind::ExplicitSlot,
-            size_of::<UnsafeValue<A>>() as u32,
-            align_of::<UnsafeValue<A>>() as u8,
-        ));
-
         // Call luaV_finishget.
         let props_tried = self.fb.ins().iconst(I8, 1);
+        let val = self.values[1];
         let out = self.fb.ins().stack_addr(self.ptr, val, 0);
         let td = self.fb.use_var(self.td);
         let ret = self.fb.use_var(self.ret);
@@ -4838,7 +4795,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.use_var(self.ci);
         let f = self.fb.ins().load(
             self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
+            MemFlags::trusted().with_can_move(),
             v,
             offset_of!(CallInfo, func) as i32,
         );
@@ -4932,7 +4889,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.ins().load(
             self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
+            MemFlags::trusted().with_can_move(),
             k,
             (idx as usize * size_of::<UnsafeValue<A>>() + off) as i32,
         )
@@ -4944,7 +4901,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let f = self.fb.use_var(self.f);
         let v = self.fb.ins().load(
             self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
+            MemFlags::trusted().with_can_move(),
             f,
             offset_of!(LuaFn<A>, upvals) as i32,
         );
@@ -4952,7 +4909,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Load UpVal.
         self.fb.ins().load(
             self.ptr,
-            MemFlags::trusted().with_can_move().with_readonly(),
+            MemFlags::trusted().with_can_move(),
             v,
             (idx as usize * size_of::<*mut UpVal<A>>()) as i32,
         )
