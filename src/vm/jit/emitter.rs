@@ -824,17 +824,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let lookup_table = self.fb.create_block();
         let check_ud = self.fb.create_block();
 
-        self.fb.append_block_param(lookup_table, self.ptr);
-
-        self.fb
-            .ins()
-            .brif(v, lookup_table, &[BlockArg::Value(o)], check_ud, []);
+        self.fb.ins().brif(v, lookup_table, [], check_ud, []);
 
         self.fb.switch_to_block(lookup_table);
+        self.fb.seal_block(lookup_table);
 
         // Invoke luaH_get.
-        let v = self.fb.block_params(lookup_table)[0];
-        let slot = self.fb.ins().call(self.lookup_table, &[v, k]);
+        let slot = self.fb.ins().call(self.lookup_table, &[o, k]);
         let slot = self.fb.inst_results(slot)[0];
         let tt = self.fb.ins().load(
             I8,
@@ -848,12 +844,21 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let found = self.fb.create_block();
         let not_found = self.fb.create_block();
 
-        self.fb.ins().brif(v, found, [], not_found, []);
+        self.fb.append_block_param(found, I8);
+        self.fb.append_block_param(found, self.ptr);
+
+        self.fb.ins().brif(
+            v,
+            found,
+            &[BlockArg::Value(tt), BlockArg::Value(slot)],
+            not_found,
+            [],
+        );
 
         self.fb.switch_to_block(found);
-        self.fb.seal_block(found);
 
         // Set output register.
+        let &[tt, slot] = self.fb.block_params(found).as_array().unwrap();
         let end = self.fb.create_block();
         let v = self.fb.ins().load(
             I64,
@@ -880,6 +885,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(check_ud);
         self.fb.seal_block(check_ud);
+        self.fb.set_cold_block(check_ud);
 
         // Check if userdata.
         let v = self.fb.ins().icmp_imm(IntCC::Equal, ty, 7);
@@ -889,8 +895,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(load_ud);
         self.fb.seal_block(load_ud);
+        self.fb.set_cold_block(load_ud);
 
         // Load UserData::props.
+        let lookup_props = self.fb.create_block();
         let props = self.fb.ins().load(
             self.ptr,
             MemFlags::trusted(),
@@ -898,18 +906,37 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(UserData<A, dyn Any>, props) as i32,
         );
 
+        self.fb.ins().brif(props, lookup_props, [], not_found, []);
+
+        self.fb.switch_to_block(lookup_props);
+        self.fb.seal_block(lookup_props);
+        self.fb.set_cold_block(lookup_props);
+
+        // Invoke luaH_get.
+        let slot = self.fb.ins().call(self.lookup_table, &[props, k]);
+        let slot = self.fb.inst_results(slot)[0];
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            slot,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Check if found.
+        let v = self.fb.ins().band_imm(tt, 0xf);
+
         self.fb.ins().brif(
-            props,
-            lookup_table,
-            &[BlockArg::Value(props)],
+            v,
+            found,
+            &[BlockArg::Value(tt), BlockArg::Value(slot)],
             not_found,
             [],
         );
 
-        self.fb.seal_block(lookup_table);
-
+        self.fb.seal_block(found);
         self.fb.switch_to_block(not_found);
         self.fb.seal_block(not_found);
+        self.fb.set_cold_block(not_found);
 
         // Invoke luaV_finishget.
         self.finishget(i, pc, tab, k);
@@ -3321,6 +3348,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.ins().jump(check_res, &[BlockArg::Value(v)]);
         self.fb.switch_to_block(check_float);
         self.fb.seal_block(check_float);
+        self.fb.set_cold_block(check_float);
 
         // Check if float.
         let z = self.fb.ins().iconst(I8, 0);
@@ -3332,6 +3360,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .brif(v, cmp_float, [], check_res, &[BlockArg::Value(z)]);
         self.fb.switch_to_block(cmp_float);
         self.fb.seal_block(cmp_float);
+        self.fb.set_cold_block(cmp_float);
 
         // Load float.
         let v = self.fb.ins().load(
