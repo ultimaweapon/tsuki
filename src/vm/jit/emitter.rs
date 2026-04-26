@@ -1441,6 +1441,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(not_found);
         self.fb.seal_block(not_found);
+        self.fb.set_cold_block(not_found);
 
         self.update_top_from_ci();
         self.update_pc(pc);
@@ -1454,7 +1455,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .call(self.finishset, &[td, tab, key, val, slot, ret]);
 
-        self.return_on_err(false);
+        self.return_on_err(true);
         self.update_base_stack();
 
         self.fb.ins().jump(join, []);
@@ -4290,21 +4291,31 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         // Jump to body.
         let next = pc.wrapping_add_signed(-((i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1)) as isize));
-        let jump = self.labels.get(&next).copied().unwrap();
+        let body = self.labels.get(&next).copied().unwrap();
 
-        self.fb.ins().jump(jump, []);
+        self.fb.ins().jump(body, []);
 
         self.fb.switch_to_block(float_step);
         self.fb.seal_block(float_step);
+        self.fb.set_cold_block(float_step);
 
         // Invoke floatforloop.
         let v = self.fb.ins().call(self.floatforloop, &[ra]);
         let v = self.fb.inst_results(v)[0];
+        let do_float = self.fb.create_block();
 
-        self.fb.ins().brif(v, jump, [], join, []);
+        self.fb.ins().brif(v, do_float, [], join, []);
+
+        // We need extra block to mark as cold path.
+        self.fb.switch_to_block(do_float);
+        self.fb.seal_block(do_float);
+        self.fb.set_cold_block(do_float);
+
+        self.fb.ins().jump(body, []);
 
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
+        self.fb.set_cold_block(join);
 
         pc
     }
@@ -4329,6 +4340,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             Entry::Occupied(e) => *e.get(),
             Entry::Vacant(e) => *e.insert(self.fb.create_block()),
         };
+
+        self.fb.set_cold_block(skip);
 
         // Check if skip.
         let body = self.fb.create_block();
