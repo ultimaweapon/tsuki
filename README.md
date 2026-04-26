@@ -23,7 +23,7 @@ However, Tsuki was not designed to run untrusted Lua script. Although you can li
 
 ### Interpreter
 
-Tsuki is slower than Lua about 40% on Linux, 22% on macOS and faster than Lua about 6% on Windows. The reason for Tsuki to be slower than Lua is because computed goto currently not available on Rust.
+Tsuki is slower than Lua about 40% on Linux, 22% on macOS and faster than Lua about 6% on Windows. The reason Tsuki are slower than Lua is because computed goto currently not available on Rust.
 
 #### Async
 
@@ -31,7 +31,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 
 ### JIT
 
-Tsuki is faster than Lua about 38% on AMD Ryzen 5 5600G and 63% on Apple M1.
+Tsuki is faster than Lua about 38% on AMD Ryzen 5 5600G and 63% on Apple M1. The performance improved from interpreter is about 2x.
 
 #### Async
 
