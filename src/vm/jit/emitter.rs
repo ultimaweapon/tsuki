@@ -1330,7 +1330,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .call(self.finishset, &[td, uv, rb, rc, slot, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         self.fb.ins().jump(join, []);
@@ -1454,7 +1454,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .call(self.finishset, &[td, tab, key, val, slot, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         self.fb.ins().jump(join, []);
@@ -1596,7 +1596,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .call(self.finishset, &[td, ra, key, rc, slot, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         self.fb.ins().jump(join, []);
@@ -1728,7 +1728,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .call(self.finishset, &[td, ra, rb, rc, slot, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         self.fb.ins().jump(join, []);
@@ -2636,7 +2636,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .call(self.trybinTM, &[td, ra, rb, tm, out, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         // Set output type.
@@ -2692,7 +2692,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .call(self.trybiniTM, &[td, ra, imm, flip, tm, out, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         // Set output type.
@@ -2752,7 +2752,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .call(self.trybinassocTM, &[td, ra, imm, flip, tm, out, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         // Set output register.
@@ -2856,7 +2856,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.ins().call(self.objlen, &[td, rb, val, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         // Set output type.
@@ -2905,7 +2905,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.ins().call(self.close, &[td, ra, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         pc
@@ -2923,7 +2923,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.ins().call(self.newtbcupval, &[td, ra, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
 
         pc
     }
@@ -3068,7 +3068,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.ins().call(self.lessthanothers, &[td, ra, rb, ret]);
         let v = self.fb.inst_results(v)[0];
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         self.fb.ins().jump(check_result, &[BlockArg::Value(v)]);
@@ -3205,7 +3205,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.ins().call(self.lessequalothers, &[td, ra, rb, ret]);
         let v = self.fb.inst_results(v)[0];
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         self.fb.ins().jump(check_res, &[BlockArg::Value(v)]);
@@ -3250,7 +3250,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let cond = self.fb.ins().call(self.equalobj, &[td, ra, rb, ret]);
         let cond = self.fb.inst_results(cond)[0];
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         // Get jump skip.
@@ -3286,7 +3286,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let cond = self.fb.ins().call(self.equalobj, &[td, ra, rb, ret]);
         let cond = self.fb.inst_results(cond)[0];
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         // Get jump skip.
@@ -3502,7 +3502,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .call(self.callorderiTM, &[td, ra, im, one, float, event, ret]);
         let v = self.fb.inst_results(v)[0];
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         // Check result.
@@ -3608,7 +3608,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .call(self.callorderiTM, &[td, ra, im, flip, isf, event, ret]);
         let v = self.fb.inst_results(v)[0];
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         self.fb.ins().jump(check_res, &[BlockArg::Value(v)]);
@@ -3711,7 +3711,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .call(self.precall, &[td, ci, ra, nresults, cx, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
 
         // Prepare to check Lua function.
         let check_lua = self.fb.create_block();
@@ -3742,7 +3742,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.ins().call(self.run_lua, &[td, ci, newci, cx, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
 
         // Jump to finished.
         let resume_lua = self.return_on_pending(finished, []);
@@ -3755,7 +3755,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let ret = self.fb.use_var(self.ret);
         let resume_precall = self.fb.ins().call(self.resume_precall, &[ci, cx, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
 
         // Check if ready.
         let v = self.fb.inst_results(resume_precall)[0];
@@ -3772,7 +3772,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.ins().call(self.resume_run_lua, &[ci, cx, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.join_on_ready(finished, []);
 
         // Update base stack.
@@ -3848,7 +3848,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.append_block_param(ready, I32);
         self.fb.append_block_param(ready, I32);
 
-        self.return_on_err();
+        self.return_on_err(false);
 
         // Check if ready.
         let ret = self.fb.inst_results(ret)[0];
@@ -3863,7 +3863,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let ret = self.fb.ins().call(self.resume_pretailcall, &[ci, cx, ret]);
         let ret = self.fb.inst_results(ret)[0];
 
-        self.return_on_err();
+        self.return_on_err(false);
 
         // Check if ready.
         let delta = if nparams1 != 0 {
@@ -3924,7 +3924,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let ret = self.fb.use_var(self.ret);
 
         self.fb.ins().call(self.poscall, &[td, ci, n, ret]);
-        self.return_on_err();
+        self.return_on_err(false);
 
         // Jump to exit.
         let v = self.fb.ins().iconst(I8, i64::from(Status::Finished));
@@ -4022,7 +4022,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
             self.fb.ins().call(self.close, &[td, base, ret]);
 
-            self.return_on_err();
+            self.return_on_err(false);
             self.update_base_stack();
         }
 
@@ -4321,7 +4321,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.ins().call(self.forprep, &[td, ra, ret]);
         let v = self.fb.inst_results(v)[0];
 
-        self.return_on_err();
+        self.return_on_err(false);
 
         // Get body skip.
         let skip = pc + ((i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1)) + 1) as usize;
@@ -4558,7 +4558,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.ins().call(self.getvarargs, &[td, ci, ra, n, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         pc
@@ -4590,7 +4590,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .call(self.adjustvarargs, &[td, nfixparams, ci, proto, ret]);
 
-        self.return_on_err();
+        self.return_on_err(false);
         self.update_base_stack();
 
         pc
@@ -4635,7 +4635,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .call(self.finishget, &[td, tab, key, props_tried, out, ret]);
 
-        self.return_on_err();
+        self.return_on_err(true);
         self.update_base_stack();
 
         // Write output register.
@@ -4668,7 +4668,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         );
     }
 
-    fn return_on_err(&mut self) {
+    fn return_on_err(&mut self, success_is_cold: bool) {
         // Emit branching.
         let tb = self.fb.create_block();
         let eb = self.fb.create_block();
@@ -4683,6 +4683,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.ins().brif(obj, tb, [], eb, []);
         self.fb.switch_to_block(tb);
         self.fb.seal_block(tb);
+        self.fb.set_cold_block(tb);
 
         // Emit return.
         let v = self.fb.ins().iconst(I8, i64::from(Status::Finished));
@@ -4692,6 +4693,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Switch to else block.
         self.fb.switch_to_block(eb);
         self.fb.seal_block(eb);
+
+        if success_is_cold {
+            self.fb.set_cold_block(eb);
+        }
     }
 
     /// Returns a block to resume the future. The caller must not seal this block.
