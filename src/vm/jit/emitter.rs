@@ -359,6 +359,11 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub fn prepare(&mut self, pc: usize) {
+        #[cfg(feature = "jit-profiling")]
+        self.fb
+            .set_srcloc(cranelift_codegen::ir::SourceLoc::new(pc as u32));
+
+        // Check for label.
         let label = match self.labels.get(&pc) {
             Some(v) => *v,
             None => return,

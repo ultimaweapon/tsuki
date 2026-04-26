@@ -312,6 +312,15 @@ pub unsafe fn luaF_newproto<D>(g: *const Lua<D>, chunk: Rc<String>) -> *mut Prot
     (*f).lastlinedefined = 0 as c_int;
     addr_of_mut!((*f).chunk).write(chunk);
 
+    #[cfg(feature = "jit-profiling")]
+    {
+        let id = (*g).jit.next_fid.get();
+
+        (*g).jit.next_fid.set(id + 1);
+
+        addr_of_mut!((*f).id).write(id);
+    }
+
     return f;
 }
 

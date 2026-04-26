@@ -8,12 +8,13 @@ criterion_group!(benches, fannkuch_redux, async_call);
 
 fn fannkuch_redux(c: &mut Criterion) {
     let mut g = c.benchmark_group("fannkuch-redux");
-    let src = read_source();
+    let path = PathBuf::from_iter(["benches", "fannkuch-redux.lua"]);
+    let src = std::fs::read(&path).unwrap();
 
     {
         let lua = tsuki::Lua::new(());
         let td = lua.create_thread();
-        let chunk = lua.load("fannkuch-redux.lua", &src).unwrap();
+        let chunk = lua.load(path.to_str().unwrap(), &src).unwrap();
         let f = match td.call(chunk, ()).unwrap() {
             tsuki::Value::LuaFn(v) => v,
             _ => unreachable!(),
@@ -117,10 +118,4 @@ fn async_call(c: &mut Criterion) {
     }
 
     g.finish();
-}
-
-fn read_source() -> Vec<u8> {
-    let path = PathBuf::from_iter(["benches", "fannkuch-redux.lua"]);
-
-    std::fs::read(path).unwrap()
 }

@@ -144,6 +144,38 @@
 //! ```
 //!
 //! See [collections] module for available collections.
+//!
+//! # JIT profiling (Linux only)
+//!
+//! You can profile the jitted functions with `perf` tool on Linux. The first step is enable
+//! `jit-profiling` feature on Tsuki then record the execution data of your program with the
+//! following command:
+//!
+//! ```sh
+//! perf record -k 1 -g <PROGRAM>
+//! ```
+//!
+//! Replace `PROGRAM` with a command to launch your program. Once your program is terminated run the
+//! following command to import data for jitted functions:
+//!
+//! ```sh
+//! perf inject -j -i perf.data -o perf.jit.data
+//! ```
+//!
+//! Use the following command to see time spent on each function:
+//!
+//! ```sh
+//! perf report -i perf.jit.data --stdio --no-children
+//! ```
+//!
+//! To see the hot instructions on the function:
+//!
+//! ```sh
+//! perf annotate -i perf.jit.data -s <NAME>
+//! ```
+//!
+//! Replace `NAME` with the name of function you want to see. Note that in order to see Lua source
+//! you need to set chunk name to path of Lua file.
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
@@ -865,6 +897,12 @@ struct Jit {
     builder_context: core::cell::RefCell<cranelift_frontend::FunctionBuilderContext>,
     codegen_context: core::cell::RefCell<cranelift_codegen::Context>,
     allocator: core::cell::RefCell<crate::vm::CodeAllocator>,
+    #[cfg(feature = "jit-profiling")]
+    dump: core::cell::RefCell<std::fs::File>,
+    #[cfg(feature = "jit-profiling")]
+    mapped_dump: *mut [u8],
+    #[cfg(feature = "jit-profiling")]
+    next_fid: core::cell::Cell<u64>,
 }
 
 #[cfg(feature = "jit")]
@@ -875,13 +913,84 @@ impl Jit {
         let sb = cranelift_codegen::settings::builder();
         let flags = cranelift_codegen::settings::Flags::new(sb);
         let ib = cranelift_native::builder().unwrap();
+        #[cfg(feature = "jit-profiling")]
+        let (dump, mapped_dump) = unsafe {
+            use std::io::{Seek, Write};
+            use std::os::fd::AsRawFd;
+
+            // Create jitdump file.
+            let pid = libc::getpid() as u32;
+            let name = std::format!("jit-{pid}.dump");
+            let mut f = std::fs::OpenOptions::new()
+                .create(true)
+                .read(true)
+                .write(true)
+                .open(name)
+                .unwrap();
+
+            // https://github.com/torvalds/linux/blob/master/tools/perf/Documentation/jitdump-specification.txt
+            let mach: u32 = if cfg!(target_arch = "x86_64") {
+                0x3E
+            } else {
+                todo!()
+            };
+
+            f.write_all(&0x4A695444u32.to_ne_bytes()).unwrap(); // magic
+            f.write_all(&1u32.to_ne_bytes()).unwrap(); // version
+            f.write_all(&40u32.to_ne_bytes()).unwrap(); // total_size
+            f.write_all(&mach.to_ne_bytes()).unwrap(); // elf_mach
+            f.write_all(&[0; 4]).unwrap(); // pad1
+            f.write_all(&pid.to_ne_bytes()).unwrap(); // pid
+            f.write_all(&Self::dump_timestamp()).unwrap(); // timestamp
+            f.write_all(&0u64.to_ne_bytes()).unwrap(); // flags
+
+            // This required by "perf inject".
+            let len = f.stream_position().unwrap().try_into().unwrap();
+            let prot = libc::PROT_READ | libc::PROT_EXEC;
+            let flags = libc::MAP_PRIVATE;
+            let fd = f.as_raw_fd();
+            let m = libc::mmap(core::ptr::null_mut(), len, prot, flags, fd, 0);
+
+            assert_ne!(m, libc::MAP_FAILED);
+
+            (f, core::ptr::slice_from_raw_parts_mut(m.cast(), len))
+        };
 
         Self {
             isa: ib.finish(flags).unwrap(),
             builder_context: RefCell::default(),
             codegen_context: RefCell::new(cranelift_codegen::Context::new()),
             allocator: RefCell::new(crate::vm::CodeAllocator::new()),
+            #[cfg(feature = "jit-profiling")]
+            dump: RefCell::new(dump),
+            #[cfg(feature = "jit-profiling")]
+            mapped_dump,
+            #[cfg(feature = "jit-profiling")]
+            next_fid: 0u64.into(),
         }
+    }
+
+    #[cfg(feature = "jit-profiling")]
+    fn dump_timestamp() -> [u8; 8] {
+        let mut tv = unsafe { core::mem::zeroed() };
+
+        assert_eq!(
+            unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut tv) },
+            0
+        );
+
+        (tv.tv_sec * 1000000000 + tv.tv_nsec).to_ne_bytes()
+    }
+}
+
+#[cfg(feature = "jit")]
+impl Drop for Jit {
+    fn drop(&mut self) {
+        #[cfg(feature = "jit-profiling")]
+        assert_eq!(
+            unsafe { libc::munmap(self.mapped_dump.cast(), self.mapped_dump.len()) },
+            0
+        );
     }
 }
 

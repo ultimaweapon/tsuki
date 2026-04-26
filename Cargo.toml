@@ -21,6 +21,9 @@ default = ["rand", "std"]
 # memory bugs.
 jit = ["std", "dep:cranelift-codegen", "dep:cranelift-frontend", "dep:cranelift-native", "dep:target-lexicon", "dep:windows-sys"]
 
+# Generate JITDUMP file. Only Linux is currently supported.
+jit-profiling = ["jit"]
+
 rand = ["dep:rand"]
 serde = ["dep:serde"]
 std = ["libm/arch", "tsuki-macros/std"]

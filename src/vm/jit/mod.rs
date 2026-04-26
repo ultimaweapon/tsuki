@@ -262,9 +262,100 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
         }
     }
 
+    (*p).jitted = buf.seal();
+
+    // Write dump.
+    #[cfg(feature = "jit-profiling")]
+    write_dump(g, p, code.buffer.get_srclocs_sorted())?;
+
     ctx.clear();
 
-    (*p).jitted = buf.seal();
+    Ok(())
+}
+
+#[cfg(feature = "jit-profiling")]
+unsafe fn write_dump<A>(
+    g: &Lua<A>,
+    p: *const Proto<A>,
+    m: &[cranelift_codegen::MachSrcLoc<cranelift_codegen::Final>],
+) -> Result<(), std::io::Error> {
+    use crate::ldebug::luaG_getfuncline;
+    use std::io::{Seek, SeekFrom, Write};
+
+    // Write JIT_CODE_DEBUG_INFO.
+    let mut f = g.jit.dump.borrow_mut();
+    let off = f.stream_position()?;
+    let vma = (*p).jitted as *const u8 as usize as u64;
+    let mut len = 0u64;
+
+    f.write_all(&2u32.to_ne_bytes())?; // JIT_CODE_DEBUG_INFO
+    f.write_all(&0u32.to_ne_bytes())?; // total_size
+    f.write_all(&crate::Jit::dump_timestamp())?; // timestamp
+    f.write_all(&vma.to_ne_bytes())?; // code_addr
+    f.write_all(&len.to_ne_bytes())?; // nr_entry
+
+    for m in m {
+        let addr = vma + u64::from(m.start);
+        let line = match m
+            .loc
+            .bits()
+            .try_into()
+            .ok()
+            .and_then(|v| u32::try_from(luaG_getfuncline(p, v)).ok())
+        {
+            Some(v) => v,
+            None => continue,
+        };
+
+        f.write_all(&addr.to_ne_bytes())?; // code_addr
+        f.write_all(&line.to_ne_bytes())?; // line
+        f.write_all(&0u32.to_ne_bytes())?; // discrim
+        f.write_all((*p).chunk.as_bytes())?; // name
+        f.write_all(&[0])?; // name
+
+        len += 1;
+    }
+
+    // Update nr_entry.
+    let end = f.stream_position()?;
+
+    f.seek(SeekFrom::Start(off + 24))?;
+    f.write_all(&len.to_ne_bytes())?;
+
+    // Update total_size.
+    let len = u32::try_from(end - off).unwrap();
+
+    f.seek(SeekFrom::Start(off + 4))?;
+    f.write_all(&len.to_ne_bytes())?;
+    f.seek(SeekFrom::End(0))?;
+
+    // Write JIT_CODE_LOAD.
+    let off = f.stream_position()?;
+    let pid = unsafe { libc::getpid() as u32 };
+    let tid = unsafe { libc::gettid() as u32 };
+    let len = (*p).jitted.len() as u64;
+    let name = std::format!("{}:{}", (*p).chunk, luaG_getfuncline(p, 0));
+
+    f.write_all(&0u32.to_ne_bytes())?; // JIT_CODE_LOAD
+    f.write_all(&0u32.to_ne_bytes())?; // total_size
+    f.write_all(&crate::Jit::dump_timestamp())?; // timestamp
+    f.write_all(&pid.to_ne_bytes())?; // pid
+    f.write_all(&tid.to_ne_bytes())?; // tid
+    f.write_all(&vma.to_ne_bytes())?; // vma
+    f.write_all(&vma.to_ne_bytes())?; // code_addr
+    f.write_all(&len.to_ne_bytes())?; // code_size
+    f.write_all(&(*p).id.to_ne_bytes())?; // code_index
+    f.write_all(name.as_bytes())?; // name
+    f.write_all(&[0])?; // name
+    f.write_all(&*(*p).jitted)?; // code
+
+    // Update total_size.
+    let end = f.stream_position()?;
+    let len = u32::try_from(end - off).unwrap();
+
+    f.seek(SeekFrom::Start(off + 4))?;
+    f.write_all(&len.to_ne_bytes())?;
+    f.seek(SeekFrom::End(0))?;
 
     Ok(())
 }

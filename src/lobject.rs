@@ -117,6 +117,8 @@ pub struct Proto<D> {
     pub abslineinfo: *mut AbsLineInfo,
     pub locvars: *mut LocVar<D>,
     pub chunk: Rc<String>,
+    #[cfg(feature = "jit-profiling")]
+    pub id: u64,
 }
 
 impl<D> Drop for Proto<D> {
