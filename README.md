@@ -31,7 +31,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 
 ### JIT
 
-Tsuki is faster than Lua about 38% on AMD Ryzen 5 5600G and 63% on Apple M1. The performance improved from interpreter is about 2x.
+Tsuki is faster than Lua about 38% on AMD Ryzen 5 5600G and 63% on Apple M1. The performance improved from interpreter is almost 2x.
 
 #### Async
 

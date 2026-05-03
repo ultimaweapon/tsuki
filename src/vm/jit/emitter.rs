@@ -2080,6 +2080,124 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         pc
     }
 
+    pub unsafe fn mulk(&mut self, i: u32, pc: usize) -> usize {
+        let v1 = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let v2 = self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
+        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+
+        // Get metamethod skip.
+        let skip = match self.labels.entry(pc + 1) {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
+        };
+
+        // Load type of v1.
+        let t1 = self.fb.ins().load(
+            I8,
+            MemFlags::trusted().with_can_move(),
+            v1,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Load type of v2.
+        let t2 = self.fb.ins().load(
+            I8,
+            MemFlags::trusted().with_can_move(),
+            v2,
+            offset_of!(UnsafeValue<A>, tt_) as i32,
+        );
+
+        // Check if v1 integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, t1, 3 | 0 << 4);
+        let check_v2 = self.fb.create_block();
+        let check_float = self.fb.create_block();
+
+        self.fb.ins().brif(v, check_v2, [], check_float, []);
+
+        self.fb.switch_to_block(check_v2);
+        self.fb.seal_block(check_v2);
+
+        // Check if v2 integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, t2, 3 | 0 << 4);
+        let mul_int = self.fb.create_block();
+
+        self.fb.ins().brif(v, mul_int, [], check_float, []);
+
+        self.fb.switch_to_block(mul_int);
+        self.fb.seal_block(mul_int);
+
+        // Load integer from v1.
+        let i1 = self.fb.ins().load(
+            I64,
+            MemFlags::trusted().with_can_move(),
+            v1,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Load integer from v2.
+        let i2 = self.fb.ins().load(
+            I64,
+            MemFlags::trusted().with_can_move(),
+            v2,
+            offset_of!(UnsafeValue<A>, value_) as i32,
+        );
+
+        // Set output type.
+        let v = self.fb.ins().iconst(I8, 3 | 0 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Set integer.
+        let v = self.fb.ins().imul(i1, i2);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().jump(skip, []);
+
+        self.fb.switch_to_block(check_float);
+        self.fb.seal_block(check_float);
+
+        // Load floats.
+        let not_num = self.fb.create_block();
+        let n1 = self.load_num_as_float(v1, not_num, &[]);
+        let n2 = self.load_num_as_float(v2, not_num, &[]);
+        let v = self.fb.ins().iconst(I8, 3 | 1 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Set float.
+        let v = self.fb.ins().fmul(n1, n2);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().jump(skip, []);
+
+        self.fb.switch_to_block(not_num);
+        self.fb.seal_block(not_num);
+
+        pc
+    }
+
     pub unsafe fn modk(&mut self, i: u32, pc: usize) -> usize {
         let v1 = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let v2 = self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
@@ -4868,7 +4986,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Load type.
         let tt = self.fb.ins().load(
             I8,
-            MemFlags::trusted(),
+            MemFlags::trusted().with_can_move(),
             ptr,
             offset_of!(UnsafeValue<A>, tt_) as i32,
         );
@@ -4886,7 +5004,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Load integer.
         let i = self.fb.ins().load(
             I64,
-            MemFlags::trusted(),
+            MemFlags::trusted().with_can_move(),
             ptr,
             offset_of!(UnsafeValue<A>, value_) as i32,
         );

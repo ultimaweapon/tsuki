@@ -2176,13 +2176,17 @@ unsafe fn checkrepeated<A>(
     Ok(())
 }
 
-unsafe fn labelstat<D>(
-    ls: *mut LexState<D>,
-    fs: *mut FuncState<D>,
-    name: *const Str<D>,
+unsafe fn labelstat<A>(
+    ls: *mut LexState<A>,
+    fs: *mut FuncState<A>,
+    name: *const Str<A>,
     line: c_int,
 ) -> Result<(), ParseError> {
     checknext(ls, TK_DBCOLON as c_int)?;
+
+    #[cfg(feature = "jit")]
+    luaK_code(ls, fs, crate::vm::OP_LABEL)?;
+
     while (*ls).t.token == ';' as i32 || (*ls).t.token == TK_DBCOLON as c_int {
         statement(ls, fs)?;
     }
