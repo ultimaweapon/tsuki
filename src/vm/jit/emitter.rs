@@ -35,7 +35,6 @@ pub struct Emitter<'a, 'b, A> {
     f: Variable,
     p: Variable,
     k: Variable,
-    base: Variable,
     values: [StackSlot; 2],
     adjustvarargs: FuncRef,
     getvarargs: FuncRef,
@@ -92,7 +91,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         ret: Variable,
         rust: &'a mut RustFuncs<A>,
         resumes: &'a mut Vec<BlockCall>,
-        jumper: Block,
+        resume: Block,
     ) -> Self {
         // Load td.
         let ptr = Type::triple_pointer_type(&HOST);
@@ -171,7 +170,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             f,
             p,
             k,
-            base: fb.declare_var(ptr),
             values: core::array::from_fn(|_| {
                 fb.create_sized_stack_slot(StackSlotData::new(
                     StackSlotKind::ExplicitSlot,
@@ -341,15 +339,25 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             phantom: PhantomData,
         };
 
-        e.update_base_stack();
+        e.fb.ins().jump(resume, []);
 
-        e.fb.ins().jump(jumper, []);
+        // Create resume block.
+        let resume = e.fb.create_block();
 
-        // Create root block.
-        let root = e.fb.create_block();
+        e.resumes.push(e.fb.func.dfg.block_call(resume, []));
 
-        e.fb.switch_to_block(root);
-        e.resumes.push(e.fb.func.dfg.block_call(root, []));
+        e.fb.switch_to_block(resume);
+
+        // Load base stack.
+        let main = e.fb.create_block();
+        let base = e.load_base_stack();
+
+        e.fb.append_block_param(main, ptr);
+
+        e.fb.ins().jump(main, &[BlockArg::Value(base)]);
+
+        e.fb.switch_to_block(main);
+        e.fb.seal_block(main);
 
         e
     }
@@ -375,15 +383,18 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .last_inst(current)
             .is_none_or(|i| !self.fb.func.dfg.insts[i].opcode().is_terminator())
         {
-            self.fb.ins().jump(label, []);
+            let base = self.fb.block_params(current)[0];
+
+            self.fb.ins().jump(label, &[BlockArg::Value(base)]);
         }
 
         self.fb.switch_to_block(label);
     }
 
     pub unsafe fn move_(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & 0xFF);
-        let rb = self.get_reg(i >> 7 + 8 + 1 & 0xFF);
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & 0xFF);
+        let rb = self.get_reg(base, i >> 7 + 8 + 1 & 0xFF);
 
         // Type.
         let v = self.fb.ins().load(
@@ -419,7 +430,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn loadi(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & 0xFF);
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & 0xFF);
         let b: i64 = ((i >> 15 & 0x1FFFF) as i32 - ((1 << 17) - 1 >> 1)) as i64;
         let b = self.fb.ins().iconst(I64, b);
         let tt = self.fb.ins().iconst(I8, 3 | 0 << 4);
@@ -442,7 +454,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn loadk(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let rb = self.get_const(i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1));
 
         // Set type.
@@ -479,7 +492,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn loadfalse(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let tt = self.fb.ins().iconst(I8, 1 | 0 << 4);
 
         self.fb.ins().store(
@@ -493,7 +507,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn lfalseskip(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let tt = self.fb.ins().iconst(I8, 1 | 0 << 4);
 
         self.fb.ins().store(
@@ -503,19 +518,17 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, tt_) as i32,
         );
 
-        // Jump.
-        let label = match self.labels.entry(pc + 1) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
+        // Skip next instruction.
+        let skip = self.get_label(pc + 1);
 
-        self.fb.ins().jump(label, []);
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
 
         pc
     }
 
     pub unsafe fn loadtrue(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let tt = self.fb.ins().iconst(I8, 1 | 1 << 4);
 
         self.fb.ins().store(
@@ -529,7 +542,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn loadnil(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let b = i >> 7 + 8 + 1 & !(!(0u32) << 8);
         let v = self.fb.ins().iconst(I8, 0 | 0 << 4);
 
@@ -546,7 +560,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn getupval(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let b = i >> 7 + 8 + 1 & !(!(0u32) << 8);
         let uv = self.load_uv(b);
 
@@ -584,7 +599,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn setupval(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
 
         // Load UpVal::v.
         let uv = self.get_uv(i >> 7 + 8 + 1 & !(!(0u32) << 8));
@@ -632,7 +648,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
     pub unsafe fn gettabup(&mut self, i: u32, pc: usize) -> usize {
         // Get output register and key.
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let k = self.load_const(
             i >> 24 & !(!(0u32) << 8),
             offset_of!(UnsafeValue<A>, value_),
@@ -730,10 +747,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.seal_block(test_res);
 
         // Check result.
+        let res = self.fb.block_params(test_res)[0];
         let has_res = self.fb.create_block();
         let no_res = self.fb.create_block();
-        let next_inst = self.fb.create_block();
-        let res = self.fb.block_params(test_res)[0];
+        let end = self.fb.create_block();
+
+        self.fb.append_block_param(end, self.ptr);
 
         self.fb.ins().brif(res, has_res, [], no_res, []);
 
@@ -779,28 +798,28 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        self.fb.ins().jump(next_inst, []);
+        self.fb.ins().jump(end, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(no_res);
         self.fb.seal_block(no_res);
 
         // Emit call to luaV_finishget.
         let v = self.fb.ins().iconst(I8, 4 | 0 << 4 | 1 << 6);
+        let base = self.finishget_with_key_parts(i, pc, tab, v, k);
 
-        self.finishget_with_key_parts(i, pc, tab, v, k);
+        self.fb.ins().jump(end, &[BlockArg::Value(base)]);
 
-        self.fb.ins().jump(next_inst, []);
-
-        self.fb.switch_to_block(next_inst);
-        self.fb.seal_block(next_inst);
+        self.fb.switch_to_block(end);
+        self.fb.seal_block(end);
 
         pc
     }
 
     pub unsafe fn gettable(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
-        let tab = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
-        let k = self.get_reg(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let tab = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let k = self.get_reg(base, i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
 
         // Load table type.
         let v = self.fb.ins().load(
@@ -857,9 +876,20 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(found);
 
-        // Set output register.
+        // Set output type.
         let &[tt, slot] = self.fb.block_params(found).as_array().unwrap();
         let end = self.fb.create_block();
+
+        self.fb.append_block_param(end, self.ptr);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            tt,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Set output value.
         let v = self.fb.ins().load(
             I64,
             MemFlags::trusted(),
@@ -869,19 +899,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.ins().store(
             MemFlags::trusted(),
-            tt,
-            ra,
-            offset_of!(StackValue<A>, tt_) as i32,
-        );
-
-        self.fb.ins().store(
-            MemFlags::trusted(),
             v,
             ra,
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        self.fb.ins().jump(end, []);
+        self.fb.ins().jump(end, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(check_ud);
         self.fb.seal_block(check_ud);
@@ -939,9 +962,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.set_cold_block(not_found);
 
         // Invoke luaV_finishget.
-        self.finishget(i, pc, tab, k);
+        let base = self.finishget(i, pc, tab, k);
 
-        self.fb.ins().jump(end, []);
+        self.fb.ins().jump(end, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(end);
         self.fb.seal_block(end);
@@ -950,8 +973,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn geti(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
-        let tab = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let tab = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let c = self
             .fb
             .ins()
@@ -1009,7 +1033,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.seal_block(found);
 
         // Set output register.
-        let join = self.fb.create_block();
         let v = self.fb.ins().load(
             I64,
             MemFlags::trusted(),
@@ -1031,7 +1054,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        self.fb.ins().jump(join, []);
+        // Jump to next instruction.
+        let end = self.fb.create_block();
+
+        self.fb.append_block_param(end, self.ptr);
+
+        self.fb.ins().jump(end, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(check_ud);
         self.fb.seal_block(check_ud);
@@ -1068,20 +1096,20 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         // Invoke luaV_finishget.
         let v = self.fb.ins().iconst(I8, 3 | 0 << 4);
+        let base = self.finishget_with_key_parts(i, pc, tab, v, c);
 
-        self.finishget_with_key_parts(i, pc, tab, v, c);
+        self.fb.ins().jump(end, &[BlockArg::Value(base)]);
 
-        self.fb.ins().jump(join, []);
-
-        self.fb.switch_to_block(join);
-        self.fb.seal_block(join);
+        self.fb.switch_to_block(end);
+        self.fb.seal_block(end);
 
         pc
     }
 
     pub unsafe fn getfield(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
-        let tab = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let tab = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let k = self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
 
         // Load table type.
@@ -1144,7 +1172,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.seal_block(found);
 
         // Set output register.
-        let join = self.fb.create_block();
         let v = self.fb.ins().load(
             I64,
             MemFlags::trusted(),
@@ -1166,7 +1193,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        self.fb.ins().jump(join, []);
+        // Jump to next instruction.
+        let end = self.fb.create_block();
+
+        self.fb.append_block_param(end, self.ptr);
+
+        self.fb.ins().jump(end, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(check_ud);
         self.fb.seal_block(check_ud);
@@ -1202,23 +1234,24 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.seal_block(not_found);
 
         // Invoke luaV_finishget.
-        self.finishget(i, pc, tab, k);
+        let base = self.finishget(i, pc, tab, k);
 
-        self.fb.ins().jump(join, []);
+        self.fb.ins().jump(end, &[BlockArg::Value(base)]);
 
-        self.fb.switch_to_block(join);
-        self.fb.seal_block(join);
+        self.fb.switch_to_block(end);
+        self.fb.seal_block(end);
 
         pc
     }
 
     pub unsafe fn settabup(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
         let uv = self.load_uv(i >> 7 & !(!(0u32) << 8));
         let rb = self.get_const(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let rc = if (i & 1 << 7 + 8) != 0 {
             self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
         } else {
-            self.get_reg(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
+            self.get_reg(base, i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
         };
 
         // Load table type.
@@ -1297,7 +1330,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         );
 
         // Set value.
-        let join = self.fb.create_block();
         let v = self.fb.ins().load(
             I64,
             MemFlags::trusted(),
@@ -1313,7 +1345,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         );
 
         self.fb.ins().call(self.barrier_back, &[uv, rc]);
-        self.fb.ins().jump(join, []);
+
+        // Jump to next instruction.
+        let join = self.fb.create_block();
+
+        self.fb.append_block_param(join, self.ptr);
+
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(not_found);
         self.fb.seal_block(not_found);
@@ -1331,9 +1369,11 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .call(self.finishset, &[td, uv, rb, rc, slot, ret]);
 
         self.return_on_err(false);
-        self.update_base_stack();
 
-        self.fb.ins().jump(join, []);
+        // Load new base.
+        let base = self.load_base_stack();
+
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
@@ -1342,12 +1382,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn settable(&mut self, i: u32, pc: usize) -> usize {
-        let tab = self.get_reg(i >> 7 & !(!(0u32) << 8));
-        let key = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let tab = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let key = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let val = if (i & 1 << 7 + 8) != 0 {
             self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
         } else {
-            self.get_reg(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
+            self.get_reg(base, i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
         };
 
         // Load table type.
@@ -1366,6 +1407,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let join = self.fb.create_block();
 
         self.fb.append_block_param(not_found, self.ptr);
+        self.fb.append_block_param(join, self.ptr);
 
         self.fb
             .ins()
@@ -1437,7 +1479,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         );
 
         self.fb.ins().call(self.barrier_back, &[tab, val]);
-        self.fb.ins().jump(join, []);
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(not_found);
         self.fb.seal_block(not_found);
@@ -1456,9 +1498,11 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .call(self.finishset, &[td, tab, key, val, slot, ret]);
 
         self.return_on_err(true);
-        self.update_base_stack();
 
-        self.fb.ins().jump(join, []);
+        // Load new base stack.
+        let base = self.load_base_stack();
+
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
@@ -1467,12 +1511,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn seti(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let c = i >> 7 + 8 + 1 & !(!(0u32) << 8);
         let rc = if (i & 1 << 0 + 7 + 8) != 0 {
             self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
         } else {
-            self.get_reg(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
+            self.get_reg(base, i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
         };
 
         // Load type of RA.
@@ -1563,8 +1608,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Invoke barrier_back.
         let join = self.fb.create_block();
 
+        self.fb.append_block_param(join, self.ptr);
+
         self.fb.ins().call(self.barrier_back, &[ra, rc]);
-        self.fb.ins().jump(join, []);
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(not_found);
         self.fb.seal_block(not_found);
@@ -1598,9 +1645,11 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .call(self.finishset, &[td, ra, key, rc, slot, ret]);
 
         self.return_on_err(false);
-        self.update_base_stack();
 
-        self.fb.ins().jump(join, []);
+        // Load new base stack.
+        let base = self.load_base_stack();
+
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
@@ -1609,12 +1658,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn setfield(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let rb = self.get_const(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let rc = if (i & 1 << 7 + 8) != 0 {
             self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
         } else {
-            self.get_reg(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
+            self.get_reg(base, i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
         };
 
         // Load table type.
@@ -1696,7 +1746,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         );
 
         // Set value.
-        let join = self.fb.create_block();
         let v = self.fb.ins().load(
             I64,
             MemFlags::trusted(),
@@ -1712,7 +1761,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         );
 
         self.fb.ins().call(self.barrier_back, &[ra, rc]);
-        self.fb.ins().jump(join, []);
+
+        // Jump to next instruction.
+        let join = self.fb.create_block();
+
+        self.fb.append_block_param(join, self.ptr);
+
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(not_found);
         self.fb.seal_block(not_found);
@@ -1730,9 +1785,11 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .call(self.finishset, &[td, ra, rb, rc, slot, ret]);
 
         self.return_on_err(false);
-        self.update_base_stack();
 
-        self.fb.ins().jump(join, []);
+        // Load new base stack.
+        let base = self.load_base_stack();
+
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
@@ -1741,7 +1798,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn newtable(&mut self, i: u32, mut pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let mut b = i >> 7 + 8 + 1 & !(!(0u32) << 8);
         let mut c = i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8);
 
@@ -1804,18 +1862,28 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Trigger GC.
         self.fb.ins().call(self.gc, &[td]);
 
-        self.update_base_stack();
+        // Update base stack.
+        let base = self.load_base_stack();
+        let join = self.fb.create_block();
+
+        self.fb.append_block_param(join, self.ptr);
+
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
 
         pc
     }
 
     pub unsafe fn self_(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
-        let tab = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let tab = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let k = if (i & 1 << 7 + 8) != 0 {
             self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
         } else {
-            self.get_reg(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
+            self.get_reg(base, i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8))
         };
 
         // Store table type.
@@ -1937,7 +2005,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         // Check result.
         let found = self.fb.create_block();
-        let join = self.fb.create_block();
         let v = self.fb.ins().band_imm(tt, 0xf);
 
         self.fb.ins().brif(v, found, [], not_found, []);
@@ -1966,14 +2033,19 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        self.fb.ins().jump(join, []);
+        // Jump to next instruction.
+        let join = self.fb.create_block();
+
+        self.fb.append_block_param(join, self.ptr);
+
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
         self.fb.switch_to_block(not_found);
         self.fb.seal_block(not_found);
 
         // Invoke luaV_finishget.
-        self.finishget(i, pc, tab, k);
+        let base = self.finishget(i, pc, tab, k);
 
-        self.fb.ins().jump(join, []);
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
@@ -1981,8 +2053,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn addi(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
-        let v1 = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let imm = (i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8)) as i32 - ((1 << 8) - 1 >> 1);
         let tt = self.fb.ins().load(
             I8,
@@ -2030,7 +2103,11 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let float_add = self.fb.create_block();
         let not_num = self.fb.create_block();
 
-        self.fb.ins().brif(v, float_add, [], not_num, []);
+        self.fb.append_block_param(not_num, self.ptr);
+
+        self.fb
+            .ins()
+            .brif(v, float_add, [], not_num, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(float_add);
         self.fb.seal_block(float_add);
@@ -2060,10 +2137,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.seal_block(set_type);
 
         // Set output type.
-        let label = match self.labels.entry(pc + 1) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
+        let label = self.get_label(pc + 1);
 
         self.fb.ins().store(
             MemFlags::trusted(),
@@ -2072,7 +2146,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, tt_) as i32,
         );
 
-        self.fb.ins().jump(label, []);
+        self.fb.ins().jump(label, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(not_num);
         self.fb.seal_block(not_num);
@@ -2081,15 +2155,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn mulk(&mut self, i: u32, pc: usize) -> usize {
-        let v1 = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let v2 = self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
-
-        // Get metamethod skip.
-        let skip = match self.labels.entry(pc + 1) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
 
         // Load type of v1.
         let t1 = self.fb.ins().load(
@@ -2162,15 +2231,22 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        self.fb.ins().jump(skip, []);
+        // Skip metamethod call.
+        let skip = self.get_label(pc + 1);
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(check_float);
         self.fb.seal_block(check_float);
 
-        // Load floats.
+        // Create block for metamethod call.
         let not_num = self.fb.create_block();
-        let n1 = self.load_num_as_float(v1, not_num, &[]);
-        let n2 = self.load_num_as_float(v2, not_num, &[]);
+
+        self.fb.append_block_param(not_num, self.ptr);
+
+        // Load floats.
+        let n1 = self.load_num_as_float(v1, not_num, &[BlockArg::Value(base)]);
+        let n2 = self.load_num_as_float(v2, not_num, &[BlockArg::Value(base)]);
         let v = self.fb.ins().iconst(I8, 3 | 1 << 4);
 
         self.fb.ins().store(
@@ -2190,7 +2266,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        self.fb.ins().jump(skip, []);
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(not_num);
         self.fb.seal_block(not_num);
@@ -2199,9 +2275,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn modk(&mut self, i: u32, pc: usize) -> usize {
-        let v1 = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let v2 = self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
 
         // Load type of v1.
         let t1 = self.fb.ins().load(
@@ -2210,12 +2287,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             v1,
             offset_of!(StackValue<A>, tt_) as i32,
         );
-
-        // Get metamethod skip.
-        let skip = match self.labels.entry(pc + 1) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
 
         // Check if v1 integer.
         let v = self.fb.ins().icmp_imm(IntCC::Equal, t1, 3 | 0 << 4);
@@ -2289,7 +2360,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        self.fb.ins().jump(skip, []);
+        // Skip metamethod call.
+        let skip = self.get_label(pc + 1);
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(mod_zero);
         self.fb.seal_block(mod_zero);
@@ -2308,10 +2382,14 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(check_float);
         self.fb.seal_block(check_float);
 
-        // Load floats.
+        // Create block for metamethod call.
         let join = self.fb.create_block();
-        let n1 = self.load_num_as_float(v1, join, &[]);
-        let n2 = self.load_num_as_float(v2, join, &[]);
+
+        self.fb.append_block_param(join, self.ptr);
+
+        // Load floats.
+        let n1 = self.load_num_as_float(v1, join, &[BlockArg::Value(base)]);
+        let n2 = self.load_num_as_float(v2, join, &[BlockArg::Value(base)]);
         let v = self.fb.ins().iconst(I8, 3 | 1 << 4);
 
         self.fb.ins().store(
@@ -2332,7 +2410,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        self.fb.ins().jump(skip, []);
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
@@ -2341,8 +2419,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn divk(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
-        let v1 = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let v2 = self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
 
         // Load type of first opererand.
@@ -2367,6 +2446,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let check_int = self.fb.create_block();
         let join = self.fb.create_block();
 
+        self.fb.append_block_param(join, self.ptr);
         self.fb.append_block_param(check_v2, F64);
 
         self.fb
@@ -2380,7 +2460,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 0 << 4);
         let load_int = self.fb.create_block();
 
-        self.fb.ins().brif(v, load_int, [], join, []);
+        self.fb
+            .ins()
+            .brif(v, load_int, [], join, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(load_int);
         self.fb.seal_block(load_int);
@@ -2441,7 +2523,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 0 << 4);
         let load_int = self.fb.create_block();
 
-        self.fb.ins().brif(v, load_int, [], join, []);
+        self.fb
+            .ins()
+            .brif(v, load_int, [], join, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(load_int);
         self.fb.seal_block(load_int);
@@ -2486,11 +2570,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         );
 
         // Skip metamethod call.
-        let label = self.fb.create_block();
+        let label = self.get_label(pc + 1);
 
-        self.fb.ins().jump(label, []);
-
-        assert!(self.labels.insert(pc + 1, label).is_none());
+        self.fb.ins().jump(label, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
@@ -2499,9 +2581,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn add(&mut self, i: u32, pc: usize) -> usize {
-        let v1 = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
-        let v2 = self.get_reg(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let v2 = self.get_reg(base, i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
 
         // Load type of v1.
         let t1 = self.fb.ins().load(
@@ -2510,12 +2593,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             v1,
             offset_of!(StackValue<A>, tt_) as i32,
         );
-
-        // Get metamethod skip.
-        let skip = match self.labels.entry(pc + 1) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
 
         // Check if v1 integer.
         let v = self.fb.ins().icmp_imm(IntCC::Equal, t1, 3 | 0 << 4);
@@ -2580,15 +2657,22 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        self.fb.ins().jump(skip, []);
+        // Skip metamethod call.
+        let skip = self.get_label(pc + 1);
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(check_float);
         self.fb.seal_block(check_float);
 
-        // Load floats.
+        // Create block to call metamethod.
         let join = self.fb.create_block();
-        let n1 = self.load_num_as_float(v1, join, &[]);
-        let n2 = self.load_num_as_float(v2, join, &[]);
+
+        self.fb.append_block_param(join, self.ptr);
+
+        // Load floats.
+        let n1 = self.load_num_as_float(v1, join, &[BlockArg::Value(base)]);
+        let n2 = self.load_num_as_float(v2, join, &[BlockArg::Value(base)]);
         let v = self.fb.ins().iconst(I8, 3 | 1 << 4);
 
         self.fb.ins().store(
@@ -2608,7 +2692,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        self.fb.ins().jump(skip, []);
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
@@ -2617,9 +2701,10 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn mul(&mut self, i: u32, pc: usize) -> usize {
-        let v1 = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
-        let v2 = self.get_reg(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let v2 = self.get_reg(base, i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
 
         // Load type of v1.
         let t1 = self.fb.ins().load(
@@ -2628,12 +2713,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             v1,
             offset_of!(StackValue<A>, tt_) as i32,
         );
-
-        // Get metamethod skip.
-        let skip = match self.labels.entry(pc + 1) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
 
         // Check if v1 integer.
         let v = self.fb.ins().icmp_imm(IntCC::Equal, t1, 3 | 0 << 4);
@@ -2698,15 +2777,22 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        self.fb.ins().jump(skip, []);
+        // Skip metamethod call.
+        let skip = self.get_label(pc + 1);
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(check_float);
         self.fb.seal_block(check_float);
 
-        // Load floats.
+        // Create block to call metamethod.
         let join = self.fb.create_block();
-        let n1 = self.load_num_as_float(v1, join, &[]);
-        let n2 = self.load_num_as_float(v2, join, &[]);
+
+        self.fb.append_block_param(join, self.ptr);
+
+        // Load floats.
+        let n1 = self.load_num_as_float(v1, join, &[BlockArg::Value(base)]);
+        let n2 = self.load_num_as_float(v2, join, &[BlockArg::Value(base)]);
         let v = self.fb.ins().iconst(I8, 3 | 1 << 4);
 
         self.fb.ins().store(
@@ -2726,7 +2812,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, value_) as i32,
         );
 
-        self.fb.ins().jump(skip, []);
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
@@ -2735,8 +2821,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn mmbin(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
-        let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let rb = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let tm = self
             .fb
             .ins()
@@ -2756,11 +2843,21 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .call(self.trybinTM, &[td, ra, rb, tm, out, ret]);
 
         self.return_on_err(false);
-        self.update_base_stack();
+
+        // Load base stack.
+        let base = self.load_base_stack();
+        let resume = self.fb.create_block();
+
+        self.fb.append_block_param(resume, self.ptr);
+
+        self.fb.ins().jump(resume, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(resume);
+        self.fb.seal_block(resume);
 
         // Set output type.
         let pi = self.code[pc - 2];
-        let out = self.get_reg(pi >> 7 & !(!(0u32) << 8));
+        let out = self.get_reg(base, pi >> 7 & !(!(0u32) << 8));
         let v = self
             .fb
             .ins()
@@ -2790,7 +2887,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn mmbini(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let imm = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - ((1 << 8) - 1 >> 1);
         let tm = i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8);
         let flip = i >> 7 + 8 & !(!(0u32) << 1);
@@ -2812,11 +2910,21 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .call(self.trybiniTM, &[td, ra, imm, flip, tm, out, ret]);
 
         self.return_on_err(false);
-        self.update_base_stack();
+
+        // Load new base stack.
+        let base = self.load_base_stack();
+        let resume = self.fb.create_block();
+
+        self.fb.append_block_param(resume, self.ptr);
+
+        self.fb.ins().jump(resume, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(resume);
+        self.fb.seal_block(resume);
 
         // Set output type.
         let pi = self.code[pc - 2];
-        let out = self.get_reg(pi >> 7 & !(!(0u32) << 8));
+        let out = self.get_reg(base, pi >> 7 & !(!(0u32) << 8));
         let v = self
             .fb
             .ins()
@@ -2846,7 +2954,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn mmbink(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let pi = self.code[pc - 2];
         let imm = self.get_const(i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let tm = self
@@ -2872,10 +2981,20 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .call(self.trybinassocTM, &[td, ra, imm, flip, tm, out, ret]);
 
         self.return_on_err(false);
-        self.update_base_stack();
+
+        // Load new base stack.
+        let base = self.load_base_stack();
+        let resume = self.fb.create_block();
+
+        self.fb.append_block_param(resume, self.ptr);
+
+        self.fb.ins().jump(resume, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(resume);
+        self.fb.seal_block(resume);
 
         // Set output register.
-        let out = self.get_reg(pi >> 7 & !(!(0u32) << 8));
+        let out = self.get_reg(base, pi >> 7 & !(!(0u32) << 8));
         let tt = self
             .fb
             .ins()
@@ -2903,8 +3022,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn not(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
-        let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let rb = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
         let tt = self.fb.ins().load(
             I8,
             MemFlags::trusted(),
@@ -2913,7 +3033,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         );
 
         // Check if false.
-        let join = self.fb.create_block();
         let check_nil = self.fb.create_block();
         let set_true = self.fb.create_block();
         let set_false = self.fb.create_block();
@@ -2932,6 +3051,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         // Set true.
         let v = self.fb.ins().iconst(I8, 1 | 1 << 4);
+        let join = self.fb.create_block();
+
+        self.fb.append_block_param(join, self.ptr);
 
         self.fb.ins().store(
             MemFlags::trusted(),
@@ -2940,7 +3062,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, tt_) as i32,
         );
 
-        self.fb.ins().jump(join, []);
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
         self.fb.switch_to_block(set_false);
         self.fb.seal_block(set_false);
 
@@ -2954,7 +3076,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(StackValue<A>, tt_) as i32,
         );
 
-        self.fb.ins().jump(join, []);
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
 
@@ -2962,7 +3084,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn len(&mut self, i: u32, pc: usize) -> usize {
-        let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let rb = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
 
         self.update_top_from_ci();
         self.update_pc(pc);
@@ -2976,10 +3099,20 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.ins().call(self.objlen, &[td, rb, val, ret]);
 
         self.return_on_err(false);
-        self.update_base_stack();
+
+        // Load new base stack.
+        let base = self.load_base_stack();
+        let resume = self.fb.create_block();
+
+        self.fb.append_block_param(resume, self.ptr);
+
+        self.fb.ins().jump(resume, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(resume);
+        self.fb.seal_block(resume);
 
         // Set output type.
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let v = self.fb.ins().load(
             I8,
             MemFlags::trusted(),
@@ -3013,7 +3146,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn close(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
 
         self.update_top_from_ci();
         self.update_pc(pc);
@@ -3025,13 +3159,24 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.ins().call(self.close, &[td, ra, ret]);
 
         self.return_on_err(false);
-        self.update_base_stack();
+
+        // Load new base stack.
+        let base = self.load_base_stack();
+        let resume = self.fb.create_block();
+
+        self.fb.append_block_param(resume, self.ptr);
+
+        self.fb.ins().jump(resume, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(resume);
+        self.fb.seal_block(resume);
 
         pc
     }
 
     pub unsafe fn tbc(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
 
         self.update_top_from_ci();
         self.update_pc(pc);
@@ -3044,21 +3189,28 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.return_on_err(false);
 
+        // Create block for next instruction.
+        let join = self.fb.create_block();
+
+        self.fb.append_block_param(join, self.ptr);
+
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
+
         pc
     }
 
     pub unsafe fn jmp(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
         let dest = pc.wrapping_add_signed(
             ((i >> 7 & !(!(0u32) << 17 + 8)) as i32 - ((1 << 17 + 8) - 1 >> 1)) as isize,
         );
 
         // Get destination label.
-        let label = match self.labels.entry(dest) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
+        let label = self.get_label(dest);
 
-        self.fb.ins().jump(label, []);
+        self.fb.ins().jump(label, &[BlockArg::Value(base)]);
 
         // There will be more instructions when OP_JMP was generated by "break" statement like the
         // following code:
@@ -3075,6 +3227,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         if !self.labels.contains_key(&pc) {
             let b = self.fb.create_block();
 
+            self.fb.append_block_param(b, self.ptr);
+
             self.fb.switch_to_block(b);
             self.fb.seal_block(b);
         }
@@ -3083,8 +3237,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn lt(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
-        let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let rb = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
 
         // Load type of RA.
         let ta = self.fb.ins().load(
@@ -3141,9 +3296,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.ins().icmp(IntCC::SignedLessThan, ia, ib);
         let check_result = self.fb.create_block();
 
+        self.fb.append_block_param(check_result, self.ptr);
         self.fb.append_block_param(check_result, I8);
 
-        self.fb.ins().jump(check_result, &[BlockArg::Value(v)]);
+        self.fb
+            .ins()
+            .jump(check_result, &[BlockArg::Value(base), BlockArg::Value(v)]);
 
         self.fb.switch_to_block(check_ra);
         self.fb.seal_block(check_ra);
@@ -3173,7 +3331,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.ins().call(self.LTnum, &[ra, rb]);
         let v = self.fb.inst_results(v)[0];
 
-        self.fb.ins().jump(check_result, &[BlockArg::Value(v)]);
+        self.fb
+            .ins()
+            .jump(check_result, &[BlockArg::Value(base), BlockArg::Value(v)]);
 
         self.fb.switch_to_block(not_num);
         self.fb.seal_block(not_num);
@@ -3188,29 +3348,38 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.inst_results(v)[0];
 
         self.return_on_err(false);
-        self.update_base_stack();
 
-        self.fb.ins().jump(check_result, &[BlockArg::Value(v)]);
+        // Load new base stack.
+        let base = self.load_base_stack();
+
+        self.fb
+            .ins()
+            .jump(check_result, &[BlockArg::Value(base), BlockArg::Value(v)]);
 
         self.fb.switch_to_block(check_result);
         self.fb.seal_block(check_result);
 
         // Get jump skip.
-        let skip = match self.labels.entry(pc + 1) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
+        let skip = self.get_label(pc + 1);
+        let jump = self.fb.create_block();
+
+        self.fb.append_block_param(jump, self.ptr);
 
         // Check result.
-        let cond = self.fb.block_params(check_result)[0];
-        let jump = self.fb.create_block();
+        let &[base, cond] = self.fb.block_params(check_result).as_array().unwrap();
         let v = self.fb.ins().icmp_imm(
             IntCC::NotEqual,
             cond,
             i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
         );
 
-        self.fb.ins().brif(v, skip, [], jump, []);
+        self.fb.ins().brif(
+            v,
+            skip,
+            &[BlockArg::Value(base)],
+            jump,
+            &[BlockArg::Value(base)],
+        );
 
         // Next instruction is OP_JMP.
         self.fb.switch_to_block(jump);
@@ -3220,8 +3389,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn le(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
-        let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let rb = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
 
         // Load type of RA.
         let ta = self.fb.ins().load(
@@ -3278,9 +3448,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.ins().icmp(IntCC::SignedLessThanOrEqual, lhs, rhs);
         let check_res = self.fb.create_block();
 
+        self.fb.append_block_param(check_res, self.ptr);
         self.fb.append_block_param(check_res, I8);
 
-        self.fb.ins().jump(check_res, &[BlockArg::Value(v)]);
+        self.fb
+            .ins()
+            .jump(check_res, &[BlockArg::Value(base), BlockArg::Value(v)]);
 
         self.fb.switch_to_block(check_num);
         self.fb.seal_block(check_num);
@@ -3310,7 +3483,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.ins().call(self.LEnum, &[ra, rb]);
         let v = self.fb.inst_results(v)[0];
 
-        self.fb.ins().jump(check_res, &[BlockArg::Value(v)]);
+        self.fb
+            .ins()
+            .jump(check_res, &[BlockArg::Value(base), BlockArg::Value(v)]);
 
         self.fb.switch_to_block(not_num);
         self.fb.seal_block(not_num);
@@ -3325,29 +3500,38 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.inst_results(v)[0];
 
         self.return_on_err(false);
-        self.update_base_stack();
 
-        self.fb.ins().jump(check_res, &[BlockArg::Value(v)]);
+        // Get new base stack.
+        let base = self.load_base_stack();
+
+        self.fb
+            .ins()
+            .jump(check_res, &[BlockArg::Value(base), BlockArg::Value(v)]);
 
         self.fb.switch_to_block(check_res);
         self.fb.seal_block(check_res);
 
         // Get jump skip.
-        let skip = match self.labels.entry(pc + 1) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
+        let skip = self.get_label(pc + 1);
+        let join = self.fb.create_block();
+
+        self.fb.append_block_param(join, self.ptr);
 
         // Check result.
-        let cond = self.fb.block_params(check_res)[0];
-        let join = self.fb.create_block();
+        let &[base, cond] = self.fb.block_params(check_res).as_array().unwrap();
         let v = self.fb.ins().icmp_imm(
             IntCC::NotEqual,
             cond,
             i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
         );
 
-        self.fb.ins().brif(v, skip, [], join, []);
+        self.fb.ins().brif(
+            v,
+            skip,
+            &[BlockArg::Value(base)],
+            join,
+            &[BlockArg::Value(base)],
+        );
 
         // Next instruction is OP_JMP.
         self.fb.switch_to_block(join);
@@ -3357,8 +3541,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn eq(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
-        let rb = self.get_reg(i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let rb = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
 
         self.update_top_from_ci();
         self.update_pc(pc);
@@ -3370,23 +3555,28 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let cond = self.fb.inst_results(cond)[0];
 
         self.return_on_err(false);
-        self.update_base_stack();
 
-        // Get jump skip.
-        let skip = match self.labels.entry(pc + 1) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
+        // Load new base stack.
+        let base = self.load_base_stack();
+        let skip = self.get_label(pc + 1);
+        let jump = self.fb.create_block();
+
+        self.fb.append_block_param(jump, self.ptr);
 
         // Check result.
-        let jump = self.fb.create_block();
         let v = self.fb.ins().icmp_imm(
             IntCC::NotEqual,
             cond,
             i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
         );
 
-        self.fb.ins().brif(v, skip, [], jump, []);
+        self.fb.ins().brif(
+            v,
+            skip,
+            &[BlockArg::Value(base)],
+            jump,
+            &[BlockArg::Value(base)],
+        );
 
         // Next instruction is OP_JMP.
         self.fb.switch_to_block(jump);
@@ -3396,7 +3586,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn eqk(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let rb = self.get_const(i >> 7 + 8 + 1 & !(!(0u32) << 8));
 
         // Invoke luaV_equalobj.
@@ -3406,23 +3597,28 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let cond = self.fb.inst_results(cond)[0];
 
         self.return_on_err(false);
-        self.update_base_stack();
 
-        // Get jump skip.
-        let skip = match self.labels.entry(pc + 1) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
+        // Load new base stack.
+        let base = self.load_base_stack();
+        let skip = self.get_label(pc + 1);
+        let jump = self.fb.create_block();
+
+        self.fb.append_block_param(jump, self.ptr);
 
         // Check result.
-        let jump = self.fb.create_block();
         let v = self.fb.ins().icmp_imm(
             IntCC::NotEqual,
             cond,
             i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
         );
 
-        self.fb.ins().brif(v, skip, [], jump, []);
+        self.fb.ins().brif(
+            v,
+            skip,
+            &[BlockArg::Value(base)],
+            jump,
+            &[BlockArg::Value(base)],
+        );
 
         // Next instruction is OP_JMP.
         self.fb.switch_to_block(jump);
@@ -3432,7 +3628,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn eqi(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let im = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - ((1 << 8) - 1 >> 1);
         let tt = self.fb.ins().load(
             I8,
@@ -3497,14 +3694,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(check_res);
         self.fb.seal_block(check_res);
 
-        // Get jump skip.
-        let skip = match self.labels.entry(pc + 1) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
+        // Create block to jump.
+        let jump = self.fb.create_block();
+
+        self.fb.append_block_param(jump, self.ptr);
 
         // Check result.
-        let jump = self.fb.create_block();
+        let skip = self.get_label(pc + 1);
         let cond = self.fb.block_params(check_res)[0];
         let v = self.fb.ins().icmp_imm(
             IntCC::NotEqual,
@@ -3512,7 +3708,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
         );
 
-        self.fb.ins().brif(v, skip, [], jump, []);
+        self.fb.ins().brif(
+            v,
+            skip,
+            &[BlockArg::Value(base)],
+            jump,
+            &[BlockArg::Value(base)],
+        );
 
         // Next instruction is OP_JMP.
         self.fb.switch_to_block(jump);
@@ -3522,7 +3724,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn gti(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let im = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - ((1 << 8) - 1 >> 1);
         let tt = self.fb.ins().load(
             I8,
@@ -3532,10 +3735,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         );
 
         // Get jump skip.
-        let skip = match self.labels.entry(pc + 1) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
+        let skip = self.get_label(pc + 1);
 
         // Check if integer.
         let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 0 << 4);
@@ -3566,7 +3766,15 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .icmp_imm(IntCC::NotEqual, v, i64::from(i >> 7 + 8 & !(!(0u32) << 1)));
         let join = self.fb.create_block();
 
-        self.fb.ins().brif(v, skip, [], join, []);
+        self.fb.append_block_param(join, self.ptr);
+
+        self.fb.ins().brif(
+            v,
+            skip,
+            &[BlockArg::Value(base)],
+            join,
+            &[BlockArg::Value(base)],
+        );
 
         self.fb.switch_to_block(check_float);
         self.fb.seal_block(check_float);
@@ -3597,7 +3805,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .icmp_imm(IntCC::NotEqual, v, i64::from(i >> 7 + 8 & !(!(0u32) << 1)));
 
-        self.fb.ins().brif(v, skip, [], join, []);
+        self.fb.ins().brif(
+            v,
+            skip,
+            &[BlockArg::Value(base)],
+            join,
+            &[BlockArg::Value(base)],
+        );
 
         self.fb.switch_to_block(invoke_mt);
         self.fb.seal_block(invoke_mt);
@@ -3622,15 +3836,21 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.inst_results(v)[0];
 
         self.return_on_err(false);
-        self.update_base_stack();
 
         // Check result.
+        let base = self.load_base_stack();
         let v = self
             .fb
             .ins()
             .icmp_imm(IntCC::NotEqual, v, i64::from(i >> 7 + 8 & !(!(0u32) << 1)));
 
-        self.fb.ins().brif(v, skip, [], join, []);
+        self.fb.ins().brif(
+            v,
+            skip,
+            &[BlockArg::Value(base)],
+            join,
+            &[BlockArg::Value(base)],
+        );
 
         // Next instruction is OP_JMP.
         self.fb.switch_to_block(join);
@@ -3640,7 +3860,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn gei(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let im = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - ((1 << 8) - 1 >> 1);
         let tt = self.fb.ins().load(
             I8,
@@ -3674,9 +3895,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .icmp_imm(IntCC::SignedGreaterThanOrEqual, lhs, i64::from(im));
         let check_res = self.fb.create_block();
 
+        self.fb.append_block_param(check_res, self.ptr);
         self.fb.append_block_param(check_res, I8);
 
-        self.fb.ins().jump(check_res, &[BlockArg::Value(v)]);
+        self.fb
+            .ins()
+            .jump(check_res, &[BlockArg::Value(base), BlockArg::Value(v)]);
 
         self.fb.switch_to_block(check_float);
         self.fb.seal_block(check_float);
@@ -3703,7 +3927,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.ins().f64const(im as f64);
         let v = self.fb.ins().fcmp(FloatCC::GreaterThanOrEqual, lhs, v);
 
-        self.fb.ins().jump(check_res, &[BlockArg::Value(v)]);
+        self.fb
+            .ins()
+            .jump(check_res, &[BlockArg::Value(base), BlockArg::Value(v)]);
 
         self.fb.switch_to_block(invoke_mt);
         self.fb.seal_block(invoke_mt);
@@ -3728,29 +3954,38 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.inst_results(v)[0];
 
         self.return_on_err(false);
-        self.update_base_stack();
 
-        self.fb.ins().jump(check_res, &[BlockArg::Value(v)]);
+        // Load new base stack.
+        let base = self.load_base_stack();
+
+        self.fb
+            .ins()
+            .jump(check_res, &[BlockArg::Value(base), BlockArg::Value(v)]);
 
         self.fb.switch_to_block(check_res);
         self.fb.seal_block(check_res);
 
-        // Skip jump skip.
-        let skip = match self.labels.entry(pc + 1) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
+        // Get jump skip.
+        let skip = self.get_label(pc + 1);
+        let join = self.fb.create_block();
+
+        self.fb.append_block_param(join, self.ptr);
 
         // Check result.
-        let cond = self.fb.block_params(check_res)[0];
-        let join = self.fb.create_block();
+        let &[base, cond] = self.fb.block_params(check_res).as_array().unwrap();
         let v = self.fb.ins().icmp_imm(
             IntCC::NotEqual,
             cond,
             i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
         );
 
-        self.fb.ins().brif(v, skip, [], join, []);
+        self.fb.ins().brif(
+            v,
+            skip,
+            &[BlockArg::Value(base)],
+            join,
+            &[BlockArg::Value(base)],
+        );
 
         // Next instruction is OP_JMP.
         self.fb.switch_to_block(join);
@@ -3760,7 +3995,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn test(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let tt = self.fb.ins().load(
             I8,
             MemFlags::trusted(),
@@ -3779,21 +4015,26 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let cond = self.fb.ins().bor(cond, v);
         let cond = self.fb.ins().bxor_imm(cond, 1);
 
-        // Get jump skip.
-        let skip = match self.labels.entry(pc + 1) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
+        // Create block to jump.
+        let next = self.fb.create_block();
+
+        self.fb.append_block_param(next, self.ptr);
 
         // Check if jump skip.
-        let next = self.fb.create_block();
+        let skip = self.get_label(pc + 1);
         let v = self.fb.ins().icmp_imm(
             IntCC::NotEqual,
             cond,
             i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
         );
 
-        self.fb.ins().brif(v, skip, [], next, []);
+        self.fb.ins().brif(
+            v,
+            skip,
+            &[BlockArg::Value(base)],
+            next,
+            &[BlockArg::Value(base)],
+        );
 
         // Next instruction is OP_JMP.
         self.fb.switch_to_block(next);
@@ -3804,7 +4045,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
     pub unsafe fn call(&mut self, i: u32, pc: usize) -> usize {
         // Update top and PC.
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let args = (i >> 7 + 8 + 1 & 0xFF) as u8;
         let nresults = (i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8)) as i32 - 1;
 
@@ -3867,6 +4109,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let resume_lua = self.return_on_pending(finished, []);
 
         self.fb.switch_to_block(resume_precall);
+        self.fb.seal_block(resume_precall);
 
         // Resume luaD_precall.
         let ci = self.fb.use_var(self.ci);
@@ -3883,6 +4126,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.seal_block(check_lua);
         self.fb.switch_to_block(resume_lua);
+        self.fb.seal_block(resume_lua);
 
         // Resume run_lua.
         let ci = self.fb.use_var(self.ci);
@@ -3894,18 +4138,27 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.return_on_err(false);
         self.join_on_ready(finished, []);
 
-        // Update base stack.
         self.fb.switch_to_block(finished);
         self.fb.seal_block(finished);
 
-        self.update_base_stack();
+        // Load new base stack.
+        let base = self.load_base_stack();
+        let next = self.fb.create_block();
+
+        self.fb.append_block_param(next, self.ptr);
+
+        self.fb.ins().jump(next, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(next);
+        self.fb.seal_block(next);
 
         pc
     }
 
     pub unsafe fn tailcall(&mut self, i: u32, mut pc: usize) -> usize {
+        let base = self.get_base();
         let td = self.fb.use_var(self.td);
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let b = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32;
         let b = if b != 0 {
             let top = b as usize * size_of::<StackValue<A>>();
@@ -3948,8 +4201,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         // Invoke luaF_closeupval.
         if (i & 1 << 7 + 8) != 0 {
-            let base = self.fb.use_var(self.base);
-
             self.fb.ins().call(self.closeupval, &[td, base]);
         }
 
@@ -3974,6 +4225,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let resume = self.return_on_pending(ready, &[BlockArg::Value(delta), BlockArg::Value(ret)]);
 
         self.fb.switch_to_block(resume);
+        self.fb.seal_block(resume);
 
         // Resume luaD_pretailcall.
         let ci = self.fb.use_var(self.ci);
@@ -4060,14 +4312,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Create block for remaining instructions.
         pc += 1; // Skip unused OP_RETURN.
 
-        if let Entry::Vacant(e) = self.labels.entry(pc) {
-            e.insert(self.fb.create_block());
-        }
+        self.get_label(pc);
 
         pc
     }
 
     pub unsafe fn return_(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
         let ra = i >> 7 & !(!(0u32) << 8);
         let n = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - 1;
         let n = if n < 0 {
@@ -4081,7 +4332,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             );
 
             // Get number of values to return.
-            let ra = unsafe { self.get_reg(ra) };
+            let ra = unsafe { self.get_reg(base, ra) };
             let n = self.fb.ins().isub(top, ra);
 
             self.fb.ins().imul_imm(n, size_of::<StackValue<A>>() as i64)
@@ -4091,7 +4342,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.update_pc(pc);
 
-        if (i & 1 << 7 + 8) != 0 {
+        // Check if we need to call luaF_close.
+        let base = if (i & 1 << 7 + 8) != 0 {
             // Set CallInfo::u2::nres.
             let ci = self.fb.use_var(self.ci);
 
@@ -4136,16 +4388,18 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             self.fb.seal_block(join);
 
             // Invoke luaF_close.
-            let base = self.fb.use_var(self.base);
             let ret = self.fb.use_var(self.ret);
 
             self.fb.ins().call(self.close, &[td, base, ret]);
 
             self.return_on_err(false);
-            self.update_base_stack();
-        }
 
-        // Update
+            self.load_base_stack()
+        } else {
+            base
+        };
+
+        // Check if we need to update CallInfo::func.
         let nparams1 = i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8);
 
         if nparams1 != 0 {
@@ -4178,7 +4432,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         }
 
         // Update top.
-        let ra = unsafe { self.get_reg(ra) };
+        let ra = unsafe { self.get_reg(base, ra) };
         let top = self.fb.ins().imul_imm(n, size_of::<StackValue<A>>() as i64);
         let top = self.fb.ins().uextend(self.ptr, top);
         let top = self.fb.ins().iadd(ra, top);
@@ -4203,14 +4457,13 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.ins().return_(&[v]);
 
         // Create block for remaining instructions.
-        if let Entry::Vacant(e) = self.labels.entry(pc) {
-            e.insert(self.fb.create_block());
-        }
+        self.get_label(pc);
 
         pc
     }
 
     pub unsafe fn return0(&mut self, _: u32, pc: usize) -> usize {
+        let base = self.get_base();
         let ci = self.fb.use_var(self.ci);
 
         // Get top.
@@ -4218,8 +4471,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .fb
             .ins()
             .iconst(self.ptr, size_of::<StackValue<A>>() as i64);
-        let top = self.fb.use_var(self.base);
-        let top = self.fb.ins().isub(top, v);
+        let top = self.fb.ins().isub(base, v);
 
         // Load CallInfo::nresults.
         let nres = self.fb.ins().load(
@@ -4305,15 +4557,14 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.ins().return_(&[v]);
 
         // Create block for remaining instructions.
-        if let Entry::Vacant(e) = self.labels.entry(pc) {
-            e.insert(self.fb.create_block());
-        }
+        self.get_label(pc);
 
         pc
     }
 
     pub unsafe fn forloop(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let v = self.fb.ins().load(
             I8,
             MemFlags::trusted(),
@@ -4344,7 +4595,11 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let do_int = self.fb.create_block();
         let join = self.fb.create_block();
 
-        self.fb.ins().brif(v, do_int, [], join, []);
+        self.fb.append_block_param(join, self.ptr);
+
+        self.fb
+            .ins()
+            .brif(v, do_int, [], join, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(do_int);
         self.fb.seal_block(do_int);
@@ -4411,7 +4666,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let next = pc.wrapping_add_signed(-((i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1)) as isize));
         let body = self.labels.get(&next).copied().unwrap();
 
-        self.fb.ins().jump(body, []);
+        self.fb.ins().jump(body, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(float_step);
         self.fb.seal_block(float_step);
@@ -4422,14 +4677,16 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.inst_results(v)[0];
         let do_float = self.fb.create_block();
 
-        self.fb.ins().brif(v, do_float, [], join, []);
+        self.fb
+            .ins()
+            .brif(v, do_float, [], join, &[BlockArg::Value(base)]);
 
         // We need extra block to mark as cold path.
         self.fb.switch_to_block(do_float);
         self.fb.seal_block(do_float);
         self.fb.set_cold_block(do_float);
 
-        self.fb.ins().jump(body, []);
+        self.fb.ins().jump(body, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
@@ -4439,7 +4696,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn forprep(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
 
         self.update_top_from_ci();
         self.update_pc(pc);
@@ -4454,25 +4712,27 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         // Get body skip.
         let skip = pc + ((i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1)) + 1) as usize;
-        let skip = match self.labels.entry(skip) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(self.fb.create_block()),
-        };
+        let skip = self.get_label(skip);
 
         self.fb.set_cold_block(skip);
 
         // Check if skip.
-        let body = self.fb.create_block();
+        let body = self.get_label(pc);
 
-        assert!(self.labels.insert(pc, body).is_none());
-
-        self.fb.ins().brif(v, skip, [], body, []);
+        self.fb.ins().brif(
+            v,
+            skip,
+            &[BlockArg::Value(base)],
+            body,
+            &[BlockArg::Value(base)],
+        );
 
         pc
     }
 
     pub unsafe fn setlist(&mut self, i: u32, mut pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let last = i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8);
         let n = i >> 7 + 8 + 1 & !(!(0u32) << 8);
         let n = if n == 0 {
@@ -4563,7 +4823,11 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let copy = self.fb.create_block();
         let end = self.fb.create_block();
 
-        self.fb.ins().brif(v, copy, [], end, []);
+        self.fb.append_block_param(end, self.ptr);
+
+        self.fb
+            .ins()
+            .brif(v, copy, [], end, &[BlockArg::Value(base)]);
 
         self.fb.switch_to_block(copy);
         self.fb.seal_block(copy);
@@ -4630,7 +4894,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     pub unsafe fn closure(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
 
         // Load Proto::p.
         let p = self.fb.use_var(self.p);
@@ -4654,7 +4919,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Invoke pushclosure.
         let td = self.fb.use_var(self.td);
         let f = self.fb.use_var(self.f);
-        let base = self.fb.use_var(self.base);
 
         self.fb.ins().call(self.pushclosure, &[td, p, f, base, ra]);
 
@@ -4669,13 +4933,23 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Trigger GC.
         self.fb.ins().call(self.gc, &[td]);
 
-        self.update_base_stack();
+        // Load new base stack.
+        let base = self.load_base_stack();
+        let next = self.fb.create_block();
+
+        self.fb.append_block_param(next, self.ptr);
+
+        self.fb.ins().jump(next, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(next);
+        self.fb.seal_block(next);
 
         pc
     }
 
     pub unsafe fn vararg(&mut self, i: u32, pc: usize) -> usize {
-        let ra = self.get_reg(i >> 7 & !(!(0u32) << 8));
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let n = (i >> 0 + 7 + 8 + 1 + 8 & !(!(0u32) << 8)) as i32 - 1;
         let n = self.fb.ins().iconst(I32, i64::from(n));
 
@@ -4690,7 +4964,17 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.ins().call(self.getvarargs, &[td, ci, ra, n, ret]);
 
         self.return_on_err(false);
-        self.update_base_stack();
+
+        // Load new base stack.
+        let base = self.load_base_stack();
+        let next = self.fb.create_block();
+
+        self.fb.append_block_param(next, self.ptr);
+
+        self.fb.ins().jump(next, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(next);
+        self.fb.seal_block(next);
 
         pc
     }
@@ -4722,20 +5006,36 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .call(self.adjustvarargs, &[td, nfixparams, ci, proto, ret]);
 
         self.return_on_err(false);
-        self.update_base_stack();
+
+        // Load new base stack.
+        let base = self.load_base_stack();
+        let next = self.fb.create_block();
+
+        self.fb.append_block_param(next, self.ptr);
+
+        self.fb.ins().jump(next, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(next);
+        self.fb.seal_block(next);
 
         pc
     }
 
     pub unsafe fn label(&mut self, _: u32, pc: usize) -> usize {
-        if let Entry::Vacant(e) = self.labels.entry(pc) {
-            e.insert(self.fb.create_block());
-        }
+        self.get_label(pc);
 
         pc
     }
 
-    fn finishget_with_key_parts(&mut self, i: u32, pc: usize, tab: Value, kt: Value, kv: Value) {
+    #[must_use]
+    fn finishget_with_key_parts(
+        &mut self,
+        i: u32,
+        pc: usize,
+        tab: Value,
+        kt: Value,
+        kv: Value,
+    ) -> Value {
         let key = self.values[0];
 
         self.fb
@@ -4748,10 +5048,11 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Invoke luaV_finishget.
         let key = self.fb.ins().stack_addr(self.ptr, key, 0);
 
-        self.finishget(i, pc, tab, key);
+        self.finishget(i, pc, tab, key)
     }
 
-    fn finishget(&mut self, i: u32, pc: usize, tab: Value, key: Value) {
+    #[must_use]
+    fn finishget(&mut self, i: u32, pc: usize, tab: Value, key: Value) -> Value {
         self.update_top_from_ci();
         self.update_pc(pc);
 
@@ -4767,9 +5068,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .call(self.finishget, &[td, tab, key, props_tried, out, ret]);
 
         self.return_on_err(true);
-        self.update_base_stack();
 
         // Write output register.
+        let base = self.load_base_stack();
         let tt = self
             .fb
             .ins()
@@ -4778,7 +5079,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .fb
             .ins()
             .stack_load(I64, val, offset_of!(UnsafeValue<A>, value_) as i32);
-        let base = self.fb.use_var(self.base);
         let ra = self.fb.ins().iadd_imm(
             base,
             ((i >> 7 & !(!(0u32) << 8)) * size_of::<StackValue<A>>() as u32) as i64,
@@ -4797,6 +5097,8 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             ra,
             offset_of!(StackValue<A>, value_) as i32,
         );
+
+        base
     }
 
     fn return_on_err(&mut self, success_is_cold: bool) {
@@ -4830,7 +5132,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         }
     }
 
-    /// Returns a block to resume the future. The caller must not seal this block.
+    /// Returns an unsealed block to resume the future.
     ///
     /// This can only be called after [Self::return_on_err()].
     #[must_use]
@@ -4869,9 +5171,20 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.ins().return_(&[ret]);
 
         // Create resume block.
-        let resume = self.fb.create_block();
+        let load_base = self.fb.create_block();
 
-        self.resumes.push(self.fb.func.dfg.block_call(resume, []));
+        self.resumes
+            .push(self.fb.func.dfg.block_call(load_base, []));
+
+        self.fb.switch_to_block(load_base);
+
+        // Load base stack.
+        let resume = self.fb.create_block();
+        let base = self.load_base_stack();
+
+        self.fb.append_block_param(resume, self.ptr);
+
+        self.fb.ins().jump(resume, &[BlockArg::Value(base)]);
 
         resume
     }
@@ -4955,7 +5268,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     /// `base = th.stack.get().add((*ci).func + 1)`.
-    fn update_base_stack(&mut self) {
+    fn load_base_stack(&mut self) -> Value {
         // Get CallInfo::func.
         let v = self.fb.use_var(self.ci);
         let f = self.fb.ins().load(
@@ -4976,10 +5289,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             offset_of!(Thread<A>, stack) as i32,
         );
 
-        // Update base stack.
-        let v = self.fb.ins().iadd(v, f);
-
-        self.fb.def_var(self.base, v);
+        self.fb.ins().iadd(v, f)
     }
 
     unsafe fn load_num_as_float(&mut self, ptr: Value, not_num: Block, args: &[BlockArg]) -> Value {
@@ -5093,12 +5403,34 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     /// Returns a pointer to target register.
-    unsafe fn get_reg(&mut self, idx: u32) -> Value {
-        let base = self.fb.use_var(self.base);
-
+    unsafe fn get_reg(&mut self, base: Value, idx: u32) -> Value {
         self.fb
             .ins()
             .iadd_imm(base, (idx * size_of::<StackValue<A>>() as u32) as i64)
+    }
+
+    /// This method can only be called at the beginning of each Lua instruction.
+    fn get_base(&mut self) -> Value {
+        let b = self.fb.current_block().unwrap();
+
+        self.fb.block_params(b)[0]
+    }
+
+    fn get_label(&mut self, pc: usize) -> Block {
+        // Check if exists.
+        let e = match self.labels.entry(pc) {
+            Entry::Occupied(e) => return *e.get(),
+            Entry::Vacant(e) => e,
+        };
+
+        // Create new label.
+        let b = self.fb.create_block();
+
+        self.fb.append_block_param(b, self.ptr);
+
+        e.insert(b);
+
+        b
     }
 }
 
