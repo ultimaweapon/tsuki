@@ -2097,6 +2097,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(check_float);
         self.fb.seal_block(check_float);
+        self.fb.set_cold_block(check_float);
 
         // Check if float.
         let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 1 << 4);
@@ -2111,6 +2112,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(float_add);
         self.fb.seal_block(float_add);
+        self.fb.set_cold_block(float_add);
 
         // Load float.
         let v = self.fb.ins().load(
@@ -2150,6 +2152,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(not_num);
         self.fb.seal_block(not_num);
+        self.fb.set_cold_block(not_num);
 
         pc
     }
@@ -2842,7 +2845,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .call(self.trybinTM, &[td, ra, rb, tm, out, ret]);
 
-        self.return_on_err(false);
+        self.return_on_err(true);
 
         // Load base stack.
         let base = self.load_base_stack();
@@ -2854,6 +2857,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(resume);
         self.fb.seal_block(resume);
+        self.fb.set_cold_block(resume);
 
         // Set output type.
         let pi = self.code[pc - 2];
@@ -2909,7 +2913,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .call(self.trybiniTM, &[td, ra, imm, flip, tm, out, ret]);
 
-        self.return_on_err(false);
+        self.return_on_err(true);
 
         // Load new base stack.
         let base = self.load_base_stack();
@@ -2921,6 +2925,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(resume);
         self.fb.seal_block(resume);
+        self.fb.set_cold_block(resume);
 
         // Set output type.
         let pi = self.code[pc - 2];
@@ -2980,7 +2985,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .ins()
             .call(self.trybinassocTM, &[td, ra, imm, flip, tm, out, ret]);
 
-        self.return_on_err(false);
+        self.return_on_err(true);
 
         // Load new base stack.
         let base = self.load_base_stack();
@@ -2992,6 +2997,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(resume);
         self.fb.seal_block(resume);
+        self.fb.set_cold_block(resume);
 
         // Set output register.
         let out = self.get_reg(base, pi >> 7 & !(!(0u32) << 8));
