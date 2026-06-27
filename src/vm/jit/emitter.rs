@@ -3463,6 +3463,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(check_num);
         self.fb.seal_block(check_num);
+        self.fb.set_cold_block(check_num);
 
         // Check if RA number.
         let v = self.fb.ins().band_imm(ta, 0xf);
@@ -3474,6 +3475,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(check_rb);
         self.fb.seal_block(check_rb);
+        self.fb.set_cold_block(check_rb);
 
         // Check if RB number.
         let v = self.fb.ins().band_imm(tb, 0xf);
@@ -3484,6 +3486,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(cmp_num);
         self.fb.seal_block(cmp_num);
+        self.fb.set_cold_block(cmp_num);
 
         // Invoke LEnum.
         let v = self.fb.ins().call(self.LEnum, &[ra, rb]);
@@ -3495,6 +3498,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(not_num);
         self.fb.seal_block(not_num);
+        self.fb.set_cold_block(not_num);
 
         self.update_top_from_ci();
         self.update_pc(pc);
@@ -3505,7 +3509,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.ins().call(self.lessequalothers, &[td, ra, rb, ret]);
         let v = self.fb.inst_results(v)[0];
 
-        self.return_on_err(false);
+        self.return_on_err(true);
 
         // Get new base stack.
         let base = self.load_base_stack();
@@ -3522,6 +3526,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let join = self.fb.create_block();
 
         self.fb.append_block_param(join, self.ptr);
+        self.fb.set_cold_block(join);
 
         // Check result.
         let &[base, cond] = self.fb.block_params(check_res).as_array().unwrap();
