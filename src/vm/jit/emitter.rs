@@ -3904,6 +3904,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(check_float);
         self.fb.seal_block(check_float);
+        self.fb.set_cold_block(check_float);
 
         // Check if float.
         let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 1 << 4);
@@ -3914,6 +3915,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(cmp_float);
         self.fb.seal_block(cmp_float);
+        self.fb.set_cold_block(cmp_float);
 
         // Load float.
         let lhs = self.fb.ins().load(
@@ -3933,6 +3935,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(invoke_mt);
         self.fb.seal_block(invoke_mt);
+        self.fb.set_cold_block(invoke_mt);
 
         self.update_top_from_ci();
         self.update_pc(pc);
@@ -3953,7 +3956,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .call(self.callorderiTM, &[td, ra, im, flip, isf, event, ret]);
         let v = self.fb.inst_results(v)[0];
 
-        self.return_on_err(false);
+        self.return_on_err(true);
 
         // Load new base stack.
         let base = self.load_base_stack();
@@ -3970,6 +3973,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let join = self.fb.create_block();
 
         self.fb.append_block_param(join, self.ptr);
+        self.fb.set_cold_block(join);
 
         // Check result.
         let &[base, cond] = self.fb.block_params(check_res).as_array().unwrap();
