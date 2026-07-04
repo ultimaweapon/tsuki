@@ -9,9 +9,9 @@ use super::{
     OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI,
     OP_JMP, OP_LABEL, OP_LE, OP_LEN, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL,
     OP_LOADTRUE, OP_LT, OP_LTI, OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MODK, OP_MOVE, OP_MUL, OP_MULK,
-    OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST,
-    OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_TEST, OP_VARARG, OP_VARARGPREP,
-    luaV_equalobj, luaV_finishget, luaV_finishset, luaV_objlen,
+    OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_RETURN1, OP_SELF, OP_SETFIELD, OP_SETI,
+    OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_TEST, OP_VARARG,
+    OP_VARARGPREP, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_objlen,
 };
 use crate::gc::Object;
 use crate::ldo::luaD_poscall;
@@ -179,6 +179,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_TAILCALL => emit.tailcall(i, pc),
             OP_RETURN => emit.return_(i, pc),
             OP_RETURN0 => emit.return0(i, pc),
+            OP_RETURN1 => emit.return1(i, pc),
             OP_FORLOOP => emit.forloop(i, pc),
             OP_FORPREP => emit.forprep(i, pc),
             OP_SETLIST => emit.setlist(i, pc),

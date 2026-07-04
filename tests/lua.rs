@@ -15,7 +15,6 @@ fn close() {
 }
 
 #[test]
-#[cfg_attr(feature = "jit", ignore = "need unimplemented instructions")]
 fn closure() {
     run("closure.lua", |_| {}).unwrap();
 }

@@ -99,7 +99,7 @@ pub const iABC: OpMode = 0;
 type c_int = i32;
 type c_uint = u32;
 
-pub static mut luaP_opmodes: [u8; 83] = [
+pub static mut luaP_opmodes: [u8; NOP] = [
     ((0 as c_int) << 7 as c_int
         | (0 as c_int) << 6 as c_int
         | (0 as c_int) << 5 as c_int
@@ -598,4 +598,15 @@ pub static mut luaP_opmodes: [u8; 83] = [
         | (0 as c_int) << 4 as c_int
         | (0 as c_int) << 3 as c_int
         | iAx as c_int) as u8,
+    #[cfg(feature = "jit")]
+    opmode(0, 0, 0, 0, 0, iAx as u8), // OP_LABEL
 ];
+
+const fn opmode(mm: u8, ot: u8, it: u8, t: u8, a: u8, m: u8) -> u8 {
+    (mm << 7) | (ot << 6) | (it << 5) | (t << 4) | (a << 3) | m
+}
+
+const NOP: usize = cfg_select! {
+    feature = "jit" => 84,
+    not(feature = "jit") => 83,
+};

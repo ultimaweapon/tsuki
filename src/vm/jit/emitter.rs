@@ -4720,6 +4720,146 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         pc
     }
 
+    pub unsafe fn return1(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let v = self
+            .fb
+            .ins()
+            .iconst(self.ptr, size_of::<StackValue<A>>() as i64);
+        let ret = self.fb.ins().isub(base, v);
+
+        // Load CallInfo::nresults.
+        let ci = self.fb.use_var(self.ci);
+        let nres = self.fb.ins().load(
+            I16,
+            MemFlags::trusted(),
+            ci,
+            offset_of!(CallInfo, nresults) as i32,
+        );
+
+        // Check number of results.
+        let fill = self.fb.create_block();
+        let exit = self.fb.create_block();
+
+        self.fb.append_block_param(exit, self.ptr);
+
+        self.fb
+            .ins()
+            .brif(nres, fill, [], exit, &[BlockArg::Value(ret)]);
+
+        self.fb.switch_to_block(fill);
+        self.fb.seal_block(fill);
+
+        // Set result type.
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ret,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Set result value.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ret,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Create block to move to next result.
+        let next = self.fb.create_block();
+
+        self.fb.append_block_param(next, I16);
+        self.fb.append_block_param(next, self.ptr);
+
+        self.fb
+            .ins()
+            .jump(next, &[BlockArg::Value(nres), BlockArg::Value(ret)]);
+
+        self.fb.switch_to_block(next);
+
+        // Check if done.
+        let &[nres, ret] = self.fb.block_params(next).as_array().unwrap();
+        let one = self.fb.ins().iconst(I16, 1);
+        let v = self.fb.ins().icmp(IntCC::SignedGreaterThan, nres, one);
+        let ret = self
+            .fb
+            .ins()
+            .iadd_imm(ret, size_of::<StackValue<A>>() as i64);
+        let fill = self.fb.create_block();
+
+        self.fb
+            .ins()
+            .brif(v, fill, [], exit, &[BlockArg::Value(ret)]);
+
+        self.fb.switch_to_block(fill);
+        self.fb.seal_block(fill);
+
+        // Set nil.
+        let v = self.fb.ins().iconst(I8, 0 | 0 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ret,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Decrease remaining.
+        let nres = self.fb.ins().isub(nres, one);
+
+        self.fb
+            .ins()
+            .jump(next, &[BlockArg::Value(nres), BlockArg::Value(ret)]);
+        self.fb.seal_block(next);
+
+        self.fb.switch_to_block(exit);
+        self.fb.seal_block(exit);
+
+        // Set new top.
+        let top = self.fb.block_params(exit)[0];
+
+        self.set_top(top);
+
+        // Set Thread::ci.
+        let td = self.fb.use_var(self.td);
+        let v = self.fb.ins().load(
+            self.ptr,
+            MemFlags::trusted(),
+            ci,
+            offset_of!(CallInfo, previous) as i32,
+        );
+
+        self.fb
+            .ins()
+            .store(MemFlags::trusted(), v, td, offset_of!(Thread<A>, ci) as i32);
+
+        // Emit return.
+        let v = self.fb.ins().iconst(I8, i64::from(Status::Finished));
+
+        self.fb.ins().return_(&[v]);
+
+        // Create block for remaining instructions.
+        self.get_label(pc);
+
+        pc
+    }
+
     pub unsafe fn forloop(&mut self, i: u32, pc: usize) -> usize {
         let base = self.get_base();
         let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
