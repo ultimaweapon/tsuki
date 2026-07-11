@@ -66,6 +66,7 @@ pub struct Emitter<'a, 'b, A> {
     lessthanothers: FuncRef,
     lessequalothers: FuncRef,
     objlen: FuncRef,
+    concat: FuncRef,
     closeupval: FuncRef,
     trybinTM: FuncRef,
     trybiniTM: FuncRef,
@@ -292,6 +293,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 None,
                 super::objlen::<A> as *const u8,
             ),
+            concat: rust.import(fb, &[ptr, I8, ptr], None, super::concat::<A> as *const u8),
             closeupval: rust.import(fb, &[ptr, ptr], None, luaF_closeupval::<A> as *const u8),
             trybinTM: rust.import(
                 fb,
@@ -522,6 +524,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let skip = self.get_label(pc + 1);
 
         self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
+
+        // Create block for next instructions.
+        self.get_label(pc);
 
         pc
     }
@@ -3151,6 +3156,43 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             ra,
             offset_of!(StackValue<A>, value_) as i32,
         );
+
+        pc
+    }
+
+    pub unsafe fn concat(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let n = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as usize;
+        let top = self
+            .fb
+            .ins()
+            .iadd_imm(ra, (size_of::<StackValue<A>>() * n) as i64);
+
+        self.set_top(top);
+        self.update_pc(pc);
+
+        // Invoke luaV_concat.
+        let td = self.fb.use_var(self.td);
+        let n = self.fb.ins().iconst(I8, n as i64);
+        let ret = self.fb.use_var(self.ret);
+
+        self.fb.ins().call(self.concat, &[td, n, ret]);
+
+        self.return_on_err(false);
+
+        self.fb.ins().call(self.gc, &[td]);
+
+        // Load new base stack.
+        let base = self.load_base_stack();
+        let join = self.fb.create_block();
+
+        self.fb.append_block_param(join, self.ptr);
+
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
 
         pc
     }

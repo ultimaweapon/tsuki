@@ -23,8 +23,8 @@ use crate::vm::{
     OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADKX, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI, OP_MMBIN,
     OP_MMBINI, OP_MMBINK, OP_MOVE, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_RETURN1, OP_SELF,
     OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_SHLI, OP_SHRI,
-    OP_TEST, OP_TESTSET, OP_UNM, OpCode, luaP_opmodes, luaV_equalobj, luaV_flttointeger,
-    luaV_tointegerns,
+    OP_TEST, OP_TESTSET, OP_UNM, OpCode, luaV_equalobj, luaV_flttointeger, luaV_tointegerns,
+    opmodes,
 };
 use crate::{ArithError, Float, Ops, ParseError, Str};
 use core::ffi::c_void;
@@ -328,13 +328,8 @@ pub unsafe fn luaK_getlabel<D>(fs: *mut FuncState<D>) -> c_int {
 
 unsafe fn getjumpcontrol<D>(fs: *mut FuncState<D>, pc: c_int) -> *mut u32 {
     let pi: *mut u32 = &mut *((*(*fs).f).code).offset(pc as isize) as *mut u32;
-    if pc >= 1 as c_int
-        && luaP_opmodes[(*pi.offset(-(1 as c_int as isize)) >> 0 as c_int
-            & !(!(0 as c_int as u32) << 7 as c_int) << 0 as c_int) as OpCode
-            as usize] as c_int
-            & (1 as c_int) << 4 as c_int
-            != 0
-    {
+
+    if pc >= 1 && opmodes[(*pi.offset(-1) & !(!(0u32) << 7)) as usize] & 1 << 4 != 0 {
         return pi.offset(-(1 as c_int as isize));
     } else {
         return pi;

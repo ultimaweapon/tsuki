@@ -5,13 +5,14 @@ pub(self) use self::rust::*;
 
 use self::emitter::Emitter;
 use super::{
-    OP_ADD, OP_ADDI, OP_CALL, OP_CLOSE, OP_CLOSURE, OP_DIVK, OP_EQ, OP_EQI, OP_EQK, OP_FORLOOP,
-    OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI,
-    OP_JMP, OP_LABEL, OP_LE, OP_LEN, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL,
-    OP_LOADTRUE, OP_LT, OP_LTI, OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MODK, OP_MOVE, OP_MUL, OP_MULK,
-    OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_RETURN1, OP_SELF, OP_SETFIELD, OP_SETI,
-    OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_TEST, OP_VARARG,
-    OP_VARARGPREP, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_objlen,
+    OP_ADD, OP_ADDI, OP_CALL, OP_CLOSE, OP_CLOSURE, OP_CONCAT, OP_DIVK, OP_EQ, OP_EQI, OP_EQK,
+    OP_FORLOOP, OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL,
+    OP_GTI, OP_JMP, OP_LABEL, OP_LE, OP_LEN, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK,
+    OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI, OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MODK, OP_MOVE,
+    OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_RETURN1, OP_SELF, OP_SETFIELD,
+    OP_SETI, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_TEST,
+    OP_VARARG, OP_VARARGPREP, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset,
+    luaV_objlen,
 };
 use crate::gc::Object;
 use crate::ldo::luaD_poscall;
@@ -163,6 +164,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_MMBINK => emit.mmbink(i, pc),
             OP_NOT => emit.not(i, pc),
             OP_LEN => emit.len(i, pc),
+            OP_CONCAT => emit.concat(i, pc),
             OP_CLOSE => emit.close(i, pc),
             OP_TBC => emit.tbc(i, pc),
             OP_JMP => emit.jmp(i, pc),
@@ -683,6 +685,12 @@ unsafe extern "C-unwind" fn objlen<A>(
     match luaV_objlen(&*td, v) {
         Ok(v) => out.write(v),
         Err(e) => (*ret).set_error(e),
+    }
+}
+
+unsafe extern "C-unwind" fn concat<A>(td: *const Thread<A>, total: u8, ret: *mut Error) {
+    if let Err(e) = luaV_concat(&*td, total.into()) {
+        (*ret).set_error(e);
     }
 }
 

@@ -807,14 +807,14 @@ unsafe fn eq_mt<A>(
 unsafe fn copy2buff<A>(
     th: *const Thread<A>,
     top: *mut StackValue<A>,
-    mut n: c_int,
+    mut n: usize,
     len: usize,
 ) -> *const Str<A> {
     let mut buf = Vec::with_capacity(len);
     let mut bytes = false;
 
     loop {
-        let st = (*top.offset(-(n as isize))).value_.gc.cast::<Str<A>>();
+        let st = (*top.sub(n)).value_.gc.cast::<Str<A>>();
 
         buf.extend_from_slice((*st).as_bytes());
         bytes |= match (*st).ty.get() {
@@ -837,10 +837,11 @@ unsafe fn copy2buff<A>(
     .unwrap_or_else(identity)
 }
 
-#[inline(never)]
-pub unsafe fn luaV_concat<A>(
+#[cfg_attr(feature = "jit", inline(always))]
+#[cfg_attr(not(feature = "jit"), inline(never))]
+unsafe fn luaV_concat<A>(
     L: &Thread<A>,
-    mut total: c_int,
+    mut total: usize,
 ) -> Result<(), Box<dyn core::error::Error>> {
     if total == 1 {
         return Ok(());
@@ -848,7 +849,7 @@ pub unsafe fn luaV_concat<A>(
 
     loop {
         let top = (*L).top.get();
-        let mut n: c_int = 2 as c_int;
+        let mut n = 2;
 
         if !((*top.offset(-2)).tt_ & 0xf == 4 || (*top.offset(-2)).tt_ & 0xf == 3)
             || !((*top.offset(-1)).tt_ & 0xf == 4
@@ -901,13 +902,12 @@ pub unsafe fn luaV_concat<A>(
         } else {
             let mut tl = (*((*top.offset(-1)).value_.gc as *mut Str<A>)).len;
 
-            n = 1 as c_int;
+            n = 1;
+
             while n < total
-                && ((*top.offset(-(n as isize)).offset(-(1 as c_int as isize))).tt_ as c_int
-                    & 0xf as c_int
-                    == 4 as c_int
-                    || (*top.offset(-(n as isize)).offset(-1)).tt_ & 0xf == 3 && {
-                        let v = top.offset(-(n as isize)).offset(-1);
+                && ((*top.sub(n).offset(-1)).tt_ & 0xf == 4
+                    || (*top.sub(n).offset(-1)).tt_ & 0xf == 3 && {
+                        let v = top.sub(n).offset(-1);
                         let s = if (*v).tt_ & 0x3f == 0x03 {
                             (*v).value_.i.to_string()
                         } else {
@@ -921,10 +921,7 @@ pub unsafe fn luaV_concat<A>(
                         true
                     })
             {
-                let l = (*((*top.offset(-(n as isize)).offset(-(1 as c_int as isize)))
-                    .value_
-                    .gc as *mut Str<A>))
-                    .len;
+                let l = (*((*top.sub(n).offset(-1)).value_.gc as *mut Str<A>)).len;
 
                 if ((l
                     >= (if (::core::mem::size_of::<usize>() as c_ulong)
@@ -947,16 +944,17 @@ pub unsafe fn luaV_concat<A>(
             }
 
             let ts = copy2buff(L, top, n, tl);
-            let io = top.offset(-(n as isize));
+            let io = top.sub(n);
 
             (*io).value_.gc = ts.cast();
             (*io).tt_ = ((*ts).hdr.tt as c_int | (1 as c_int) << 6) as u8;
         }
 
-        total -= n - 1 as c_int;
-        (*L).top.sub((n - 1).try_into().unwrap());
+        total -= n - 1;
 
-        if !(total > 1 as c_int) {
+        (*L).top.sub(n - 1);
+
+        if !(total > 1) {
             break Ok(());
         }
     }

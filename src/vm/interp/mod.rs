@@ -2378,11 +2378,9 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    let n_1: c_int = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
-                        & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
-                        as c_int;
+                    let n_1: c_int = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as usize;
 
-                    (*th).top.set(ra_51.offset(n_1 as isize));
+                    (*th).top.set(ra_51.add(n_1));
                     (*ci).pc = pc;
 
                     luaV_concat(th, n_1)?;

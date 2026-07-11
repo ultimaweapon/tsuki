@@ -9,7 +9,7 @@ use crate::ltm::{
     luaT_objtypename,
 };
 use crate::value::UnsafeValue;
-use crate::vm::{F2Ieq, OpCode, luaP_opmodes, luaV_tointegerns};
+use crate::vm::{F2Ieq, OpCode, luaV_tointegerns, opmodes};
 use crate::{Lua, LuaFn, Object, StackValue, Str, Thread};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
@@ -224,19 +224,17 @@ unsafe fn filterpc(pc: c_int, jmptarget: c_int) -> c_int {
     };
 }
 
-unsafe fn findsetreg<D>(p: *const Proto<D>, mut lastpc: c_int, reg: c_int) -> c_int {
+unsafe fn findsetreg<A>(p: *const Proto<A>, mut lastpc: c_int, reg: c_int) -> c_int {
     let mut pc: c_int = 0;
     let mut setreg: c_int = -(1 as c_int);
     let mut jmptarget: c_int = 0 as c_int;
-    if luaP_opmodes[(*((*p).code).offset(lastpc as isize) >> 0 as c_int
-        & !(!(0 as c_int as u32) << 7 as c_int) << 0 as c_int) as OpCode
-        as usize] as c_int
-        & (1 as c_int) << 7 as c_int
-        != 0
-    {
+
+    if opmodes[(*((*p).code).offset(lastpc as isize) & !(!(0u32) << 7)) as usize] & 1 << 7 != 0 {
         lastpc -= 1;
     }
+
     pc = 0 as c_int;
+
     while pc < lastpc {
         let i: u32 = *((*p).code).offset(pc as isize);
         let op: OpCode =
@@ -244,6 +242,7 @@ unsafe fn findsetreg<D>(p: *const Proto<D>, mut lastpc: c_int, reg: c_int) -> c_
         let a: c_int = (i >> 0 as c_int + 7 as c_int
             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int) as c_int;
         let mut change: c_int = 0;
+
         match op as c_uint {
             8 => {
                 let b: c_int = (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
@@ -270,16 +269,16 @@ unsafe fn findsetreg<D>(p: *const Proto<D>, mut lastpc: c_int, reg: c_int) -> c_
                 }
                 change = 0 as c_int;
             }
-            _ => {
-                change = (luaP_opmodes[op as usize] as c_int & (1 as c_int) << 3 as c_int != 0
-                    && reg == a) as c_int;
-            }
+            _ => change = (opmodes[op as usize] & 1 << 3 != 0 && reg == a) as c_int,
         }
+
         if change != 0 {
             setreg = filterpc(pc, jmptarget);
         }
+
         pc += 1;
     }
+
     return setreg;
 }
 
