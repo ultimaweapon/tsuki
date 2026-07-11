@@ -2378,7 +2378,7 @@ pub async unsafe fn run<A>(
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
                             as c_int as isize,
                     );
-                    let n_1: c_int = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as usize;
+                    let n_1 = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as usize;
 
                     (*th).top.set(ra_51.add(n_1));
                     (*ci).pc = pc;
