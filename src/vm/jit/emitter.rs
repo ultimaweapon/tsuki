@@ -67,6 +67,7 @@ pub struct Emitter<'a, 'b, A> {
     lessequalothers: FuncRef,
     objlen: FuncRef,
     concat: FuncRef,
+    tointegerns: FuncRef,
     closeupval: FuncRef,
     trybinTM: FuncRef,
     trybiniTM: FuncRef,
@@ -294,6 +295,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
                 super::objlen::<A> as *const u8,
             ),
             concat: rust.import(fb, &[ptr, I8, ptr], None, super::concat::<A> as *const u8),
+            tointegerns: rust.import(
+                fb,
+                &[ptr, ptr],
+                Some(I8),
+                super::tointegerns::<A> as *const u8,
+            ),
             closeupval: rust.import(fb, &[ptr, ptr], None, luaF_closeupval::<A> as *const u8),
             trybinTM: rust.import(
                 fb,
@@ -656,8 +663,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let base = self.get_base();
         let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
         let k = self.load_const(
+            self.ptr,
             i >> 24 & !(!(0u32) << 8),
-            offset_of!(UnsafeValue<A>, value_),
+            offset_of!(UnsafeValue<A>, value_.gc),
         );
 
         // Load table type.
@@ -2584,6 +2592,111 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
+
+        pc
+    }
+
+    pub unsafe fn bork(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
+
+        // Load type of v1.
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            v1,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // The value should be interger for majority of the cases.
+        let i1 = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            v1,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Check if integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 0 << 4);
+        let or = self.fb.create_block();
+        let convert_float = self.fb.create_block();
+
+        self.fb.append_block_param(or, I64);
+
+        self.fb
+            .ins()
+            .brif(v, or, &[BlockArg::Value(i1)], convert_float, []);
+
+        self.fb.switch_to_block(convert_float);
+        self.fb.seal_block(convert_float);
+
+        // Get buffer to store output of luaV_tointegerns.
+        let out = self.fb.ins().stack_addr(
+            self.ptr,
+            self.values[0],
+            offset_of!(UnsafeValue<A>, value_.i) as i32,
+        );
+
+        // Invoke luaV_tointegerns.
+        let v = self.fb.ins().call(self.tointegerns, &[v1, out]);
+        let v = self.fb.inst_results(v)[0];
+        let load_int = self.fb.create_block();
+        let call_mt = self.fb.create_block();
+
+        self.fb.append_block_param(call_mt, self.ptr);
+
+        self.fb
+            .ins()
+            .brif(v, load_int, [], call_mt, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(load_int);
+        self.fb.seal_block(load_int);
+
+        // Load converted integer.
+        let v = self.fb.ins().load(I64, MemFlags::trusted(), out, 0);
+
+        self.fb.ins().jump(or, &[BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(or);
+        self.fb.seal_block(or);
+
+        // Load v2.
+        let i1 = self.fb.block_params(or)[0];
+        let i2 = self.load_const(
+            I64,
+            i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8),
+            offset_of!(UnsafeValue<A>, value_.i),
+        );
+
+        // Set output type.
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let v = self.fb.ins().iconst(I8, 3 | 0 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Set output value.
+        let v = self.fb.ins().bor(i1, i2);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Skip metamethod call.
+        let skip = self.get_label(pc + 1);
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
+
+        // Next instruction is metamethod call.
+        self.fb.switch_to_block(call_mt);
+        self.fb.seal_block(call_mt);
 
         pc
     }
@@ -5702,11 +5815,11 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
     }
 
     /// Load constant value.
-    unsafe fn load_const(&mut self, idx: u32, off: usize) -> Value {
+    unsafe fn load_const(&mut self, ty: Type, idx: u32, off: usize) -> Value {
         let k = self.fb.use_var(self.k);
 
         self.fb.ins().load(
-            self.ptr,
+            ty,
             MemFlags::trusted().with_can_move(),
             k,
             (idx as usize * size_of::<UnsafeValue<A>>() + off) as i32,
