@@ -3401,6 +3401,51 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         pc
     }
 
+    pub unsafe fn eq(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let rb = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        // Invoke luaV_equalobj.
+        let td = self.fb.use_var(self.td);
+        let ret = self.fb.use_var(self.ret);
+        let cond = self.fb.ins().call(self.equalobj, &[td, ra, rb, ret]);
+        let cond = self.fb.inst_results(cond)[0];
+
+        self.return_on_err(false);
+
+        // Load new base stack.
+        let base = self.load_base_stack();
+        let skip = self.get_label(pc + 1);
+        let jump = self.fb.create_block();
+
+        self.fb.append_block_param(jump, self.ptr);
+
+        // Check result.
+        let v = self.fb.ins().icmp_imm(
+            IntCC::NotEqual,
+            cond,
+            i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
+        );
+
+        self.fb.ins().brif(
+            v,
+            skip,
+            &[BlockArg::Value(base)],
+            jump,
+            &[BlockArg::Value(base)],
+        );
+
+        // Next instruction is OP_JMP.
+        self.fb.switch_to_block(jump);
+        self.fb.seal_block(jump);
+
+        pc
+    }
+
     pub unsafe fn lt(&mut self, i: u32, pc: usize) -> usize {
         let base = self.get_base();
         let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
@@ -3714,51 +3759,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         pc
     }
 
-    pub unsafe fn eq(&mut self, i: u32, pc: usize) -> usize {
-        let base = self.get_base();
-        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
-        let rb = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
-
-        self.update_top_from_ci();
-        self.update_pc(pc);
-
-        // Invoke luaV_equalobj.
-        let td = self.fb.use_var(self.td);
-        let ret = self.fb.use_var(self.ret);
-        let cond = self.fb.ins().call(self.equalobj, &[td, ra, rb, ret]);
-        let cond = self.fb.inst_results(cond)[0];
-
-        self.return_on_err(false);
-
-        // Load new base stack.
-        let base = self.load_base_stack();
-        let skip = self.get_label(pc + 1);
-        let jump = self.fb.create_block();
-
-        self.fb.append_block_param(jump, self.ptr);
-
-        // Check result.
-        let v = self.fb.ins().icmp_imm(
-            IntCC::NotEqual,
-            cond,
-            i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
-        );
-
-        self.fb.ins().brif(
-            v,
-            skip,
-            &[BlockArg::Value(base)],
-            jump,
-            &[BlockArg::Value(base)],
-        );
-
-        // Next instruction is OP_JMP.
-        self.fb.switch_to_block(jump);
-        self.fb.seal_block(jump);
-
-        pc
-    }
-
     pub unsafe fn eqk(&mut self, i: u32, pc: usize) -> usize {
         let base = self.get_base();
         let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
@@ -4028,6 +4028,141 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         // Next instruction is OP_JMP.
         self.fb.switch_to_block(jump);
         self.fb.seal_block(jump);
+
+        pc
+    }
+
+    pub unsafe fn lei(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let im = (i >> 7 + 8 + 1 & !(!(0u32) << 8)) as i32 - ((1 << 8) - 1 >> 1);
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Check if integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 0 << 4);
+        let cmp_int = self.fb.create_block();
+        let check_float = self.fb.create_block();
+
+        self.fb.ins().brif(v, cmp_int, [], check_float, []);
+
+        self.fb.switch_to_block(cmp_int);
+        self.fb.seal_block(cmp_int);
+
+        // Load integer.
+        let lhs = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Compare integer.
+        let v = self
+            .fb
+            .ins()
+            .icmp_imm(IntCC::SignedLessThanOrEqual, lhs, i64::from(im));
+        let check_res = self.fb.create_block();
+
+        self.fb.append_block_param(check_res, self.ptr);
+        self.fb.append_block_param(check_res, I8);
+
+        self.fb
+            .ins()
+            .jump(check_res, &[BlockArg::Value(base), BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(check_float);
+        self.fb.seal_block(check_float);
+
+        // Check if float.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 1 << 4);
+        let cmp_float = self.fb.create_block();
+        let call_mt = self.fb.create_block();
+
+        self.fb.ins().brif(v, cmp_float, [], call_mt, []);
+
+        self.fb.switch_to_block(cmp_float);
+        self.fb.seal_block(cmp_float);
+
+        // Load float.
+        let lhs = self.fb.ins().load(
+            F64,
+            MemFlags::trusted(),
+            ra,
+            offset_of!(StackValue<A>, value_.n) as i32,
+        );
+
+        // Compare float.
+        let rhs = self.fb.ins().f64const(im as f64);
+        let v = self.fb.ins().fcmp(FloatCC::LessThanOrEqual, lhs, rhs);
+
+        self.fb
+            .ins()
+            .jump(check_res, &[BlockArg::Value(base), BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(call_mt);
+        self.fb.seal_block(call_mt);
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        // Invoke luaT_callorderiTM.
+        let td = self.fb.use_var(self.td);
+        let im = self.fb.ins().iconst(I32, i64::from(im));
+        let z = self.fb.ins().iconst(I32, 0);
+        let isf = self
+            .fb
+            .ins()
+            .iconst(I32, i64::from(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8)));
+        let event = self.fb.ins().iconst(I32, i64::from(TM_LE));
+        let ret = self.fb.use_var(self.ret);
+        let v = self
+            .fb
+            .ins()
+            .call(self.callorderiTM, &[td, ra, im, z, isf, event, ret]);
+        let v = self.fb.inst_results(v)[0];
+
+        self.return_on_err(false);
+
+        // Load new base stack.
+        let base = self.load_base_stack();
+
+        self.fb
+            .ins()
+            .jump(check_res, &[BlockArg::Value(base), BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(check_res);
+        self.fb.seal_block(check_res);
+
+        // Create block for next instruction.
+        let next = self.fb.create_block();
+
+        self.fb.append_block_param(next, self.ptr);
+
+        // Check result.
+        let skip = self.get_label(pc + 1);
+        let &[base, cond] = self.fb.block_params(check_res).as_array().unwrap();
+        let v = self.fb.ins().icmp_imm(
+            IntCC::NotEqual,
+            cond,
+            i64::from(i >> 7 + 8 & !(!(0u32) << 1)),
+        );
+
+        self.fb.ins().brif(
+            v,
+            skip,
+            &[BlockArg::Value(base)],
+            next,
+            &[BlockArg::Value(base)],
+        );
+
+        // Next instruction is OP_JMP.
+        self.fb.switch_to_block(next);
+        self.fb.seal_block(next);
 
         pc
     }

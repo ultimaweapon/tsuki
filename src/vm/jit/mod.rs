@@ -7,12 +7,12 @@ use self::emitter::Emitter;
 use super::{
     F2Ieq, OP_ADD, OP_ADDI, OP_BORK, OP_CALL, OP_CLOSE, OP_CLOSURE, OP_CONCAT, OP_DIVK, OP_EQ,
     OP_EQI, OP_EQK, OP_FORLOOP, OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP,
-    OP_GETUPVAL, OP_GTI, OP_JMP, OP_LABEL, OP_LE, OP_LEN, OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI,
-    OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI, OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MODK,
-    OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_RETURN1, OP_SELF,
-    OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL, OP_TBC,
-    OP_TEST, OP_VARARG, OP_VARARGPREP, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset,
-    luaV_objlen, luaV_tointegerns,
+    OP_GETUPVAL, OP_GTI, OP_JMP, OP_LABEL, OP_LE, OP_LEI, OP_LEN, OP_LFALSESKIP, OP_LOADFALSE,
+    OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI, OP_MMBIN, OP_MMBINI, OP_MMBINK,
+    OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_RETURN1,
+    OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL,
+    OP_TBC, OP_TEST, OP_VARARG, OP_VARARGPREP, luaV_concat, luaV_equalobj, luaV_finishget,
+    luaV_finishset, luaV_objlen, luaV_tointegerns,
 };
 use crate::gc::Object;
 use crate::ldo::luaD_poscall;
@@ -169,12 +169,13 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_CLOSE => emit.close(i, pc),
             OP_TBC => emit.tbc(i, pc),
             OP_JMP => emit.jmp(i, pc),
+            OP_EQ => emit.eq(i, pc),
             OP_LT => emit.lt(i, pc),
             OP_LE => emit.le(i, pc),
-            OP_EQ => emit.eq(i, pc),
             OP_EQK => emit.eqk(i, pc),
             OP_EQI => emit.eqi(i, pc),
             OP_LTI => emit.lti(i, pc),
+            OP_LEI => emit.lei(i, pc),
             OP_GTI => emit.gti(i, pc),
             OP_GEI => emit.gei(i, pc),
             OP_TEST => emit.test(i, pc),
