@@ -4,7 +4,7 @@
 Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all code are Rust and can be using without C compiler. The initial works was done by [C2Rust](https://github.com/immunant/c2rust). Note that this port was done **without** compatibility with previous Lua version. You can see a list of the differences [here](https://www.lua.org/manual/5.4/manual.html#8).
 
 > [!IMPORTANT]
-> One of the project non-goal has been dropped and it is very likely Tsuki will add some new syntaxes to Lua to boost performance on JIT.
+> One of the project non-goal has been dropped and it is very likely Tsuki will add some extensions to Lua to boost performance on JIT.
 
 ## Status
 
