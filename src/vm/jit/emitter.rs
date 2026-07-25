@@ -4801,6 +4801,68 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         pc
     }
 
+    pub unsafe fn testset(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let rb = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            rb,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Check if false or nil.
+        let skip = self.get_label(pc + 1);
+        let a = self.fb.ins().icmp_imm(IntCC::Equal, tt, 1 | 0 << 4);
+        let b = self.fb.ins().band_imm(tt, 0xf);
+        let b = self.fb.ins().icmp_imm(IntCC::Equal, b, 0);
+        let v = self.fb.ins().bor(a, b);
+        let v = self
+            .fb
+            .ins()
+            .icmp_imm(IntCC::Equal, v, i64::from(i >> 7 + 8 & !(!(0u32) << 1)));
+        let jump = self.fb.create_block();
+
+        self.fb.append_block_param(jump, self.ptr);
+
+        self.fb.ins().brif(
+            v,
+            skip,
+            &[BlockArg::Value(base)],
+            jump,
+            &[BlockArg::Value(base)],
+        );
+
+        self.fb.switch_to_block(jump);
+        self.fb.seal_block(jump);
+
+        // Move value.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            rb,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            tt,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        // Next instruction is OP_JMP.
+        pc
+    }
+
     pub unsafe fn call(&mut self, i: u32, pc: usize) -> usize {
         // Update top and PC.
         let base = self.get_base();
