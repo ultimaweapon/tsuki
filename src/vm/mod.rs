@@ -1063,7 +1063,7 @@ pub extern "C-unwind" fn luaV_modf(m: f64, n: f64) -> f64 {
 }
 
 #[inline(always)]
-pub fn luaV_shiftl(x: i64, y: i64) -> i64 {
+pub extern "C-unwind" fn luaV_shiftl(x: i64, y: i64) -> i64 {
     if y < 0 as c_int as i64 {
         if y <= -((::core::mem::size_of::<i64>() as c_ulong).wrapping_mul(8 as c_int as c_ulong)
             as c_int) as i64

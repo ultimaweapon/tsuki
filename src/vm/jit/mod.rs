@@ -11,7 +11,7 @@ use super::{
     OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI,
     OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT,
     OP_RETURN, OP_RETURN0, OP_RETURN1, OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE,
-    OP_SETTABUP, OP_SETUPVAL, OP_TAILCALL, OP_TBC, OP_TEST, OP_TESTSET, OP_UNM, OP_VARARG,
+    OP_SETTABUP, OP_SETUPVAL, OP_SHRI, OP_TAILCALL, OP_TBC, OP_TEST, OP_TESTSET, OP_UNM, OP_VARARG,
     OP_VARARGPREP, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_objlen,
     luaV_tointegerns,
 };
@@ -160,6 +160,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_MODK => emit.modk(i, pc),
             OP_DIVK => emit.divk(i, pc),
             OP_BORK => emit.bork(i, pc),
+            OP_SHRI => emit.shri(i, pc),
             OP_ADD => emit.add(i, pc),
             OP_MUL => emit.mul(i, pc),
             OP_DIV => emit.div(i, pc),

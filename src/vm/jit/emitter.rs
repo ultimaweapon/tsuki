@@ -4,7 +4,7 @@ use crate::lobject::{Proto, UpVal};
 use crate::lstate::CallInfo;
 use crate::ltm::{TM_LE, TM_LT, TM_UNM};
 use crate::value::UnsafeValue;
-use crate::vm::{LEnum, LTnum, floatforloop, luaV_modf};
+use crate::vm::{LEnum, LTnum, floatforloop, luaV_modf, luaV_shiftl};
 use crate::{
     LuaFn, StackValue, Table, Thread, UserData, luaH_get, luaH_getint, luaH_getshortstr,
     luaH_getstr, luaH_realasize, luaH_resize, luaH_resizearray,
@@ -77,6 +77,7 @@ pub struct Emitter<'a, 'b, A> {
     forprep: FuncRef,
     floatforloop: FuncRef,
     mod_f: FuncRef,
+    shift_l: FuncRef,
     mod_zero: FuncRef,
     ptr: Type,
     labels: HashMap<usize, Block>,
@@ -340,6 +341,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             ),
             floatforloop: rust.import(fb, &[ptr], Some(I8), floatforloop::<A> as *const u8),
             mod_f: rust.import(fb, &[F64, F64], Some(F64), luaV_modf as *const u8),
+            shift_l: rust.import(fb, &[I64, I64], Some(I64), luaV_shiftl as *const u8),
             mod_zero: rust.import(fb, &[ptr], None, super::mod_zero as *const u8),
             ptr,
             labels: HashMap::new(),
@@ -2808,6 +2810,105 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         // Skip metamethod call.
         let skip = self.get_label(pc + 1);
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
+
+        // Next instruction is metamethod call.
+        self.fb.switch_to_block(call_mt);
+        self.fb.seal_block(call_mt);
+
+        pc
+    }
+
+    pub unsafe fn shri(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let rb = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let ic = (i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8)) as i32 - ((1 << 8) - 1 >> 1);
+        let tt = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            rb,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Load integer.
+        let i = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            rb,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Check if integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, tt, 3 | 0 << 4);
+        let shift = self.fb.create_block();
+        let convert = self.fb.create_block();
+
+        self.fb.append_block_param(shift, I64);
+
+        self.fb
+            .ins()
+            .brif(v, shift, &[BlockArg::Value(i)], convert, []);
+
+        self.fb.switch_to_block(convert);
+        self.fb.seal_block(convert);
+
+        // Get buffer to store output of luaV_tointegerns.
+        let out = self.fb.ins().stack_addr(
+            self.ptr,
+            self.values[0],
+            offset_of!(UnsafeValue<A>, value_.i) as i32,
+        );
+
+        // Invoke luaV_tointegerns.
+        let v = self.fb.ins().call(self.tointegerns, &[rb, out]);
+        let v = self.fb.inst_results(v)[0];
+        let load_int = self.fb.create_block();
+        let call_mt = self.fb.create_block();
+
+        self.fb.append_block_param(call_mt, self.ptr);
+
+        self.fb
+            .ins()
+            .brif(v, load_int, [], call_mt, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(load_int);
+        self.fb.seal_block(load_int);
+
+        // Load converted value.
+        let v = self.fb.ins().stack_load(
+            I64,
+            self.values[0],
+            offset_of!(UnsafeValue<A>, value_.i) as i32,
+        );
+
+        self.fb.ins().jump(shift, &[BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(shift);
+        self.fb.seal_block(shift);
+
+        // Invoke luaV_shiftl.
+        let skip = self.get_label(pc + 1);
+        let v = self.fb.block_params(shift)[0];
+        let s = self.fb.ins().iconst(I64, -ic as i64);
+        let v = self.fb.ins().call(self.shift_l, &[v, s]);
+        let v = self.fb.inst_results(v)[0];
+        let t = self.fb.ins().iconst(I8, 3 | 0 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            t,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
 
         self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
 
