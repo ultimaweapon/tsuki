@@ -11,9 +11,9 @@ use super::{
     OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI,
     OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT,
     OP_RETURN, OP_RETURN0, OP_RETURN1, OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE,
-    OP_SETTABUP, OP_SETUPVAL, OP_SHRI, OP_TAILCALL, OP_TBC, OP_TEST, OP_TESTSET, OP_UNM, OP_VARARG,
-    OP_VARARGPREP, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_objlen,
-    luaV_tointegerns,
+    OP_SETTABUP, OP_SETUPVAL, OP_SHR, OP_SHRI, OP_TAILCALL, OP_TBC, OP_TEST, OP_TESTSET, OP_UNM,
+    OP_VARARG, OP_VARARGPREP, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset,
+    luaV_objlen, luaV_tointegerns,
 };
 use crate::gc::Object;
 use crate::ldo::luaD_poscall;
@@ -137,7 +137,9 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
         pc = match i & 0x7F {
             OP_MOVE => emit.move_(i, pc),
             OP_LOADI => emit.loadi(i, pc),
+            // ?
             OP_LOADK => emit.loadk(i, pc),
+            // ?
             OP_LOADFALSE => emit.loadfalse(i, pc),
             OP_LFALSESKIP => emit.lfalseskip(i, pc),
             OP_LOADTRUE => emit.loadtrue(i, pc),
@@ -156,18 +158,34 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_SELF => emit.self_(i, pc),
             OP_ADDI => emit.addi(i, pc),
             OP_ADDK => emit.addk(i, pc),
+            // ?
             OP_MULK => emit.mulk(i, pc),
             OP_MODK => emit.modk(i, pc),
+            // ?
             OP_DIVK => emit.divk(i, pc),
+            // ?
+            // ?
             OP_BORK => emit.bork(i, pc),
+            // ?
             OP_SHRI => emit.shri(i, pc),
+            // ?
             OP_ADD => emit.add(i, pc),
+            // ?
             OP_MUL => emit.mul(i, pc),
+            // ?
+            // ?
             OP_DIV => emit.div(i, pc),
+            // ?
+            // ?
+            // ?
+            // ?
+            // ?
+            OP_SHR => emit.shr(i, pc),
             OP_MMBIN => emit.mmbin(i, pc),
             OP_MMBINI => emit.mmbini(i, pc),
             OP_MMBINK => emit.mmbink(i, pc),
             OP_UNM => emit.unm(i, pc),
+            // ?
             OP_NOT => emit.not(i, pc),
             OP_LEN => emit.len(i, pc),
             OP_CONCAT => emit.concat(i, pc),
@@ -192,10 +210,14 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_RETURN1 => emit.return1(i, pc),
             OP_FORLOOP => emit.forloop(i, pc),
             OP_FORPREP => emit.forprep(i, pc),
+            // ?
+            // ?
+            // ?
             OP_SETLIST => emit.setlist(i, pc),
             OP_CLOSURE => emit.closure(i, pc),
             OP_VARARG => emit.vararg(i, pc),
             OP_VARARGPREP => emit.varargprep(i, pc),
+            // ?
             OP_LABEL => emit.label(i, pc),
             v => todo!("OP {v}"),
         };

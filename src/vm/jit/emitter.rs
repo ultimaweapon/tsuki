@@ -3206,6 +3206,175 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         pc
     }
 
+    pub unsafe fn shr(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let v2 = self.get_reg(base, i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            v1,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Pre-load integer from v1.
+        let i = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            v1,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Check if v1 integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, 3 | 0 << 4);
+        let check_v2 = self.fb.create_block();
+        let convert = self.fb.create_block();
+
+        self.fb.append_block_param(check_v2, I64);
+
+        self.fb
+            .ins()
+            .brif(v, check_v2, &[BlockArg::Value(i)], convert, []);
+
+        self.fb.switch_to_block(convert);
+        self.fb.seal_block(convert);
+
+        // Get buffer to store output of luaV_tointegerns.
+        let out = self.fb.ins().stack_addr(
+            self.ptr,
+            self.values[0],
+            offset_of!(UnsafeValue<A>, value_.i) as i32,
+        );
+
+        // Invoke luaV_tointegerns.
+        let v = self.fb.ins().call(self.tointegerns, &[v1, out]);
+        let v = self.fb.inst_results(v)[0];
+        let load = self.fb.create_block();
+        let call_mt = self.fb.create_block();
+
+        self.fb.append_block_param(call_mt, self.ptr);
+
+        self.fb
+            .ins()
+            .brif(v, load, [], call_mt, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(load);
+        self.fb.seal_block(load);
+
+        // Load converted value.
+        let v = self.fb.ins().stack_load(
+            I64,
+            self.values[0],
+            offset_of!(UnsafeValue<A>, value_.i) as i32,
+        );
+
+        self.fb.ins().jump(check_v2, &[BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(check_v2);
+        self.fb.seal_block(check_v2);
+
+        // Load type of v2.
+        let i1 = self.fb.block_params(check_v2)[0];
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            v2,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Pre-load integer from v2.
+        let i2 = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            v2,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Check if v2 integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, 3 | 0 << 4);
+        let shift = self.fb.create_block();
+        let convert = self.fb.create_block();
+
+        self.fb.append_block_param(shift, I64);
+        self.fb.append_block_param(shift, I64);
+
+        self.fb.ins().brif(
+            v,
+            shift,
+            &[BlockArg::Value(i1), BlockArg::Value(i2)],
+            convert,
+            [],
+        );
+
+        self.fb.switch_to_block(convert);
+        self.fb.seal_block(convert);
+
+        // Get buffer to store output of luaV_tointegerns.
+        let out = self.fb.ins().stack_addr(
+            self.ptr,
+            self.values[0],
+            offset_of!(UnsafeValue<A>, value_.i) as i32,
+        );
+
+        // Invoke luaV_tointegerns.
+        let v = self.fb.ins().call(self.tointegerns, &[v2, out]);
+        let v = self.fb.inst_results(v)[0];
+        let load = self.fb.create_block();
+
+        self.fb
+            .ins()
+            .brif(v, load, [], call_mt, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(load);
+        self.fb.seal_block(load);
+
+        // Load converted value.
+        let v = self.fb.ins().stack_load(
+            I64,
+            self.values[0],
+            offset_of!(UnsafeValue<A>, value_.i) as i32,
+        );
+
+        self.fb
+            .ins()
+            .jump(shift, &[BlockArg::Value(i1), BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(shift);
+        self.fb.seal_block(shift);
+
+        // Invoke luaV_shiftl.
+        let skip = self.get_label(pc + 1);
+        let &[i1, i2] = self.fb.block_params(shift).as_array().unwrap();
+        let v = self.fb.ins().iconst(I64, 0);
+        let v = self.fb.ins().isub(v, i2);
+        let v = self.fb.ins().call(self.shift_l, &[i1, v]);
+        let v = self.fb.inst_results(v)[0];
+        let t = self.fb.ins().iconst(I8, 3 | 0 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            t,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
+
+        // Next instruction is metamethod call.
+        self.fb.switch_to_block(call_mt);
+        self.fb.seal_block(call_mt);
+
+        pc
+    }
+
     pub unsafe fn mmbin(&mut self, i: u32, pc: usize) -> usize {
         let base = self.get_base();
         let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
