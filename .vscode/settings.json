@@ -10,6 +10,7 @@
   "files.trimFinalNewlines": true,
   "files.trimTrailingWhitespace": true,
   "rust-analyzer.cargo.features": "all",
+  "rust-analyzer.imports.granularity.enforce": true,
   "rust-analyzer.imports.granularity.group": "module",
   "rust-analyzer.imports.group.enable": false,
   "rust-analyzer.imports.preferNoStd": true,

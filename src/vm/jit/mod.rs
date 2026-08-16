@@ -11,8 +11,8 @@ use super::{
     OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI,
     OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT,
     OP_RETURN, OP_RETURN0, OP_RETURN1, OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE,
-    OP_SETTABUP, OP_SETUPVAL, OP_SHR, OP_SHRI, OP_TAILCALL, OP_TBC, OP_TEST, OP_TESTSET, OP_UNM,
-    OP_VARARG, OP_VARARGPREP, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset,
+    OP_SETTABUP, OP_SETUPVAL, OP_SHL, OP_SHR, OP_SHRI, OP_TAILCALL, OP_TBC, OP_TEST, OP_TESTSET,
+    OP_UNM, OP_VARARG, OP_VARARGPREP, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset,
     luaV_objlen, luaV_tointegerns,
 };
 use crate::gc::Object;
@@ -179,7 +179,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             // ?
             // ?
             // ?
-            // ?
+            OP_SHL => emit.shl(i, pc),
             OP_SHR => emit.shr(i, pc),
             OP_MMBIN => emit.mmbin(i, pc),
             OP_MMBINI => emit.mmbini(i, pc),
