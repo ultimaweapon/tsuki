@@ -2715,6 +2715,111 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         pc
     }
 
+    pub unsafe fn bandk(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let t = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            v1,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Pre-load integer from v1.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            v1,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Check if integer.
+        let c = self.fb.ins().icmp_imm(IntCC::Equal, t, 3 | 0 << 4);
+        let and = self.fb.create_block();
+        let convert = self.fb.create_block();
+
+        self.fb.append_block_param(and, I64);
+
+        self.fb
+            .ins()
+            .brif(c, and, &[BlockArg::Value(v)], convert, []);
+
+        self.fb.switch_to_block(convert);
+        self.fb.seal_block(convert);
+
+        // Get buffer to store output of luaV_tointegerns.
+        let out = self.fb.ins().stack_addr(
+            self.ptr,
+            self.values[0],
+            offset_of!(UnsafeValue<A>, value_.i) as i32,
+        );
+
+        // Invoke luaV_tointegerns.
+        let v = self.fb.ins().call(self.tointegerns, &[v1, out]);
+        let v = self.fb.inst_results(v)[0];
+        let load = self.fb.create_block();
+        let call_mt = self.fb.create_block();
+
+        self.fb.append_block_param(call_mt, self.ptr);
+
+        self.fb
+            .ins()
+            .brif(v, load, [], call_mt, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(load);
+        self.fb.seal_block(load);
+
+        // Load converted value.
+        let v = self.fb.ins().stack_load(
+            I64,
+            self.values[0],
+            offset_of!(UnsafeValue<A>, value_.i) as i32,
+        );
+
+        self.fb.ins().jump(and, &[BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(and);
+        self.fb.seal_block(and);
+
+        // Get operands.
+        let i1 = self.fb.block_params(and)[0];
+        let i2 = self.load_const(
+            I64,
+            i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8),
+            offset_of!(UnsafeValue<A>, value_.i),
+        );
+
+        // Perform AND.
+        let t = self.fb.ins().iconst(I8, 3 | 0 << 4);
+        let v = self.fb.ins().band(i1, i2);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            t,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Skip metamethod call.
+        let skip = self.get_label(pc + 1);
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
+
+        // Next instruction is metamethod call.
+        self.fb.switch_to_block(call_mt);
+        self.fb.seal_block(call_mt);
+
+        pc
+    }
+
     pub unsafe fn bork(&mut self, i: u32, pc: usize) -> usize {
         let base = self.get_base();
         let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));

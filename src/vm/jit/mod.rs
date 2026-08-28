@@ -5,8 +5,8 @@ pub(self) use self::rust::*;
 
 use self::emitter::Emitter;
 use super::{
-    F2Ieq, OP_ADD, OP_ADDI, OP_ADDK, OP_BORK, OP_CALL, OP_CLOSE, OP_CLOSURE, OP_CONCAT, OP_DIV,
-    OP_DIVK, OP_EQ, OP_EQI, OP_EQK, OP_FORLOOP, OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI,
+    F2Ieq, OP_ADD, OP_ADDI, OP_ADDK, OP_BANDK, OP_BORK, OP_CALL, OP_CLOSE, OP_CLOSURE, OP_CONCAT,
+    OP_DIV, OP_DIVK, OP_EQ, OP_EQI, OP_EQK, OP_FORLOOP, OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI,
     OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI, OP_JMP, OP_LABEL, OP_LE, OP_LEI, OP_LEN,
     OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI,
     OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT,
@@ -164,7 +164,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             // ?
             OP_DIVK => emit.divk(i, pc),
             // ?
-            // ?
+            OP_BANDK => emit.bandk(i, pc),
             OP_BORK => emit.bork(i, pc),
             // ?
             OP_SHRI => emit.shri(i, pc),
