@@ -114,7 +114,6 @@ fn userdata() {
 }
 
 #[test]
-#[cfg_attr(feature = "jit", ignore = "need unimplemented instructions")]
 fn vararg() {
     run("vararg.lua", |_| {}).unwrap();
 }

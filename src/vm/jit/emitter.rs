@@ -5696,8 +5696,9 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             // Get number of values to return.
             let ra = unsafe { self.get_reg(base, ra) };
             let n = self.fb.ins().isub(top, ra);
+            let n = self.fb.ins().udiv_imm(n, size_of::<StackValue<A>>() as i64);
 
-            self.fb.ins().imul_imm(n, size_of::<StackValue<A>>() as i64)
+            self.fb.ins().ireduce(I32, n)
         } else {
             self.fb.ins().iconst(I32, i64::from(n))
         };
