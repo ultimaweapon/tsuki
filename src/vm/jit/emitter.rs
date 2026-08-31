@@ -464,6 +464,30 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         pc
     }
 
+    pub unsafe fn loadf(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & 0xFF);
+        let t = self.fb.ins().iconst(I8, 3 | 1 << 4);
+        let b = (i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1)) as i32 - ((1 << 8 + 8 + 1) - 1 >> 1);
+        let b = self.fb.ins().f64const(b as f64);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            t,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            b,
+            ra,
+            offset_of!(StackValue<A>, value_.n) as i32,
+        );
+
+        pc
+    }
+
     pub unsafe fn loadk(&mut self, i: u32, pc: usize) -> usize {
         let base = self.get_base();
         let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));

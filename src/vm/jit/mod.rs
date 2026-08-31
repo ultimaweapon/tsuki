@@ -8,8 +8,8 @@ use super::{
     F2Ieq, OP_ADD, OP_ADDI, OP_ADDK, OP_BANDK, OP_BORK, OP_CALL, OP_CLOSE, OP_CLOSURE, OP_CONCAT,
     OP_DIV, OP_DIVK, OP_EQ, OP_EQI, OP_EQK, OP_FORLOOP, OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI,
     OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI, OP_JMP, OP_LABEL, OP_LE, OP_LEI, OP_LEN,
-    OP_LFALSESKIP, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI,
-    OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT,
+    OP_LFALSESKIP, OP_LOADF, OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_LT,
+    OP_LTI, OP_MMBIN, OP_MMBINI, OP_MMBINK, OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT,
     OP_RETURN, OP_RETURN0, OP_RETURN1, OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE,
     OP_SETTABUP, OP_SETUPVAL, OP_SHL, OP_SHR, OP_SHRI, OP_SUB, OP_TAILCALL, OP_TBC, OP_TEST,
     OP_TESTSET, OP_UNM, OP_VARARG, OP_VARARGPREP, luaV_concat, luaV_equalobj, luaV_finishget,
@@ -137,7 +137,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
         pc = match i & 0x7F {
             OP_MOVE => emit.move_(i, pc),
             OP_LOADI => emit.loadi(i, pc),
-            // ?
+            OP_LOADF => emit.loadf(i, pc),
             OP_LOADK => emit.loadk(i, pc),
             // ?
             OP_LOADFALSE => emit.loadfalse(i, pc),
