@@ -3146,6 +3146,121 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         pc
     }
 
+    pub unsafe fn sub(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let v2 = self.get_reg(base, i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            v1,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Check if v1 integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, 3 | 0 << 4);
+        let check_v2 = self.fb.create_block();
+        let check_float = self.fb.create_block();
+
+        self.fb.ins().brif(v, check_v2, [], check_float, []);
+
+        self.fb.switch_to_block(check_v2);
+        self.fb.seal_block(check_v2);
+
+        // Load type of v2.
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            v2,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Check if v2 integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, 3 | 0 << 4);
+        let sub_int = self.fb.create_block();
+
+        self.fb.ins().brif(v, sub_int, [], check_float, []);
+
+        self.fb.switch_to_block(sub_int);
+        self.fb.seal_block(sub_int);
+
+        // Load integer from v1.
+        let i1 = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            v1,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Load integer from v2.
+        let i2 = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            v2,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Sub integer.
+        let t = self.fb.ins().iconst(I8, 3 | 0 << 4);
+        let v = self.fb.ins().isub(i1, i2);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            t,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Skip metamethod call.
+        let skip = self.get_label(pc + 1);
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(check_float);
+        self.fb.seal_block(check_float);
+
+        // Create block to call metamethod.
+        let call_mt = self.fb.create_block();
+
+        self.fb.append_block_param(call_mt, self.ptr);
+
+        // Sub floats.
+        let n1 = self.load_num_as_float(v1, call_mt, &[BlockArg::Value(base)]);
+        let n2 = self.load_num_as_float(v2, call_mt, &[BlockArg::Value(base)]);
+        let t = self.fb.ins().iconst(I8, 3 | 1 << 4);
+        let v = self.fb.ins().fsub(n1, n2);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            t,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_.n) as i32,
+        );
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
+
+        // Next instruction is metamethod call.
+        self.fb.switch_to_block(call_mt);
+        self.fb.seal_block(call_mt);
+
+        pc
+    }
+
     pub unsafe fn mul(&mut self, i: u32, pc: usize) -> usize {
         let base = self.get_base();
         let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
