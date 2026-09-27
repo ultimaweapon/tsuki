@@ -33,6 +33,9 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 
 Tsuki is faster than Lua about 38% on AMD Ryzen 5 5600G and 63% on Apple M1. The performance improved from interpreter is almost 2x.
 
+> [!WARNING]
+> JIT is a beta feature. Use at your own risk.
+
 #### Async
 
 A call to async function without any suspend on Tsuki is faster than mlua about 3x. For 1 suspend Tsuki it faster about 2.5x. For 8 suspend Tsuki is faster about 2.1x.
@@ -42,7 +45,6 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 - 100% Rust code.
   - [libc](https://crates.io/crates/libc) is required at the moment.
 - Support JIT.
-  - This is a preview feature and may contains memory bugs.
 - Support both synchronous and asynchronous.
 - Safe, ergonomic and low overhead API.
 - Strongly typed registry.
