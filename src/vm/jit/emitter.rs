@@ -2,7 +2,7 @@ use super::{Error, HOST, RustFuncs, State, Status};
 use crate::lfunc::luaF_closeupval;
 use crate::lobject::{Proto, UpVal};
 use crate::lstate::CallInfo;
-use crate::ltm::{TM_LE, TM_LT, TM_UNM};
+use crate::ltm::{TM_BNOT, TM_LE, TM_LT, TM_UNM};
 use crate::value::UnsafeValue;
 use crate::vm::{LEnum, LTnum, floatforloop, luaV_modf, luaV_shiftl};
 use crate::{
@@ -4658,6 +4658,149 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             .fb
             .ins()
             .stack_load(I64, val, offset_of!(UnsafeValue<A>, value_) as i32);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_) as i32,
+        );
+
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(join);
+        self.fb.seal_block(join);
+
+        pc
+    }
+
+    pub unsafe fn bnot(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let rb = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let t = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            rb,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Pre-load integer from RB.
+        let v = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            rb,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Check if RB integer.
+        let c = self.fb.ins().icmp_imm(IntCC::Equal, t, 3 | 0 << 4);
+        let convert = self.fb.create_block();
+        let not = self.fb.create_block();
+
+        self.fb.append_block_param(not, I64);
+
+        self.fb
+            .ins()
+            .brif(c, not, &[BlockArg::Value(v)], convert, []);
+
+        self.fb.switch_to_block(convert);
+        self.fb.seal_block(convert);
+
+        // Get buffer to store output of luaV_tointegerns.
+        let out = self.fb.ins().stack_addr(
+            self.ptr,
+            self.values[0],
+            offset_of!(UnsafeValue<A>, value_.i) as i32,
+        );
+
+        // Invoke luaV_tointegerns.
+        let v = self.fb.ins().call(self.tointegerns, &[rb, out]);
+        let v = self.fb.inst_results(v)[0];
+        let load_converted = self.fb.create_block();
+        let call_mt = self.fb.create_block();
+
+        self.fb.ins().brif(v, load_converted, [], call_mt, []);
+
+        self.fb.switch_to_block(load_converted);
+        self.fb.seal_block(load_converted);
+
+        // Load converted value.
+        let v = self.fb.ins().stack_load(
+            I64,
+            self.values[0],
+            offset_of!(UnsafeValue<A>, value_.i) as i32,
+        );
+
+        self.fb.ins().jump(not, &[BlockArg::Value(v)]);
+
+        self.fb.switch_to_block(not);
+        self.fb.seal_block(not);
+
+        // Perform NOT.
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let ib = self.fb.block_params(not)[0];
+        let t = self.fb.ins().iconst(I8, 3 | 0 << 4);
+        let v = self.fb.ins().iconst(I64, u64::MAX as i64);
+        let v = self.fb.ins().bxor(v, ib);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            t,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Jump to next instruction.
+        let join = self.fb.create_block();
+
+        self.fb.append_block_param(join, self.ptr);
+
+        self.fb.ins().jump(join, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(call_mt);
+        self.fb.seal_block(call_mt);
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        // Invoke luaT_trybinTM.
+        let td = self.fb.use_var(self.td);
+        let tm = self.fb.ins().iconst(I32, i64::from(TM_BNOT));
+        let out = self.fb.ins().stack_addr(self.ptr, self.values[0], 0);
+        let ret = self.fb.use_var(self.ret);
+
+        self.fb
+            .ins()
+            .call(self.trybinTM, &[td, rb, rb, tm, out, ret]);
+
+        self.return_on_err(false);
+
+        // Load new base stack.
+        let base = self.load_base_stack();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let v = self.values[0];
+        let t = self
+            .fb
+            .ins()
+            .stack_load(I8, v, offset_of!(UnsafeValue<A>, tt_) as i32);
+        let v = self
+            .fb
+            .ins()
+            .stack_load(I64, v, offset_of!(UnsafeValue<A>, value_) as i32);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            t,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
 
         self.fb.ins().store(
             MemFlags::trusted(),
