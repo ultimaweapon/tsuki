@@ -1220,7 +1220,6 @@ pub async unsafe fn run<A>(
                     {
                         let i1_3: i64 = (*v1_6).value_.i;
                         let i2_3: i64 = (*v2_5).value_.i;
-                        pc += 1;
                         let io_16 = ra_26;
 
                         (*io_16).value_.i = match luaV_idiv(i1_3, i2_3) {
@@ -1230,7 +1229,10 @@ pub async unsafe fn run<A>(
                                 return Err(Box::new(ArithError::DivZero));
                             }
                         };
+
                         (*io_16).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
+
+                        pc += 1;
                     } else {
                         let mut n1_5 = 0.0;
                         let mut n2_5 = 0.0;
