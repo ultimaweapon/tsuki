@@ -7204,6 +7204,37 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         pc
     }
 
+    pub unsafe fn tforprep(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        // Invoke luaF_newtbcupval.
+        let td = self.fb.use_var(self.td);
+        let ret = self.fb.use_var(self.ret);
+        let lv = self
+            .fb
+            .ins()
+            .iadd_imm(ra, (size_of::<StackValue<A>>() * 3) as i64);
+
+        self.fb.ins().call(self.newtbcupval, &[td, lv, ret]);
+
+        self.return_on_err(false);
+
+        // Jump to OP_TFORCALL.
+        let call = pc + ((i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1)) as usize);
+        let call = self.get_label(call);
+
+        self.fb.ins().jump(call, &[BlockArg::Value(base)]);
+
+        // Create block for body.
+        self.get_label(pc);
+
+        pc
+    }
+
     pub unsafe fn setlist(&mut self, i: u32, mut pc: usize) -> usize {
         let base = self.get_base();
         let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
