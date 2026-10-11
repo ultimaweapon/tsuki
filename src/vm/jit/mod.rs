@@ -12,12 +12,12 @@ use super::{
     OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI, OP_MMBIN, OP_MMBINI, OP_MMBINK,
     OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_RETURN1,
     OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_SHL,
-    OP_SHLI, OP_SHR, OP_SHRI, OP_SUB, OP_TAILCALL, OP_TBC, OP_TEST, OP_TESTSET, OP_TFORPREP,
-    OP_UNM, OP_VARARG, OP_VARARGPREP, luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset,
-    luaV_idiv, luaV_objlen, luaV_tointegerns,
+    OP_SHLI, OP_SHR, OP_SHRI, OP_SUB, OP_TAILCALL, OP_TBC, OP_TEST, OP_TESTSET, OP_TFORCALL,
+    OP_TFORPREP, OP_UNM, OP_VARARG, OP_VARARGPREP, luaV_concat, luaV_equalobj, luaV_finishget,
+    luaV_finishset, luaV_idiv, luaV_objlen, luaV_tointegerns,
 };
 use crate::gc::Object;
-use crate::ldo::luaD_poscall;
+use crate::ldo::{luaD_call, luaD_poscall};
 use crate::lfunc::{luaF_close, luaF_newtbcupval};
 use crate::lobject::Proto;
 use crate::lstate::CallInfo;
@@ -26,14 +26,14 @@ use crate::ltm::{
     luaT_trybiniTM,
 };
 use crate::value::UnsafeValue;
-use crate::{ArithError, Lua, LuaFn, StackValue, Table, Thread};
+use crate::{ArithError, Lua, LuaFn, NON_YIELDABLE_WAKER, StackValue, Table, Thread};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::mem::{offset_of, transmute};
 use core::ops::Deref;
-use core::pin::Pin;
-use core::ptr::null_mut;
-use core::task::{Context, Poll};
+use core::pin::{Pin, pin};
+use core::ptr::{null, null_mut};
+use core::task::{Context, Poll, Waker};
 use cranelift_codegen::FinalizedRelocTarget;
 use cranelift_codegen::binemit::Reloc;
 use cranelift_codegen::ir::types::{I8, I32};
@@ -124,7 +124,17 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
     let mut rust = RustFuncs::<A>::default();
     let mut resumes = Vec::new();
     let jump = fb.create_block();
-    let mut emit = Emitter::new(&mut fb, code, st, cx, ret, &mut rust, &mut resumes, jump);
+    let mut emit = Emitter::new(
+        g.jit.isa.deref(),
+        &mut fb,
+        code,
+        st,
+        cx,
+        ret,
+        &mut rust,
+        &mut resumes,
+        jump,
+    );
 
     while pc != code.len() {
         emit.prepare(pc);
@@ -212,7 +222,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_FORLOOP => emit.forloop(i, pc),
             OP_FORPREP => emit.forprep(i, pc),
             OP_TFORPREP => emit.tforprep(i, pc),
-            // ?
+            OP_TFORCALL => emit.tforcall(i, pc),
             // ?
             OP_SETLIST => emit.setlist(i, pc),
             OP_CLOSURE => emit.closure(i, pc),
@@ -444,6 +454,22 @@ unsafe extern "C-unwind" fn finishset<A>(
 ) {
     if let Err(e) = luaV_finishset(&*td, tab, key, val, slot) {
         (*ret).set_error(e);
+    }
+}
+
+unsafe extern "C-unwind" fn call<A>(
+    td: *const Thread<A>,
+    func: *mut StackValue<A>,
+    nresults: i32,
+    ret: *mut Error,
+) {
+    let w = Waker::new(null(), &NON_YIELDABLE_WAKER);
+    let f = pin!(luaD_call(td, func, nresults));
+
+    match f.poll(&mut Context::from_waker(&w)) {
+        Poll::Ready(Ok(_)) => (),
+        Poll::Ready(Err(e)) => (*ret).set_error(e),
+        Poll::Pending => unreachable!(),
     }
 }
 

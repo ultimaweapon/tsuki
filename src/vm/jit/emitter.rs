@@ -19,12 +19,14 @@ use cranelift_codegen::ir::{
     Block, BlockArg, BlockCall, FuncRef, InstBuilder, MemFlags, StackSlot, StackSlotData,
     StackSlotKind, Type, Value,
 };
+use cranelift_codegen::isa::TargetIsa;
 use cranelift_frontend::{FunctionBuilder, Variable};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 
 /// Contains state to emit Cranelift instructions for a Lua function.
 pub struct Emitter<'a, 'b, A> {
+    isa: &'a dyn TargetIsa,
     fb: &'a mut FunctionBuilder<'b>,
     code: &'a [u32],
     st: Variable,
@@ -45,6 +47,7 @@ pub struct Emitter<'a, 'b, A> {
     getstr: FuncRef,
     realasize: FuncRef,
     resizearray: FuncRef,
+    call: FuncRef,
     precall: FuncRef,
     resume_precall: FuncRef,
     pretailcall: FuncRef,
@@ -89,6 +92,7 @@ pub struct Emitter<'a, 'b, A> {
 
 impl<'a, 'b, A> Emitter<'a, 'b, A> {
     pub unsafe fn new(
+        isa: &'a dyn TargetIsa,
         fb: &'a mut FunctionBuilder<'b>,
         code: &'a [u32],
         st: Variable,
@@ -166,6 +170,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         // Get base stack.
         let mut e = Self {
+            isa,
             code,
             st,
             cx,
@@ -216,6 +221,12 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             getstr: rust.import(fb, &[ptr, ptr], Some(ptr), luaH_getstr::<A> as *const u8),
             realasize: rust.import(fb, &[ptr], Some(I32), luaH_realasize::<A> as *const u8),
             resizearray: rust.import(fb, &[ptr, I32], None, luaH_resizearray::<A> as *const u8),
+            call: rust.import(
+                fb,
+                &[ptr, ptr, I32, ptr],
+                None,
+                super::call::<A> as *const u8,
+            ),
             precall: rust.import(
                 fb,
                 &[ptr, ptr, ptr, I32, ptr, ptr],
@@ -7188,8 +7199,6 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let skip = pc + ((i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1)) + 1) as usize;
         let skip = self.get_label(skip);
 
-        self.fb.set_cold_block(skip);
-
         // Check if skip.
         let body = self.get_label(pc);
 
@@ -7231,6 +7240,61 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
 
         // Create block for body.
         self.get_label(pc);
+
+        pc
+    }
+
+    pub unsafe fn tforcall(&mut self, i: u32, pc: usize) -> usize {
+        // Copy iterator function and its arguments.
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let func = self
+            .fb
+            .ins()
+            .iadd_imm(ra, (size_of::<StackValue<A>>() * 4) as i64);
+
+        self.fb.emit_small_memory_copy(
+            self.isa.frontend_config(),
+            func,
+            ra,
+            (size_of::<StackValue<A>>() * 3) as u64,
+            align_of::<StackValue<A>>().try_into().unwrap(),
+            align_of::<StackValue<A>>().try_into().unwrap(),
+            true,
+            MemFlags::trusted(),
+        );
+
+        // Update top.
+        let top = self
+            .fb
+            .ins()
+            .iadd_imm(ra, (size_of::<StackValue<A>>() * 7) as i64);
+
+        self.set_top(top);
+        self.update_pc(pc);
+
+        // Invoke iterator function.
+        let td = self.fb.use_var(self.td);
+        let ret = self.fb.use_var(self.ret);
+        let nresults = self.fb.ins().iconst(
+            I32,
+            i64::from((i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8)) as i32),
+        );
+
+        self.fb.ins().call(self.call, &[td, func, nresults, ret]);
+
+        self.return_on_err(false);
+
+        // Load new base stack.
+        let base = self.load_base_stack();
+        let next = self.fb.create_block();
+
+        self.fb.append_block_param(next, self.ptr);
+
+        self.fb.ins().jump(next, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(next);
+        self.fb.seal_block(next);
 
         pc
     }
