@@ -7299,6 +7299,63 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         pc
     }
 
+    pub unsafe fn tforloop(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let cv = self
+            .fb
+            .ins()
+            .iadd_imm(ra, 4 * size_of::<StackValue<A>>() as i64);
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            cv,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Check control variable.
+        let v = self.fb.ins().band_imm(v, 0xf);
+        let jump = self.fb.create_block();
+        let next = self.fb.create_block();
+
+        self.fb.append_block_param(next, self.ptr);
+
+        self.fb
+            .ins()
+            .brif(v, jump, [], next, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(jump);
+        self.fb.seal_block(jump);
+
+        // Save control variable.
+        let d = self
+            .fb
+            .ins()
+            .iadd_imm(ra, 2 * size_of::<StackValue<A>>() as i64);
+
+        self.fb.emit_small_memory_copy(
+            self.isa.frontend_config(),
+            d,
+            cv,
+            size_of::<StackValue<A>>().try_into().unwrap(),
+            align_of::<StackValue<A>>().try_into().unwrap(),
+            align_of::<StackValue<A>>().try_into().unwrap(),
+            true,
+            MemFlags::trusted(),
+        );
+
+        // Jump to loop body.
+        let j = pc.wrapping_add_signed(-((i >> 7 + 8 & !(!(0u32) << 8 + 8 + 1)) as i32 as isize));
+        let j = self.get_label(j);
+
+        self.fb.ins().jump(j, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(next);
+        self.fb.seal_block(next);
+
+        pc
+    }
+
     pub unsafe fn setlist(&mut self, i: u32, mut pc: usize) -> usize {
         let base = self.get_base();
         let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));

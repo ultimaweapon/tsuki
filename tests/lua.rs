@@ -68,7 +68,6 @@ fn print() {
 }
 
 #[test]
-#[cfg_attr(feature = "jit", ignore = "need unimplemented instructions")]
 fn tpack() {
     run("tpack.lua", |_| {}).unwrap();
 }

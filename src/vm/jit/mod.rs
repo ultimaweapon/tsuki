@@ -13,8 +13,8 @@ use super::{
     OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_RETURN1,
     OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_SHL,
     OP_SHLI, OP_SHR, OP_SHRI, OP_SUB, OP_TAILCALL, OP_TBC, OP_TEST, OP_TESTSET, OP_TFORCALL,
-    OP_TFORPREP, OP_UNM, OP_VARARG, OP_VARARGPREP, luaV_concat, luaV_equalobj, luaV_finishget,
-    luaV_finishset, luaV_idiv, luaV_objlen, luaV_tointegerns,
+    OP_TFORLOOP, OP_TFORPREP, OP_UNM, OP_VARARG, OP_VARARGPREP, luaV_concat, luaV_equalobj,
+    luaV_finishget, luaV_finishset, luaV_idiv, luaV_objlen, luaV_tointegerns,
 };
 use crate::gc::Object;
 use crate::ldo::{luaD_call, luaD_poscall};
@@ -38,11 +38,12 @@ use cranelift_codegen::FinalizedRelocTarget;
 use cranelift_codegen::binemit::Reloc;
 use cranelift_codegen::ir::types::{I8, I32};
 use cranelift_codegen::ir::{
-    AbiParam, ExternalName, Function, InstBuilder, JumpTableData, MemFlags, Signature, TrapCode,
-    Type,
+    AbiParam, ExternalName, Function, InstBuilder, JumpTableData, LibCall, MemFlags, Signature,
+    TrapCode, Type,
 };
 use cranelift_codegen::isa::CallConv;
 use cranelift_frontend::FunctionBuilder;
+use libc::memcpy;
 use target_lexicon::Triple;
 
 mod allocator;
@@ -223,7 +224,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_FORPREP => emit.forprep(i, pc),
             OP_TFORPREP => emit.tforprep(i, pc),
             OP_TFORCALL => emit.tforcall(i, pc),
-            // ?
+            OP_TFORLOOP => emit.tforloop(i, pc),
             OP_SETLIST => emit.setlist(i, pc),
             OP_CLOSURE => emit.closure(i, pc),
             OP_VARARG => emit.vararg(i, pc),
@@ -299,6 +300,11 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             Reloc::Abs8 => match &r.target {
                 FinalizedRelocTarget::ExternalName(ExternalName::User(v)) => {
                     let f = rust.get(*v) as usize;
+
+                    buf[off..(off + 8)].copy_from_slice(&f.to_ne_bytes());
+                }
+                FinalizedRelocTarget::ExternalName(ExternalName::LibCall(LibCall::Memcpy)) => {
+                    let f = memcpy as *const u8 as usize;
 
                     buf[off..(off + 8)].copy_from_slice(&f.to_ne_bytes());
                 }
