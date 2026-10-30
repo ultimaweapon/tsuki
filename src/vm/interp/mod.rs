@@ -1198,8 +1198,6 @@ pub async unsafe fn run<A>(
                     next!();
                 }
                 OP_IDIVK => {
-                    (*th).top.set(th.stack.get().add((*ci).top.get()));
-
                     let v1_6 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1226,6 +1224,8 @@ pub async unsafe fn run<A>(
                             Some(v) => v,
                             None => {
                                 (*ci).pc = pc;
+                                (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                                 return Err(Box::new(ArithError::DivZero));
                             }
                         };
@@ -1642,8 +1642,6 @@ pub async unsafe fn run<A>(
                     next!();
                 }
                 OP_MOD => {
-                    (*th).top.set(th.stack.get().add((*ci).top.get()));
-
                     let v1_13 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1665,16 +1663,20 @@ pub async unsafe fn run<A>(
                     {
                         let i1_10: i64 = (*v1_13).value_.i;
                         let i2_10: i64 = (*v2_12).value_.i;
-                        pc += 1;
                         let io_29 = ra_35;
                         (*io_29).value_.i = match luaV_mod(i1_10, i2_10) {
                             Some(v) => v,
                             None => {
                                 (*ci).pc = pc;
+                                (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                                 return Err(Box::new(ArithError::ModZero));
                             }
                         };
+
                         (*io_29).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
+
+                        pc += 1;
                     } else {
                         let mut n1_9 = 0.0;
                         let mut n2_9 = 0.0;
