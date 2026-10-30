@@ -39,7 +39,7 @@ fn error() {
 }
 
 #[test]
-#[cfg_attr(feature = "jit", ignore = "need unimplemented instructions")]
+#[cfg_attr(feature = "jit", ignore = "need to skip stack overflow test")]
 fn errors() {
     run("errors.lua", |_| {}).unwrap();
 }

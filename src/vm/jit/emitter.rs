@@ -82,6 +82,7 @@ pub struct Emitter<'a, 'b, A> {
     mod_f: FuncRef,
     shift_l: FuncRef,
     idiv: FuncRef,
+    imod: FuncRef,
     div_zero: FuncRef,
     mod_zero: FuncRef,
     ptr: Type,
@@ -356,6 +357,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             mod_f: rust.import(fb, &[F64, F64], Some(F64), luaV_modf as *const u8),
             shift_l: rust.import(fb, &[I64, I64], Some(I64), luaV_shiftl as *const u8),
             idiv: rust.import(fb, &[I64, I64, ptr], Some(I8), super::idiv as *const u8),
+            imod: rust.import(fb, &[I64, I64, ptr], Some(I8), super::imod as *const u8),
             div_zero: rust.import(fb, &[ptr], None, super::div_zero as *const u8),
             mod_zero: rust.import(fb, &[ptr], None, super::mod_zero as *const u8),
             ptr,
@@ -3771,6 +3773,142 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         self.fb.switch_to_block(join);
         self.fb.seal_block(join);
         self.fb.set_cold_block(join);
+
+        pc
+    }
+
+    pub unsafe fn mod_(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let v2 = self.get_reg(base, i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            v1,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Check if v1 integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, 3 | 0 << 4);
+        let check_v2 = self.fb.create_block();
+        let check_float = self.fb.create_block();
+
+        self.fb.ins().brif(v, check_v2, [], check_float, []);
+
+        self.fb.switch_to_block(check_v2);
+        self.fb.seal_block(check_v2);
+
+        // Load type of v2.
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            v2,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Check if v2 integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, 3 | 0 << 4);
+        let mod_int = self.fb.create_block();
+
+        self.fb.ins().brif(v, mod_int, [], check_float, []);
+
+        self.fb.switch_to_block(mod_int);
+        self.fb.seal_block(mod_int);
+
+        // Load integer from v1.
+        let i1 = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            v1,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Load integer from v2.
+        let i2 = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            v2,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Get buffer for output.
+        let out = self
+            .fb
+            .ins()
+            .iadd_imm(ra, offset_of!(StackValue<A>, value_.i) as i64);
+
+        // Invoke luaV_mod.
+        let v = self.fb.ins().call(self.imod, &[i1, i2, out]);
+        let v = self.fb.inst_results(v)[0];
+        let ok = self.fb.create_block();
+        let error = self.fb.create_block();
+
+        self.fb.ins().brif(v, ok, [], error, []);
+
+        self.fb.switch_to_block(ok);
+        self.fb.seal_block(ok);
+
+        // Set output type.
+        let skip = self.get_label(pc + 1);
+        let v = self.fb.ins().iconst(I8, 3 | 0 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(error);
+        self.fb.seal_block(error);
+
+        // Set error.
+        let ret = self.fb.use_var(self.ret);
+        let v = self.fb.ins().iconst(I8, i64::from(Status::Finished));
+
+        self.update_top_from_ci();
+        self.update_pc(pc);
+
+        self.fb.ins().call(self.mod_zero, &[ret]);
+        self.fb.ins().return_(&[v]);
+
+        self.fb.switch_to_block(check_float);
+        self.fb.seal_block(check_float);
+
+        // Create block to call metamethod.
+        let call_mt = self.fb.create_block();
+
+        self.fb.append_block_param(call_mt, self.ptr);
+
+        // Mod float.
+        let n1 = self.load_num_as_float(v1, call_mt, &[BlockArg::Value(base)]);
+        let n2 = self.load_num_as_float(v2, call_mt, &[BlockArg::Value(base)]);
+        let v = self.fb.ins().call(self.mod_f, &[n1, n2]);
+        let v = self.fb.inst_results(v)[0];
+        let t = self.fb.ins().iconst(I8, 3 | 1 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            t,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_.n) as i32,
+        );
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
+
+        // Next instruction is metamethod call.
+        self.fb.switch_to_block(call_mt);
+        self.fb.seal_block(call_mt);
 
         pc
     }

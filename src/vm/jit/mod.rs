@@ -10,11 +10,12 @@ use super::{
     OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI,
     OP_IDIVK, OP_JMP, OP_LABEL, OP_LE, OP_LEI, OP_LEN, OP_LFALSESKIP, OP_LOADF, OP_LOADFALSE,
     OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI, OP_MMBIN, OP_MMBINI, OP_MMBINK,
-    OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0, OP_RETURN1,
-    OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL, OP_SHL,
-    OP_SHLI, OP_SHR, OP_SHRI, OP_SUB, OP_TAILCALL, OP_TBC, OP_TEST, OP_TESTSET, OP_TFORCALL,
-    OP_TFORLOOP, OP_TFORPREP, OP_UNM, OP_VARARG, OP_VARARGPREP, luaV_concat, luaV_equalobj,
-    luaV_finishget, luaV_finishset, luaV_idiv, luaV_objlen, luaV_tointegerns,
+    OP_MOD, OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0,
+    OP_RETURN1, OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL,
+    OP_SHL, OP_SHLI, OP_SHR, OP_SHRI, OP_SUB, OP_TAILCALL, OP_TBC, OP_TEST, OP_TESTSET,
+    OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_UNM, OP_VARARG, OP_VARARGPREP, luaV_concat,
+    luaV_equalobj, luaV_finishget, luaV_finishset, luaV_idiv, luaV_mod, luaV_objlen,
+    luaV_tointegerns,
 };
 use crate::gc::Object;
 use crate::ldo::{luaD_call, luaD_poscall};
@@ -184,7 +185,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_ADD => emit.add(i, pc),
             OP_SUB => emit.sub(i, pc),
             OP_MUL => emit.mul(i, pc),
-            // ?
+            OP_MOD => emit.mod_(i, pc),
             // ?
             OP_DIV => emit.div(i, pc),
             // ?
@@ -856,6 +857,17 @@ unsafe extern "C-unwind" fn forprep<A>(
 
 unsafe extern "C-unwind" fn idiv(m: i64, n: i64, o: *mut i64) -> bool {
     let v = match luaV_idiv(m, n) {
+        Some(v) => v,
+        None => return false,
+    };
+
+    o.write(v);
+
+    true
+}
+
+unsafe extern "C-unwind" fn imod(m: i64, n: i64, o: *mut i64) -> bool {
+    let v = match luaV_mod(m, n) {
         Some(v) => v,
         None => return false,
     };
