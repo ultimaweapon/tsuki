@@ -1820,8 +1820,6 @@ pub async unsafe fn run<A>(
                     next!();
                 }
                 OP_IDIV => {
-                    (*th).top.set(th.stack.get().add((*ci).top.get()));
-
                     let v1_16 = base.offset(
                         (i >> 0 as c_int + 7 as c_int + 8 as c_int + 1 as c_int
                             & !(!(0 as c_int as u32) << 8 as c_int) << 0 as c_int)
@@ -1843,16 +1841,20 @@ pub async unsafe fn run<A>(
                     {
                         let i1_11: i64 = (*v1_16).value_.i;
                         let i2_11: i64 = (*v2_15).value_.i;
-                        pc += 1;
                         let io_33 = ra_38;
                         (*io_33).value_.i = match luaV_idiv(i1_11, i2_11) {
                             Some(v) => v,
                             None => {
                                 (*ci).pc = pc;
+                                (*th).top.set(th.stack.get().add((*ci).top.get()));
+
                                 return Err(Box::new(ArithError::DivZero));
                             }
                         };
+
                         (*io_33).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
+
+                        pc += 1;
                     } else {
                         let mut n1_12 = 0.0;
                         let mut n2_12 = 0.0;
