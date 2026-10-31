@@ -8,13 +8,13 @@ use super::{
     F2Ieq, OP_ADD, OP_ADDI, OP_ADDK, OP_BAND, OP_BANDK, OP_BNOT, OP_BOR, OP_BORK, OP_BXORK,
     OP_CALL, OP_CLOSE, OP_CLOSURE, OP_CONCAT, OP_DIV, OP_DIVK, OP_EQ, OP_EQI, OP_EQK, OP_FORLOOP,
     OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI,
-    OP_IDIVK, OP_JMP, OP_LABEL, OP_LE, OP_LEI, OP_LEN, OP_LFALSESKIP, OP_LOADF, OP_LOADFALSE,
-    OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI, OP_MMBIN, OP_MMBINI, OP_MMBINK,
-    OP_MOD, OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT, OP_RETURN, OP_RETURN0,
-    OP_RETURN1, OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE, OP_SETTABUP, OP_SETUPVAL,
-    OP_SHL, OP_SHLI, OP_SHR, OP_SHRI, OP_SUB, OP_TAILCALL, OP_TBC, OP_TEST, OP_TESTSET,
-    OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_UNM, OP_VARARG, OP_VARARGPREP, luaV_concat,
-    luaV_equalobj, luaV_finishget, luaV_finishset, luaV_idiv, luaV_mod, luaV_objlen,
+    OP_IDIV, OP_IDIVK, OP_JMP, OP_LABEL, OP_LE, OP_LEI, OP_LEN, OP_LFALSESKIP, OP_LOADF,
+    OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI, OP_MMBIN, OP_MMBINI,
+    OP_MMBINK, OP_MOD, OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT, OP_RETURN,
+    OP_RETURN0, OP_RETURN1, OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE, OP_SETTABUP,
+    OP_SETUPVAL, OP_SHL, OP_SHLI, OP_SHR, OP_SHRI, OP_SUB, OP_TAILCALL, OP_TBC, OP_TEST,
+    OP_TESTSET, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_UNM, OP_VARARG, OP_VARARGPREP,
+    luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_idiv, luaV_mod, luaV_objlen,
     luaV_tointegerns,
 };
 use crate::gc::Object;
@@ -188,7 +188,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_MOD => emit.mod_(i, pc),
             // ?
             OP_DIV => emit.div(i, pc),
-            // ?
+            OP_IDIV => emit.idiv(i, pc),
             OP_BAND => emit.band(i, pc),
             OP_BOR => emit.bor(i, pc),
             // ?

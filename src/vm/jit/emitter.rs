@@ -3956,6 +3956,140 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         pc
     }
 
+    pub unsafe fn idiv(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let v2 = self.get_reg(base, i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            v1,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Check if v1 integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, 3 | 0 << 4);
+        let check_v2 = self.fb.create_block();
+        let check_float = self.fb.create_block();
+
+        self.fb.ins().brif(v, check_v2, [], check_float, []);
+
+        self.fb.switch_to_block(check_v2);
+        self.fb.seal_block(check_v2);
+
+        // Load type of v2.
+        let v = self.fb.ins().load(
+            I8,
+            MemFlags::trusted(),
+            v2,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        // Check if v2 integer.
+        let v = self.fb.ins().icmp_imm(IntCC::Equal, v, 3 | 0 << 4);
+        let div_int = self.fb.create_block();
+
+        self.fb.ins().brif(v, div_int, [], check_float, []);
+
+        self.fb.switch_to_block(div_int);
+        self.fb.seal_block(div_int);
+
+        // Load integer from v1.
+        let i1 = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            v1,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Load integer from v2.
+        let i2 = self.fb.ins().load(
+            I64,
+            MemFlags::trusted(),
+            v2,
+            offset_of!(StackValue<A>, value_.i) as i32,
+        );
+
+        // Divide.
+        let v = self
+            .fb
+            .ins()
+            .iadd_imm(ra, offset_of!(StackValue<A>, value_.i) as i64);
+        let v = self.fb.ins().call(self.idiv, &[i1, i2, v]);
+        let v = self.fb.inst_results(v)[0];
+        let ok = self.fb.create_block();
+        let error = self.fb.create_block();
+
+        self.fb.ins().brif(v, ok, [], error, []);
+
+        self.fb.switch_to_block(ok);
+        self.fb.seal_block(ok);
+
+        // Set output type.
+        let skip = self.get_label(pc + 1);
+        let v = self.fb.ins().iconst(I8, 3 | 0 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
+
+        self.fb.switch_to_block(error);
+        self.fb.seal_block(error);
+
+        // Return ArithError::DivZero.
+        let ret = self.fb.use_var(self.ret);
+        let v = self.fb.ins().iconst(I8, i64::from(Status::Finished));
+
+        self.update_pc(pc);
+        self.update_top_from_ci();
+
+        self.fb.ins().call(self.div_zero, &[ret]);
+        self.fb.ins().return_(&[v]);
+
+        self.fb.switch_to_block(check_float);
+        self.fb.seal_block(check_float);
+
+        // Create block to call metamethod.
+        let call_mt = self.fb.create_block();
+
+        self.fb.append_block_param(call_mt, self.ptr);
+
+        // Div float.
+        let n1 = self.load_num_as_float(v1, call_mt, &[BlockArg::Value(base)]);
+        let n2 = self.load_num_as_float(v2, call_mt, &[BlockArg::Value(base)]);
+        let v = self.fb.ins().fdiv(n1, n2);
+        let v = self.fb.ins().floor(v);
+        let t = self.fb.ins().iconst(I8, 3 | 1 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            t,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_.n) as i32,
+        );
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
+
+        // Next instruction is metamethod call.
+        self.fb.switch_to_block(call_mt);
+        self.fb.seal_block(call_mt);
+
+        pc
+    }
+
     pub unsafe fn band(&mut self, i: u32, pc: usize) -> usize {
         let base = self.get_base();
         let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
