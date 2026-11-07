@@ -5,10 +5,10 @@ pub(self) use self::rust::*;
 
 use self::emitter::Emitter;
 use super::{
-    F2Ieq, OP_ADD, OP_ADDI, OP_ADDK, OP_BAND, OP_BANDK, OP_BNOT, OP_BOR, OP_BORK, OP_BXORK,
-    OP_CALL, OP_CLOSE, OP_CLOSURE, OP_CONCAT, OP_DIV, OP_DIVK, OP_EQ, OP_EQI, OP_EQK, OP_FORLOOP,
-    OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL, OP_GTI,
-    OP_IDIV, OP_IDIVK, OP_JMP, OP_LABEL, OP_LE, OP_LEI, OP_LEN, OP_LFALSESKIP, OP_LOADF,
+    F2Ieq, OP_ADD, OP_ADDI, OP_ADDK, OP_BAND, OP_BANDK, OP_BNOT, OP_BOR, OP_BORK, OP_BXOR,
+    OP_BXORK, OP_CALL, OP_CLOSE, OP_CLOSURE, OP_CONCAT, OP_DIV, OP_DIVK, OP_EQ, OP_EQI, OP_EQK,
+    OP_FORLOOP, OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL,
+    OP_GTI, OP_IDIV, OP_IDIVK, OP_JMP, OP_LABEL, OP_LE, OP_LEI, OP_LEN, OP_LFALSESKIP, OP_LOADF,
     OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI, OP_MMBIN, OP_MMBINI,
     OP_MMBINK, OP_MOD, OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT, OP_RETURN,
     OP_RETURN0, OP_RETURN1, OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE, OP_SETTABUP,
@@ -191,7 +191,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_IDIV => emit.idiv(i, pc),
             OP_BAND => emit.band(i, pc),
             OP_BOR => emit.bor(i, pc),
-            // ?
+            OP_BXOR => emit.bxor(i, pc),
             OP_SHL => emit.shl(i, pc),
             OP_SHR => emit.shr(i, pc),
             OP_MMBIN => emit.mmbin(i, pc),
