@@ -31,7 +31,6 @@ use core::ffi::c_void;
 use core::fmt::Display;
 use core::ops::Deref;
 use core::ptr::null_mut;
-use libc::abs;
 use libm::ldexp;
 
 pub type BinOpr = c_uint;
@@ -428,7 +427,7 @@ unsafe fn savelineinfo<D>(
     let mut linedif: c_int = line - (*fs).previousline;
     let pc: c_int = (*fs).pc - 1 as c_int;
 
-    if abs(linedif) >= 0x80 as c_int || {
+    if linedif.unsigned_abs() >= 0x80 || {
         let fresh0 = (*fs).iwthabs;
         (*fs).iwthabs = ((*fs).iwthabs).wrapping_add(1);
         fresh0 as c_int >= 128 as c_int
