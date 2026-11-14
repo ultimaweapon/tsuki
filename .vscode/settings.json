@@ -10,7 +10,6 @@
   "files.trimFinalNewlines": true,
   "files.trimTrailingWhitespace": true,
   "rust-analyzer.cargo.features": [
-    "jit",
     "serde"
   ],
   "rust-analyzer.imports.granularity.enforce": true,

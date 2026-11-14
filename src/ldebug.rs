@@ -17,7 +17,6 @@ use alloc::format;
 use core::ffi::{CStr, c_char};
 use core::fmt::Display;
 use core::ptr::{null, null_mut};
-use libc::strcmp;
 
 type c_int = i32;
 type c_uint = u32;
@@ -389,15 +388,15 @@ unsafe fn isEnv<D>(p: *const Proto<D>, mut pc: c_int, i: u32, isup: c_int) -> *c
         let what = basicgetobjname(p, &raw mut pc, t, &raw mut name);
 
         if !what.is_null()
-            && strcmp(what, c"local".as_ptr()) != 0
-            && strcmp(what, c"upvalue".as_ptr()) != 0
+            && let what = CStr::from_ptr(what)
+            && what != c"local"
+            && what != c"upvalue"
         {
             name = null();
         }
     }
 
-    return if !name.is_null() && strcmp(name, b"_ENV\0" as *const u8 as *const c_char) == 0 as c_int
-    {
+    return if !name.is_null() && CStr::from_ptr(name) == c"_ENV" {
         b"global\0" as *const u8 as *const c_char
     } else {
         b"field\0" as *const u8 as *const c_char

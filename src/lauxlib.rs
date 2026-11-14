@@ -14,9 +14,6 @@ use alloc::vec::Vec;
 use core::ffi::{CStr, c_char};
 use core::fmt::{Display, Formatter};
 use core::num::NonZero;
-use libc::strcmp;
-
-type c_int = i32;
 
 unsafe fn findfield<A>(
     names: &mut Vec<*const Str<A>>,
@@ -123,7 +120,7 @@ pub unsafe fn luaL_argerror<D>(
         ar.name = 0 as *const c_char;
     }
 
-    if strcmp(ar.namewhat, b"method\0" as *const u8 as *const c_char) == 0 as c_int {
+    if CStr::from_ptr(ar.namewhat) == c"method" {
         arg = match NonZero::new(arg.get() - 1) {
             Some(v) => v,
             None => {
