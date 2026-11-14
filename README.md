@@ -15,7 +15,7 @@ The VM to run Lua code is fully working almost exactly as vanilla Lua (see some 
 
 ## Safety
 
-All public API of Tsuki should provide 100% safety as long as you don't use unsafe API incorrectly.
+In theory, all public APIs of Tsuki should provide 100% safety unless there is a soundness bug.
 
 However, Tsuki was not designed to run untrusted Lua script. Although you can limit what Lua script can do by not expose a function to it but there is no way to limit amount of memory or execution time used by Lua script. The meaning of this is Lua script can cause a panic due to out of memory or never return the control back to Rust with infinite loop. It is also possible for Lua script to cause stack overflow on Rust.
 

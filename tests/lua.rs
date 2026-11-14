@@ -45,7 +45,6 @@ fn errors() {
 }
 
 #[test]
-#[cfg_attr(feature = "jit", ignore = "need unimplemented instructions")]
 fn events() {
     run("events.lua", |_| {}).unwrap();
 }

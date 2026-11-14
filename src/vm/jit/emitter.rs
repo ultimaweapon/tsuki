@@ -81,6 +81,7 @@ pub struct Emitter<'a, 'b, A> {
     floatforloop: FuncRef,
     mod_f: FuncRef,
     shift_l: FuncRef,
+    pow: FuncRef,
     idiv: FuncRef,
     imod: FuncRef,
     div_zero: FuncRef,
@@ -356,6 +357,7 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
             floatforloop: rust.import(fb, &[ptr], Some(I8), floatforloop::<A> as *const u8),
             mod_f: rust.import(fb, &[F64, F64], Some(F64), luaV_modf as *const u8),
             shift_l: rust.import(fb, &[I64, I64], Some(I64), luaV_shiftl as *const u8),
+            pow: rust.import(fb, &[F64, F64], Some(F64), super::pow as *const u8),
             idiv: rust.import(fb, &[I64, I64, ptr], Some(I8), super::idiv as *const u8),
             imod: rust.import(fb, &[I64, I64, ptr], Some(I8), super::imod as *const u8),
             div_zero: rust.import(fb, &[ptr], None, super::div_zero as *const u8),
@@ -2594,6 +2596,48 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         pc
     }
 
+    pub unsafe fn powk(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let v2 = self.get_const(i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
+
+        // Create block to call metamethod.
+        let call_mt = self.fb.create_block();
+
+        self.fb.append_block_param(call_mt, self.ptr);
+
+        // Invoke libm::pow.
+        let n1 = self.load_num_as_float(v1, call_mt, &[BlockArg::Value(base)]);
+        let n2 = self.load_num_as_float(v2, call_mt, &[BlockArg::Value(base)]);
+        let v = self.fb.ins().call(self.pow, &[n1, n2]);
+        let v = self.fb.inst_results(v)[0];
+        let t = self.fb.ins().iconst(I8, 3 | 1 << 4);
+        let skip = self.get_label(pc + 1);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            t,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_.n) as i32,
+        );
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
+
+        // Next instruction is metamethod call.
+        self.fb.switch_to_block(call_mt);
+        self.fb.seal_block(call_mt);
+
+        pc
+    }
+
     pub unsafe fn divk(&mut self, i: u32, pc: usize) -> usize {
         let base = self.get_base();
         let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
@@ -3889,6 +3933,48 @@ impl<'a, 'b, A> Emitter<'a, 'b, A> {
         let v = self.fb.ins().call(self.mod_f, &[n1, n2]);
         let v = self.fb.inst_results(v)[0];
         let t = self.fb.ins().iconst(I8, 3 | 1 << 4);
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            t,
+            ra,
+            offset_of!(StackValue<A>, tt_) as i32,
+        );
+
+        self.fb.ins().store(
+            MemFlags::trusted(),
+            v,
+            ra,
+            offset_of!(StackValue<A>, value_.n) as i32,
+        );
+
+        self.fb.ins().jump(skip, &[BlockArg::Value(base)]);
+
+        // Next instruction is metamethod call.
+        self.fb.switch_to_block(call_mt);
+        self.fb.seal_block(call_mt);
+
+        pc
+    }
+
+    pub unsafe fn pow(&mut self, i: u32, pc: usize) -> usize {
+        let base = self.get_base();
+        let ra = self.get_reg(base, i >> 7 & !(!(0u32) << 8));
+        let v1 = self.get_reg(base, i >> 7 + 8 + 1 & !(!(0u32) << 8));
+        let v2 = self.get_reg(base, i >> 7 + 8 + 1 + 8 & !(!(0u32) << 8));
+
+        // Create block to call metamethod.
+        let call_mt = self.fb.create_block();
+
+        self.fb.append_block_param(call_mt, self.ptr);
+
+        // Invoke libm::pow.
+        let n1 = self.load_num_as_float(v1, call_mt, &[BlockArg::Value(base)]);
+        let n2 = self.load_num_as_float(v2, call_mt, &[BlockArg::Value(base)]);
+        let v = self.fb.ins().call(self.pow, &[n1, n2]);
+        let v = self.fb.inst_results(v)[0];
+        let t = self.fb.ins().iconst(I8, 3 | 1 << 4);
+        let skip = self.get_label(pc + 1);
 
         self.fb.ins().store(
             MemFlags::trusted(),

@@ -10,10 +10,10 @@ use super::{
     OP_FORLOOP, OP_FORPREP, OP_GEI, OP_GETFIELD, OP_GETI, OP_GETTABLE, OP_GETTABUP, OP_GETUPVAL,
     OP_GTI, OP_IDIV, OP_IDIVK, OP_JMP, OP_LABEL, OP_LE, OP_LEI, OP_LEN, OP_LFALSESKIP, OP_LOADF,
     OP_LOADFALSE, OP_LOADI, OP_LOADK, OP_LOADNIL, OP_LOADTRUE, OP_LT, OP_LTI, OP_MMBIN, OP_MMBINI,
-    OP_MMBINK, OP_MOD, OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT, OP_RETURN,
-    OP_RETURN0, OP_RETURN1, OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE, OP_SETTABUP,
-    OP_SETUPVAL, OP_SHL, OP_SHLI, OP_SHR, OP_SHRI, OP_SUB, OP_TAILCALL, OP_TBC, OP_TEST,
-    OP_TESTSET, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_UNM, OP_VARARG, OP_VARARGPREP,
+    OP_MMBINK, OP_MOD, OP_MODK, OP_MOVE, OP_MUL, OP_MULK, OP_NEWTABLE, OP_NOT, OP_POW, OP_POWK,
+    OP_RETURN, OP_RETURN0, OP_RETURN1, OP_SELF, OP_SETFIELD, OP_SETI, OP_SETLIST, OP_SETTABLE,
+    OP_SETTABUP, OP_SETUPVAL, OP_SHL, OP_SHLI, OP_SHR, OP_SHRI, OP_SUB, OP_TAILCALL, OP_TBC,
+    OP_TEST, OP_TESTSET, OP_TFORCALL, OP_TFORLOOP, OP_TFORPREP, OP_UNM, OP_VARARG, OP_VARARGPREP,
     luaV_concat, luaV_equalobj, luaV_finishget, luaV_finishset, luaV_idiv, luaV_mod, luaV_objlen,
     luaV_tointegerns,
 };
@@ -174,7 +174,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             // ?
             OP_MULK => emit.mulk(i, pc),
             OP_MODK => emit.modk(i, pc),
-            // ?
+            OP_POWK => emit.powk(i, pc),
             OP_DIVK => emit.divk(i, pc),
             OP_IDIVK => emit.idivk(i, pc),
             OP_BANDK => emit.bandk(i, pc),
@@ -186,7 +186,7 @@ unsafe fn compile<A>(g: &Lua<A>, p: *mut Proto<A>) -> Result<(), std::io::Error>
             OP_SUB => emit.sub(i, pc),
             OP_MUL => emit.mul(i, pc),
             OP_MOD => emit.mod_(i, pc),
-            // ?
+            OP_POW => emit.pow(i, pc),
             OP_DIV => emit.div(i, pc),
             OP_IDIV => emit.idiv(i, pc),
             OP_BAND => emit.band(i, pc),
@@ -853,6 +853,10 @@ unsafe extern "C-unwind" fn forprep<A>(
             0
         }
     }
+}
+
+unsafe extern "C-unwind" fn pow(x: f64, y: f64) -> f64 {
+    libm::pow(x, y)
 }
 
 unsafe extern "C-unwind" fn idiv(m: i64, n: i64, o: *mut i64) -> bool {
