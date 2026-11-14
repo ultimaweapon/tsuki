@@ -3,7 +3,6 @@
 
 use crate::{Lua, ParseError};
 use core::ffi::c_void;
-use core::ptr::null_mut;
 use libc::{free, realloc};
 
 type c_int = i32;
@@ -83,18 +82,4 @@ pub unsafe fn luaM_saferealloc_(block: *mut c_void, osize: usize, nsize: usize) 
     }
 
     newblock
-}
-
-pub unsafe fn luaM_malloc_<D>(g: *const Lua<D>, size: usize) -> *mut c_void {
-    if size == 0 {
-        null_mut()
-    } else {
-        let newblock: *mut c_void = realloc(0 as *mut c_void, size);
-
-        if newblock == 0 as *mut c_void {
-            todo!("invoke handle_alloc_error");
-        }
-
-        newblock
-    }
 }

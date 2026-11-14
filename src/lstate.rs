@@ -2,11 +2,12 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::ldo::{luaD_closeprotected, luaD_reallocstack};
-use crate::lmem::{luaM_free_, luaM_malloc_};
 use crate::{CallError, Thread};
+use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::string::String;
+use core::alloc::Layout;
 use core::ffi::c_char;
 use core::num::NonZero;
 use core::ptr::{null, null_mut};
@@ -96,7 +97,12 @@ pub union PendingFuture {
 
 #[inline(never)]
 pub unsafe fn luaE_extendCI<A>(L: *const Thread<A>) -> *mut CallInfo {
-    let ci = luaM_malloc_((*L).hdr.global, size_of::<CallInfo>()) as *mut CallInfo;
+    let layout = Layout::new::<CallInfo>();
+    let ci = alloc::alloc::alloc(layout).cast::<CallInfo>();
+
+    if ci.is_null() {
+        handle_alloc_error(layout);
+    }
 
     (*(*L).ci.get()).next = ci;
     (*ci).previous = (*L).ci.get();
@@ -123,7 +129,7 @@ pub unsafe fn luaE_shrinkCI<D>(L: *const Thread<D>) {
         (*ci).next = next2;
         (*L).nci.set((*L).nci.get().wrapping_sub(1));
 
-        luaM_free_(next.cast(), size_of::<CallInfo>());
+        alloc::alloc::dealloc(next.cast(), Layout::new::<CallInfo>());
 
         if next2.is_null() {
             break;

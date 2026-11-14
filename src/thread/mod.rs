@@ -7,7 +7,6 @@ pub(crate) use self::stack::*;
 use crate::lapi::lua_checkstack;
 use crate::ldo::luaD_call;
 use crate::lfunc::luaF_closeupval;
-use crate::lmem::luaM_free_;
 use crate::lobject::{UpVal, luaO_arith};
 use crate::lstate::CallInfo;
 use crate::value::UnsafeValue;
@@ -713,7 +712,8 @@ impl<A> Drop for Thread<A> {
 
             next = unsafe { (*ci).next };
 
-            unsafe { luaM_free_(ci.cast(), size_of::<CallInfo>()) };
+            unsafe { alloc::alloc::dealloc(ci.cast(), Layout::new::<CallInfo>()) };
+
             self.nci.set(self.nci.get().wrapping_sub(1));
         }
 
