@@ -33,6 +33,7 @@ use core::hint::unreachable_unchecked;
 use core::pin::pin;
 use core::ptr::{null, null_mut};
 use core::task::{Context, Poll, Waker};
+use libm::{floor, pow};
 
 type c_int = i32;
 type c_uint = u32;
@@ -1140,7 +1141,7 @@ pub async unsafe fn run<A>(
                         (*io_14).value_.n = if n2_3 == 2 as c_int as f64 {
                             n1_3 * n1_3
                         } else {
-                            n1_3.0.powf(n2_3.0).into()
+                            pow(n1_3.0, n2_3.0).into()
                         };
                         (*io_14).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                     }
@@ -1262,7 +1263,7 @@ pub async unsafe fn run<A>(
                         {
                             pc += 1;
                             let io_17 = ra_26;
-                            (*io_17).value_.n = (n1_5 / n2_5).floor().into();
+                            (*io_17).value_.n = floor(n1_5 / n2_5).into();
                             (*io_17).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                         }
                     }
@@ -1762,7 +1763,7 @@ pub async unsafe fn run<A>(
                         (*io_31).value_.n = if n2_10 == 2 as c_int as f64 {
                             n1_10 * n1_10
                         } else {
-                            n1_10.0.powf(n2_10.0).into()
+                            pow(n1_10.0, n2_10.0).into()
                         };
                         (*io_31).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                     }
@@ -1886,7 +1887,7 @@ pub async unsafe fn run<A>(
                         {
                             pc += 1;
                             let io_34 = ra_38;
-                            (*io_34).value_.n = (n1_12 / n2_12).floor().into();
+                            (*io_34).value_.n = floor(n1_12 / n2_12).into();
                             (*io_34).tt_ = (3 as c_int | (1 as c_int) << 4 as c_int) as u8;
                         }
                     }

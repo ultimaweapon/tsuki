@@ -26,7 +26,7 @@ pub fn abs<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
 pub fn acos<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let Float(arg) = cx.arg(1).to_float()?;
 
-    cx.push(arg.acos())?;
+    cx.push(libm::acos(arg))?;
 
     Ok(cx.into())
 }
@@ -35,7 +35,7 @@ pub fn acos<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
 pub fn asin<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let Float(arg) = cx.arg(1).to_float()?;
 
-    cx.push(arg.asin())?;
+    cx.push(libm::asin(arg))?;
 
     Ok(cx.into())
 }
@@ -45,7 +45,7 @@ pub fn atan<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
     let Float(y) = cx.arg(1).to_float()?;
     let Float(x) = cx.arg(2).to_nilable_float(false)?.unwrap_or(Float(1.0));
 
-    cx.push(y.atan2(x))?;
+    cx.push(libm::atan2(y, x))?;
 
     Ok(cx.into())
 }
@@ -59,7 +59,7 @@ pub fn ceil<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
         None => {
             let Float(arg) = arg.to_float()?;
 
-            cx.push(pushnumint(arg.ceil().into()))?;
+            cx.push(pushnumint(libm::ceil(arg).into()))?;
         }
     }
 
@@ -70,7 +70,7 @@ pub fn ceil<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
 pub fn cos<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let Float(arg) = cx.arg(1).to_float()?;
 
-    cx.push(arg.cos())?;
+    cx.push(libm::cos(arg))?;
 
     Ok(cx.into())
 }
@@ -88,7 +88,7 @@ pub fn deg<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
 pub fn exp<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let Float(arg) = cx.arg(1).to_float()?;
 
-    cx.push(arg.exp())?;
+    cx.push(libm::exp(arg))?;
 
     Ok(cx.into())
 }
@@ -102,7 +102,7 @@ pub fn floor<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
         r.truncate(1);
         r
     } else {
-        cx.push(pushnumint(v.to_float()?.0.floor()))?;
+        cx.push(pushnumint(libm::floor(v.to_float()?.0)))?;
         cx.into()
     };
 
@@ -142,9 +142,9 @@ pub fn log<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
     let Float(v) = cx.arg(1).to_float()?;
 
     match cx.arg(2).to_nilable_float(false)? {
-        Some(Float(2.0)) => cx.push(v.log2())?,
-        Some(Float(10.0)) => cx.push(v.log10())?,
-        Some(Float(b)) => cx.push(v.log(b))?,
+        Some(Float(2.0)) => cx.push(libm::log2(v))?,
+        Some(Float(10.0)) => cx.push(libm::log10(v))?,
+        Some(Float(b)) => cx.push(libm::log(v) / libm::log(b))?,
         None => cx.push(libm::log(v.into()))?,
     }
 
@@ -194,7 +194,11 @@ pub fn modf<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
         cx.push(0.0)?;
     } else {
         let Float(n) = v.to_float()?;
-        let ip = if n < 0.0 { n.ceil() } else { n.floor() };
+        let ip = if n < 0.0 {
+            libm::ceil(n)
+        } else {
+            libm::floor(n)
+        };
 
         cx.push(pushnumint(ip))?;
         cx.push(if n == ip { 0.0 } else { n - ip })?;
@@ -216,7 +220,7 @@ pub fn rad<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
 pub fn sin<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let Float(v) = cx.arg(1).to_float()?;
 
-    cx.push(v.sin())?;
+    cx.push(libm::sin(v))?;
 
     Ok(cx.into())
 }
@@ -225,7 +229,7 @@ pub fn sin<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::err
 pub fn sqrt<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let Float(arg) = cx.arg(1).to_float()?;
 
-    cx.push(arg.sqrt())?;
+    cx.push(libm::sqrt(arg))?;
 
     Ok(cx.into())
 }
@@ -234,7 +238,7 @@ pub fn sqrt<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::er
 pub fn tan<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::error::Error>> {
     let Float(v) = cx.arg(1).to_float()?;
 
-    cx.push(v.tan())?;
+    cx.push(libm::tan(v))?;
 
     Ok(cx.into())
 }

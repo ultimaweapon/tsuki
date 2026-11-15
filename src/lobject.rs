@@ -14,6 +14,7 @@ use alloc::rc::Rc;
 use alloc::string::String;
 use core::cell::{Cell, UnsafeCell};
 use core::ffi::c_char;
+use libm::{floor, pow};
 
 type c_int = i32;
 type c_uint = u32;
@@ -485,10 +486,10 @@ fn numarith(op: Ops, v1: f64, v2: f64) -> f64 {
             if v2 == 2.0 {
                 v1 * v1
             } else {
-                v1.powf(v2).into()
+                pow(v1, v2).into()
             }
         }
-        Ops::IntDiv => (v1 / v2).floor(),
+        Ops::IntDiv => floor(v1 / v2),
         Ops::Neg => -v1,
         Ops::Mod => luaV_modf(v1, v2),
         _ => 0.0,

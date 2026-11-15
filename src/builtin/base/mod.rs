@@ -4,7 +4,6 @@ use crate::{Fp, Nil, Type, fp};
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::ToString;
-use alloc::vec::Vec;
 use erdp::ErrorDisplay;
 
 /// Implementation of [assert](https://www.lua.org/manual/5.4/manual.html#pdf-assert) function.
@@ -241,7 +240,7 @@ pub fn print<A>(cx: Context<A, Args>) -> Result<Context<A, Ret>, Box<dyn core::e
 
             return Ok(cx.into());
         }
-        n => Vec::with_capacity(n),
+        n => alloc::vec::Vec::with_capacity(n),
     };
 
     // We can't print while converting the arguments to string since it can call into arbitrary

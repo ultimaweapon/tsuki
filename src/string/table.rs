@@ -1,8 +1,8 @@
 use super::Str;
+use alloc::alloc::handle_alloc_error;
 use core::alloc::Layout;
 use core::cell::Cell;
 use core::ptr::null;
-use std::alloc::handle_alloc_error;
 
 /// Hash table contains all allocated short strings.
 pub(crate) struct StringTable<D> {

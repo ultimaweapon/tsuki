@@ -1,6 +1,6 @@
 //! Implementation of [table library](https://www.lua.org/manual/5.4/manual.html#6.6).
 use crate::context::{Arg, Args, Context, Ret};
-use crate::{Buffer, Fp, LuaFn, Type, Value};
+use crate::{Buffer, Type, Value};
 use alloc::boxed::Box;
 use alloc::format;
 
@@ -226,6 +226,7 @@ fn auxsort<A>(
     Ok(())
 }
 
+#[cfg(feature = "rand")]
 fn sort_comp<A>(
     cx: &Context<A, Args>,
     a: &Value<A>,
@@ -241,12 +242,14 @@ fn sort_comp<A>(
     Ok(r.to_bool())
 }
 
+#[cfg(feature = "rand")]
 fn choose_pivot(lo: u32, up: u32, rnd: u32) -> u32 {
     let r4 = up.wrapping_sub(lo) / 4;
 
     rnd.wrapping_rem(r4 * 2).wrapping_add(lo.wrapping_add(r4))
 }
 
+#[cfg(feature = "rand")]
 fn partition<A>(
     cx: &Context<A, Args>,
     tab: &Arg<A>,
@@ -299,8 +302,9 @@ fn partition<A>(
     }
 }
 
+#[cfg(feature = "rand")]
 enum Comparer<'a, A> {
     Default,
-    Fp(Fp<A>),
-    LuaFn(&'a LuaFn<A>),
+    Fp(crate::Fp<A>),
+    LuaFn(&'a crate::LuaFn<A>),
 }

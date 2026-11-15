@@ -24,7 +24,7 @@ use core::cell::Cell;
 use core::cmp::Ordering;
 use core::convert::identity;
 use core::ptr::null;
-use libm::fmod;
+use libm::{floor, fmod};
 
 pub type F2Imod = c_uint;
 
@@ -70,7 +70,7 @@ pub unsafe fn luaV_tonumber_<A>(obj: *const UnsafeValue<A>) -> Option<Float> {
 
 #[inline(always)]
 pub fn luaV_flttointeger(n: f64, mode: F2Imod) -> Option<i64> {
-    let mut f = n.floor();
+    let mut f = floor(n);
 
     if n != f {
         if mode as c_uint == F2Ieq as c_int as c_uint {
