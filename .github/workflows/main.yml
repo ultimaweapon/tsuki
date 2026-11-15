@@ -57,3 +57,7 @@ jobs:
     with:
       target: i686-pc-windows-msvc
     needs: prebuild
+  build-nostd:
+    name: Interpreter
+    uses: ./.github/workflows/ci-wasm.yml
+    needs: prebuild
