@@ -27,7 +27,6 @@ use crate::vm::{
     opmodes,
 };
 use crate::{ArithError, Float, Ops, ParseError, Str};
-use core::ffi::c_void;
 use core::fmt::Display;
 use core::ops::Deref;
 use core::ptr::null_mut;
@@ -433,7 +432,7 @@ unsafe fn savelineinfo<D>(
         fresh0 as c_int >= 128 as c_int
     } {
         (*f).abslineinfo = luaM_growaux_(
-            (*f).abslineinfo as *mut c_void,
+            (*f).abslineinfo,
             (*fs).nabslineinfo,
             &mut (*f).sizeabslineinfo,
             ::core::mem::size_of::<AbsLineInfo>() as c_ulong as c_int,
@@ -447,7 +446,8 @@ unsafe fn savelineinfo<D>(
             }) as c_int,
             "lines",
             (*ls).linenumber,
-        )? as *mut AbsLineInfo;
+        )?;
+
         (*((*f).abslineinfo).offset((*fs).nabslineinfo as isize)).pc = pc;
         let fresh1 = (*fs).nabslineinfo;
         (*fs).nabslineinfo = (*fs).nabslineinfo + 1;
@@ -457,7 +457,7 @@ unsafe fn savelineinfo<D>(
     }
 
     (*f).lineinfo = luaM_growaux_(
-        (*f).lineinfo as *mut c_void,
+        (*f).lineinfo,
         pc,
         &mut (*f).sizelineinfo,
         ::core::mem::size_of::<i8>() as c_ulong as c_int,
@@ -470,7 +470,7 @@ unsafe fn savelineinfo<D>(
         }) as c_int,
         "opcodes",
         (*ls).linenumber,
-    )? as *mut i8;
+    )?;
 
     *((*f).lineinfo).offset(pc as isize) = linedif as i8;
     (*fs).previousline = line;
@@ -506,7 +506,7 @@ pub unsafe fn luaK_code<D>(
     let f = (*fs).f;
 
     (*f).code = luaM_growaux_(
-        (*f).code as *mut c_void,
+        (*f).code,
         (*fs).pc,
         &mut (*f).sizecode,
         ::core::mem::size_of::<u32>() as c_ulong as c_int,
@@ -519,7 +519,7 @@ pub unsafe fn luaK_code<D>(
         }) as c_int,
         "opcodes",
         (*ls).linenumber,
-    )? as *mut u32;
+    )?;
 
     let fresh2 = (*fs).pc;
     (*fs).pc = (*fs).pc + 1;
@@ -728,8 +728,9 @@ unsafe fn addk<D>(
     (*io).value_.i = k as i64;
     (*io).tt_ = (3 as c_int | (0 as c_int) << 4 as c_int) as u8;
     luaH_finishset((*ls).h.deref(), key, idx, &raw const val).unwrap(); // This should never fails.
+
     (*f).k = luaM_growaux_(
-        (*f).k as *mut c_void,
+        (*f).k,
         k,
         &mut (*f).sizek,
         ::core::mem::size_of::<UnsafeValue<D>>() as c_ulong as c_int,
@@ -745,7 +746,8 @@ unsafe fn addk<D>(
         }) as c_int,
         "constants",
         (*ls).linenumber,
-    )? as *mut UnsafeValue<D>;
+    )?;
+
     while oldsize < (*f).sizek {
         let fresh3 = oldsize;
         oldsize = oldsize + 1;

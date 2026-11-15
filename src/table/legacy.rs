@@ -14,7 +14,6 @@ use alloc::alloc::handle_alloc_error;
 use core::alloc::Layout;
 use core::any::TypeId;
 use core::cell::Cell;
-use core::ffi::c_void;
 use core::hash::{Hash, Hasher};
 use core::marker::PhantomPinned;
 use core::ptr::{null, null_mut};
@@ -538,17 +537,10 @@ pub unsafe extern "C-unwind" fn luaH_resize<A>(t: *const Table<A>, newasize: u32
     }
 
     newarray = luaM_realloc_(
-        (*t).array.get() as *mut c_void,
+        (*t).array.get(),
         (oldasize as usize).wrapping_mul(size_of::<UnsafeValue<A>>()),
         (newasize as usize).wrapping_mul(size_of::<UnsafeValue<A>>()),
-    ) as *mut UnsafeValue<A>;
-
-    if ((newarray.is_null() && newasize > 0 as c_int as c_uint) as c_int != 0 as c_int) as c_int
-        as c_long
-        != 0
-    {
-        todo!("invoke handle_alloc_error");
-    }
+    );
 
     exchangehashpart(t, &raw mut newt);
     (*t).array.set(newarray);

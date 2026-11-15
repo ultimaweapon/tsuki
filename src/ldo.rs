@@ -20,7 +20,7 @@ use alloc::rc::Rc;
 use alloc::string::String;
 use core::alloc::Layout;
 use core::error::Error;
-use core::ffi::{c_char, c_void};
+use core::ffi::c_char;
 use core::mem::transmute;
 use core::ops::Deref;
 use core::pin::{Pin, pin};
@@ -486,15 +486,15 @@ pub unsafe fn luaD_protectedparser<D>(
     }
 
     luaM_free_(
-        dyd.actvar.arr as *mut c_void,
+        dyd.actvar.arr,
         (dyd.actvar.size as usize).wrapping_mul(size_of::<Vardesc<D>>()),
     );
     luaM_free_(
-        dyd.gt.arr as *mut c_void,
+        dyd.gt.arr,
         (dyd.gt.size as usize).wrapping_mul(size_of::<Labeldesc<D>>()),
     );
     luaM_free_(
-        dyd.label.arr as *mut c_void,
+        dyd.label.arr,
         (dyd.label.size as usize).wrapping_mul(size_of::<Labeldesc<D>>()),
     );
 

@@ -38,7 +38,7 @@ use alloc::format;
 use alloc::rc::Rc;
 use alloc::string::String;
 use core::convert::identity;
-use core::ffi::{c_char, c_void};
+use core::ffi::c_char;
 use core::fmt::Display;
 use core::ptr::{null, null_mut};
 
@@ -422,8 +422,9 @@ unsafe fn registerlocalvar<D>(
 ) -> Result<c_int, ParseError> {
     let f = (*fs).f;
     let mut oldsize: c_int = (*f).sizelocvars;
+
     (*f).locvars = luaM_growaux_(
-        (*f).locvars as *mut c_void,
+        (*f).locvars,
         (*fs).ndebugvars as c_int,
         &mut (*f).sizelocvars,
         ::core::mem::size_of::<LocVar<D>>() as c_ulong as c_int,
@@ -436,7 +437,8 @@ unsafe fn registerlocalvar<D>(
         }) as c_int,
         "local variables",
         (*ls).linenumber,
-    )? as *mut LocVar<D>;
+    )?;
+
     while oldsize < (*f).sizelocvars {
         let fresh0 = oldsize;
         oldsize = oldsize + 1;
@@ -476,14 +478,15 @@ unsafe fn new_localvar<A>(
     )?;
 
     (*dyd).actvar.arr = luaM_growaux_(
-        (*dyd).actvar.arr as *mut c_void,
+        (*dyd).actvar.arr,
         (*dyd).actvar.n + 1 as c_int,
         &raw mut (*dyd).actvar.size,
         size_of::<Vardesc<A>>() as c_ulong as c_int,
         i16::MAX.into(),
         "local variables",
         (*ls).linenumber,
-    )? as *mut Vardesc<A>;
+    )?;
+
     let fresh4 = (*dyd).actvar.n;
     (*dyd).actvar.n = (*dyd).actvar.n + 1;
     let var = ((*dyd).actvar.arr).offset(fresh4 as isize) as *mut Vardesc<A>;
@@ -649,7 +652,7 @@ unsafe fn allocupvalue<D>(
     )?;
 
     (*f).upvalues = luaM_growaux_(
-        (*f).upvalues as *mut c_void,
+        (*f).upvalues,
         (*fs).nups as c_int,
         &mut (*f).sizeupvalues,
         ::core::mem::size_of::<Upvaldesc<D>>() as c_ulong as c_int,
@@ -662,7 +665,8 @@ unsafe fn allocupvalue<D>(
         }) as c_int,
         "upvalues",
         (*ls).linenumber,
-    )? as *mut Upvaldesc<D>;
+    )?;
+
     while oldsize < (*f).sizeupvalues {
         let fresh8 = oldsize;
         oldsize = oldsize + 1;
@@ -909,7 +913,7 @@ unsafe fn newlabelentry<A>(
 ) -> Result<c_int, ParseError> {
     let n: c_int = (*l).n;
     (*l).arr = luaM_growaux_(
-        (*l).arr as *mut c_void,
+        (*l).arr,
         n,
         &mut (*l).size,
         ::core::mem::size_of::<Labeldesc<A>>() as c_ulong as c_int,
@@ -922,7 +926,7 @@ unsafe fn newlabelentry<A>(
         }) as c_int,
         "labels/gotos",
         (*ls).linenumber,
-    )? as *mut Labeldesc<A>;
+    )?;
     let ref mut fresh11 = (*((*l).arr).offset(n as isize)).name;
     *fresh11 = name;
     (*((*l).arr).offset(n as isize)).line = line;
@@ -1077,8 +1081,9 @@ unsafe fn addprototype<A>(
 
     if (*fs).np >= (*f).sizep {
         let mut oldsize: c_int = (*f).sizep;
+
         (*f).p = luaM_growaux_(
-            (*f).p as *mut c_void,
+            (*f).p,
             (*fs).np,
             &mut (*f).sizep,
             ::core::mem::size_of::<*mut Proto<A>>() as c_ulong as c_int,
@@ -1092,7 +1097,8 @@ unsafe fn addprototype<A>(
             }) as c_int,
             "functions",
             (*ls).linenumber,
-        )? as *mut *mut Proto<A>;
+        )?;
+
         while oldsize < (*f).sizep {
             let fresh12 = oldsize;
             oldsize = oldsize + 1;
@@ -1167,55 +1173,55 @@ unsafe fn close_func<A>(ls: *mut LexState<A>, fs: *mut FuncState<A>) -> Result<(
     luaK_ret(ls, fs, luaY_nvarstack(ls, fs), 0 as c_int)?;
     leaveblock(ls, fs)?;
     luaK_finish(ls, fs)?;
+
     (*f).code = luaM_shrinkvector_(
-        (*ls).g,
-        (*f).code as *mut c_void,
+        (*f).code,
         &mut (*f).sizecode,
         (*fs).pc,
         ::core::mem::size_of::<u32>() as c_ulong as c_int,
-    ) as *mut u32;
+    );
+
     (*f).lineinfo = luaM_shrinkvector_(
-        (*ls).g,
-        (*f).lineinfo as *mut c_void,
+        (*f).lineinfo,
         &mut (*f).sizelineinfo,
         (*fs).pc,
         ::core::mem::size_of::<i8>() as c_ulong as c_int,
-    ) as *mut i8;
+    );
+
     (*f).abslineinfo = luaM_shrinkvector_(
-        (*ls).g,
-        (*f).abslineinfo as *mut c_void,
+        (*f).abslineinfo,
         &mut (*f).sizeabslineinfo,
         (*fs).nabslineinfo,
         ::core::mem::size_of::<AbsLineInfo>() as c_ulong as c_int,
-    ) as *mut AbsLineInfo;
+    );
+
     (*f).k = luaM_shrinkvector_(
-        (*ls).g,
-        (*f).k as *mut c_void,
+        (*f).k,
         &mut (*f).sizek,
         (*fs).nk,
         ::core::mem::size_of::<UnsafeValue<A>>() as c_ulong as c_int,
-    ) as *mut UnsafeValue<A>;
+    );
+
     (*f).p = luaM_shrinkvector_(
-        (*ls).g,
-        (*f).p as *mut c_void,
+        (*f).p,
         &mut (*f).sizep,
         (*fs).np,
         ::core::mem::size_of::<*mut Proto<A>>() as c_ulong as c_int,
-    ) as *mut *mut Proto<A>;
+    );
+
     (*f).locvars = luaM_shrinkvector_(
-        (*ls).g,
-        (*f).locvars as *mut c_void,
+        (*f).locvars,
         &mut (*f).sizelocvars,
         (*fs).ndebugvars as c_int,
         ::core::mem::size_of::<LocVar<A>>() as c_ulong as c_int,
-    ) as *mut LocVar<A>;
+    );
+
     (*f).upvalues = luaM_shrinkvector_(
-        (*ls).g,
-        (*f).upvalues as *mut c_void,
+        (*f).upvalues,
         &mut (*f).sizeupvalues,
         (*fs).nups as c_int,
         ::core::mem::size_of::<Upvaldesc<A>>() as c_ulong as c_int,
-    ) as *mut Upvaldesc<A>;
+    );
 
     Ok(())
 }

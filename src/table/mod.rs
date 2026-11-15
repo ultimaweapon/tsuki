@@ -493,7 +493,7 @@ impl<A> Drop for Table<A> {
         unsafe { freehash(self) };
         unsafe {
             luaM_free_(
-                self.array.get().cast(),
+                self.array.get(),
                 (luaH_realasize(self) as usize).wrapping_mul(size_of::<UnsafeValue<A>>()),
             )
         };

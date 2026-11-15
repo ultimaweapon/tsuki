@@ -13,7 +13,7 @@ use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::string::String;
 use core::cell::{Cell, UnsafeCell};
-use core::ffi::{c_char, c_void};
+use core::ffi::c_char;
 
 type c_int = i32;
 type c_uint = u32;
@@ -125,43 +125,43 @@ impl<D> Drop for Proto<D> {
     fn drop(&mut self) {
         unsafe {
             luaM_free_(
-                self.code as *mut c_void,
+                self.code,
                 (self.sizecode as usize).wrapping_mul(::core::mem::size_of::<u32>()),
             )
         };
         unsafe {
             luaM_free_(
-                self.p as *mut c_void,
+                self.p,
                 (self.sizep as usize).wrapping_mul(::core::mem::size_of::<*mut Self>()),
             )
         };
         unsafe {
             luaM_free_(
-                self.k as *mut c_void,
+                self.k,
                 (self.sizek as usize).wrapping_mul(::core::mem::size_of::<UnsafeValue<D>>()),
             )
         };
         unsafe {
             luaM_free_(
-                self.lineinfo as *mut c_void,
+                self.lineinfo,
                 (self.sizelineinfo as usize).wrapping_mul(::core::mem::size_of::<i8>()),
             )
         };
         unsafe {
             luaM_free_(
-                self.abslineinfo as *mut c_void,
+                self.abslineinfo,
                 (self.sizeabslineinfo as usize).wrapping_mul(::core::mem::size_of::<AbsLineInfo>()),
             )
         };
         unsafe {
             luaM_free_(
-                self.locvars as *mut c_void,
+                self.locvars,
                 (self.sizelocvars as usize).wrapping_mul(::core::mem::size_of::<LocVar<D>>()),
             )
         };
         unsafe {
             luaM_free_(
-                self.upvalues as *mut c_void,
+                self.upvalues,
                 (self.sizeupvalues as usize).wrapping_mul(::core::mem::size_of::<Upvaldesc<D>>()),
             )
         };

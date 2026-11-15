@@ -1,21 +1,22 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::{Lua, ParseError};
-use core::ffi::c_void;
-use libc::{free, realloc};
+use crate::ParseError;
+use alloc::alloc::handle_alloc_error;
+use core::alloc::Layout;
+use core::ptr::null_mut;
 
 type c_int = i32;
 
-pub unsafe fn luaM_growaux_(
-    block: *mut c_void,
+pub unsafe fn luaM_growaux_<T>(
+    block: *mut T,
     nelems: c_int,
     psize: *mut c_int,
     size_elems: c_int,
     limit: c_int,
     name: &'static str,
     line: c_int,
-) -> Result<*mut c_void, ParseError> {
+) -> Result<*mut T, ParseError> {
     let mut size: c_int = *psize;
     if nelems + 1 as c_int <= size {
         return Ok(block);
@@ -32,7 +33,7 @@ pub unsafe fn luaM_growaux_(
         }
     }
 
-    let newblock = luaM_saferealloc_(
+    let newblock = luaM_realloc_(
         block,
         *psize as usize * size_elems as usize,
         size as usize * size_elems as usize,
@@ -41,45 +42,59 @@ pub unsafe fn luaM_growaux_(
     return Ok(newblock);
 }
 
-pub unsafe fn luaM_shrinkvector_<D>(
-    g: *const Lua<D>,
-    block: *mut c_void,
+pub unsafe fn luaM_shrinkvector_<T>(
+    block: *mut T,
     size: *mut c_int,
     final_n: c_int,
     size_elem: c_int,
-) -> *mut c_void {
+) -> *mut T {
     let oldsize: usize = (*size * size_elem) as usize;
     let newsize: usize = (final_n * size_elem) as usize;
-    let newblock = luaM_saferealloc_(block, oldsize, newsize);
+    let newblock = luaM_realloc_(block, oldsize, newsize);
     *size = final_n;
     return newblock;
 }
 
-pub unsafe fn luaM_free_(block: *mut c_void, osize: usize) {
-    free(block);
+pub unsafe fn luaM_free_<T>(block: *mut T, osize: usize) {
+    if osize == 0 {
+        return;
+    }
+
+    alloc::alloc::dealloc(
+        block.cast(),
+        Layout::from_size_align(osize, align_of::<T>()).unwrap(),
+    );
 }
 
-pub unsafe fn luaM_realloc_(block: *mut c_void, osize: usize, nsize: usize) -> *mut c_void {
-    let newblock = if nsize == 0 {
-        free(block);
-        0 as *mut c_void
+pub unsafe fn luaM_realloc_<T>(block: *mut T, osize: usize, nsize: usize) -> *mut T {
+    let align = align_of::<T>();
+
+    if nsize == 0 {
+        if osize != 0 {
+            alloc::alloc::dealloc(block.cast(), Layout::from_size_align(osize, align).unwrap());
+        }
+
+        null_mut()
+    } else if osize != 0 {
+        let v = alloc::alloc::realloc(
+            block.cast(),
+            Layout::from_size_align(osize, align).unwrap(),
+            nsize,
+        );
+
+        if v.is_null() {
+            handle_alloc_error(Layout::from_size_align(nsize, align).unwrap());
+        }
+
+        v.cast()
     } else {
-        realloc(block, nsize)
-    };
+        let l = Layout::from_size_align(nsize, align).unwrap();
+        let v = alloc::alloc::alloc(l);
 
-    if newblock.is_null() && nsize > 0 {
-        return 0 as *mut c_void;
+        if v.is_null() {
+            handle_alloc_error(l);
+        }
+
+        v.cast()
     }
-
-    return newblock;
-}
-
-pub unsafe fn luaM_saferealloc_(block: *mut c_void, osize: usize, nsize: usize) -> *mut c_void {
-    let newblock: *mut c_void = luaM_realloc_(block, osize, nsize);
-
-    if newblock.is_null() && nsize > 0 {
-        todo!("invoke handle_alloc_error");
-    }
-
-    newblock
 }
