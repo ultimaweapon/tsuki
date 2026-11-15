@@ -12,5 +12,7 @@ jobs:
         submodules: recursive
     - name: Update Rust
       run: rustup update stable
+    - name: Install wasm32-unknown-unknown target
+      run: rustup target add wasm32-unknown-unknown
     - name: Build
       run: cargo build --target wasm32-unknown-unknown --no-default-features -r
