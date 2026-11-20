@@ -1,2 +1,6 @@
+.DS_Store
 /Cargo.lock
+/node_modules/
 /target
+/tsconfig.tsbuildinfo
+/web/

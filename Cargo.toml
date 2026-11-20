@@ -54,4 +54,4 @@ tokio = { version = "1.47.1", features = ["rt", "time"] }
 debug = "full"
 
 [workspace]
-members = ["macros"]
+members = ["macros", "playground"]
