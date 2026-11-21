@@ -8,7 +8,7 @@ export default defineConfigWithVueTs(
     name: 'app/files-to-lint',
     files: ['playground/**/*.{vue,ts,mts,tsx}'],
   },
-  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**']),
+  globalIgnores(['**/web/**']),
   ...pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,
   skipFormatting,
