@@ -11,10 +11,11 @@
     "type-check": "vue-tsc --build",
     "build-vue": "vite build",
     "lint": "eslint . --fix --cache",
-    "format": "prettier --write --experimental-cli playground/"
+    "check-styles": "prettier --check --experimental-cli playground/"
   },
   "dependencies": {
     "bootstrap": "^5.3.9",
+    "bootstrap-icons": "^1.13.2",
     "vue": "^3.5.42",
     "vue-router": "^5.3.1"
   },
