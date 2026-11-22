@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node playground/build-wasm.js && vite",
     "preview": "vite preview",
     "build": "run-s build-wasm type-check \"build-vue {@}\" --",
     "build-wasm": "node playground/build-wasm.js",

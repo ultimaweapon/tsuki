@@ -30,6 +30,7 @@
 import { useTemplateRef } from 'vue';
 import LuaEditor from './components/lua-editor';
 import OutputViewer from './components/output-viewer';
+import { Context } from './context';
 import * as rust from './rust';
 
 const editor = useTemplateRef('editor');
@@ -39,24 +40,25 @@ const output = useTemplateRef('output');
 const run = () => {
   const code = editor.value?.retrieve();
 
-  if (!code) {
+  if (!code || !output.value) {
     return;
   }
 
-  output.value?.clear();
+  output.value.clear();
 
   // Run code.
+  const c = new Context(output.value);
   let e;
 
   try {
-    e = rust.run(code);
+    e = rust.run(c, code);
   } catch (e) {
     console.error(e);
     return;
   }
 
   if (e) {
-    output.value?.writeln(e);
+    output.value.writeln(e);
   }
 };
 </script>
