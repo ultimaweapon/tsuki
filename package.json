@@ -16,8 +16,8 @@
   "dependencies": {
     "bootstrap": "^5.3.9",
     "bootstrap-icons": "^1.13.2",
-    "vue": "^3.5.42",
-    "vue-router": "^5.3.1"
+    "monaco-editor": "^0.57.0",
+    "vue": "^3.5.42"
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.5",
