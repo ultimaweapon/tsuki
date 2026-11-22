@@ -4,6 +4,8 @@ import { defineConfig } from 'vite';
 import vueDevTools from 'vite-plugin-vue-devtools';
 import wasm from 'vite-plugin-wasm';
 
+const base = process.env.TSUKI_PLAYGROUND_BASE;
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue(), vueDevTools(), wasm()],
@@ -24,4 +26,5 @@ export default defineConfig({
   build: {
     outDir: 'web',
   },
+  base,
 });

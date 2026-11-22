@@ -60,6 +60,8 @@ jobs:
   build-playground:
     name: Build Playground
     runs-on: ubuntu-latest
+    env:
+      TSUKI_PLAYGROUND_BASE: /tsuki/
     needs: prebuild
     steps:
     - name: Check out repository

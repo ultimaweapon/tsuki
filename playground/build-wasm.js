@@ -15,11 +15,9 @@ const cargo = spawn(
     'json-render-diagnostics',
   ],
   {
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: ['ignore', 'pipe', 'inherit'],
   },
 );
-
-cargo.stderr.setEncoding('utf8');
 
 // Read output.
 let success, bin;
@@ -47,7 +45,6 @@ for await (const line of rl) {
 }
 
 if (!success) {
-  console.error(cargo.stderr.read());
   process.exit(1);
 } else if (!bin) {
   console.error('Missing binary path from Cargo.');

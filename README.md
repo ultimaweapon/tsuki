@@ -115,6 +115,7 @@ When JIT is enabled, calling Lua function from Lua also consume Rust stack. The 
 ## Non-goals
 
 - C API compatibility.
+- mlua API compatibility.
 - Stand-alone mode.
 - 16-bit systems.
 
