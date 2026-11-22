@@ -23,14 +23,17 @@
   </nav>
   <!-- content -->
   <LuaEditor class="flex-grow-1" ref="editor"></LuaEditor>
+  <OutputViewer style="height: 150px" ref="output"></OutputViewer>
 </template>
 
 <script setup lang="ts">
 import { useTemplateRef } from 'vue';
 import LuaEditor from './components/lua-editor';
+import OutputViewer from './components/output-viewer';
 import * as rust from './rust';
 
 const editor = useTemplateRef('editor');
+const output = useTemplateRef('output');
 
 // Event handlers.
 const run = () => {
@@ -40,6 +43,20 @@ const run = () => {
     return;
   }
 
-  rust.run(code);
+  output.value?.clear();
+
+  // Run code.
+  let e;
+
+  try {
+    e = rust.run(code);
+  } catch (e) {
+    console.error(e);
+    return;
+  }
+
+  if (e) {
+    output.value?.writeln(e);
+  }
 };
 </script>

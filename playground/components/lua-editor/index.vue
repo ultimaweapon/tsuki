@@ -13,7 +13,7 @@ import { onMounted, onUnmounted, shallowRef, useTemplateRef } from 'vue';
 const root = useTemplateRef('root');
 const editor = shallowRef(null as monaco.editor.IStandaloneCodeEditor | null);
 
-// Methods.
+// Public methods.
 const retrieve = () => editor.value?.getValue() ?? '';
 
 defineExpose({ retrieve });

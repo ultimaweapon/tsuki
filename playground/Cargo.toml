@@ -8,5 +8,6 @@ crate-type = ["cdylib"]
 path = "rust/lib.rs"
 
 [dependencies]
+erdp = "0.2.1"
 tsuki = { path = "..", default-features = false }
 wasm-bindgen = "0.2.130"

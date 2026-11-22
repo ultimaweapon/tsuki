@@ -14,6 +14,8 @@
     "check-styles": "prettier --check --experimental-cli playground/"
   },
   "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "bootstrap": "^5.3.9",
     "bootstrap-icons": "^1.13.2",
     "monaco-editor": "^0.57.0",

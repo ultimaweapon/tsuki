@@ -29,7 +29,8 @@
   },
   "[vue]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2
   },
   "files.insertFinalNewline": true,
   "files.trimFinalNewlines": true,
