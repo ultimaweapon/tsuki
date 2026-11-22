@@ -4,7 +4,7 @@
     <div class="container-fluid">
       <!-- left group -->
       <form class="d-flex">
-        <button class="btn btn-primary" type="button">Run</button>
+        <button class="btn btn-primary" type="button" @click="run">Run</button>
       </form>
       <!-- right group -->
       <ul class="navbar-nav">
@@ -22,9 +22,24 @@
     </div>
   </nav>
   <!-- content -->
-  <LuaEditor class="flex-grow-1"></LuaEditor>
+  <LuaEditor class="flex-grow-1" ref="editor"></LuaEditor>
 </template>
 
 <script setup lang="ts">
+import { useTemplateRef } from 'vue';
 import LuaEditor from './components/lua-editor';
+import * as rust from './rust';
+
+const editor = useTemplateRef('editor');
+
+// Event handlers.
+const run = () => {
+  const code = editor.value?.retrieve();
+
+  if (!code) {
+    return;
+  }
+
+  rust.run(code);
+};
 </script>
