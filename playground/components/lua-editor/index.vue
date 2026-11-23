@@ -9,7 +9,9 @@ const isDark = window.matchMedia('(prefers-color-scheme: dark)');
 <script setup lang="ts">
 import * as monaco from 'monaco-editor';
 import { onMounted, onUnmounted, shallowRef, useTemplateRef } from 'vue';
+import type { Props } from './props';
 
+const props = defineProps<Props>();
 const root = useTemplateRef('root');
 const editor = shallowRef(null as monaco.editor.IStandaloneCodeEditor | null);
 
@@ -23,6 +25,7 @@ let onColorSchemeChange = null as ((ev: MediaQueryListEvent) => void) | null;
 
 onMounted(() => {
   editor.value = monaco.editor.create(root.value as HTMLElement, {
+    value: props.init,
     language: 'lua',
     autoIndent: 'full', // TODO: This does not currently working.
     tabSize: 2,

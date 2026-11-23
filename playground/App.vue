@@ -22,12 +22,12 @@
     </div>
   </nav>
   <!-- content -->
-  <LuaEditor class="flex-grow-1" ref="editor"></LuaEditor>
+  <LuaEditor class="flex-grow-1" ref="editor" :init="code"></LuaEditor>
   <OutputViewer style="height: 200px" ref="output"></OutputViewer>
 </template>
 
 <script setup lang="ts">
-import { useTemplateRef } from 'vue';
+import { onBeforeUnmount, useTemplateRef } from 'vue';
 import LuaEditor from './components/lua-editor';
 import OutputViewer from './components/output-viewer';
 import { Context } from './context';
@@ -35,6 +35,22 @@ import * as rust from './rust';
 
 const editor = useTemplateRef('editor');
 const output = useTemplateRef('output');
+const code = localStorage.getItem('editor.code') ?? undefined;
+
+// Install visibilitychange handler to save Lua code.
+const save = () => {
+  if (document.hidden) {
+    const code = editor.value?.retrieve();
+
+    if (!code) {
+      return;
+    }
+
+    localStorage.setItem('editor.code', code);
+  }
+};
+
+document.addEventListener('visibilitychange', save);
 
 // Event handlers.
 const run = () => {
@@ -61,4 +77,7 @@ const run = () => {
     output.value.writeln(e);
   }
 };
+
+// Lifecycle hooks.
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', save));
 </script>
