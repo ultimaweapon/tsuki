@@ -23,7 +23,7 @@
   </nav>
   <!-- content -->
   <LuaEditor class="flex-grow-1" ref="editor"></LuaEditor>
-  <OutputViewer style="height: 150px" ref="output"></OutputViewer>
+  <OutputViewer style="height: 200px" ref="output"></OutputViewer>
 </template>
 
 <script setup lang="ts">
@@ -53,7 +53,7 @@ const run = () => {
   try {
     e = rust.run(c, code);
   } catch (e) {
-    console.error(e);
+    alert(e);
     return;
   }
 
