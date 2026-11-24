@@ -8,7 +8,7 @@ Tsuki is a port of Lua 5.4 to Rust. This is porting, not binding; which mean all
 
 ## Status
 
-The VM to run Lua code is fully working almost exactly as vanilla Lua (see some of differences below). Some functions on Lua standard library are still missing.
+The VM to run Lua code is fully working almost exactly as vanilla Lua (see some of differences below). Some functions on Lua standard library are still missing. You can try Tsuki in the [playground](https://ultimaweapon.github.io/tsuki). The playground run entirely in your browser using Tsuki compiled for `wasm32-unknown-unknown`.
 
 > [!IMPORTANT]
 > All types in Tsuki does not implement `Send` and `Sync` and no plan to support this at the moment.
@@ -42,7 +42,7 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 
 ## Features
 
-- 100% Rust code.
+- 100% Rust code with `no_std`.
 - Support JIT.
 - Support both synchronous and asynchronous.
 - Safe, ergonomic and low overhead API.
