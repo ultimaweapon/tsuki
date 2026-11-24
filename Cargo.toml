@@ -1,7 +1,7 @@
 [package]
 name = "tsuki"
 description = "Lua 5.4 ported to Rust"
-version = "0.4.9"
+version = "0.4.10"
 license = "MIT"
 repository = "https://github.com/ultimaweapon/tsuki"
 edition = "2024"
@@ -16,14 +16,8 @@ harness = false
 
 [features]
 default = ["rand", "std"]
-
-# Compile Lua bytecode to machine code with Cranelift. This is a preview feature and may contains
-# memory bugs.
 jit = ["std", "dep:cranelift-codegen", "dep:cranelift-frontend", "dep:cranelift-native", "dep:libc", "dep:target-lexicon", "dep:windows-sys"]
-
-# Generate JITDUMP file. Only Linux is currently supported.
 jit-profiling = ["jit"]
-
 rand = ["dep:rand"]
 serde = ["dep:serde"]
 std = ["libm/arch", "tsuki-macros/std"]

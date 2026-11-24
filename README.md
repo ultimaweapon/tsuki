@@ -43,7 +43,6 @@ A call to async function without any suspend on Tsuki is faster than mlua about 
 ## Features
 
 - 100% Rust code.
-  - [libc](https://crates.io/crates/libc) is required at the moment.
 - Support JIT.
 - Support both synchronous and asynchronous.
 - Safe, ergonomic and low overhead API.
@@ -118,11 +117,6 @@ When JIT is enabled, calling Lua function from Lua also consume Rust stack. The 
 - mlua API compatibility.
 - Stand-alone mode.
 - 16-bit systems.
-
-## Roadmap
-
-- Complete Lua standard library.
-- Remove libc.
 
 ## Breaking changes in 0.4
 
